@@ -1,0 +1,73 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 13px 3px 10px;
+  border-radius: 999px;
+  border: var(--border-width) solid var(--border);
+  font-size: 16px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.icon {
+  flex: none;
+}
+
+/* One recipe per state: the status colour as text, a 45% edge, a 9% fill and a
+   soft glow. Written as channels so every theme gets its own version. */
+.success {
+  color: var(--ok);
+  border-color: rgb(var(--ok-rgb) / var(--edge-alpha));
+  background: rgb(var(--ok-rgb) / 0.09);
+  box-shadow: 0 0 12px rgb(var(--ok-rgb) / 0.12);
+}
+
+.fail {
+  color: var(--fail);
+  border-color: rgb(var(--fail-rgb) / var(--edge-alpha));
+  background: rgb(var(--fail-rgb) / 0.09);
+  box-shadow: 0 0 12px rgb(var(--fail-rgb) / 0.12);
+}
+
+.running {
+  color: var(--busy);
+  border-color: rgb(var(--busy-rgb) / var(--edge-alpha));
+  background: rgb(var(--busy-rgb) / 0.09);
+  box-shadow: 0 0 12px rgb(var(--busy-rgb) / 0.18);
+}
+
+.running .icon {
+  animation: spin 1.1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * The only state on this screen that will not resolve itself. Every other
+ * status is a report; this one is a request, so it is the loudest thing in
+ * the list and shares its hue with nothing else.
+ */
+.waiting {
+  color: var(--waiting);
+  border-color: rgb(var(--waiting-rgb) / var(--edge-alpha));
+  background: rgb(var(--waiting-rgb) / 0.12);
+  box-shadow: 0 0 14px rgb(var(--waiting-rgb) / 0.22);
+}
+
+.queued {
+  color: var(--dim);
+  border-style: dashed;
+}
+
+/* Succeeded once, then replaced by a later run of the same step. Dimmed
+   rather than coloured: it is history, and it must not compete with the
+   attempt that is standing. */
+.superseded {
+  color: var(--dim);
+  text-decoration: line-through;
+}

@@ -1,0 +1,517 @@
+import { Bot, SquareTerminal, UserRound } from 'lucide-react'
+import type { ComponentType, CSSProperties } from 'react'
+import { useMemo } from 'react'
+import { agentColor, hexAlpha, parseAgentStart } from '../lib/events'
+import { axisTicks, fmtDate, payloadOk, ts } from '../lib/format'
+import { modelIcon, modelName } from '../lib/models'
+import { navigate } from '../lib/router'
+import type {
+  AgentStartPayload,
+  EventRow,
+  Phase,
+  PhaseKind,
+} from '../lib/types'
+import { useTrace } from '../lib/use-trace'
+import {
+  blockLayout,
+  contextFill,
+  contextLabel,
+  laneContext,
+  originMs as postOriginMs,
+  REQ_ZONE_PCT,
+  timeRange,
+  toolTickPositions,
+  type TLaneContext,
+} from '../lib/waterfall'
+import { DecisionRequest } from './DecisionRequest'
+import { RunControls } from './RunControls'
+import { SessionContext } from './SessionContext'
+import { PhaseDetail } from './PhaseDetail'
+import { StatChip } from './StatChip'
+import { StatusChip } from './StatusChip'
+import styles from './SessionTrace.module.css'
+import { paletteColor } from '../lib/palette'
+
+// The two lanes nobody configures: the request itself, and the code phases
+// that run without an agent. Roles like every other lane, so they re-theme
+// with the rest rather than staying dark-theme amber on a white page.
+const ENGINEER_COLOR = 'amber'
+const CODE_COLOR = 'teal'
+
+type TIconProps = Readonly<{ size?: number; strokeWidth?: number; className?: string }>
+
+const KIND_ICONS: Readonly<Record<PhaseKind, ComponentType<TIconProps>>> = {
+  engineer: UserRound,
+  code: SquareTerminal,
+  agent: Bot,
+}
+
+const STATUS_GLYPH: Readonly<Record<string, string>> = {
+  success: '\u2713',
+  fail: '\u2717',
+  running: '\u25cf',
+  queued: '\u25cb',
+}
+
+const NUM = new Intl.NumberFormat('en-US')
+
+type TLane = Readonly<{
+  id: string
+  label: string
+  /** Model driving this lane's agent — rendered with its provider icon. */
+  model: string | undefined
+  /** Context-window occupancy, or undefined while unknown (running / old db). */
+  context: TLaneContext | undefined
+  metaLines: readonly string[]
+  color: string
+  kind: PhaseKind
+  phases: readonly Phase[]
+}>
+
+/**
+ * A live agent's model, thinking level and colour arrive on its agent_start
+ * event before any agent_sessions row exists, so each start is attributed to
+ * its phase's owner.
+ */
+const startsByOwner = (
+  phases: readonly Phase[],
+  events: readonly EventRow[],
+): Readonly<Record<string, AgentStartPayload>> => {
+  const ownerByPhase = new Map(phases.map((p) => [p.phase_id, p.owner]))
+  const meta: Record<string, AgentStartPayload> = {}
+  for (const event of events) {
+    if (event.type !== 'agent_start') continue
+    const owner = (event.phase_id ? ownerByPhase.get(event.phase_id) : null) ?? event.name
+    if (!owner || meta[owner]) continue
+    const payload = parseAgentStart(event)
+    if (payload) meta[owner] = payload
+  }
+  return meta
+}
+
+export const SessionTrace = ({
+  runId,
+  workspace,
+  phaseId,
+}: Readonly<{
+  runId: string
+  phaseId: string | undefined
+  /** The tree this run is in, when the link said. Carried on every request. */
+  workspace: string | undefined
+}>) => {
+  const trace = useTrace(runId, workspace)
+  const { session, phases, agents, events, nowMs } = trace
+  const running = session?.status === 'running'
+
+  const selectedPhase = phases.find((p) => p.phase_id === phaseId)
+
+  const lanes = useMemo<readonly TLane[]>(() => {
+    const starts = startsByOwner(phases, events)
+    const agentOwners: string[] = []
+    for (const phase of phases) {
+      if (phase.kind === 'agent' && phase.owner && !agentOwners.includes(phase.owner)) {
+        agentOwners.push(phase.owner)
+      }
+    }
+    const codePhases = phases.filter((p) => p.kind === 'code')
+
+    const engineerLane: TLane = {
+      id: 'engineer',
+      label: session?.engineer ?? 'engineer',
+      model: undefined,
+      context: undefined,
+      metaLines: ['engineer'],
+      color: ENGINEER_COLOR,
+      kind: 'engineer',
+      phases: phases.filter((p) => p.kind === 'engineer'),
+    }
+
+    const codeLane: readonly TLane[] =
+      codePhases.length > 0
+        ? [
+            {
+              id: 'code',
+              label: 'code',
+              model: undefined,
+              context: undefined,
+              metaLines: ['workspace'],
+              color: CODE_COLOR,
+              kind: 'code',
+              phases: codePhases,
+            },
+          ]
+        : []
+
+    const agentLanes = agentOwners.map((owner, index): TLane => {
+      const info = agents.find((a) => a.agent === owner)
+      const start = starts[owner]
+      return {
+        id: `agent:${owner}`,
+        // The model is the lane's whole story; thinking level lives in the
+        // phase detail's agent config section.
+        model: info?.model ?? start?.model ?? undefined,
+        label: owner,
+        context: laneContext(info?.context_tokens, info?.context_window),
+        metaLines: [],
+        color: agentColor(info?.color, start?.color, index),
+        kind: 'agent',
+        phases: phases.filter((p) => p.kind === 'agent' && p.owner === owner),
+      }
+    })
+
+    return [engineerLane, ...codeLane, ...agentLanes]
+  }, [phases, agents, events, session?.engineer])
+
+  const range = useMemo(
+    () => timeRange(phases, session?.started_at, session?.ended_at, running, nowMs),
+    [phases, session?.started_at, session?.ended_at, running, nowMs],
+  )
+
+  const requestPhase = phases.find((p) => p.kind === 'engineer' && p.started_at)
+  const zonePct = requestPhase === undefined ? 0 : REQ_ZONE_PCT
+  const origin = useMemo(
+    () => postOriginMs(phases, requestPhase, range),
+    [phases, requestPhase, range],
+  )
+  const postSpan = Math.max(range.t1 - origin, 1000)
+
+  const ticks = useMemo(
+    () =>
+      axisTicks(postSpan, 7).map((tick) => ({
+        pct: zonePct + (tick.pct * (100 - zonePct)) / 100,
+        label: tick.label,
+      })),
+    [postSpan, zonePct],
+  )
+
+  const layout = useMemo(
+    () =>
+      blockLayout(phases, {
+        zonePct,
+        originMs: origin,
+        spanMs: postSpan,
+        requestPhaseId: requestPhase?.phase_id,
+        nowMs,
+      }),
+    [phases, zonePct, origin, postSpan, requestPhase?.phase_id, nowMs],
+  )
+
+  /** Tool-call marks per phase, read once rather than per block. */
+  const marksByPhase = useMemo(() => {
+    const map = new Map<string, { id: string; t: number; ok: boolean }[]>()
+    for (const event of events) {
+      if (event.type !== 'tool_call' || !event.phase_id) continue
+      const marks = map.get(event.phase_id) ?? []
+      marks.push({
+        id: event.event_id,
+        t: ts(event.started_at),
+        ok: payloadOk(event.payload_json),
+      })
+      map.set(event.phase_id, marks)
+    }
+    return map
+  }, [events])
+
+  const blockGeom = (phase: Phase): { left: string; width: string } | undefined => {
+    // The request block fills its reserved zone; nothing else ever enters it.
+    if (phase.phase_id === requestPhase?.phase_id && zonePct > 0) {
+      return { left: '0.4%', width: `${zonePct - 0.8}%` }
+    }
+    const geom = layout[phase.phase_id]
+    return geom === undefined
+      ? undefined
+      : { left: `${geom.left}%`, width: `${geom.width}%` }
+  }
+
+  const blockStyle = (phase: Phase, lane: TLane): CSSProperties | undefined => {
+    const geom = blockGeom(phase)
+    if (geom === undefined) return undefined
+    return {
+      left: geom.left,
+      width: geom.width,
+      background: `linear-gradient(180deg, ${hexAlpha(lane.color, 0.2)}, ${hexAlpha(lane.color, 0.05)})`,
+      borderColor:
+        phase.status === 'fail'
+          ? 'rgb(var(--fail-rgb) / 0.8)'
+          : hexAlpha(lane.color, 0.55),
+      '--lane-glow': hexAlpha(lane.color, 0.28),
+    } as CSSProperties
+  }
+
+  const blockDurationMs = (phase: Phase): number => {
+    const start = ts(phase.started_at)
+    if (!Number.isFinite(start)) return Number.NaN
+    const end = phase.status === 'running' ? nowMs : ts(phase.ended_at)
+    return Number.isFinite(end) ? end - start : Number.NaN
+  }
+
+  const sessionDurationMs = useMemo(() => {
+    const start = ts(session?.started_at)
+    if (!Number.isFinite(start)) return Number.NaN
+    const end = running ? nowMs : ts(session?.ended_at)
+    return (Number.isFinite(end) ? end : nowMs) - start
+  }, [session?.started_at, session?.ended_at, running, nowMs])
+
+  const selectPhase = (phase: Phase) =>
+    navigate(
+      runId,
+      phase.phase_id === phaseId ? undefined : phase.phase_id,
+      workspace,
+    )
+
+  return (
+    <div className={styles.trace}>
+      {trace.error !== undefined && (
+        <div className="error-bar">api unreachable — retrying {trace.error}</div>
+      )}
+
+      {session !== undefined && (
+        <div className={styles.runStrip}>
+          <span className={styles.request} title={session.request ?? ''}>
+            {session.request}
+          </span>
+          <StatusChip status={session.status ?? 'fail'} />
+          <span className="dim">started {fmtDate(session.started_at)}</span>
+          <span className={styles.runStats}>
+            <StatChip kind="cost" value={session.total_cost ?? undefined} />
+            <StatChip kind="runtime" value={sessionDurationMs} />
+            <StatChip kind="tokens" value={session.total_tokens ?? undefined} />
+            <StatChip kind="read" value={trace.usage.read} />
+            <StatChip kind="written" value={trace.usage.written} />
+          </span>
+        </div>
+      )}
+
+      {phases.length > 0 ? (
+        <div className={styles.waterfall}>
+          <div className={`${styles.row} ${styles.axisRow}`}>
+            <div className={styles.label} />
+            <div className={styles.track}>
+              {zonePct > 0 && (
+                <span className={styles.zoneHead} style={{ width: `${zonePct}%` }}>
+                  request
+                </span>
+              )}
+              {ticks.map((tick) => (
+                <span
+                  key={`${tick.label}-${tick.pct}`}
+                  className={styles.axisLabel}
+                  style={{ left: `${tick.pct}%` }}
+                >
+                  {tick.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {lanes.map((lane) => {
+            const KindIcon = KIND_ICONS[lane.kind]
+            const icon = lane.model === undefined ? null : modelIcon(lane.model)
+            const queued = lane.phases.filter((p) => !p.started_at)
+            return (
+              <div key={lane.id} className={`${styles.row} ${styles.lane}`}>
+                <div className={styles.label}>
+                  <span className={styles.laneName} style={{ color: paletteColor(lane.color) }}>
+                    <KindIcon className={styles.laneIcon} size={22} strokeWidth={2} />
+                    {lane.label}
+                  </span>
+                  {lane.model !== undefined && (
+                    <span
+                      className={`${styles.laneMeta} ${styles.laneModel}`}
+                      title={lane.model}
+                    >
+                      {icon !== null && (
+                        <img className={styles.modelIcon} src={icon} alt="" />
+                      )}
+                      {modelName(lane.model)}
+                    </span>
+                  )}
+                  {lane.context !== undefined && (
+                    <span
+                      className={styles.laneCtx}
+                      title={`${NUM.format(lane.context.used)} / ${NUM.format(lane.context.window)} tokens used · ${NUM.format(lane.context.window - lane.context.used)} remaining`}
+                    >
+                      <span className={styles.ctxHead}>
+                        <span className={styles.ctxLabel}>Context</span>
+                        <span className={styles.ctxPct}>{contextLabel(lane.context)}</span>
+                      </span>
+                      <span className={styles.ctxBar}>
+                        <span
+                          className={styles.ctxFill}
+                          style={{
+                            width: contextFill(lane.context),
+                            background: `linear-gradient(90deg, ${hexAlpha(lane.color, 0.55)}, ${paletteColor(lane.color)})`,
+                            boxShadow: `0 0 10px ${hexAlpha(lane.color, 0.45)}`,
+                          }}
+                        />
+                      </span>
+                    </span>
+                  )}
+                  {lane.metaLines.map((line) => (
+                    <span key={line} className={styles.laneMeta}>
+                      {line}
+                    </span>
+                  ))}
+                </div>
+                <div className={styles.track}>
+                  {zonePct > 0 && (
+                    <span className={styles.zoneDivider} style={{ left: `${zonePct}%` }} />
+                  )}
+                  {ticks.map((tick) => (
+                    <span
+                      key={`grid-${tick.label}-${tick.pct}`}
+                      className={styles.gridline}
+                      style={{ left: `${tick.pct}%` }}
+                    />
+                  ))}
+                  {lane.phases
+                    .filter((phase) => blockGeom(phase) !== undefined)
+                    .map((phase) => {
+                      const duration = blockDurationMs(phase)
+                      const tone = styles[phase.status ?? '']
+                      const selected = phase.phase_id === phaseId
+                      return (
+                        <button
+                          key={phase.phase_id}
+                          type="button"
+                          className={[
+                            styles.block,
+                            tone,
+                            selected ? styles.selected : undefined,
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          style={blockStyle(phase, lane)}
+                          title={`${phase.name} — ${phase.status}${phase.description ? `\n${phase.description}` : ''}`}
+                          onClick={() => selectPhase(phase)}
+                        >
+                          <span className={styles.blockTop}>
+                            <span className={`${styles.blockStatus} ${tone ?? ''}`}>
+                              {STATUS_GLYPH[phase.status ?? ''] ?? '\u25cb'}
+                            </span>
+                            <span className={styles.blockName}>{phase.name}</span>
+                            {Number.isFinite(duration) && (
+                              <StatChip kind="runtime" compact value={duration} />
+                            )}
+                          </span>
+                          <span className={styles.blockDesc}>{phase.description}</span>
+                          {toolTickPositions(
+                            phase,
+                            marksByPhase.get(phase.phase_id) ?? [],
+                            nowMs,
+                          ).map((mark) => (
+                            <span
+                              key={mark.id}
+                              className={mark.ok ? styles.toolTick : `${styles.toolTick} ${styles.err}`}
+                              style={{ left: `${mark.x}%` }}
+                            />
+                          ))}
+                        </button>
+                      )
+                    })}
+                  {queued.map((phase, index) => (
+                    <button
+                      key={phase.phase_id}
+                      type="button"
+                      className={[
+                        styles.block,
+                        styles.queued,
+                        phase.phase_id === phaseId ? styles.selected : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      style={{ right: `${10 + index * 5}px`, width: '170px' }}
+                      title={`${phase.name} — queued`}
+                      onClick={() => selectPhase(phase)}
+                    >
+                      <span className={styles.blockTop}>
+                        <span className={`${styles.blockStatus} ${styles.queued}`}>
+                          {'\u25cb'}
+                        </span>
+                        <span className={styles.blockName}>{phase.name}</span>
+                      </span>
+                      <span className={styles.blockDesc}>queued</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : trace.loaded ? (
+        <div className="empty-state">no phases recorded for this session</div>
+      ) : trace.error === undefined ? (
+        <div className="empty-state">loading trace…</div>
+      ) : undefined}
+
+      {/*
+        Below the waterfall, not above it.
+
+        It sat above because a question should be where the eye lands first,
+        which was true of an empty page and false of this one: the chart is
+        the thing being read, and pushing it down the screen to make room for
+        the question moved the subject to make room for the footnote. The
+        waiting status is already impossible to miss in the header chip.
+
+        The question still comes before the controls that answer it.
+      */}
+      {session !== undefined && selectedPhase === undefined && (
+        <>
+          <DecisionRequest
+            runId={runId}
+            status={session.status ?? ''}
+            workspace={workspace}
+            standalone
+          />
+          {/*
+            Controls only while there is something to control. On a finished
+            run this card said "there is nobody to talk to" above a disabled
+            field — a whole card to say nothing can be done. What CAN be done
+            is asking a step, and that belongs on the step, where the
+            conversation it continues is.
+          */}
+          {(session.status === 'running' || session.status === 'waiting') && (
+            <RunControls
+              runId={runId}
+              status={session.status ?? ''}
+              workspace={workspace}
+              standalone
+            />
+          )}
+          {/*
+            The run's own context, under the conversation: what was asked,
+            and every document the run produced. A step has its context in a
+            tab because it has fifteen kinds; a run has two, so folding them
+            would only cost a click.
+          */}
+          <SessionContext
+            session={session}
+            runId={runId}
+            workspace={workspace}
+            envelopes={trace.envelopes}
+            events={events}
+          />
+        </>
+      )}
+
+      {/*
+        One agent at a time, chosen by the Gantt. Sankey curves across three
+        concurrent agents interleaved by timestamp would be noise rather than
+        insight, so the selected phase decides whose conversation is on screen.
+      */}
+      {selectedPhase !== undefined && (
+        <PhaseDetail
+          phase={selectedPhase}
+          runId={runId}
+          runStatus={session?.status ?? ''}
+          events={events}
+          envelopes={trace.envelopes}
+          gates={trace.gates}
+          phases={phases}
+          workspace={workspace}
+          onClose={() => navigate(runId, undefined, workspace)}
+        />
+      )}
+    </div>
+  )
+}

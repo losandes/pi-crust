@@ -1,0 +1,100 @@
+# a stamped factory's runtime, if pi-crust is ever installed into itself
+.pi-crust/data/
+
+# OS directories and files
+.DS_Store
+Thumbs.db
+
+# ENVVARs & Secrets
+.env
+.env.*
+!.env.example
+!.envrc
+.envrc.*
+!.envrc.*.example
+**/*.secrets
+**/*.local
+.mcp.json
+!.mcp.json.example
+.aider*
+
+# AI Assistants
+.claude/*
+!.claude/settings.json
+!.claude/commands
+!.claude/hooks
+!.claude/skills
+.pi/*
+!.pi/settings.json
+
+# Temporary, hidden, symlinked, or generated files
+.deleteme*
+_deleteme*
+.docker_volumes
+# Scoped to scratch directories and temp-prefixed names rather than `temp*`,
+# which also matched `template.md` — the ADR template was created, ignored, and
+# left two documents pointing at a file git said did not exist.
+**/hidden
+**/temp/
+**/temp-*
+**/_temp/
+**/_temp-*
+temp.*
+_temp.*
+*.tmp
+*.temp
+!template*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tailwind.json
+!.vscode/tasks.json
+!.vscode/project.code-snippets.example
+*.code-workspace
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+.logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# NodeJS & Package Manager files
+node_modules/
+.npm
+.node_repl_history
+.pnpm-store
+
+# Distribution directories & Compiled binary addons (http://nodejs.org/api/addons.html)
+[Dd]ist
+dist-ssr
+[Bb]uild/Release
+[Bb]ackup
+[Rr]elease/
+.next
+*.tgz
+*.zip
+**/.act.env
+
+# Typescript v1 declaration files
+typings/
+
+# Code Coverage outputs (e.g. istanbul, jscoverage, JSCover, nyc, c8)
+lib-cov
+**/.coverage
+.nyc_output
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock

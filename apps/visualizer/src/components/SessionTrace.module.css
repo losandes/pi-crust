@@ -1,0 +1,297 @@
+.trace {
+  padding: 0 0 40px;
+}
+
+.runStrip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 24px;
+  border-bottom: var(--border-width) solid var(--border-soft);
+  flex-wrap: wrap;
+}
+
+.runStrip .request {
+  font-size: 17px;
+  color: var(--text);
+  max-width: 52ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runStats {
+  display: inline-flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.waterfall {
+  margin: 20px 28px;
+  border: var(--border-width) solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+}
+
+.axisRow {
+  border-bottom: var(--border-width) solid var(--border);
+  background: var(--panel-2);
+}
+
+.axisRow .track {
+  height: 40px;
+  overflow: hidden;
+}
+
+.zoneHead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--amber);
+  border-right: var(--border-width) solid var(--border);
+}
+
+.axisLabel {
+  position: absolute;
+  bottom: 7px;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.label {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  border-right: var(--border-width) solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.laneName {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.laneIcon {
+  flex: none;
+  opacity: 0.85;
+}
+
+.laneMeta {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.laneModel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.modelIcon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  object-fit: contain;
+}
+
+/* Context occupancy — label row over a thin track, under the model. */
+.laneCtx {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  max-width: 190px;
+}
+
+.ctxHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ctxLabel {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ctxPct {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--dim);
+}
+
+.ctxBar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(var(--bg-rgb) / 0.75);
+  border: var(--border-width) solid var(--border-soft);
+  overflow: hidden;
+}
+
+.ctxFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+
+.lane {
+  border-bottom: var(--border-width) solid var(--border-soft);
+}
+
+.lane:last-child {
+  border-bottom: none;
+}
+
+.track {
+  position: relative;
+  height: 118px;
+  overflow: hidden;
+}
+
+.zoneDivider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: var(--border-width) solid var(--border);
+}
+
+.gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed rgb(var(--dim-rgb) / 0.14);
+}
+
+.block {
+  position: absolute;
+  top: 13px;
+  height: 92px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 10px 12px 16px;
+  border-radius: 10px;
+  border: var(--border-width) solid;
+  font-size: 16px;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+  transition: box-shadow 0.16s ease;
+}
+
+.block:hover {
+  box-shadow: 0 0 18px var(--lane-glow, rgb(var(--busy-rgb) / 0.2));
+}
+
+.blockTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.blockStatus {
+  flex: none;
+  font-size: 16px;
+}
+
+.blockStatus.success {
+  color: var(--green);
+}
+
+.blockStatus.fail {
+  color: var(--red);
+}
+
+.blockStatus.running {
+  color: var(--blue);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.blockStatus.queued {
+  color: var(--faint);
+}
+
+.block .blockName {
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.block .blockDur {
+  margin-left: auto;
+  flex: none;
+}
+
+.block .blockDesc {
+  color: var(--dim);
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.block.running {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.block.queued {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--faint);
+  color: var(--dim);
+}
+
+.block.selected {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 22px var(--lane-glow, rgb(var(--busy-rgb) / 0.25));
+}
+
+.toolTick {
+  position: absolute;
+  bottom: 4px;
+  width: 3px;
+  height: 9px;
+  background: currentColor;
+  opacity: 0.55;
+  border-radius: 1px;
+}
+
+.toolTick.err {
+  background: var(--red);
+  opacity: 1;
+}

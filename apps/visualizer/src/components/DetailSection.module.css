@@ -1,0 +1,50 @@
+.section {
+  margin-bottom: 14px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-bottom: var(--border-width) solid var(--border-soft);
+  border-radius: 6px 6px 0 0;
+  color: var(--dim);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  cursor: pointer;
+  text-align: left;
+}
+
+.head:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.head:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.icon {
+  flex: none;
+  color: var(--faint);
+}
+
+.chev {
+  color: var(--faint);
+  flex: none;
+}
+
+.count {
+  font-weight: 500;
+}
+
+.body {
+  padding-top: 10px;
+}

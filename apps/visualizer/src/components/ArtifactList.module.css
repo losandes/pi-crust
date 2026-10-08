@@ -1,0 +1,77 @@
+/* One card per document. Shaped like the decision cards beside them, because
+   they appear in the same column and a second card style would read as a
+   second kind of thing. */
+.list {
+  display: flex;
+  flex-direction: column;
+  /* Roomier than the decision cards beside them: a document card carries a
+     title, a path and a paragraph, and at a tighter gap the three ran
+     together into one block of text. */
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 14px;
+  border: var(--border-width) solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  font-family: var(--card-sans);
+}
+
+.card:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.card:disabled {
+  cursor: default;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.path {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.note {
+  font-size: 12px;
+  color: var(--amber);
+}
+
+/* System-written files: listed so the reader never has to know which files
+   the interface special-cases, but not competing with a step's own output. */
+.quiet {
+  opacity: 0.62;
+}
+
+.missing {
+  border-color: var(--red);
+}
+
+.missing .note {
+  color: var(--red);
+}

@@ -1,0 +1,70 @@
+/*
+ * A panel, in the same language as every other panel — a modal that looks
+ * like an operating-system alert reads as the browser interrupting, not as
+ * this interface asking.
+ */
+.dialog {
+  max-width: 28rem;
+  padding: 1.1rem 1.25rem;
+  border: var(--border-width) solid rgb(var(--fail-rgb) / var(--edge-alpha));
+  border-radius: var(--radius-md, 6px);
+  background: rgb(var(--panel-2-rgb));
+  color: rgb(var(--text-rgb));
+}
+
+/* The failure hue, because this is the one dialog that destroys something. */
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.title {
+  margin: 0 0 0.45rem;
+  color: var(--fail);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.body {
+  margin: 0 0 1rem;
+  color: rgb(var(--dim-rgb));
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.actions button {
+  padding: 0.35rem 0.85rem;
+  border: var(--border-width) solid rgb(var(--border-rgb));
+  border-radius: var(--radius-sm, 4px);
+  background: rgb(var(--panel-rgb));
+  color: rgb(var(--text-rgb));
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+/*
+ * Cancel is first in the DOM, so it takes initial focus and a blind Enter
+ * does the harmless thing. The destructive button is last and to the right,
+ * where the eye arrives after reading what it costs.
+ */
+.cancel:hover {
+  border-color: rgb(var(--border-rgb));
+  background: rgb(var(--panel-3-rgb));
+}
+
+.confirm {
+  border-color: rgb(var(--fail-rgb) / var(--edge-alpha));
+  background: rgb(var(--fail-rgb) / 0.14);
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.confirm:hover {
+  background: rgb(var(--fail-rgb) / 0.22);
+}

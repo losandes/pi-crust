@@ -1,0 +1,307 @@
+/*
+ * The theme system. Three palettes, one derivation, no framework.
+ *
+ * A palette declares COLOUR CHANNELS, not colours: `--green-rgb: 74 222 128`
+ * rather than `--green: #4ade80`. Everything else is derived from those
+ * channels once, below, so a theme is a block of numbers and nothing else.
+ *
+ * The reason is alpha. Thirty-six colours in this app were written as
+ * `rgba(74, 222, 128, 0.45)` — the token's own colour at 45%, spelled as a
+ * literal because a hex token cannot carry an alpha. Those literals do not
+ * theme: switch to light and every translucent glow stays a dark-mode green.
+ * Channels fix that. `rgb(var(--green-rgb) / 0.45)` follows the palette.
+ *
+ * Components use the SEMANTIC roles, never the palette rungs. `--ok` rather
+ * than `--green`, because high contrast does not want the same green and a
+ * component should not have an opinion about that.
+ *
+ * A theme that only swaps colours cannot do high contrast. Contrast lives in
+ * gradients, border weight, and focus rings as much as in hue, so those are
+ * tokens too — the palettes below flatten the aurora and thicken the rings
+ * rather than asking components to know which theme is active.
+ */
+
+/* ---------------------------------------------------------------- palettes */
+
+/*
+ * Dark — the original. Deep space with a faint violet/cyan aurora.
+ */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-rgb: 6 8 15;
+  --panel-rgb: 13 17 25;
+  --panel-2-rgb: 19 26 38;
+  /* Alternating table rows, measured against the surfaces a table sits
+     on (16 20 31 and the raised panel). 1.19:1 — enough to follow a row
+     across, not enough to read as bands. The first attempt, panel-2 at
+     35% alpha, measured 1.016:1 and was invisible; the second measured
+     1.48:1 and was banding. */
+  --zebra-rgb: 32 41 57;
+  /* The header band. Darker than the panel here, where the page is dark
+     and the eye reads "heavier" as "further from the background". */
+  --table-head-rgb: 19 26 38;
+  --panel-3-rgb: 10 14 22;
+  --border-rgb: 35 44 61;
+  --border-soft-rgb: 34 43 61;
+
+  --text-rgb: 242 245 250;
+  --dim-rgb: 170 189 213;
+  --faint-rgb: 139 156 182;
+
+  --green-rgb: 74 222 128;
+  --red-rgb: 255 111 103;
+  --blue-rgb: 108 182 255;
+  --amber-rgb: 232 182 74;
+  --purple-rgb: 200 155 255;
+  --cyan-rgb: 90 210 221;
+  --violet-rgb: 148 163 255;
+  --pink-rgb: 242 162 196;
+  /*
+   * Five more hues, added because the roster outgrew the palette: eighteen
+   * agents sharing eight colours means two lanes in one waterfall look the
+   * same, which is the one thing a lane colour exists to prevent.
+   */
+  --lime-rgb: 173 221 94;
+  --teal-rgb: 45 212 191;
+  --indigo-rgb: 129 140 248;
+  --orange-rgb: 251 146 60;
+  --rose-rgb: 251 113 133;
+  /*
+   * Waiting. Its own hue, not the `pink` role — an agent lane may be pink,
+   * and the one state that must never be mistaken for anything else cannot
+   * share a colour with a lane label.
+   */
+  --hotpink-rgb: 255 107 199;
+
+  /* Depth: panels lift off the page, and the page itself glows faintly. */
+  --surface: linear-gradient(
+    180deg,
+    rgb(16 20 31) 0%,
+    rgb(11 15 24) 100%
+  );
+  --app-bg:
+    radial-gradient(1100px 700px at 8% -10%, rgb(var(--violet-rgb) / 0.09), transparent 62%),
+    radial-gradient(1000px 720px at 102% 108%, rgb(var(--cyan-rgb) / 0.07), transparent 60%),
+    linear-gradient(180deg, rgb(6 8 15) 0%, rgb(9 13 23) 100%);
+
+  --border-width: 1px;
+  --focus-width: 2px;
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4);
+  --glow-strength: 0.45;
+}
+
+/*
+ * Light — not an inversion. The surfaces invert; the status hues are
+ * re-chosen, because a colour legible on near-black is rarely legible on
+ * near-white. Green especially: 74 222 128 on white is a highlighter pen.
+ */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-rgb: 247 249 252;
+  --panel-rgb: 255 255 255;
+  --panel-2-rgb: 241 245 250;
+  /* 1.20:1 against white and the raised panel. */
+  --zebra-rgb: 222 230 241;
+  /* On a light page the heaviest band has to be the DARKEST one, or the
+     header reads as a lighter stripe than the stripes it sits above.
+     1.51:1 against white, and 1.20:1 against the stripe, so the two are
+     never mistaken for each other. */
+  --table-head-rgb: 200 211 228;
+  --panel-3-rgb: 234 239 246;
+  --border-rgb: 205 214 227;
+  --border-soft-rgb: 222 229 239;
+
+  --text-rgb: 18 24 36;
+  --dim-rgb: 71 85 105;
+  --faint-rgb: 105 119 140;
+
+  --green-rgb: 21 128 61;
+  --red-rgb: 190 42 38;
+  --blue-rgb: 29 92 173;
+  --amber-rgb: 150 100 10;
+  --purple-rgb: 118 62 186;
+  --cyan-rgb: 14 116 128;
+  --violet-rgb: 76 87 168;
+  --pink-rgb: 173 63 112;
+  /* Darkened for white, like every hue above them. */
+  --lime-rgb: 85 110 15;
+  --teal-rgb: 13 118 110;
+  --indigo-rgb: 67 76 190;
+  --orange-rgb: 173 80 10;
+  --rose-rgb: 186 48 86;
+  /* Same hue, dropped to oklch L .592 — the asked-for value reads 3.58:1 on
+     white, which is below the floor for text. This reads 4.64:1. */
+  --hotpink-rgb: 223 8 135;
+
+  --surface: linear-gradient(
+    180deg,
+    rgb(255 255 255) 0%,
+    rgb(246 249 253) 100%
+  );
+  --app-bg:
+    radial-gradient(1100px 700px at 8% -10%, rgb(var(--violet-rgb) / 0.06), transparent 62%),
+    radial-gradient(1000px 720px at 102% 108%, rgb(var(--cyan-rgb) / 0.05), transparent 60%),
+    linear-gradient(180deg, rgb(247 249 252) 0%, rgb(238 243 249) 100%);
+
+  --border-width: 1px;
+  --focus-width: 2px;
+  --shadow-panel: 0 1px 2px rgb(15 23 42 / 0.08);
+  /* Translucent fills read as washed-out on white, so they carry less alpha. */
+  --glow-strength: 0.28;
+}
+
+/*
+ * High contrast — the test of whether this system is real.
+ *
+ * Pure black and pure white at the extremes, hues pushed to their most
+ * saturated legible form, every gradient flattened to a flat fill, borders
+ * doubled, focus rings tripled. A theme that could only swap hex values could
+ * not express any of that, which is why gradients and widths are tokens.
+ */
+[data-theme='high-contrast'] {
+  color-scheme: dark;
+
+  --bg-rgb: 0 0 0;
+  --panel-rgb: 0 0 0;
+  --panel-2-rgb: 20 20 20;
+  /* 1.16:1 against black. Slightly the strongest of the three, since this
+     theme exists for people who need edges — but in the same band, because
+     banding hurts legibility for them too. */
+  --zebra-rgb: 34 34 34;
+  --table-head-rgb: 20 20 20;
+  --panel-3-rgb: 10 10 10;
+  --border-rgb: 255 255 255;
+  --border-soft-rgb: 180 180 180;
+
+  --text-rgb: 255 255 255;
+  --dim-rgb: 235 235 235;
+  --faint-rgb: 205 205 205;
+
+  --green-rgb: 0 255 127;
+  --red-rgb: 255 85 85;
+  --blue-rgb: 102 204 255;
+  --amber-rgb: 255 200 0;
+  --purple-rgb: 219 160 255;
+  --cyan-rgb: 0 255 255;
+  --violet-rgb: 170 180 255;
+  --pink-rgb: 255 150 200;
+  --lime-rgb: 190 255 80;
+  --teal-rgb: 0 230 200;
+  --indigo-rgb: 150 160 255;
+  --orange-rgb: 255 165 60;
+  --rose-rgb: 255 130 150;
+  /* Same hue at oklch L .80 — 8.18:1 on black, past this theme's 7:1 floor. */
+  --hotpink-rgb: 255 107 199;
+
+  /* No depth illusions: gradients and shadows hide edges from someone who
+     needs edges. */
+  --surface: rgb(0 0 0);
+  --app-bg: rgb(0 0 0);
+
+  --border-width: 2px;
+  --focus-width: 3px;
+  --shadow-panel: none;
+  --glow-strength: 0.6;
+}
+
+/* -------------------------------------------------------------- derivation */
+
+/*
+ * Written once, for every theme. A palette never repeats this, which is what
+ * keeps a new theme to a block of numbers.
+ */
+:root {
+  --bg: rgb(var(--bg-rgb));
+  --panel: rgb(var(--panel-rgb));
+  --panel-2: rgb(var(--panel-2-rgb));
+  --panel-3: rgb(var(--panel-3-rgb));
+  --zebra: rgb(var(--zebra-rgb));
+  --table-head: rgb(var(--table-head-rgb));
+  --border: rgb(var(--border-rgb));
+  --border-soft: rgb(var(--border-soft-rgb));
+
+  --text: rgb(var(--text-rgb));
+  --dim: rgb(var(--dim-rgb));
+  --faint: rgb(var(--faint-rgb));
+
+  --green: rgb(var(--green-rgb));
+  --red: rgb(var(--red-rgb));
+  --blue: rgb(var(--blue-rgb));
+  --amber: rgb(var(--amber-rgb));
+  --purple: rgb(var(--purple-rgb));
+  --cyan: rgb(var(--cyan-rgb));
+  --violet: rgb(var(--violet-rgb));
+  --pink: rgb(var(--pink-rgb));
+
+  /*
+   * Status roles. Components speak meaning, not colour — a phase is not green,
+   * it succeeded. High contrast then gets to disagree about the hue without
+   * every component learning that it exists.
+   */
+  --ok: var(--green);
+  --ok-rgb: var(--green-rgb);
+  --fail: var(--red);
+  --fail-rgb: var(--red-rgb);
+  --busy: var(--blue);
+  --busy-rgb: var(--blue-rgb);
+  --warn: var(--amber);
+  --warn-rgb: var(--amber-rgb);
+  /*
+   * Waiting was purple, which sat quietly beside violet and indigo lanes and
+   * read as one more agent. A run stopped for a person is the only state on
+   * this screen that will not resolve itself, so it gets a hue nothing else
+   * uses.
+   */
+  --waiting: rgb(var(--hotpink-rgb));
+  --waiting-rgb: var(--hotpink-rgb);
+  --accent: var(--cyan);
+  --accent-rgb: var(--cyan-rgb);
+
+  /*
+   * Fills and edges derived from a status colour, so the thirty-six rgba()
+   * literals become three recipes. `--glow-strength` lets a palette decide how
+   * loud a translucent fill is, which is the whole difference between a tint
+   * on black and a tint on white.
+   */
+  --fill-soft: 0.1;
+  --fill-medium: 0.16;
+  --edge-alpha: 0.45;
+
+  --ring: 0 0 0 var(--focus-width) rgb(var(--accent-rgb) / 0.55);
+
+  /* Play carries the UI voice; mono is reserved for data (ids, times, code). */
+  --sans: 'Play', 'Helvetica Neue', system-ui, sans-serif;
+  /* Cards in the reading columns. Deliberately inverts the priority of
+     --sans: Play is the interface's voice, but a card is a paragraph to
+     be READ, and Helvetica Neue carries prose better at this size. */
+  --card-sans: 'Helvetica Neue', 'Play', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, 'Cascadia Mono',
+    'Roboto Mono', monospace;
+}
+
+/*
+ * Following the system when nobody has chosen is resolved at boot, not here.
+ *
+ * Plain CSS cannot alias one selector to another, so a `prefers-color-scheme`
+ * block would have to repeat the entire light palette — two copies that drift
+ * the first time one is edited. The boot script reads the media queries and
+ * writes `data-theme` before first paint instead, which also removes the flash
+ * of the wrong theme. One palette, one definition.
+ */
+
+/*
+ * Motion is a preference, not a flourish. Declared here because the theme
+ * layer is the only place that should know about it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

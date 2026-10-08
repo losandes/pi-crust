@@ -1,0 +1,218 @@
+@import './theme/tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  /* The page itself is a token, so a theme can flatten it (see tokens.css). */
+  background: var(--app-bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--sans);
+  /* Readability floor: nothing in the app renders below 16px. */
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--panel-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* JSON token colors — spans emitted by lib/highlight.ts */
+.j-key {
+  color: var(--purple);
+}
+
+.j-str {
+  color: var(--green);
+}
+
+.j-num {
+  color: var(--amber);
+}
+
+.j-bool {
+  color: var(--cyan);
+}
+
+.j-null {
+  color: var(--red);
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.faint {
+  color: var(--faint);
+}
+
+.error-bar {
+  margin: 12px 24px;
+  padding: 10px 14px;
+  border: var(--border-width) solid rgb(var(--fail-rgb) / var(--edge-alpha));
+  background: rgb(var(--fail-rgb) / var(--fill-soft));
+  color: var(--red);
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.empty-state {
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--dim);
+  font-size: 16px;
+}
+
+/* Rendered-markdown blocks (compiled prompts) — global because the content is
+   injected as raw HTML and component styles can't reach it. */
+/* Every rendered markdown surface: the gate's question, an agent's prompts,
+   a handoff document. Prose to be read, so it takes the reading face rather
+   than the interface's. */
+.md {
+  font-family: var(--card-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.md h1 {
+  font-size: 20px;
+  margin: 14px 0 8px;
+}
+
+.md h2 {
+  font-size: 18px;
+  margin: 14px 0 8px;
+}
+
+.md h3,
+.md h4 {
+  font-size: 17px;
+  margin: 12px 0 6px;
+}
+
+.md h1:first-child,
+.md h2:first-child,
+.md h3:first-child {
+  margin-top: 0;
+}
+
+.md p {
+  margin: 8px 0;
+  white-space: pre-wrap;
+}
+
+.md code {
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 16px;
+}
+
+.md pre.md-code {
+  margin: 10px 0;
+  white-space: pre;
+}
+
+.md pre.md-code code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.md ul,
+.md ol {
+  margin: 8px 0;
+  padding-left: 28px;
+}
+
+.md li {
+  margin: 3px 0;
+}
+
+.md blockquote {
+  margin: 10px 0;
+  padding: 4px 0 4px 14px;
+  border-left: 3px solid var(--border);
+  color: var(--dim);
+  white-space: pre-wrap;
+}
+
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
+}
+
+/* Tables. The architects produce them constantly — a comparison of candidate
+   approaches is a table — and until they rendered as one, reading a design
+   meant parsing pipes by eye. */
+.md-table {
+  width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+  font-size: 15px;
+  /* A long cell wraps rather than forcing the whole document sideways. */
+  table-layout: auto;
+}
+
+.md-table th,
+.md-table td {
+  padding: 7px 10px;
+  border: var(--border-width) solid var(--border-soft);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.md-table th {
+  background: var(--table-head);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Zebra striping, because the useful read of a comparison is across a row
+   and the eye loses the row at four columns. A solid per-theme colour, not
+   an alpha over the panel: the alpha version measured 1.016:1 in dark and
+   1.04:1 in high contrast, which is to say it was not there. */
+.md-table tbody tr:nth-child(even) {
+  background: var(--zebra);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

@@ -1,0 +1,231 @@
+/**
+ * The documents a run produced, from the two sources that know about them.
+ *
+ * Neither source is sufficient alone, and they disagree in opposite
+ * directions:
+ *
+ * - an envelope's `artifacts` is SELF-REPORTED. It is the only way to learn
+ *   about a file written outside the handoff directory, and it carries the
+ *   agent's own summary of what the file says — but nothing checks it, so it
+ *   can name a file that was never written.
+ * - the handoff directory is OBSERVED. It cannot be wrong about existence,
+ *   and it sees files no agent claimed, including the ones the system wrote
+ *   rather than an agent — but it knows nothing about meaning.
+ *
+ * So the envelope is the authority on meaning and the disk is the authority
+ * on existence, and a document is listed when either knows about it. A
+ * claimed file that is not there is still listed, as missing: that is a
+ * defect in the run and hiding it would be the one thing worse than showing
+ * it.
+ */
+import type { Envelope, EventRow, HandoffFile } from './types'
+
+/** Where a document came from, which decides how much a card can say. */
+export type TArtifactSource =
+  /** An agent reported it and it exists. */
+  | 'reported'
+  /** Found in the handoff directory, claimed by nobody. */
+  | 'observed'
+  /** An agent reported it and it is not there. */
+  | 'missing'
+  /** Written by the run itself: the gate question, the answer to it. */
+  | 'system'
+
+export type TArtifact = Readonly<{
+  /** Path relative to the session directory — what a reader recognises. */
+  path: string
+  /** The file's own name, for the card's title when nothing better exists. */
+  name: string
+  /**
+   * The document's own first heading.
+   *
+   * A real title a reader recognises, rather than a filename — and it comes
+   * from the document, so it cannot drift from what the document says.
+   * Empty when the file has no heading, or when only a claim is known.
+   */
+  title: string
+  source: TArtifactSource
+  /** The phase that produced it, when known. */
+  phaseId: string | undefined
+  /** The agent that produced it, when known. */
+  agent: string | undefined
+  /** The agent's account of what this document concludes. Empty when unknown. */
+  summary: string
+  /** What the next step is expected to take from it. Empty when unknown. */
+  notes: string
+}>
+
+/**
+ * Files the run writes for its own machinery rather than as a step's output.
+ *
+ * Listed, because a reader should not have to know which files the interface
+ * has special-cased — but quietly, because they are already rendered in the
+ * gate pane and are not what anybody means by "what did this step produce".
+ */
+const SYSTEM_FILES = /^(decision-request|decision-answer|answers-.*)\.md$/
+
+/** `…/sessions/<run>/context_handoff/design.md` → `context_handoff/design.md`. */
+export const relativeToSession = (path: string, runId: string): string => {
+  const marker = `/sessions/${runId}/`
+  const at = path.indexOf(marker)
+  return at === -1 ? path : path.slice(at + marker.length)
+}
+
+const nameOf = (path: string): string => path.split('/').at(-1) ?? path
+
+type TPayload = Readonly<{
+  artifacts?: unknown
+  summary?: unknown
+  notes_for_next_agent?: unknown
+}>
+
+const payloadOf = (envelope: Envelope): TPayload => {
+  try {
+    return JSON.parse(envelope.payload_json ?? '{}') as TPayload
+  } catch (cause) {
+    void cause
+    return {}
+  }
+}
+
+const strings = (value: unknown): readonly string[] =>
+  Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
+
+const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+/**
+ * What each phase was observed to write, newest observation per phase.
+ *
+ * Only `created` counts as a phase's output. A `modified` entry means the
+ * phase changed a document another phase owns, which is a different claim
+ * entirely and belongs in the violation report rather than in a list of
+ * outputs.
+ */
+export const observedByPhase = (
+  events: readonly EventRow[],
+): ReadonlyMap<string, readonly string[]> => {
+  const byPhase = new Map<string, readonly string[]>()
+  for (const event of events) {
+    if (event.type !== 'artifacts' || event.phase_id === null) continue
+    try {
+      const payload = JSON.parse(event.payload_json ?? '{}') as {
+        created?: unknown
+      }
+      byPhase.set(event.phase_id, strings(payload.created))
+    } catch (cause) {
+      void cause
+    }
+  }
+  return byPhase
+}
+
+/**
+ * Every document this run produced, in the order a reader meets them.
+ *
+ * `present` is the directory listing; it is what turns a claim into either a
+ * document or a defect. When nothing is known about the directory it is left
+ * undefined, and no claim is called missing on the strength of a listing that
+ * was never taken.
+ */
+export const runArtifacts = (params: {
+  runId: string
+  envelopes: readonly Envelope[]
+  events: readonly EventRow[]
+  present: readonly HandoffFile[] | undefined
+}): readonly TArtifact[] => {
+  const seen = new Set<string>()
+  const found: TArtifact[] = []
+  const onDisk =
+    params.present === undefined
+      ? undefined
+      : new Map(params.present.map((file) => [file.path, file]))
+
+  const add = (artifact: TArtifact): void => {
+    if (seen.has(artifact.path)) return
+    seen.add(artifact.path)
+    found.push(artifact)
+  }
+
+  // Reported first: these are the ones that can say what they mean.
+  for (const envelope of params.envelopes) {
+    if (envelope.valid !== 1) continue
+    const payload = payloadOf(envelope)
+    for (const raw of strings(payload.artifacts)) {
+      const path = relativeToSession(raw, params.runId)
+      add({
+        path,
+        name: nameOf(path),
+        title: onDisk?.get(path)?.title ?? '',
+        source:
+          onDisk === undefined || onDisk.has(path) ? 'reported' : 'missing',
+        phaseId: envelope.phase_id ?? undefined,
+        agent: envelope.agent ?? undefined,
+        summary: text(payload.summary),
+        notes: text(payload.notes_for_next_agent),
+      })
+    }
+  }
+
+  // Then whatever is on disk that nobody claimed. Over-reporting here is
+  // deliberate: a document a step forgot to report is still a document
+  // somebody would otherwise have to go hunting for.
+  const observed = observedByPhase(params.events)
+  for (const file of params.present ?? []) {
+    const owner = [...observed.entries()].find(([, created]) =>
+      created.includes(nameOf(file.path)),
+    )
+    add({
+      path: file.path,
+      name: nameOf(file.path),
+      title: file.title,
+      source: SYSTEM_FILES.test(nameOf(file.path)) ? 'system' : 'observed',
+      phaseId: owner?.[0],
+      agent: undefined,
+      summary: '',
+      notes: '',
+    })
+  }
+
+  return found
+}
+
+/** The same list, narrowed to one phase — what this step produced. */
+export const phaseArtifacts = (
+  all: readonly TArtifact[],
+  phaseId: string,
+): readonly TArtifact[] => all.filter((entry) => entry.phaseId === phaseId)
+
+/**
+ * A phase that changed or removed a document belonging to another phase.
+ *
+ * Nothing forbids this today, which is why it is worth showing: the handoff
+ * directory is granted to every agent wholesale, and being gitignored it is
+ * invisible to the permission check that would otherwise catch it.
+ */
+export type TArtifactViolation = Readonly<{
+  phaseId: string
+  modified: readonly string[]
+  deleted: readonly string[]
+}>
+
+export const artifactViolations = (
+  events: readonly EventRow[],
+): readonly TArtifactViolation[] => {
+  const found: TArtifactViolation[] = []
+  for (const event of events) {
+    if (event.type !== 'artifacts' || event.phase_id === null) continue
+    try {
+      const payload = JSON.parse(event.payload_json ?? '{}') as {
+        modified?: unknown
+        deleted?: unknown
+      }
+      const modified = strings(payload.modified)
+      const deleted = strings(payload.deleted)
+      if (modified.length + deleted.length === 0) continue
+      found.push({ phaseId: event.phase_id, modified, deleted })
+    } catch (cause) {
+      void cause
+    }
+  }
+  return found
+}
