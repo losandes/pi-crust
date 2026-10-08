@@ -1,6 +1,6 @@
 # pi-crust
 
-Run a structured SDLC of autonomous, specialist AI agents in your repo. Watch it run, ask it questions, and steer it in mid-flight in the terminal or with the included web app. Connect from anywhere on your network. Revisit past sessions, branch new ones, or diagnose the actions that led to an outcome in the web app, persisted artifacts, or SQLite database.
+Run a structured SDLC of autonomous, specialist AI agents in your repo. Watch it run, ask it questions, and steer it in mid-flight in the terminal or with the included web app. Connect from anywhere on your network. Revisit past sessions, branch new ones, or dive into how it produced it's outcomes with SQLite traces, archived sessions files, and web design that pulls what's important to the foreground.
 
 ## Why
 

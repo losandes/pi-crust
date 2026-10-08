@@ -1,6 +1,13 @@
 # a stamped factory's runtime, if pi-crust is ever installed into itself
 .pi-crust/data/
 
+# out-of-scope
+.claude/*
+CLAUDE.md
+.pi/*
+AGENT.md
+adr
+
 # OS directories and files
 .DS_Store
 Thumbs.db
@@ -17,15 +24,6 @@ Thumbs.db
 .mcp.json
 !.mcp.json.example
 .aider*
-
-# AI Assistants
-.claude/*
-!.claude/settings.json
-!.claude/commands
-!.claude/hooks
-!.claude/skills
-.pi/*
-!.pi/settings.json
 
 # Temporary, hidden, symlinked, or generated files
 .deleteme*
