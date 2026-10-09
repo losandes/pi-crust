@@ -18,18 +18,13 @@ This grant runs to the maintainer only. It does not give anyone else rights beyo
 
 If you cannot agree to this, please open an issue describing the change rather than submitting the code. A described idea carries no licence, and is welcome.
 
-## Before you open a pull request
-
-- Keep the change to one concern. A pull request that fixes a bug and tidies the surrounding file is two reviews pretending to be one.
-- Run the checks. A change is not ready while anything is red.
-- Explain *why* in the description. What the diff does is visible; what it is for is not.
-
 ## Branching and pull requests
 
 `main` is always installable. Every change arrives through a short-lived branch and a pull request, including the maintainer's.
 
 - Branch from `main`, named `<owner>/<topic>` — `losandes/archive-verb`.
 - [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`. Present tense, imperative.
-- The commit body explains **why**. What the diff does is already visible.
-- Keep a pull request to one concern. A PR that fixes a bug and tidies the surrounding file is two reviews pretending to be one.
+- Keep a pull request to one concern. One that fixes a bug and tidies the surrounding file is two reviews pretending to be one.
+- Run the checks. A change is not ready while anything is red.
+- Explain **why**, in the commit body and in the description. What the diff does is already visible; what it is for is not.
 - Rebase rather than merge `main` into your branch; squash on merge, so `main` stays linear and each entry is one reviewable change.

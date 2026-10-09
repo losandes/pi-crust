@@ -15,7 +15,7 @@ A run executes from the **stamp** — the `.pi-crust/` directory inside the targ
 Two things do reach back here while a run is live:
 
 - `apps/visualizer/` — the `observe` recipe runs the web app out of this repository, so an edit restarts the dev server and the API underneath a UI somebody is watching.
-- Re-stamping — `install.ts --force`, and `update`, replace the factory a run is executing from.
+- Re-stamping — `install.ts --force`, and the `update` recipe that wraps it, replace the factory a run is executing from.
 
 So the question is never "is this change big". It is "am I editing the visualizer while a run is being watched, or about to re-stamp a repository that has a run in it". Both are checkable; neither needs a forecast.
 
