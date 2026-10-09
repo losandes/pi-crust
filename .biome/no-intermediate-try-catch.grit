@@ -29,21 +29,21 @@ or {
   `try { $body } catch($err) { $handler } finally { $cleanup }` as $stmt where {
     register_diagnostic(
       span = $stmt,
-      message = "Avoid intermediate exception handling. Convert throwing operations into settlements using standardized helpers, or let unexpected exceptions propagate to the boundary responsible for handling them. If this IS that boundary, suppress with `// biome-ignore lint/plugin: <reason>`.",
+      message = "Avoid intermediate exception handling. Convert throwing operations into settlements using standardized helpers, or let unexpected exceptions propagate to the boundary responsible for handling them. If this IS that boundary, suppress with `// biome-ignore lint/plugin/no-intermediate-try-catch: <reason>`.",
       severity = "error"
     )
   },
   `try { $body } catch($err) { $handler }` as $stmt where {
     register_diagnostic(
       span = $stmt,
-      message = "Avoid intermediate exception handling. Convert throwing operations into settlements using standardized helpers, or let unexpected exceptions propagate to the boundary responsible for handling them. If this IS that boundary, suppress with `// biome-ignore lint/plugin: <reason>`.",
+      message = "Avoid intermediate exception handling. Convert throwing operations into settlements using standardized helpers, or let unexpected exceptions propagate to the boundary responsible for handling them. If this IS that boundary, suppress with `// biome-ignore lint/plugin/no-intermediate-try-catch: <reason>`.",
       severity = "error"
     )
   },
   `try { $body } catch { $handler }` as $stmt where {
     register_diagnostic(
       span = $stmt,
-      message = "A catch with no binding discards the error entirely, so nothing downstream can report what failed. Bind it and return a settlement, or suppress with `// biome-ignore lint/plugin: <reason>` if this is the boundary that owns it.",
+      message = "A catch with no binding discards the error entirely, so nothing downstream can report what failed. Bind it and return a settlement, or suppress with `// biome-ignore lint/plugin/no-intermediate-try-catch: <reason>` if this is the boundary that owns it.",
       severity = "error"
     )
   }

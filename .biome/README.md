@@ -31,23 +31,28 @@ A plugin can be scoped to part of a repository by declaring it inside an overrid
 
 ## Suppressing a diagnostic
 
+Name the rule. The name is the plugin's filename without `.grit`:
+
 ```ts
-// biome-ignore lint/plugin: fixed tuple; every value is required, so there is no partial success to report
+// biome-ignore lint/plugin/no-promise-all: fixed tuple; every value is required, so there is no partial success to report
 const [config, token] = await Promise.all([loadConfig(), getToken()])
 ```
 
-Two things to know before you write one.
+Three things to know before you write one.
 
 **The reason is mandatory.** Biome rejects a bare `// biome-ignore lint/plugin` as a parse error *and* still reports the underlying violation, so a suppression with no justification cannot be used to get a green build.
 
-**Suppression is not rule-granular.** `lint/plugin` silences every plugin diagnostic on that line, not just the one you meant. As plugins accumulate, a suppression written for one rule will quietly cover a second. Keep suppressed lines short and single-purpose.
+**Name the rule rather than suppressing all of them.** `lint/plugin` on its own silences every plugin diagnostic on that line, and a line often trips two — `o.last = xs.pop()` is both an array mutation and a property assignment. The unqualified form hides the second one, now and whenever a future plugin starts matching that line. Verified on Biome 2.5.15: suppressing `no-array-mutation` leaves the property assignment reported, and suppressing `no-object-mutation` leaves the `pop` reported.
+
+**A misspelled rule name fails loudly.** `lint/plugin/does-not-exist` reports an unused-suppression error and leaves the original diagnostics in place, so a typo cannot quietly disable anything. The path and the `.grit` extension are both rejected; only the bare stem works.
 
 Never use bare `// biome-ignore lint:` — it disables every rule on the line, built-in ones included.
 
-Find every suppression in the repo:
+Find every suppression in the repo, and the unqualified ones that should be narrowed:
 
 ```bash
 rg -n 'biome-ignore lint/plugin' --glob '!node_modules'
+rg -n 'biome-ignore lint/plugin:' --glob '!node_modules'
 ```
 
 ## No package is exempt

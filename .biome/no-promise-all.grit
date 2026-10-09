@@ -23,7 +23,7 @@ language js
 `Promise.all($args)` as $call where {
   register_diagnostic(
     span = $call,
-    message = "Promise.all discards completed work when any item rejects. Use Promise.allSettled and report the failure margin. If this is a fixed tuple where every value is required, suppress it with `// biome-ignore lint/plugin: <reason>`.",
+    message = "Promise.all discards completed work when any item rejects. Use Promise.allSettled and report the failure margin. If this is a fixed tuple where every value is required, suppress it with `// biome-ignore lint/plugin/no-promise-all: <reason>`.",
     severity = "error"
   )
 }
