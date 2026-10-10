@@ -8,31 +8,39 @@ import {
   mergeActivities,
   offerable,
 } from './activity'
-import { crustConfigSchema } from './config'
 
 /**
- * The roster this refactor has to carry forward without losing anything.
+ * The registry this refactor has to carry forward without losing anything.
  *
- * Reading the shipped config rather than a fixture is deliberate: a fixture
- * would keep passing after somebody added a key to the real roster that the
- * Activity schema cannot express, which is the exact regression this stage
- * exists to prevent.
+ * Reading the stamped file rather than a fixture is deliberate: a fixture
+ * keeps passing after somebody adds a key to the real registry that the
+ * schema cannot express, which is the regression this guards.
  */
-const shippedAgents = () => {
-  const path = join(import.meta.dir, '..', '..', 'config', 'crust.config.yaml')
-  return crustConfigSchema.parse(Bun.YAML.parse(readFileSync(path, 'utf8')))
-    .agents
+const shippedActivities = () => {
+  const path = join(
+    import.meta.dir,
+    '..',
+    '..',
+    '..',
+    'templates',
+    'stamp',
+    'config',
+    'crust.activities.yaml',
+  )
+
+  return activitiesFileSchema.parse(Bun.YAML.parse(readFileSync(path, 'utf8')))
+    .activities
 }
 
 test(
   [
     'given typedefs/activity::activityConfigSchema',
-    'when every agent in the shipped roster is parsed as an Activity',
+    'when every entry in the shipped registry is parsed',
     'it should accept all of them unchanged',
   ].join(', '),
   () => {
     // given
-    const given = shippedAgents()
+    const given = shippedActivities()
 
     // when
     const actual = given.map((agent) => activityConfigSchema.safeParse(agent))

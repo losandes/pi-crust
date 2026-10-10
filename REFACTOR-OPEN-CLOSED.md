@@ -94,6 +94,10 @@ The Composer does not choose what is appropriate for an objective; it executes t
 
 Every file has a base and an optional `.local` sibling. The base is the team's agreement and is committed; the local file is one developer's deviation and is ignored. Merge is per-key with the local file winning, which is how `crust.config.local.yaml` already behaves.
 
+A local layer may do anything a base file may do, including adding an Activity and setting any key on it. The implementation currently restricts local overrides to four keys and forbids adding an agent, on the grounds that an unreviewed file should not be able to move a safety boundary. That reasoning does not hold: the developer who writes the local file can equally write the committed one, and runs the result on their own machine against their own checkout. There is no second principal to protect, so the restriction buys friction in the one file whose purpose is to have none. Remove it.
+
+The cost is a run that works for one developer and fails for everyone else, when a Lifecycle in the committed file names an Activity that exists only in a local layer. That is the developer's mistake to make. A validation that reports a committed Lifecycle referencing an uncommitted Activity is worth having if it stays to a few lines; it is not worth a mechanism.
+
 | File                    | Holds                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
 | `crust.config.yaml`     | Defaults and observability. **`steps` is removed** — see visibility below                            |
@@ -151,6 +155,10 @@ Stages 1 to 4 are where the DAG refactor and this one must agree on a schema. Do
 `update` replaces everything the core skill owns, never touches `config/`, `data/`, or `prompt-engineering/`, and **deletes orphaned core files** left in `.pi-crust/` by an earlier version. Deletion is scoped to a manifest of paths the core skill has ever owned, so a file a team created is never a candidate.
 
 The verification that settles the refactor, written as a test before stage 12 is called done: stamp a tree, add an Activity, override a Lifecycle, add a prompt, register a theme, edit the roster, run `install --force`, and assert all five survive byte-identically while every core file is replaced.
+
+## Follow-up
+
+Applying the vocabulary to the surfaces a developer touches is a separate plan: flags, menus, trace rows, and the visualizer. `--steps` becomes `--activities`, and the same substitution runs through the interactive lists and the UI. It is deliberately not done here, because renaming a flag mid-refactor would make every behavioural comparison in these stages unreadable.
 
 ## Out of scope
 

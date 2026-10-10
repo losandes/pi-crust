@@ -1,0 +1,105 @@
+# crust.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
+# v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
+defaults:
+  coding_agent: pi
+  # The model every agent gets unless its own entry overrides it. Replace it
+  # with one your credentials actually reach: `pi --list-models` is the
+  # authority, and config validation refuses a model that is not there rather
+  # than failing later inside an agent.
+  model: anthropic/claude-sonnet-5   # provider/id — a bare pattern is ambiguous across providers
+  thinking: medium                 # off | minimal | low | medium | high | xhigh | max
+  harness_engineering: []          # pi extensions loaded into the harness (-e)
+  # Roster-wide allowlist; any agent may override with its own list.
+  # NOTE: --tools filters extension and custom tools too, not just builtins. An agent
+  # whose harness_engineering extension registers a tool MUST name that tool in its own
+  # tools list — otherwise the extension loads and its tool is silently filtered out.
+  tools:
+    - read                         # read file contents
+    - bash                         # execute bash commands
+    - edit                         # find/replace edits
+    - write                        # create/overwrite files
+    - grep                         # search file contents  (pi default: OFF)
+    - find                         # find files by glob     (pi default: OFF)
+    - ls                           # list directories       (pi default: OFF)
+  # Off-limits to every agent that does not name them in its own `writes`.
+  # `tools` alone cannot protect these: bash runs `git checkout`, and write
+  # reaches any path. An agent must not be able to edit the machinery that
+  # decides whether its own work passed. Enforced in
+  # .pi-crust/modules/use-cases/enforce-permissions.ts.
+  #
+  # `writes:` per agent says what it may change IN THE REPO. It never restricts
+  # the session runtime under data_dir — context_handoff/, envelopes, prompts,
+  # raw output. Every agent can always write its own report; `writes: []` means
+  # read-only with respect to the repo, not mute.
+  protected_files:
+    - .pi-crust/modules/
+    - .pi-crust/config/
+    - .pi-crust/stages/
+    - .pi-crust/lifecycles/
+    - .pi-crust/package.json
+  data_dir: .pi-crust/data             # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
+
+# ── steps: what `just crust please` offers, and in what order ───────────────
+# Neither key changes what CAN run. A lifecycle, an operator, or an explicit
+# --steps still runs any step; these two shape the menu and the default
+# sequence of a hand-picked chain. Both are overridable per developer in
+# crust.config.local.yaml.
+
+observability:
+  db: .pi-crust/data/crust.db           # tracer writes here directly; the UI polls it
+  poll_ms: 500                     # visualizer live-poll cadence
+
+# What agents LOAD and what `verify` RUNS, both selected by the paths a change
+# actually touched. This section is the ONLY place a skill path or a checker
+# command may appear: crust is stamped into other repositories, so a prompt or a
+# module that named one would be naming something that does not exist there.
+#
+# Glob semantics are the ones `writes:` uses: `*` does not cross `/`, `**` does.
+# A rule written `when: ["*.ts"]` therefore matches only the repository root and
+# silently covers nothing nested — which reads as a pass. An empty `when`
+# always matches.
+routing:
+  # Declare yours here. Empty is honest, not safe: `verify` FAILS when paths
+  # changed and no check matched them, because a check nobody declared cannot
+  # have passed.
+  skills: []
+  checks: []
+
+  # EXAMPLE — the shape, with paths and commands from the repository crust was
+  # built in. None of them exist here until you say they do.
+  #
+  # skills:
+  #   - name: code-review
+  #     agents: [code-reviewer]          # omit to give it to every agent
+  #     when: ["**/*.ts", "**/*.tsx"]
+  #     path: .claude/skills/code-review
+  #
+  #   - name: respond-to-pr-comments    # how to ANSWER a review, not what to
+  #     agents: [builder]               # change — so no `when:` at all
+  #     phases: [revise]                # omit to give it to every phase;
+  #     path: .claude/skills/respond-to-pr-comments   # `revise_2` matches too
+  #
+  # checks:
+  #   - name: test
+  #     when: ["**/*.ts"]
+  #     operation: test                  # lint | typecheck | build | test
+  #     argv: [bun, test]                # argv LIST, binaries by BARE NAME
+  #     timeout_seconds: 600
+  #
+  #   - name: lint
+  #     when: ["**/*.ts", "**/*.tsx"]
+  #     operation: lint
+  #     argv: [node_modules/.bin/biome, lint]
+  #     with_changed_paths: true         # append the matched paths to argv
+  #     timeout_seconds: 300
+  #
+  # `when:` globs are spelled from the GIT ROOT, because that is where changed
+  # paths are collected. Add `cwd:` when a command belongs to a subdirectory —
+  # a nested workspace, a package with its own config — and the paths handed to
+  # it are rebased onto that cwd so they still resolve:
+  #
+  #   - name: typecheck
+  #     when: ["packages/api/**/*.ts"]
+  #     operation: typecheck
+  #     cwd: packages/api
+  #     argv: [bun, x, tsc, --noEmit]

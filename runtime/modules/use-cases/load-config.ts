@@ -3,6 +3,11 @@
  */
 
 import { fileExists, readText } from '../data/files'
+import { dirname, join } from 'node:path'
+import {
+  activitiesFileSchema,
+  mergeActivities,
+} from '../typedefs/activity'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema, DEFAULT_CONFIG_PATH } from '../typedefs/config'
 import { applyLocalOverrides, localConfigPath } from './merge-config'
@@ -71,10 +76,41 @@ export type TLoadedConfig = Readonly<{
  * `crust.config.local.yaml` sits beside whichever config was chosen and is
  * gitignored. Absent — the normal case — nothing changes.
  */
+/**
+ * Activities live in their own file, beside the config that points at it.
+ *
+ * They were a block in `crust.config.yaml` when there were four of them.
+ * They are a registry now — the thing a team adds to, removes from and
+ * reorders — and a registry sharing a file with observability settings is a
+ * file nobody can review.
+ */
+const activitiesBeside = (configPath: string): readonly unknown[] => {
+  const path = join(dirname(configPath), 'crust.activities.yaml')
+  if (!fileExists(path)) {
+    return []
+  }
+  const base = activitiesFileSchema.parse(Bun.YAML.parse(readText(path)))
+    .activities
+  const localPath = path.replace(/\.yaml$/, '.local.yaml')
+
+  return fileExists(localPath)
+    ? mergeActivities(
+        base as unknown as readonly Record<string, unknown>[],
+        activitiesFileSchema.parse(Bun.YAML.parse(readText(localPath)))
+          .activities as unknown as readonly Record<string, unknown>[],
+      )
+    : base
+}
+
 export const loadConfigWithNotes = (
   path: string = DEFAULT_CONFIG_PATH,
 ): TLoadedConfig => {
-  const base = Bun.YAML.parse(readText(path))
+  const document = Bun.YAML.parse(readText(path))
+  const activities = activitiesBeside(path)
+  const base =
+    activities.length === 0
+      ? document
+      : { ...(document as object), agents: activities }
   const localPath = localConfigPath(path)
   if (!fileExists(localPath)) {
     return { config: resolveConfig(base), localPath: '', warnings: [] }

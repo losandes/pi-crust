@@ -6,6 +6,7 @@
  */
 
 import { isFile } from '../data/files'
+import { resolvePromptPath } from '../data/prompt-files'
 import { resolveModel } from '../data/pi-agent'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
@@ -29,7 +30,15 @@ const problemsForAgent = (
       ['user', agent.prompt_engineering.user],
     ] as const
   ).flatMap(([label, ref]) =>
-    isFile(ref) ? [] : [`agent '${name}': ${label} prompt not found: ${ref}`],
+    isFile(resolvePromptPath(ref))
+      ? []
+      : [
+          // Both paths: the reference is what a developer wrote, the
+          // resolved path is where it was actually looked for, and reporting
+          // only one of them sends them to the wrong place.
+          `agent '${name}': ${label} prompt not found: ${ref} ` +
+            `(looked in ${resolvePromptPath(ref)})`,
+        ],
   )
 
   const model = safeParseSettlement(() => resolveModel(agent.model))

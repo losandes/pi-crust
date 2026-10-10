@@ -11,7 +11,6 @@
  * Existing files are skipped unless --force.
  */
 
-import { spawnSync } from 'node:child_process'
 import {
   appendFileSync,
   copyFileSync,
@@ -19,6 +18,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -31,42 +31,77 @@ const TEMPLATES = resolve(
 )
 
 /**
- * The stamp is generated, so none of it is committed by default.
+ * What a team does not share.
  *
- * Listing the runtime paths one at a time meant a new one had to be added
- * here before it could be ignored, and a path nobody remembered to add got
- * committed silently. Ignoring the directory and re-including what a team
- * must share inverts that: a new runtime path is ignored the day it is
- * written, and anything committed has to be named.
+ * Everything else in the stamp IS the team's: the roster, the lifecycles,
+ * the themes, and any prompt they wrote. The runtime that reads them lives
+ * in the pi-crust package rather than here, so there is no generated code in
+ * the stamp to decide about.
  *
- * Two things are named. The roster, because it is the agreement about which
- * agents run. And `crust.just`, because the installer appends a `mod crust`
- * line to the root justfile, and a `mod` pointing at a missing file fails
- * EVERY `just` invocation in the repository, not only `just crust` — so
- * ignoring it would break an unrelated recipe for anyone who cloned before
- * installing.
- *
- * Nothing else is re-included, including `prompt-engineering/` and
- * `harness-engineering/`. A developer who customises those can un-ignore
- * them; presuming they want to is how a generated tree becomes a tree
- * nobody dares regenerate.
- *
- * The negation works because `.pi-crust/` itself is not excluded, only its
- * children. Git cannot re-include a path whose parent directory is excluded,
- * so `.pi-crust/` and `.pi-crust/*` are not interchangeable here.
- *
- * One developer's overrides of the committed roster are ignored by pattern
- * rather than by exact name, so the rule still covers a config pointed
- * somewhere else.
+ * `data/` is one developer's runs and the machine-local path to pi-crust.
+ * A `.local.yaml` is one developer's deviation from the team's answer. The
+ * example prompt is illustrative, so it is ignored rather than maintained.
  */
-const GITIGNORE_ENTRIES = [
-  '.pi-crust/*',
-  '!.pi-crust/crust.just',
-  '!.pi-crust/config/',
-  '.pi-crust/config/*.local.yaml',
+/**
+ * Paths the stamp used to own, removed when an install finds them.
+ *
+ * Earlier versions stamped the whole runtime into `.pi-crust/`. Those copies
+ * are now dead weight that no code reads, and leaving them means somebody
+ * edits one and wonders why nothing changed.
+ *
+ * The list is explicit rather than "anything not in the template". A team's
+ * own file must never be a deletion candidate, and a rule phrased as an
+ * exclusion makes every new file one until somebody remembers to exempt it.
+ */
+const ORPHANED = [
+  'modules',
+  'stages',
+  'lifecycles',
+  'harness-engineering',
+  'crust.just',
+  'package.json',
+  'tsconfig.json',
+  'bun.lock',
+  'node_modules',
+  'README.md',
+  'consult.ts',
+  'decide.ts',
+  'please.ts',
+  'prune.ts',
+  'report.ts',
+  'steer.ts',
+  'workspaces.ts',
 ]
 
-const JUST_MODULE = "mod crust '.pi-crust/crust.just'"
+const removeOrphans = (root: string, tally: TTally): void => {
+  const gone = ORPHANED.filter((name) => {
+    const path = join(root, '.pi-crust', name)
+    if (!existsSync(path)) {
+      return false
+    }
+    rmSync(path, { recursive: true, force: true })
+
+    return true
+  })
+  if (gone.length > 0) {
+    tally.stamped.push(
+      `removed ${gone.length} path(s) the runtime no longer owns`,
+    )
+  }
+}
+
+const GITIGNORE_ENTRIES = [
+  '.pi-crust/data/',
+  '.pi-crust/config/*.local.yaml',
+  '.pi-crust/prompt-engineering/example/',
+]
+
+const JUST_RECIPE = [
+  '# pi-crust: every recipe lives in the package, not in this repository.',
+  '# `just crust <recipe>` reaches them; `just crust default` lists them.',
+  'crust *ARGS:',
+  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" {{ARGS}}',
+].join('\n')
 
 /**
  * Where pi-crust was installed from, left behind for the recipes to find.
@@ -153,48 +188,47 @@ const ensureGitignore = (root: string, tally: TTally): void => {
   if (missing.length === 0) {
     return
   }
-  appendFileSync(gitignore, `\n# crust runtime\n${missing.join('\n')}\n`, 'utf8')
+  appendFileSync(
+    gitignore,
+    `\n# crust runtime\n${missing.join('\n')}\n`,
+    'utf8',
+  )
   tally.stamped.push(`${gitignore} (+${missing.length} entries)`)
 }
 
 /**
  * The recipes are part of the operating experience, and the run banner points
- * at them — so a stamped repo has to reach them. They go in `.pi-crust/crust.just`
- * and are imported as a MODULE rather than written into the root justfile:
- * most repositories already have one, and `demo`, `plan`, and `scout` are
- * common enough recipe names that merging would collide.
+ * at them — so a stamped repo has to reach them.
+ *
+ * One passthrough recipe rather than a `mod` line. The recipes live in the
+ * pi-crust package, whose path differs per machine and must not be committed,
+ * and a `mod` resolves its path when the justfile is PARSED — so a missing
+ * one fails every recipe in the repository, not only the crust ones. A
+ * passthrough resolves at call time and costs an unrelated recipe nothing.
  */
-const ensureJustModule = (root: string, tally: TTally): void => {
+const ensureJustRecipe = (root: string, tally: TTally): void => {
   const justfile = join(root, 'justfile')
   const existing = existsSync(justfile) ? readFileSync(justfile, 'utf8') : ''
   /*
-   * A COMMENT naming the line is not the line. A justfile that explains how to
-   * re-add the module — which is exactly what a repo left after uninstalling
-   * tends to have — contains the text without importing anything, and a
-   * substring check reads that as "already installed" and silently stamps
-   * nothing. Match a real, uncommented statement.
+   * A COMMENT naming the recipe is not the recipe. A justfile that explains
+   * how to re-add it — which is what a repo left after uninstalling tends to
+   * have — contains the text without defining anything, and a substring check
+   * reads that as "already installed" and silently stamps nothing. Match a
+   * real, uncommented recipe header.
    */
   const installed = existing
     .split('\n')
-    .some((line) => line.trim() === JUST_MODULE)
+    .some((line) => line.trim() === 'crust *ARGS:')
   if (installed) {
     return
   }
   if (existing === '') {
-    writeFileSync(
-      justfile,
-      `# Repo recipes. pi-crust's live in .pi-crust/crust.just — run them as \`just crust <recipe>\`.\n\n${JUST_MODULE}\n`,
-      'utf8',
-    )
-    tally.stamped.push(`${justfile} (created, +crust module)`)
+    writeFileSync(justfile, `${JUST_RECIPE}\n`, 'utf8')
+    tally.stamped.push(`${justfile} (created, +crust recipe)`)
     return
   }
-  appendFileSync(
-    justfile,
-    `\n# crust recipes — run them as \`just crust <recipe>\`\n${JUST_MODULE}\n`,
-    'utf8',
-  )
-  tally.stamped.push(`${justfile} (+crust module)`)
+  appendFileSync(justfile, `\n${JUST_RECIPE}\n`, 'utf8')
+  tally.stamped.push(`${justfile} (+crust recipe)`)
 }
 
 const say = (line: string): void => {
@@ -206,7 +240,7 @@ const main = (): number => {
   const root = process.cwd()
   const tally: TTally = { stamped: [], skipped: [] }
 
-  stamp(join(TEMPLATES, 'pi-crust'), join(root, '.pi-crust'), force, tally)
+  stamp(join(TEMPLATES, 'stamp'), join(root, '.pi-crust'), force, tally)
   // Namespaced rather than `.env.sample`: the root of somebody else's
   // repository is not ours to claim, and a project with its own sample would
   // otherwise have it overwritten by an install.
@@ -216,16 +250,10 @@ const main = (): number => {
     force,
     tally,
   )
+  removeOrphans(root, tally)
   ensureGitignore(root, tally)
-  ensureJustModule(root, tally)
+  ensureJustRecipe(root, tally)
   recordHome(root, tally)
-
-  // The stamped tree has exactly one runtime dependency. Installing it here
-  // means `just crust demo` works without a second instruction nobody read.
-  const installed = spawnSync('bun', ['install'], {
-    cwd: join(root, '.pi-crust'),
-    encoding: 'utf8',
-  })
 
   say(`crust installed into ${root}`)
   say(`  stamped: ${tally.stamped.length} file(s)`)
@@ -237,11 +265,6 @@ const main = (): number => {
       `  skipped (already exist, use --force to overwrite): ${tally.skipped.length}`,
     )
   }
-  say(
-    installed.status === 0
-      ? '  dependencies: bun install ok'
-      : `  dependencies: bun install failed — run it yourself in .pi-crust/ (${(installed.stderr ?? '').trim().slice(-200)})`,
-  )
   say('\nnext steps:')
   say(
     '  1. cp .env.pi-crust.sample .env     # then set the key(s) your roster needs',
@@ -250,9 +273,11 @@ const main = (): number => {
   say('  3. just crust sessions      # what just happened')
   say('  4. just crust observe       # the trace UI, needs bun')
   say('\n  no just? the raw form of step 2 is:')
-  say('     bun .pi-crust/stages/prompt.ts "say hello" --agent scout')
   say(
-    '\n  read .pi-crust/README.md — it explains the folder to whoever finds it next.',
+    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/lifecycles/compose.ts" "say hello" --agent scout --steps prompt',
+  )
+  say(
+    '\n  read .pi-crust/prompt-engineering/README.md — it explains what is yours here.',
   )
   return 0
 }

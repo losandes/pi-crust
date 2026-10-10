@@ -12,7 +12,6 @@ set positional-arguments
 # every `.pi-crust/...` path below resolves to `.pi-crust/.pi-crust/...` and nothing runs.
 # The paths are spelled from the workspace root because that is where a
 # developer stands and what the config's own paths are relative to.
-set working-directory := '..'
 
 # Every recipe passes this through, so `CRUST_CONFIG=other.yaml just crust sdlc "..."`
 # swaps the whole roster for one run.
@@ -20,12 +19,16 @@ set working-directory := '..'
 # The observability UI takes two more: CRUST_BE_PORT (the API, default 4600)
 # and CRUST_FE_PORT (the web app, default 4601). Both are read by `observe` and by
 # every run, which prints a link to itself when the API answers.
+# Where pi-crust itself is installed. The runtime ships with the package
+# rather than with the stamp, so every recipe resolves it rather than
+# assuming a path. The installer writes it down; CRUST_HOME overrides.
+crust  := env_var_or_default("CRUST_HOME", `cat .pi-crust/data/pi-crust-home 2>/dev/null || echo ""` / "runtime")
 config := env_var_or_default("CRUST_CONFIG", ".pi-crust/config/crust.config.yaml")
 db     := ".pi-crust/data/crust.db"
 
 # list every crust recipe
 default:
-    @just --list crust
+    @just --justfile "{{justfile()}}" --list
 
 # ── first run ───────────────────────────────────────────────────────────────
 
@@ -38,9 +41,9 @@ default:
 # start here: two cheap read-only runs, end to end
 demo:
     @echo "1/2  prompt: one agent, one prompt"
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} --agent scout "reply with a one-line summary of this repo" --steps prompt
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} --agent scout "reply with a one-line summary of this repo" --steps prompt
     @echo "\n2/2  scout: read-only recon"
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --steps scout
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --steps scout
     @echo "\nboth done. now run:  just crust sessions    (or: just crust observe)"
 
 # ── run a stage, or a whole lifecycle ───────────────────────────────────────
@@ -48,79 +51,79 @@ demo:
 
 # one agent, one prompt: just crust prompt "summarize this repo"
 prompt *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps prompt
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps prompt
 
 # read-only recon: just crust scout "where is auth handled"
 scout *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps scout
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps scout
 
 # 1.2 the outcome and how success is recognised: just crust identify "..."
 identify *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps identify
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps identify
 
 # 1.2b reproduce it and name the cause: just crust diagnose "playback stops after track 3"
 diagnose *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps diagnose
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps diagnose
 
 # 1.3 what the solution must mean and do: just crust conceptualize "..."
 conceptualize *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps conceptualize
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps conceptualize
 
 # 2.2 how it physically exists here: just crust design "..."
 design *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps design
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps design
 
 # 2.0 answer one hypothesis cheaply: just crust poc "..."
 poc *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps poc
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps poc
 
 # plan only: just crust plan "add a /health endpoint"
 plan *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps plan
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps plan
 
 # write the tests that would prove it: just crust test "add a /health endpoint"
 test *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps test
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps test
 
 # implement only: just crust build "add a /health endpoint"
 build *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps build
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps build
 
 # run the checks the changed paths select: just crust verify "pre-PR sweep"
 verify *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps verify
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps verify
 
 # is it what was asked for: just crust review "add a /health endpoint"
 review *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps review
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps review
 
 # does it match this repo's conventions: just crust code-review "the /health work"
 code-review *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps code-review
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps code-review
 
 # land the working tree: just crust commit "the /health work"
 commit *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps commit
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps commit
 
 # write it up from the diff: just crust document "the /health work"
 document *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps document
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps document
 
 # plan, test, build, verify, review, code-review: just crust sdlc "add a /health endpoint"
 sdlc *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --lifecycle sdlc
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle sdlc
 
 # prove the risky part before building it: just crust de-risk "move sessions to redis"
 de-risk *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --lifecycle de-risk
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle de-risk
 
 # a reported bug, start to finish: just crust bugfix "playback stops after track 3"
 bugfix *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --lifecycle bugfix
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle bugfix
 
 # any ordered subset: just crust compose "..." --steps plan,build,verify
 compose *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@"
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@"
 
 # Any stage or lifecycle resumes: add --run-id <id> --resume to it, e.g.
 #     just crust sdlc "the original request" --run-id 9d67c31f --resume
@@ -131,63 +134,63 @@ compose *ARGS:
 
 # what is technically true: just crust technical-research "can we stream this"
 technical-research *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps technical-research
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps technical-research
 
 # what users need: just crust ux-research "why do they abandon upload"
 ux-research *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps ux-research
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps ux-research
 
 # the domain's own rules: just crust domain-research "what is an episode"
 domain-research *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps domain-research
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps domain-research
 
 # how it could be attacked: just crust security-research "the webhook endpoint"
 security-research *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps security-research
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps security-research
 
 # what the data shows: just crust data-research "did p95 move after the change"
 data-research *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps data-research
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps data-research
 
 # an interface somebody can build: just crust ux-design "the retry screen"
 ux-design *ARGS:
-    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps ux-design
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps ux-design
 
 # let it choose the steps: just crust operator "the webhook drops retries"
 operator *ARGS:
-    bun .pi-crust/stages/operator.ts --config {{config}} "$@"
+    bun "{{crust}}/stages/operator.ts" --config {{config}} "$@"
 
 # Prints the compose command and the reasoning behind it; starts nothing.
 # recommend a lifecycle instead of running it: just crust triage "..."
 triage *ARGS:
-    bun .pi-crust/stages/triage.ts --config {{config}} "$@"
+    bun "{{crust}}/stages/triage.ts" --config {{config}} "$@"
 
 # build the command by answering questions: just crust please
 please:
-    @bun .pi-crust/please.ts
+    @bun "{{crust}}/please.ts"
 
 # ── watch it ────────────────────────────────────────────────────────────────
 # Reads never block a running workflow, the db is WAL. Poll as hard as you like.
 
 # continue a run that is waiting for you: just crust approve <run_id>
 approve RUN_ID:
-    @bun .pi-crust/decide.ts approve {{RUN_ID}}
+    @bun "{{crust}}/decide.ts" approve {{RUN_ID}}
 
 # send it back with a correction: just crust reject <run_id> --note "..."
 reject RUN_ID *ARGS:
-    @bun .pi-crust/decide.ts reject {{RUN_ID}} "$@"
+    @bun "{{crust}}/decide.ts" reject {{RUN_ID}} "$@"
 
 # answer the questions it could not: just crust answer <run_id> --file a.md
 answer RUN_ID *ARGS:
-    @bun .pi-crust/decide.ts answer {{RUN_ID}} "$@"
+    @bun "{{crust}}/decide.ts" answer {{RUN_ID}} "$@"
 
 # where a run got to, and what to run to finish it: just crust report [<run_id>]
 report *ARGS:
-    @bun .pi-crust/report.ts --config {{config}} "$@"
+    @bun "{{crust}}/report.ts" --config {{config}} "$@"
 
 # the same, as JSON for an agent to parse: just crust report-json <run_id>
 report-json *ARGS:
-    @bun .pi-crust/report.ts --config {{config}} --json "$@"
+    @bun "{{crust}}/report.ts" --config {{config}} --json "$@"
 
 # the last 10 runs
 sessions:
@@ -208,32 +211,32 @@ procs RUN_ID:
 # forget runs older than N days, on disk and in the trace together.
 # Dry by default: add --yes to actually delete. just crust prune 14d
 prune AGE *ARGS:
-    @bun .pi-crust/prune.ts --older-than {{AGE}} "$@"
+    @bun "{{crust}}/prune.ts" --older-than {{AGE}} "$@"
 
 # ask a finished step a question — it still remembers the whole conversation.
 # just crust ask <run_id> <step> "why did you choose a registry table?"
 ask RUN_ID STEP *QUESTION:
-    @bun .pi-crust/consult.ts ask {{RUN_ID}} {{STEP}} "$@"
+    @bun "{{crust}}/consult.ts" ask {{RUN_ID}} {{STEP}} "$@"
 
 # send a run back to a step with new instructions: that step and every step
 # after it run again. --overwrite or --branch is REQUIRED; neither is default.
 # just crust steer <run_id> <step> --overwrite "use the registry, not the map"
 steer RUN_ID STEP *ARGS:
-    @bun .pi-crust/steer.ts {{RUN_ID}} {{STEP}} "$@"
+    @bun "{{crust}}/steer.ts" {{RUN_ID}} {{STEP}} "$@"
 
 # have a finished step revise ITS OWN document. Every other step's stays
 # read-only. just crust amend <run_id> <step> "shorten the migration section"
 amend RUN_ID STEP *INSTRUCTION:
-    @bun .pi-crust/consult.ts amend {{RUN_ID}} {{STEP}} "$@"
+    @bun "{{crust}}/consult.ts" amend {{RUN_ID}} {{STEP}} "$@"
 
 # the working trees this machine has run in — the observer watches them all
 trees:
-    @bun .pi-crust/workspaces.ts list
+    @bun "{{crust}}/workspaces.ts" list
 
 # Only removes it from this machine's list; nothing on disk is deleted.
 # stop watching a tree: just crust forget-tree /path/to/worktree
 forget-tree *PATHS:
-    @bun .pi-crust/workspaces.ts forget "$@"
+    @bun "{{crust}}/workspaces.ts" forget "$@"
 
 # ── observability UI ────────────────────────────────────────────────────────
 
