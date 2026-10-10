@@ -8,18 +8,18 @@ Answer four questions, in order:
 
 1. **What agents, in what order?** Pick from the roster (`.pi-crust/config/crust.config.yaml`). The starter six cover most chains:
 
-| Agent | Use when | Output type | Typical gates |
-|---|---|---|---|
-| `scout` | you need to FIND something first — read-only recon | `scoutOutput` | `artifactsExist` |
-| `planner` | the work needs a plan before code changes | `planOutput` | `artifactsExist`, `filesNonEmpty` |
-| `builder` | code must change | `buildOutput` | `diffMatchesClaims`, `disputesSupported` |
-| `builder`, revising | a review said no: fix each blocking finding, or dispute it with evidence | `buildOutput` | `diffMatchesClaims`, `disputesSupported` |
-| `reviewer` | the change must be confirmed to BE what was asked for | `reviewOutput` | `artifactsExist`, `verdictConsistent` |
-| `tester` | the change needs tests WRITTEN — judgement, so an agent; it may write test files only | `buildOutput` | `diffMatchesClaims` |
-| *(no test-runner agent)* | RUNNING the suite is the `verify` step: a `kind: 'code'` phase over the commands `routing.checks` declares | `TQualityResult` → `asEnvelope` | the exit code is the check |
-| `code-reviewer` | the change must be judged against this repository's conventions, which it loads from `routing.skills` | `reviewOutput` | `artifactsExist`, `verdictConsistent` |
-| `documenter` | finished work needs a write-up (runs after a build, off the diff) | `documentOutput` | `artifactsExist`, `filesNonEmpty` |
-| any agent, generic ask | one-off prompt, no special shape | `genericOutput` | as needed |
+| Agent                    | Use when                                                                                                   | Output type                     | Typical gates                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------- |
+| `scout`                  | you need to FIND something first — read-only recon                                                         | `scoutOutput`                   | `artifactsExist`                         |
+| `planner`                | the work needs a plan before code changes                                                                  | `planOutput`                    | `artifactsExist`, `filesNonEmpty`        |
+| `builder`                | code must change                                                                                           | `buildOutput`                   | `diffMatchesClaims`, `disputesSupported` |
+| `builder`, revising      | a review said no: fix each blocking finding, or dispute it with evidence                                   | `buildOutput`                   | `diffMatchesClaims`, `disputesSupported` |
+| `reviewer`               | the change must be confirmed to BE what was asked for                                                      | `reviewOutput`                  | `artifactsExist`, `verdictConsistent`    |
+| `tester`                 | the change needs tests WRITTEN — judgement, so an agent; it may write test files only                      | `buildOutput`                   | `diffMatchesClaims`                      |
+| *(no test-runner agent)* | RUNNING the suite is the `verify` step: a `kind: 'code'` phase over the commands `routing.checks` declares | `TQualityResult` → `asEnvelope` | the exit code is the check               |
+| `code-reviewer`          | the change must be judged against this repository's conventions, which it loads from `routing.skills`      | `reviewOutput`                  | `artifactsExist`, `verdictConsistent`    |
+| `documenter`             | finished work needs a write-up (runs after a build, off the diff)                                          | `documentOutput`                | `artifactsExist`, `filesNonEmpty`        |
+| any agent, generic ask   | one-off prompt, no special shape                                                                           | `genericOutput`                 | as needed                                |
 
    A new kind of agent needs a config entry + prompt pair + output type first — see `update_config.md`.
 
@@ -48,7 +48,7 @@ Answer four questions, in order:
 bun <pi-crust>/scripts/make-lifecycle.ts --name review-docs --agents scout,builder
 ```
 
-Writes `.pi-crust/lifecycles/review-docs.ts`: one agent phase per name, chained by `previous:`, starter agents mapped to their output types, any other roster agent to `genericOutput`. It checks every name against the roster first and refuses to write a file naming an agent that does not exist — but it does NOT create config entries or prompt files, so do that first (`update_config.md`).
+Writes `<pi-crust>/runtime/lifecycles/review-docs.ts`: one agent phase per name, chained by `previous:`, starter agents mapped to their output types, any other roster agent to `genericOutput`. It checks every name against the roster first and refuses to write a file naming an agent that does not exist — but it does NOT create config entries or prompt files, so do that first (`update_config.md`).
 
 ## The canonical skeleton
 
@@ -60,7 +60,7 @@ Every `stages/*.ts` or `lifecycles/*.ts`, generated or hand-written, has this sh
  * pi-crust Plan Build — plan the request, then implement the plan.
  *
  * Usage:
- *     bun .pi-crust/lifecycles/ship.ts "<prompt or path/to/prompt.md>" [--config .pi-crust/config/crust.config.yaml] [--run-id a1b2c3d4]
+ *     bun <pi-crust>/runtime/lifecycles/ship.ts "<prompt or path/to/prompt.md>" [--config .pi-crust/config/crust.config.yaml] [--run-id a1b2c3d4]
  *
  * Phases: engineer(request) -> planner -> builder -> git(commit)
  */
@@ -153,7 +153,7 @@ export const main = async (
 }
 
 if (import.meta.main) {
-  await runCli('.pi-crust/lifecycles/ship.ts', (args) =>
+  await runCli('<pi-crust>/runtime/lifecycles/ship.ts', (args) =>
     main(resolvePrompt(args.prompt), args.config, args.runId),
   )
 }
@@ -172,6 +172,6 @@ if (import.meta.main) {
 
 ## Before you ship it
 
-1. `bun .pi-crust/lifecycles/<name>.ts "a tiny real request"` — watch it go green end to end.
+1. `bun <pi-crust>/runtime/lifecycles/<name>.ts "a tiny real request"` — watch it go green end to end.
 2. Check the trace: `sqlite3 .pi-crust/data/crust.db "select seq,name,kind,owner,status from phases where run_id='<id>' order by seq;"`
 3. Read the final `envelope.json` — is the output type earning its fields, or should it be sharper?

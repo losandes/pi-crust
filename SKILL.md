@@ -11,7 +11,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 ## Use this skill when
 
 - The engineer says `/skill:pi-crust install`, or asks to set the factory up in a repository
-- A stage or a lifecycle needs creating, changing, or running — anything under `.pi-crust/stages/` or `.pi-crust/lifecycles/`
+- A stage or a lifecycle needs creating, changing, or running — anything under `<pi-crust>/runtime/stages/` or `<pi-crust>/runtime/lifecycles/`
 - The agent roster needs tuning: a model, a thinking level, a tool list, a `writes` boundary
 - A run needs watching or explaining — which phase failed, what a gate rejected, what it cost
 - Someone asks what `.pi-crust/` is, or how to drive it
@@ -28,7 +28,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 Three steps. Then stop.
 
 1. Read [cookbooks/crust_overview.md](cookbooks/crust_overview.md) — the system map.
-2. `ls .pi-crust/stages/*.ts .pi-crust/lifecycles/*.ts` and read each file's `Phases:` docstring line.
+2. `ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts` and read each file's `Phases:` docstring line.
 3. Print what is available as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
 
 The two directories are not the same kind of thing, and the table should not pretend otherwise:
@@ -70,16 +70,16 @@ You run the system, observe the system, and help the user interact with it. **Yo
 
 ## Request routing (lazy-load the cookbook, then follow it)
 
-| Request | Cookbook |
-|---|---|
-| `/skill:pi-crust install`, set up the factory in this repo | [cookbooks/install.md](cookbooks/install.md) |
-| create a new workflow | [cookbooks/create_lifecycle.md](cookbooks/create_lifecycle.md) |
-| modify an existing workflow chain | [cookbooks/update_lifecycle.md](cookbooks/update_lifecycle.md) |
-| create the config / agent roster | [cookbooks/create_config.md](cookbooks/create_config.md) |
-| add or retune an agent (model, thinking, tools, prompts) | [cookbooks/update_config.md](cookbooks/update_config.md) |
-| extend `.pi-crust/modules/` with new low-level logic | [cookbooks/update_modules.md](cookbooks/update_modules.md) |
-| run / monitor a workflow | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) **first**, then [cookbooks/run_lifecycle.md](cookbooks/run_lifecycle.md) |
-| turn a request into a workflow prompt | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) |
+| Request                                                       | Cookbook                                                                                                                                                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/skill:pi-crust install`, set up the factory in this repo    | [cookbooks/install.md](cookbooks/install.md)                                                                                                              |
+| create a new workflow                                         | [cookbooks/create_lifecycle.md](cookbooks/create_lifecycle.md)                                                                                            |
+| modify an existing workflow chain                             | [cookbooks/update_lifecycle.md](cookbooks/update_lifecycle.md)                                                                                            |
+| create the config / agent roster                              | [cookbooks/create_config.md](cookbooks/create_config.md)                                                                                                  |
+| add or retune an agent (model, thinking, tools, prompts)      | [cookbooks/update_config.md](cookbooks/update_config.md)                                                                                                  |
+| extend `<pi-crust>/runtime/modules/` with new low-level logic | [cookbooks/update_modules.md](cookbooks/update_modules.md)                                                                                                |
+| run / monitor a workflow                                      | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) **first**, then [cookbooks/run_lifecycle.md](cookbooks/run_lifecycle.md) |
+| turn a request into a workflow prompt                         | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md)                                                                          |
 
 Deep specs, when needed: [references/config.md](references/config.md) · [references/handoff.md](references/handoff.md) · [references/observability.md](references/observability.md)
 
@@ -87,17 +87,17 @@ Deep specs, when needed: [references/config.md](references/config.md) · [refere
 
 The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are that record's; the step names are what you type. They differ in one place, and the mapping is kept rather than renamed so a human running the same lifecycle recognises both.
 
-| Stage | Step | Owner | Reduces |
-|---|---|---|---|
-| 1.1 Evaluate | `scout` | scout | what is happening, what is known versus believed |
-| 1.2 Identify | `identify` | analyst | what outcome is wanted, how success is recognised |
-| 1.3 Conceptualize | `conceptualize` | solutions-architect | what the solution must mean and do |
-| 2.0 POC | `poc` *(compose only)* | builder | one named hypothesis, cheaply |
-| 2.1 Plan | `plan` | planner | what to build, in what order, proven how |
-| 2.2 Design | `design` | technical-architect | how it physically exists here, observability included |
-| 2.3 Build | `test`, `build`, `verify` | tester, builder, code | what would prove it, the work, the deterministic truth |
-| 3.1 Verify | `review`, `code-review` | reviewer, code-reviewer | is it what was asked for; does it conform |
-| 3.2 Launch | `commit`, `document` + a human | code, documenter | handing a reviewable change to the person who launches it |
+| Stage             | Step                           | Owner                   | Reduces                                                   |
+| ----------------- | ------------------------------ | ----------------------- | --------------------------------------------------------- |
+| 1.1 Evaluate      | `scout`                        | scout                   | what is happening, what is known versus believed          |
+| 1.2 Identify      | `identify`                     | analyst                 | what outcome is wanted, how success is recognised         |
+| 1.3 Conceptualize | `conceptualize`                | solutions-architect     | what the solution must mean and do                        |
+| 2.0 POC           | `poc` *(compose only)*         | builder                 | one named hypothesis, cheaply                             |
+| 2.1 Plan          | `plan`                         | planner                 | what to build, in what order, proven how                  |
+| 2.2 Design        | `design`                       | technical-architect     | how it physically exists here, observability included     |
+| 2.3 Build         | `test`, `build`, `verify`      | tester, builder, code   | what would prove it, the work, the deterministic truth    |
+| 3.1 Verify        | `review`, `code-review`        | reviewer, code-reviewer | is it what was asked for; does it conform                 |
+| 3.2 Launch        | `commit`, `document` + a human | code, documenter        | handing a reviewable change to the person who launches it |
 
 `scout` is stage 1.1. It kept its name because every chain, recipe and habit already uses it, and a rename would cost more than the tidiness is worth — but it is Evaluate, and the record's rules for Evaluate are the ones it follows.
 
@@ -107,29 +107,29 @@ Stages may send the run BACKWARDS. Any stage can set `regress_to` when evidence 
 
 Each does one thing, and each is invoked by path. `<pi-crust>` below is this skill's own directory, whose absolute path is in the skill listing — pi-crust is a package and may be installed anywhere, so there is no fixed path to quote:
 
-| Task | Command |
-|---|---|
-| Stamp the factory into the current repo (idempotent; `--force` overwrites) | `bun <pi-crust>/scripts/install.ts` |
-| Prove the installed `.pi-crust/` is the tree this skill ships | `<pi-crust>/scripts/verify-install.sh` |
-| Write just the roster, when the rest is already there | `bun <pi-crust>/scripts/make-config.ts` |
-| Generate a new lifecycle from agents already in the roster | `bun <pi-crust>/scripts/make-lifecycle.ts --name review-docs --agents scout,builder` |
-| Boot the trace UI against a stamped tree (what `just crust observe` runs) | `bun <pi-crust>/scripts/observe.ts` |
+| Task                                                                       | Command                                                                              |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Stamp the factory into the current repo (idempotent; `--force` overwrites) | `bun <pi-crust>/scripts/install.ts`                                                  |
+| Prove the installed `.pi-crust/` is the tree this skill ships              | `<pi-crust>/scripts/verify-install.sh`                                               |
+| Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                              |
+| Generate a new lifecycle from agents already in the roster                 | `bun <pi-crust>/scripts/make-lifecycle.ts --name review-docs --agents scout,builder` |
+| Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                                  |
 
 Run `verify-install.sh` after installing and after any change to the template. The skill is the source and `.pi-crust/` is a copy, so an edit made to one and not the other ships a factory that differs from the one it was tested in, and nothing says so until a run behaves strangely. It exempts `config/` (the repository's own roster and routing), `data/` (runtime), and tests, which `install.ts` never stamps.
 
-`install.ts` stamps `.pi-crust/` — modules, workflows, config, prompts, recipes, and `.pi-crust/README.md`, which explains the folder to the next engineer who opens the repo. It also appends the gitignore entries and a `mod crust '.pi-crust/crust.just'` line to the root justfile, so the recipes land as `just crust <recipe>` without colliding with recipes the repo already has.
+`install.ts` stamps `.pi-crust/` — the activity registry, the lifecycles, the themes, a prompt-engineering directory for yours, and `data/` for this machine's runs. No code is stamped: the runtime lives in the package, which is what lets an update replace everything it owns without touching anything a team wrote. It also appends three gitignore lines and a `crust` passthrough recipe to the root justfile, so the recipes land as `just crust <recipe>` without colliding with recipes the repository already has.
 
 ## Hard rules (enforced across everything the factory generates)
 
 1. **Validate before running** — every workflow declares `REQUIRED_AGENTS` and calls `validateAgents()` first; a missing or misnamed agent fails before anything spawns.
-2. **Typed outputs only** — every agent call pairs with a concrete envelope spec in `.pi-crust/modules/typedefs/envelope.ts`; parse failures re-prompt the same session (context intact), never restart. **The output contract is a synced triad**: (a) the schema in `typedefs/envelope.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `outputType:` at every call site. These are ONE contract — change any one, update all three in the same edit (grep the spec name to find every call site).
+2. **Typed outputs only** — every agent call pairs with a concrete envelope spec in `<pi-crust>/runtime/modules/typedefs/envelope.ts`; parse failures re-prompt the same session (context intact), never restart. **The output contract is a synced triad**: (a) the schema in `typedefs/envelope.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `outputType:` at every call site. These are ONE contract — change any one, update all three in the same edit (grep the spec name to find every call site).
 3. **Gates validate claims, not guesses** — `gate.check(envelope, run) -> TGateReport`; failures return to the same session as corrections.
 4. **Four-param rule** — any function with more than 4 parameters takes one concrete type instead (`TAgentCall`, `TPhaseParams` are the pattern).
 5. **One agent, one prompt, one purpose** — identity lives in `system.md`; task shape (user prompt + output type) lives at the call site.
-6. **Workflow scripts stay thin** — all low-level logic lives in `.pi-crust/modules/`, split `typedefs/` (shapes), `data/` (the outside world), `use-cases/` (policy).
+6. **Workflow scripts stay thin** — all low-level logic lives in `<pi-crust>/runtime/modules/`, split `typedefs/` (shapes), `data/` (the outside world), `use-cases/` (policy).
 7. **Every phase earns a description** — one sentence on what it does and why, never a restatement of its name. It is the only intent the trace, the console, and the UI ever show; `commit_plan: "Commit the plan"` is rejected at construction, blank is too.
-8. **A known command is code, not an agent** — if you can write the invocation down (`bun test`, `pnpm lint`), it belongs in a `kind: 'code'` phase via `.pi-crust/modules/use-cases/run-checks.ts`. Agents are for the parts that need reading and deciding; failures come back to the builder as an envelope either way.
-9. **`tools:` is a capability list, `writes:` is the boundary** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. `writes:` per agent and `protected_files` in defaults are enforced in `.pi-crust/modules/use-cases/enforce-permissions.ts` after every agent call: unauthorized changes are rolled back and the phase dies. The session runtime under `data_dir` is always writable — a read-only agent is read-only with respect to the REPO, never mute.
+8. **A known command is code, not an agent** — if you can write the invocation down (`bun test`, `pnpm lint`), it belongs in a `kind: 'code'` phase via `<pi-crust>/runtime/modules/use-cases/run-checks.ts`. Agents are for the parts that need reading and deciding; failures come back to the builder as an envelope either way.
+9. **`tools:` is a capability list, `writes:` is the boundary** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. `writes:` per agent and `protected_files` in defaults are enforced in `<pi-crust>/runtime/modules/use-cases/enforce-permissions.ts` after every agent call: unauthorized changes are rolled back and the phase dies. The session runtime under `data_dir` is always writable — a read-only agent is read-only with respect to the REPO, never mute.
 10. **Every workflow ends in `finish(run)`** — phases passing is not the same as the run being accepted. A test phase that ran a red suite succeeded at its job. Pass `accepted:` so the exit code, the session status, and the banner are decided together and cannot disagree.
 11. **Skills and checks are config-routed, never hardcoded** — a skill path or a checker command may appear in `routing:` in `crust.config.yaml` and nowhere else. No prompt and no module may name one: the factory is stamped into repositories whose conventions and toolchain it cannot know, and a hardcoded path there is a path that does not exist. Both are selected by the paths a change actually touched.
 12. **A verification nobody declared did not pass** — when paths changed and no `routing.checks` rule matched them, `verify` FAILS and says so. Zero checks passing is not the same claim as zero checks failing.

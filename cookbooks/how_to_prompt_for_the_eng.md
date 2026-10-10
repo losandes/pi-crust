@@ -10,10 +10,10 @@ Turn what the engineer said into the prompt the workflow receives: **clearer, no
 
 **The intent is theirs. The precision is yours.**
 
-| You MAY | You MAY NOT |
-|---|---|
-| Carry every constraint forward, verbatim | Quietly drop a requirement because it looks hard or odd |
-| Fix grammar, cut rambling, order the steps | Soften a strong ask ("rewrite" → "refactor a bit") |
+| You MAY                                                 | You MAY NOT                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Carry every constraint forward, verbatim                | Quietly drop a requirement because it looks hard or odd           |
+| Fix grammar, cut rambling, order the steps              | Soften a strong ask ("rewrite" → "refactor a bit")                |
 | Change the language used to better communicate the idea | Research the codebase for exact file names, never go into the app |
 
 If you catch yourself improving the *idea* rather than the *sentence*, stop. Raise the concern to the engineer in your own message and launch what they asked for.
@@ -61,20 +61,20 @@ Same idea, same scope. What changed is that "popularity" became a sort order, th
 **If they did not, read what this repo actually has and choose from that.**
 
 ```bash
-ls .pi-crust/stages/*.ts .pi-crust/lifecycles/*.ts                       # the menu
-head -20 .pi-crust/lifecycles/<name>.ts            # every workflow opens with its `Phases:` line — the chain in one line
+ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts                       # the menu
+head -20 <pi-crust>/runtime/lifecycles/<name>.ts            # every workflow opens with its `Phases:` line — the chain in one line
 ```
 
 Chains are the engineer's to add, rename, and rewire, so **the files on disk are the only authority**. Never launch from memory or from a name you saw in a doc; read the docstrings, then match by shape:
 
-| The work | Look for a chain that |
-|---|---|
-| Changes code, and the shape is not obvious — new behaviour, more than one file, anything you would want a plan for | goes end to end: plans, builds, verifies, reviews, and documents |
-| Changes code, one well-understood edit | plans, builds, and verifies |
-| Implements a plan this session already produced (`--run-id`) | starts at build and verifies |
-| Confirms built work is what was asked for | ends in a review phase |
-| Writes up work already shipped | captures the diff and documents it |
-| Is a question, and nothing should change | is a single read-only agent — the one case where one phase is right |
+| The work                                                                                                           | Look for a chain that                                               |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Changes code, and the shape is not obvious — new behaviour, more than one file, anything you would want a plan for | goes end to end: plans, builds, verifies, reviews, and documents    |
+| Changes code, one well-understood edit                                                                             | plans, builds, and verifies                                         |
+| Implements a plan this session already produced (`--run-id`)                                                       | starts at build and verifies                                        |
+| Confirms built work is what was asked for                                                                          | ends in a review phase                                              |
+| Writes up work already shipped                                                                                     | captures the diff and documents it                                  |
+| Is a question, and nothing should change                                                                           | is a single read-only agent — the one case where one phase is right |
 
 **Never a single-agent chain when the engineer asked for work to be done.** One-phase workflows answer questions and run one-offs; they do not deliver.
 

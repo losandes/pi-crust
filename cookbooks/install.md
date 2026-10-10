@@ -14,39 +14,43 @@ The installer records where it ran from in `.pi-crust/data/pi-crust-home`, which
 
 ## What gets stamped
 
-`install.ts` copies `templates/pi-crust/` into `./.pi-crust/`, skipping the skill's own `*.test.ts` files:
+`install.ts` copies `templates/stamp/` into `./.pi-crust/`. That is the whole stamp, and all of it is yours:
 
-| Stamped                                                                     | From                                          | Tracked?                                                                      |
-| --------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------- |
-| `.pi-crust/config/crust.config.yaml`                                        | `templates/pi-crust/config/crust.config.yaml` | yes — the agent roster                                                        |
-| `.pi-crust/crust.just`                                                      | `templates/pi-crust/crust.just`               | yes — starter recipes, reached as `just crust <recipe>`                       |
-| `justfile`                                                                  | appended: `mod crust '.pi-crust/crust.just'`  | yes — created if the repo has none                                            |
-| `.env.pi-crust.sample`                                                      | `templates/env.sample`                        | yes                                                                           |
-| `.pi-crust/README.md`                                                       | `templates/pi-crust/README.md`                | no — regenerated                                                              |
-| `.pi-crust/stages/*.ts`                                                     | `templates/pi-crust/stages/`                  | no — one runnable entrypoint per step                                         |
-| `.pi-crust/lifecycles/*.ts`                                                 | `templates/pi-crust/lifecycles/`              | no — `sdlc`, `bugfix`, `compose`                                              |
-| `.pi-crust/modules/`                                                        | `templates/pi-crust/modules/`                 | no — all low-level logic                                                      |
-| `.pi-crust/package.json`, `.pi-crust/tsconfig.json`                         | `templates/pi-crust/`                         | no — one dependency, `zod`                                                    |
-| `.pi-crust/prompt-engineering/{planner,builder,scout,reviewer,documenter}/` | `templates/pi-crust/prompt-engineering/`      | no — **the user-owned home for prompts**, un-ignore it once you edit it       |
-| `.pi-crust/harness-engineering/`                                            | `templates/pi-crust/harness-engineering/`     | no — **the user-owned home for pi extensions**, un-ignore it once you edit it |
-| `.pi-crust/data/`, `.pi-crust/node_modules/`                                | created at runtime                            | no — never commit                                                             |
+| Stamped                                  | What it is                                                   | Tracked?          |
+| ---------------------------------------- | ------------------------------------------------------------ | ----------------- |
+| `config/crust.config.yaml`               | defaults and observability                                   | yes               |
+| `config/crust.activities.yaml`           | every Activity this repository offers                        | yes               |
+| `config/crust.lifecycles.yaml`           | every Lifecycle, as Stages and dependencies                  | yes               |
+| `config/crust.themes.yaml`               | every theme the trace UI offers                              | yes               |
+| `config/crust.config.local.example.yaml` | what a personal override may say                             | yes               |
+| `prompt-engineering/README.md`           | how to add or override a prompt                              | yes               |
+| `prompt-engineering/example/`            | the shape of a prompt                                        | no — illustrative |
+| `data/`                                  | this developer's runs, and where pi-crust is on this machine | no — never shared |
+| `.env.pi-crust.sample`                   | the variables a roster may need, at the repository root      | yes               |
+| `justfile`                               | gains a `crust` recipe; created if the repository has none   | yes               |
 
-Only four things are committed by default, because the rest is generated and `install.ts` can rewrite it at will. The roster is the agreement about which agents run; `crust.just` has to be committed or the `mod crust` line in the root justfile fails **every** `just` invocation for anyone who clones before installing.
+**No code is stamped.** The runtime — modules, the Activity runner, the Planners, the shipped prompts, the pi extensions, the recipes — lives in the pi-crust package. That is what makes an update safe: it can replace every file it owns without touching a file you wrote, because none of them are the same file.
 
-`prompt-engineering/` and `harness-engineering/` are yours, but being yours is a decision you make rather than one the installer makes for you. Un-ignore them when you start editing them:
+An install also **removes** paths an earlier version stamped into `.pi-crust/`: `modules/`, `stages/`, `lifecycles/`, `harness-engineering/`, `crust.just` and the root scripts. Those are dead copies no code reads. The list is explicit, so a file you created is never a deletion candidate.
 
-```gitignore
-!.pi-crust/prompt-engineering/
-!.pi-crust/harness-engineering/
-```
+## Extending it
 
-The two `*-engineering` dirs mirror the two config keys of the same name: `prompt_engineering` is what an agent is told, `harness_engineering` is what its harness can do. Both are yours the moment they are stamped. Edit them in `.pi-crust/`, never back inside the skill. They sit beside `data/` rather than inside it because everything under `data/` is written by a run — authored files and runtime files do not mix.
+Nothing here needs a `.gitignore` edit. Every directory that receives your work is already tracked.
 
-`harness-engineering/` ships with `subagents.ts` — the pi extension backing `subagent_create` / `_continue` / `_list` / `_remove`, wired to the planner and scout in the starter roster.
+| To                                | Do                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| Add an Activity                   | Add an entry to `config/crust.activities.yaml`                                             |
+| Remove one                        | Delete its entry — the file lists everything, so deleting removes the capability           |
+| Reorder the menu                  | Reorder the file; nothing else records a sequence                                          |
+| Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner |
+| Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                        |
+| Override a prompt                 | Write `.pi-crust/prompt-engineering/<activity>/system.md`. It wins; nothing else changes   |
+| Add a theme                       | Register it in `config/crust.themes.yaml` and put the `.scss` beside it                    |
+| Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                          |
 
-## Idempotency
+A local layer may set any key and may add an Activity or Lifecycle the team file does not have. It is not restricted, because whoever writes it can equally write the committed file.
 
-Re-running is safe. `install.ts` skips **every** file that already exists — your config, your prompts, and previously stamped code alike — and reports what it skipped, so a second run doubles as a drift check. To refresh stamped code (`modules/`, the starter `stages/*.ts` or `lifecycles/*.ts`) to the skill's current version, run with `--force` — but know that `--force` overwrites ALL existing stamped files, including `crust.config.yaml` and `prompt-engineering/`, so commit or back up user-owned edits first.
+Three capabilities are not configurable and cannot be removed: **Triage** recommends a Lifecycle, the **Operator** recommends and runs one, and the **Composer** runs the plan it is handed. They decide or initiate work rather than perform it.
 
 ## Post-install checklist
 
@@ -54,23 +58,23 @@ Re-running is safe. `install.ts` skips **every** file that already exists — yo
 2. **Dependencies** — `install.ts` runs `bun install` inside `.pi-crust/` for you (one package: `zod`). If that step reported a failure, run it yourself.
 3. **Pi is installed and on PATH** — `pi --version`. Set `PI_PATH` in `.env` if it is not.
 4. **The model resolves** — the config's default `gemini-3.6-flash` must be a registered id in `~/.pi/agent/models.json`. Check with `pi --list-models` or read the file directly; see `references/config.md` for model resolution.
-5. **Gitignore** — `install.ts` appends four lines for you; confirm they landed:
+5. **Gitignore** — `install.ts` appends three lines for you; confirm they landed:
 
    ```gitignore
    # crust runtime
-   .pi-crust/*
-   !.pi-crust/crust.just
-   !.pi-crust/config/
+   .pi-crust/data/
    .pi-crust/config/*.local.yaml
+   .pi-crust/prompt-engineering/example/
    ```
 
-   The negation depends on `.pi-crust/` itself not being excluded, so `.pi-crust/` and `.pi-crust/*` are not interchangeable on the first line — git cannot re-include a path whose parent directory is excluded.
+   Everything else in `.pi-crust/` is yours and belongs in the repository.
+
 6. **Git repo** — a chain that ends in a commit phase calls `commitAll`, which throws if the cwd is not a git repository. Run `git init` and make a first commit before using any chain that ends in `commit`. `document.ts` needs one too: it measures the change with `git diff` against a base ref (`main` by default, `--base` to override).
 7. **Smoke test** — `just crust demo` runs two cheap read-only workflows back to back, or run the smallest workflow directly:
 
 ```bash
 just crust demo                                                    # both, end to end
-bun .pi-crust/stages/prompt.ts "reply with a one-line summary of this repo"   # the raw form
+bun <pi-crust>/runtime/stages/prompt.ts "reply with a one-line summary of this repo"   # the raw form
 ```
 
 Green means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `.pi-crust/data/crust.db`. Verify the trace exists before trusting anything larger:

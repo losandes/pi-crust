@@ -86,19 +86,19 @@ Every run is a sequence of **phases**, each one `await phase(phaseParams({...}),
 
 A **step** is a phase plus the two things composition needs: the agents it requires, and how it is REPLAYED. Eleven of them, each runnable on its own:
 
-| Step | Kind | Owner | Asks |
-|---|---|---|---|
-| `prompt` | agent | `--agent` | whatever you asked, straight through |
-| `scout` | agent | scout | where do things live? |
-| `plan` | agent | planner | what should be done? |
-| `test` | agent | tester | what would prove it was done? |
-| `build` | agent | builder | do it |
-| `verify` | code | quality | do the declared checks pass? |
-| `review` | agent | reviewer | is this what was asked for? |
-| `code-review` | agent | code-reviewer | does it match this repo's conventions? |
-| `revise` | agent | builder | answer the review: fix it, or dispute it with evidence |
-| `commit` | code | git | land it, in its author's words |
-| `document` | agent | documenter | write up what the diff shows |
+| Step          | Kind  | Owner         | Asks                                                   |
+| ------------- | ----- | ------------- | ------------------------------------------------------ |
+| `prompt`      | agent | `--agent`     | whatever you asked, straight through                   |
+| `scout`       | agent | scout         | where do things live?                                  |
+| `plan`        | agent | planner       | what should be done?                                   |
+| `test`        | agent | tester        | what would prove it was done?                          |
+| `build`       | agent | builder       | do it                                                  |
+| `verify`      | code  | quality       | do the declared checks pass?                           |
+| `review`      | agent | reviewer      | is this what was asked for?                            |
+| `code-review` | agent | code-reviewer | does it match this repo's conventions?                 |
+| `revise`      | agent | builder       | answer the review: fix it, or dispute it with evidence |
+| `commit`      | code  | git           | land it, in its author's words                         |
+| `document`    | agent | documenter    | write up what the diff shows                           |
 
 `test` writes tests and `verify` runs them, because writing one is judgement and running one is a command. `review` and `code-review` ask different questions: whether the ask was met, and whether the result conforms. `code-review` learns the conventions by loading the skills `routing.skills` gives it — none of them is named in `.pi-crust/`.
 
@@ -115,8 +115,8 @@ Agents have exactly two output channels: reference files written into `context_h
 ## Running a workflow
 
 ```bash
-bun .pi-crust/stages/plan.ts "add a /health endpoint"
-bun .pi-crust/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
+bun <pi-crust>/runtime/stages/plan.ts "add a /health endpoint"
+bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
 just crust plan "add a /health endpoint"
 ```
 
@@ -126,14 +126,14 @@ A run that stopped is picked up, not restarted:
 
 ```bash
 bun .pi-crust/report.ts                      # where did the last run stop?
-bun .pi-crust/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
+bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
 ```
 
 `--resume` skips every phase already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
 
 ## When you have finished reading this
 
-You are done with startup. List the workflows (`ls .pi-crust/stages/*.ts .pi-crust/lifecycles/*.ts`, plus each `Phases:` docstring line) as a table, and **wait for the engineer's request.**
+You are done with startup. List the workflows (`ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts`, plus each `Phases:` docstring line) as a table, and **wait for the engineer's request.**
 
 Do not survey anything else — not the trace db, not the config, not past runs, not the repo tree. You do not yet know what the request is, so anything you gather now is a guess about what will matter, spent from the context the real work needs. Every cookbook and reference below is lazy-loaded, one per request, and that is the whole design.
 
@@ -141,15 +141,15 @@ Do not survey anything else — not the trace db, not the config, not past runs,
 
 Load one cookbook per request — this overview is the only one you read up front.
 
-| Request | Cookbook |
-|---|---|
+| Request                                        | Cookbook                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------- |
 | Turn a request into the prompt a workflow gets | `how_to_prompt_for_the_eng.md` — **read before every launch** |
-| Set the system up in a repo | `install.md` |
-| Write a new workflow script | `create_lifecycle.md` |
-| Change an existing workflow chain | `update_lifecycle.md` |
-| Generate `crust.config.yaml` | `create_config.md` |
-| Add or retune an agent | `update_config.md` |
-| Add low-level logic or a gate | `update_modules.md` |
-| Run and monitor a workflow | `how_to_prompt_for_the_eng.md`, then `run_lifecycle.md` |
+| Set the system up in a repo                    | `install.md`                                                  |
+| Write a new workflow script                    | `create_lifecycle.md`                                         |
+| Change an existing workflow chain              | `update_lifecycle.md`                                         |
+| Generate `crust.config.yaml`                   | `create_config.md`                                            |
+| Add or retune an agent                         | `update_config.md`                                            |
+| Add low-level logic or a gate                  | `update_modules.md`                                           |
+| Run and monitor a workflow                     | `how_to_prompt_for_the_eng.md`, then `run_lifecycle.md`       |
 
 References, loaded when you need the spec: `references/config.md` (full config schema), `references/handoff.md` (envelope + session layout), `references/observability.md` (events, db tables, polling).

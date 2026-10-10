@@ -12,18 +12,18 @@ Location comes from `observability.db` in `crust.config.yaml`, default `.pi-crus
 
 `trace-db.ts` emits these types, every one logged against its `run_id` **and** `phase_id`:
 
-| Type | Emitted when |
-|---|---|
-| `phase_start` | a `phase(phaseParams({...}), body)` block is entered |
-| `agent_start` | a coding agent is spawned or resumed for `callAgent(run, ph, {...})` |
-| `tool_call` | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
-| `handoff` | an envelope crosses from one agent to the next |
-| `gate_pass` | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations` |
-| `gate_fail` | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations` |
-| `log` | an explicit `ph.log(...)` from the workflow script |
-| `agent_end` | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window` |
-| `phase_end` | the block exits; carries the resolved status |
-| `error` | a raise inside a phase block |
+| Type          | Emitted when                                                                                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phase_start` | a `phase(phaseParams({...}), body)` block is entered                                                                                                                                   |
+| `agent_start` | a coding agent is spawned or resumed for `callAgent(run, ph, {...})`                                                                                                                   |
+| `tool_call`   | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
+| `handoff`     | an envelope crosses from one agent to the next                                                                                                                                         |
+| `gate_pass`   | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations`                                                                          |
+| `gate_fail`   | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations`                                                                                         |
+| `log`         | an explicit `ph.log(...)` from the workflow script                                                                                                                                     |
+| `agent_end`   | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
+| `phase_end`   | the block exits; carries the resolved status                                                                                                                                           |
+| `error`       | a raise inside a phase block                                                                                                                                                           |
 
 `parent_id` nests spans, so an agent phase expands into its tool-call spans in the UI.
 
@@ -167,11 +167,11 @@ No `run-id` means the most recent session. `--db` wins over the config's `observ
 
 Exit codes, because an agent will branch on them:
 
-| Code | Means |
-|---|---|
-| `0` | the run succeeded and has no unfinished phase |
-| `1` | it failed, or it is incomplete |
-| `2` | no such session, or a usage error |
+| Code | Means                                         |
+| ---- | --------------------------------------------- |
+| `0`  | the run succeeded and has no unfinished phase |
+| `1`  | it failed, or it is incomplete                |
+| `2`  | no such session, or a usage error             |
 
 ### `TRunState` — the JSON contract
 
@@ -264,12 +264,12 @@ In the UI, a run's tree is a chip on its card and a filter above the list, both 
 
 ## Ports
 
-| Variable | Default | What it moves |
-|---|---|---|
-| `CRUST_BE_PORT` | 4600 | the API the UI and every run talk to |
-| `CRUST_FE_PORT` | 4601 | the web app |
-| `CRUST_WORKSPACES` | — | trees to watch, comma-separated, instead of the registry |
-| `CRUST_REGISTRY` | `~/.pi-crust/workspaces.jsonl` | where registration is recorded |
+| Variable           | Default                        | What it moves                                            |
+| ------------------ | ------------------------------ | -------------------------------------------------------- |
+| `CRUST_BE_PORT`    | 4600                           | the API the UI and every run talk to                     |
+| `CRUST_FE_PORT`    | 4601                           | the web app                                              |
+| `CRUST_WORKSPACES` | —                              | trees to watch, comma-separated, instead of the registry |
+| `CRUST_REGISTRY`   | `~/.pi-crust/workspaces.jsonl` | where registration is recorded                           |
 
 ```bash
 CRUST_BE_PORT=5600 CRUST_FE_PORT=5601 just crust observe

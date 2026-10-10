@@ -12,13 +12,13 @@ The workflow is the worker. Your job is to launch it, watch the trace, and tell 
 
 ## Launch
 
-Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `ls .pi-crust/stages/*.ts .pi-crust/lifecycles/*.ts` and the `Phases:` line in each docstring to see what this repo has; the names below are shape, not a menu.
+Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts` and the `Phases:` line in each docstring to see what this repo has; the names below are shape, not a menu.
 
 ```bash
-bun .pi-crust/lifecycles/sdlc.ts "add a /health endpoint"
-bun .pi-crust/lifecycles/compose.ts requests/health.md
-bun .pi-crust/stages/build.ts "implement the plan" --run-id a1b2c3d4
-bun .pi-crust/stages/scout.ts "where is auth handled" --config path/to/other.config.yaml
+bun <pi-crust>/runtime/lifecycles/sdlc.ts "add a /health endpoint"
+bun <pi-crust>/runtime/lifecycles/compose.ts requests/health.md
+bun <pi-crust>/runtime/stages/build.ts "implement the plan" --run-id a1b2c3d4
+bun <pi-crust>/runtime/stages/scout.ts "where is auth handled" --config path/to/other.config.yaml
 ```
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `run_id` is printed on startup — capture it, everything else keys off it.
@@ -45,17 +45,17 @@ Read those from disk every time. Rosters are the engineer's to add, rename, and 
 
 They will rarely say `--config`. Treat any of these as naming a roster, then resolve it to a file:
 
-| What they say | What it means |
-|---|---|
-| "run it on the frontier config", "use the frontier roster" | the roster file whose name matches |
-| "run this with the big models", "use the sota roster" | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
-| "have opus plan this one" | a roster whose planner is that model; if none exists, say so rather than editing the config mid-request |
-| nothing about models at all | the default, `.pi-crust/config/crust.config.yaml` |
+| What they say                                              | What it means                                                                                                                                                     |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "run it on the frontier config", "use the frontier roster" | the roster file whose name matches                                                                                                                                |
+| "run this with the big models", "use the sota roster"      | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
+| "have opus plan this one"                                  | a roster whose planner is that model; if none exists, say so rather than editing the config mid-request                                                           |
+| nothing about models at all                                | the default, `.pi-crust/config/crust.config.yaml`                                                                                                                 |
 
 `--config` takes the path directly, and `CRUST_CONFIG` stands in for it when the flag is absent — whether a workflow is launched through the justfile or run with `bun` directly. The flag wins over the variable:
 
 ```bash
-bun .pi-crust/lifecycles/<name>.ts "<prompt>" --config .pi-crust/config/crust.frontier.config.yaml
+bun <pi-crust>/runtime/lifecycles/<name>.ts "<prompt>" --config .pi-crust/config/crust.frontier.config.yaml
 CRUST_CONFIG=.pi-crust/config/crust.frontier.config.yaml just <recipe> "<prompt>"
 ```
 
@@ -76,11 +76,11 @@ A path scope changes what rule 12 means: every file in scope must be covered by 
 
 `--deliver` decides how a chain hands over its work, and it does not sign by default.
 
-| Mode | What lands |
-|---|---|
-| `branch` *(default)* | an unsigned commit on `crust/<run-id>`, your branch untouched |
-| `patch` | everything staged and written to `<session>/<run-id>.patch`; nothing enters history |
-| `commit` | today's behaviour, for a run you are sitting with |
+| Mode                 | What lands                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `branch` *(default)* | an unsigned commit on `crust/<run-id>`, your branch untouched                       |
+| `patch`              | everything staged and written to `<session>/<run-id>.patch`; nothing enters history |
+| `commit`             | today's behaviour, for a run you are sitting with                                   |
 
 An unattended run that signs as you puts your name on work no human read. It is also the failure that killed a finished run at its last step: `git commit` waited sixty seconds for a signing touch nobody was there to give.
 
@@ -98,7 +98,7 @@ Every step of a workflow also runs on its own, which is what an engineer usually
 ```bash
 just crust code-review "the /health work"        # just the conventions review
 just crust verify "pre-PR sweep"                 # just the declared checks
-bun .pi-crust/lifecycles/compose.ts "<prompt>" --steps build,verify,review
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps build,verify,review
 ```
 
 `compose` takes any ordered subset of `prompt, scout, plan, test, build, verify, review, code-review, revise, commit, document`, repeats allowed (`build,verify,build,verify` — the second becomes `build_2`). An unknown name exits 2 and lists the valid ones.
@@ -121,7 +121,7 @@ The report names every phase and its status, the gate that failed with its viola
 
 ```text
 resume from: build
-  bun .pi-crust/lifecycles/sdlc.ts --run-id a1b2c3d4 --resume "<the original request>"
+  bun <pi-crust>/runtime/lifecycles/sdlc.ts --run-id a1b2c3d4 --resume "<the original request>"
 ```
 
 Exit codes: `0` the run succeeded, `1` it failed or is incomplete, `2` no such session.

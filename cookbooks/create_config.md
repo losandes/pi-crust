@@ -8,7 +8,7 @@ Generate `crust.config.yaml` — the agent roster for a target repo.
 bun <pi-crust>/scripts/make-config.ts
 ```
 
-Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed — with the starter agents (planner, builder, scout, reviewer, documenter) wired to the prompt files `/skill:crust install` stamped into `.pi-crust/prompt-engineering/`. That path is the default every workflow and the justfile look for; `--config` overrides it. `make-config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
+Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed — with the starter agents (planner, builder, scout, reviewer, documenter) wired to the prompt files `/skill:crust install` stamped into `<pi-crust>/runtime/prompt-engineering/`. That path is the default every workflow and the justfile look for; `--config` overrides it. `make-config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
 
 ## The rule
 
@@ -28,7 +28,7 @@ observability:
   db: .pi-crust/data/crust.db        # tracer writes here; the UI polls it
   poll_ms: 500                     # visualizer live-poll cadence
 
-agents:
+activities:
   - name: planner                  # workflow scripts name agents, never models
     coding_agent: pi
     model: google/gemini-3.6-flash
@@ -36,15 +36,15 @@ agents:
     color: "#a78bfa"               # optional hex — this agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/planner/system.md
-      user: .pi-crust/prompt-engineering/planner/user.md
+      system: <pi-crust>/runtime/prompt-engineering/planner/system.md
+      user: <pi-crust>/runtime/prompt-engineering/planner/user.md
 
   - name: scout
     thinking: high                 # unset keys fall through to defaults
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/scout/system.md
-      user: .pi-crust/prompt-engineering/scout/user.md
+      system: <pi-crust>/runtime/prompt-engineering/scout/system.md
+      user: <pi-crust>/runtime/prompt-engineering/scout/user.md
     tools:                         # optional allowlist — omit the key entirely for all tools
       - read
       - bash
@@ -54,7 +54,7 @@ Every agent entry merges over `defaults`, so an entry only states what differs. 
 
 ## After generating
 
-1. Each agent needs its prompt pair to exist on disk: `.pi-crust/prompt-engineering/{name}/system.md` and `user.md`. `validateAgents()` fails the run at startup if either is missing.
+1. Each agent needs its prompt pair to exist on disk: `<pi-crust>/runtime/prompt-engineering/{name}/system.md` and `user.md`. `validateAgents()` fails the run at startup if either is missing.
 2. Write `purpose` as one sentence and make the system prompt say the same thing — the two should not drift.
 3. Validate by running the smallest workflow that names your agents; a bad entry fails fast, before anything spawns.
 

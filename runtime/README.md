@@ -59,7 +59,7 @@ just crust sessions                              # what just happened
 Eleven steps run on their own — `prompt`, `scout`, `plan`, `test`, `build`, `verify`, `review`, `code-review`, `revise`, `commit`, `document` — and `compose` runs any ordered subset of them:
 
 ```bash
-bun .pi-crust/lifecycles/compose.ts "<prompt>" --steps build,verify,code-review
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps build,verify,code-review
 ```
 
 A chain whose last step is `review` or `code-review` ends in a bounded revise loop: the blocking findings go back to the builder, who fixes each or disputes it with evidence, and the reviewer rules again — at most twice. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
@@ -67,14 +67,14 @@ A chain whose last step is `review` or `code-review` ends in a bounded revise lo
 `verify`, `review` and `code-review` also take `--base <ref|range>`, so committed work can be judged:
 
 ```bash
-bun .pi-crust/stages/verify.ts "pre-PR sweep" --base main...HEAD
+bun <pi-crust>/runtime/stages/verify.ts "pre-PR sweep" --base main...HEAD
 ```
 
 The raw form, which every recipe wraps:
 
 ```bash
-bun .pi-crust/stages/prompt.ts --agent scout "say hello"
-bun .pi-crust/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
+bun <pi-crust>/runtime/stages/prompt.ts --agent scout "say hello"
+bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
 ```
 
 The prompt is inline text or a path to a file. `--run-id` is optional on every workflow: given one, the run joins that session and each agent resumes its existing context window; omitted, a fresh id is minted and printed.
@@ -82,20 +82,20 @@ The prompt is inline text or a path to a file. `--run-id` is optional on every w
 A run that stopped is picked up rather than restarted. `just crust report` names the phase it stopped at and prints the command that continues it:
 
 ```bash
-bun .pi-crust/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
+bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
 ```
 
 `--resume` works on every workflow and skips the phases already recorded successful for that session.
 
 ## Where to edit what
 
-| Change | File |
-|---|---|
-| What an agent is told | `prompt-engineering/<agent>/{system.md,user.md}` |
-| Which model an agent runs, what it may write | `config/crust.config.yaml` |
-| Which checks `verify` runs, and which skills an agent loads | `config/crust.config.yaml`, under `routing:` |
-| The fallback lint / typecheck / build commands | `modules/use-cases/run-checks.ts` |
-| A lifecycle's steps | `lifecycles/<name>.ts` |
+| Change                                                      | File                                             |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| What an agent is told                                       | `prompt-engineering/<agent>/{system.md,user.md}` |
+| Which model an agent runs, what it may write                | `config/crust.config.yaml`                       |
+| Which checks `verify` runs, and which skills an agent loads | `config/crust.config.yaml`, under `routing:`     |
+| The fallback lint / typecheck / build commands              | `modules/use-cases/run-checks.ts`                |
+| A lifecycle's steps                                         | `lifecycles/<name>.ts`                           |
 
 **Edit prompts here, never inside the skill.** `prompt-engineering/` is the user-owned home for them; the copies in the skill are templates for the next repository, and changing those does nothing for this one.
 

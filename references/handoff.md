@@ -93,14 +93,14 @@ In v1 there is no separate continue call to make: `data/pi-agent.ts` passes `--s
 
 `data/prompt-files.ts` renders the agent's `user.md`, substituting:
 
-| Placeholder | Value |
-|---|---|
-| `{{prompt}}` | the engineer's ask (or the workflow's per-call prompt) |
-| `{{previous_envelope}}` | the upstream envelope JSON, from `callAgent(..., { previous })` |
-| `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/` |
-| `{{skills}}` | the skill paths `routing.skills` selected for this agent, phase and change; `(none)` when it selected none |
-| `{{changed_files}}` | the paths this call is about, one per line, or `(none)` |
-| `{{change_base}}` | the ref or range `--base` named, or `(the uncommitted working tree)` |
+| Placeholder               | Value                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `{{prompt}}`              | the engineer's ask (or the workflow's per-call prompt)                                                     |
+| `{{previous_envelope}}`   | the upstream envelope JSON, from `callAgent(..., { previous })`                                            |
+| `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/`                                                         |
+| `{{skills}}`              | the skill paths `routing.skills` selected for this agent, phase and change; `(none)` when it selected none |
+| `{{changed_files}}`       | the paths this call is about, one per line, or `(none)`                                                    |
+| `{{change_base}}`         | the ref or range `--base` named, or `(the uncommitted working tree)`                                       |
 
 A `user.md` declares one h3 per incoming datum, then the task, then the output contract:
 
@@ -187,10 +187,10 @@ This matters because of what used to happen when it did not. A phase whose gates
 
 `--resume` skips a phase already recorded successful for the session and replays its result instead. Three sources, one per kind:
 
-| Phase kind | Replayed from |
-|---|---|
-| agent | `{sessionDir}/{agent}/envelope.json`, parsed against the step's spec |
-| code | the payload the phase filed under the `step_result` event |
+| Phase kind                   | Replayed from                                                              |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| agent                        | `{sessionDir}/{agent}/envelope.json`, parsed against the step's spec       |
+| code                         | the payload the phase filed under the `step_result` event                  |
 | git (commit, change capture) | the recorded sha, or simply re-captured — a diff is deterministic and free |
 
 Two rules hold this together:

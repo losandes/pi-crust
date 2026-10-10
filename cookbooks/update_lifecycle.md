@@ -140,14 +140,14 @@ A stage or lifecycle script is sequencing and acceptance — nothing else. The m
 
 ## Add a step to the registry
 
-A new step is a new entry in `.pi-crust/modules/use-cases/steps/` and one line in `STEP_REGISTRY` — after which `compose --steps` can run it, `sdlc` can include it, and `--resume` can skip it. Four things it must declare:
+A new step is a new entry in `<pi-crust>/runtime/modules/use-cases/steps/` and one line in `STEP_REGISTRY` — after which `compose --steps` can run it, `sdlc` can include it, and `--resume` can skip it. Four things it must declare:
 
-| Field | What it is |
-|---|---|
-| `name` | the `TStepName`; add it to `STEP_NAMES` in `typedefs/step.ts` **and** to the hand-duplicated copy in the skill's `scripts/make-lifecycle.ts`, which cannot import from a repository it has not stamped yet |
-| `params` | `phaseParams({...})` — the same kind/owner/description rules as any phase |
-| `requires` | the agent names it needs, so `validateAgents` catches a bad roster before anything spawns |
-| `execute` / `replay` | how it runs, and how it is rehydrated when it already ran |
+| Field                | What it is                                                                                                                                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`               | the `TStepName`; add it to `STEP_NAMES` in `typedefs/step.ts` **and** to the hand-duplicated copy in the skill's `scripts/make-lifecycle.ts`, which cannot import from a repository it has not stamped yet |
+| `params`             | `phaseParams({...})` — the same kind/owner/description rules as any phase                                                                                                                                  |
+| `requires`           | the agent names it needs, so `validateAgents` catches a bad roster before anything spawns                                                                                                                  |
+| `execute` / `replay` | how it runs, and how it is rehydrated when it already ran                                                                                                                                                  |
 
 An agent step is a call to `agentStep({...})` and inherits both halves. A code step writes its own, and the replay is the part to get right:
 

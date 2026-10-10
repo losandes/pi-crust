@@ -19,7 +19,7 @@ observability:
   db: .pi-crust/data/crust.db
   poll_ms: 500
 
-agents:
+activities:
   - name: planner
     coding_agent: pi
     model: google/gemini-3.6-flash        # ALWAYS provider/model-id
@@ -27,8 +27,8 @@ agents:
     color: "#a78bfa"
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/planner/system.md
-      user: .pi-crust/prompt-engineering/planner/user.md
+      system: <pi-crust>/runtime/prompt-engineering/planner/system.md
+      user: <pi-crust>/runtime/prompt-engineering/planner/user.md
     harness_engineering:
       - json-enforcer
     tools:
@@ -40,36 +40,36 @@ agents:
 
 ### `defaults`
 
-| Field | Type | Meaning |
-|---|---|---|
-| `coding_agent` | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `data/claude-code-agent.ts`, landing in v2. |
-| `model` | string | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`. |
-| `thinking` | enum | Reasoning effort — see below. Default `medium`. |
-| `color` | hex string | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette. |
-| `harness_engineering` | list[string] | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks). |
-| `tools` | list[string] | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable. |
-| `protected_files` | list[string] | Paths **no** agent may modify unless it names them in its own `writes`. Default: `.pi-crust/modules/`, `.pi-crust/config/`, `.pi-crust/stages/`, `.pi-crust/lifecycles/` — an agent must not be able to edit the machinery that decides whether its work passed. |
-| `data_dir` | path | Runtime home. Sessions land at `{data_dir}/sessions/{run_id}/{agent_name}/`. Default `.pi-crust/data`. |
+| Field                 | Type                  | Meaning                                                                                                                                                                                                                                                                                     |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coding_agent`        | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `data/claude-code-agent.ts`, landing in v2.                                                                                                                                            |
+| `model`               | string                | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`.                                                                                                                                                                                               |
+| `thinking`            | enum                  | Reasoning effort — see below. Default `medium`.                                                                                                                                                                                                                                             |
+| `color`               | hex string            | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette.                                                                                                                                                                         |
+| `harness_engineering` | list[string]          | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks).                                                                                                                                                                                                           |
+| `tools`               | list[string]          | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable.                                                                                                                                                                                 |
+| `protected_files`     | list[string]          | Paths **no** agent may modify unless it names them in its own `writes`. Default: `<pi-crust>/runtime/modules/`, `.pi-crust/config/`, `<pi-crust>/runtime/stages/`, `<pi-crust>/runtime/lifecycles/` — an agent must not be able to edit the machinery that decides whether its work passed. |
+| `data_dir`            | path                  | Runtime home. Sessions land at `{data_dir}/sessions/{run_id}/{agent_name}/`. Default `.pi-crust/data`.                                                                                                                                                                                      |
 
 ### `observability`
 
-| Field | Type | Meaning |
-|---|---|---|
-| `db` | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`. |
-| `poll_ms` | int | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`. |
+| Field     | Type | Meaning                                                                                                        |
+| --------- | ---- | -------------------------------------------------------------------------------------------------------------- |
+| `db`      | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`. |
+| `poll_ms` | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                  |
 
 ### `agents[]`
 
-| Field | Required | Meaning |
-|---|---|---|
-| `name` | yes | The identifier workflow scripts use. **workflows name agents, never models.** |
-| `purpose` | yes | One sentence: what this agent is for. Should match its `system.md` Purpose. |
-| `prompt_engineering.system` | yes | Path to the system prompt — who the agent is, its single purpose, its output contract. |
-| `prompt_engineering.user` | yes | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`. |
-| `color` | no | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette. |
-| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no | Override the corresponding `defaults` key. |
-| `tools` | no | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`. |
-| `writes` | no | What this agent may modify **in the repo**, enforced after every call. Omitted = unrestricted (still barred from `protected_files`). `[]` = no repo writes at all. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **The session runtime under `data_dir` is always writable** — `writes: []` means read-only with respect to the repo, not unable to write its own report. |
+| Field                                                               | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                              | yes      | The identifier workflow scripts use. **workflows name agents, never models.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `purpose`                                                           | yes      | One sentence: what this agent is for. Should match its `system.md` Purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `prompt_engineering.system`                                         | yes      | Path to the system prompt — who the agent is, its single purpose, its output contract.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `prompt_engineering.user`                                           | yes      | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `color`                                                             | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                  |
+| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `writes`                                                            | no       | What this agent may modify **in the repo**, enforced after every call. Omitted = unrestricted (still barred from `protected_files`). `[]` = no repo writes at all. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **The session runtime under `data_dir` is always writable** — `writes: []` means read-only with respect to the repo, not unable to write its own report. |
 
 Output types are deliberately absent: config defines who an agent *is*; the workflow call site defines how it's *used*. One agent serves many calls — same system prompt, different user prompt + output type per call.
 
@@ -109,15 +109,15 @@ Other consequences worth knowing:
 
 `tools` maps to `pi --tools`. Pi's seven builtin tool names:
 
-| Tool | Purpose | Pi's own default |
-|---|---|---|
-| `read` | read file contents | on |
-| `bash` | execute bash commands | on |
-| `edit` | find/replace edits | on |
-| `write` | create/overwrite files | on |
-| `grep` | search file contents | **off** |
-| `find` | find files by glob | **off** |
-| `ls` | list directory contents | **off** |
+| Tool    | Purpose                 | Pi's own default |
+| ------- | ----------------------- | ---------------- |
+| `read`  | read file contents      | on               |
+| `bash`  | execute bash commands   | on               |
+| `edit`  | find/replace edits      | on               |
+| `write` | create/overwrite files  | on               |
+| `grep`  | search file contents    | **off**          |
+| `find`  | find files by glob      | **off**          |
+| `ls`    | list directory contents | **off**          |
 
 `grep`, `find`, and `ls` are off in bare Pi, so an agent that does not name them will shell out through `bash` to do the same work. The starter roster therefore sets `defaults.tools` to all seven and lets each agent narrow from there.
 
@@ -139,9 +139,9 @@ A breach is not a gate violation. Gates are for work an agent can be asked to re
 
 ```yaml
 defaults:
-  protected_files: [.pi-crust/modules/, .pi-crust/config/, .pi-crust/stages/, .pi-crust/lifecycles/]
+  protected_files: [<pi-crust>/runtime/modules/, .pi-crust/config/, <pi-crust>/runtime/stages/, <pi-crust>/runtime/lifecycles/]
 
-agents:
+activities:
   - name: builder      # no `writes` key -> unrestricted, minus protected_files
   - name: scout
     writes: []         # no repo writes; its findings still land in context_handoff/
@@ -184,7 +184,7 @@ Rule: **every entry in `harness_engineering` that registers a tool must have tha
 
 ## `routing:` — what agents load, what `verify` runs
 
-The one section that may name a skill path or a checker command. Nothing in `.pi-crust/modules/`, `.pi-crust/stages/` and `.pi-crust/lifecycles/`, or `.pi-crust/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
+The one section that may name a skill path or a checker command. Nothing in `<pi-crust>/runtime/modules/`, `<pi-crust>/runtime/stages/` and `<pi-crust>/runtime/lifecycles/`, or `<pi-crust>/runtime/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
 
 Both lists are selected by **the paths the change actually touched**.
 
@@ -213,16 +213,16 @@ routing:
       timeout_seconds: 600
 ```
 
-| Key | Default | Meaning |
-|---|---|---|
-| `skills[].path` | — | file or directory handed to the agent's harness, once per entry |
-| `skills[].agents` | `[]` | which agents receive it; empty means every agent |
-| `skills[].when` | `[]` | path globs; empty always matches |
-| `skills[].phases` | `[]` | phase names that receive it; empty is every phase. An instance suffix is stripped, so `revise` matches `revise_2` |
-| `checks[].argv` | — | at least one token; never a shell string |
-| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments |
-| `checks[].cwd` | `""` | directory to run in, relative to the git root; empty is the root itself |
-| `checks[].timeout_seconds` | `300` | a timeout reports exit 124, with the output captured |
+| Key                           | Default | Meaning                                                                                                           |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                   |
+| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                  |
+| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                  |
+| `skills[].phases`             | `[]`    | phase names that receive it; empty is every phase. An instance suffix is stripped, so `revise` matches `revise_2` |
+| `checks[].argv`               | —       | at least one token; never a shell string                                                                          |
+| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                         |
+| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                           |
+| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                              |
 
 ### `cwd`, and why changed paths are rebased onto it
 
@@ -238,11 +238,11 @@ Without the rebase, a root-relative path handed to a command running in a subdir
 
 A `verify` phase where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
 
-| Changed paths | Matched checks | Verdict |
-|---|---|---|
-| none | — | passed: nothing changed, no checks apply |
-| some | 0 | **failed**: N path(s) changed but no rule matched them |
-| some | N | whatever the commands said |
+| Changed paths | Matched checks | Verdict                                                |
+| ------------- | -------------- | ------------------------------------------------------ |
+| none          | —              | passed: nothing changed, no checks apply               |
+| some          | 0              | **failed**: N path(s) changed but no rule matched them |
+| some          | N              | whatever the commands said                             |
 
 ### How a skill reaches the agent
 
@@ -265,7 +265,7 @@ It may override exactly four things, per agent or on `defaults`: `model`, `think
 defaults:
   model: openai/gpt-5.1
 
-agents:
+activities:
   - name: builder
     model: anthropic/claude-opus-5
     thinking: high

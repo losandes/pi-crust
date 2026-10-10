@@ -37,7 +37,7 @@ Set the roster-wide floor in `defaults`, then narrow per agent:
 defaults:
   tools: [read, bash, edit, write, grep, find, ls]
 
-agents:
+activities:
   - name: reviewer
     tools:                # explicit list wins over defaults
       - read
@@ -88,7 +88,7 @@ Skip the second half and it fails silently: extension loaded, run green, tool ne
 
 Three steps, all required — skipping any one fails `validateAgents()` at workflow startup, before anything spawns:
 
-1. **Prompts.** Create `.pi-crust/prompt-engineering/{name}/system.md` (Purpose + Instructions — the agent's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
+1. **Prompts.** Create `<pi-crust>/runtime/prompt-engineering/{name}/system.md` (Purpose + Instructions — the agent's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
 2. **Config entry.** Name, purpose, prompt refs, plus anything that differs from `defaults`.
 3. **An output type.** Every agent call parses against a concrete zod schema in `modules/typedefs/`. If none of `planOutput`, `buildOutput`, `scoutOutput`, `reviewOutput`, `documentOutput` fits the new agent's report, add one — see `update_modules.md`. The user prompt's `Report` section must show exactly that JSON shape.
 

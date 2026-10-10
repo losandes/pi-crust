@@ -1,0 +1,36 @@
+# Every theme the trace UI offers.
+#
+# The defaults are registered here rather than built in, so you can remove
+# one: delete the entry and it leaves the picker. A file that only held your
+# additions could add to a fixed set and never subtract from it.
+#
+# A theme is a name, a label, and where its styles come from. `builtin: true`
+# means the stylesheet ships with pi-crust. `stylesheet:` names one in this
+# repository, relative to .pi-crust/ — which is how you ship your own without
+# pi-crust knowing anything about it.
+#
+# Put your .scss beside this file and name it below.
+
+default: auto
+
+themes:
+  - name: auto
+    label: Match the system
+    builtin: true
+
+  - name: light
+    label: Light
+    builtin: true
+
+  - name: dark
+    label: Dark
+    builtin: true
+
+  - name: high-contrast
+    label: High contrast
+    builtin: true
+
+  # Yours. Delete this, or copy it and point at your own stylesheet.
+  # - name: midnight
+  #   label: Midnight
+  #   stylesheet: config/midnight.scss
