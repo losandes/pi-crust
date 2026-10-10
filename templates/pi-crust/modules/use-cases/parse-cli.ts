@@ -28,6 +28,8 @@ export type TCliArgs = Readonly<{
   resume: boolean
   /** `compose.ts` only: the ordered step list, comma-separated */
   steps: string | undefined
+  /** `compose.ts` only: a Lifecycle by name, from crust.lifecycles.yaml */
+  lifecycle: string | undefined
   /**
    * Stages after which the run stops and waits for you, comma-separated.
    *
@@ -70,6 +72,7 @@ const FLAGS = [
   '--base',
   '--scope',
   '--steps',
+  '--lifecycle',
   '--approve-after',
   '--deliver',
   '--trust-level',
@@ -150,6 +153,7 @@ export const parseCli = (
     base: flags.get('--scope') ?? flags.get('--base'),
     resume: booleans.has('--resume'),
     steps: flags.get('--steps'),
+    lifecycle: flags.get('--lifecycle'),
     approveAfter: flags.get('--approve-after'),
     deliver: flags.get('--deliver'),
     stream: booleans.has('--stream'),

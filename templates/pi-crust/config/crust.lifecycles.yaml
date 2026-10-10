@@ -1,0 +1,62 @@
+# Every Lifecycle this repository offers.
+#
+# A Lifecycle is the progression of an objective. It holds Stages; a Stage
+# holds Activities and may depend on Stages before it. Activities themselves
+# are registered in crust.activities.yaml — named here, defined there, so the
+# same Activity appears in as many Lifecycles as you like.
+#
+# Dependencies are declared rather than implied by position. Today they are
+# flattened back to a serial order; declaring them is what lets that stop
+# being true without every team rewriting this file.
+#
+# Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
+
+lifecycles:
+  - name: sdlc
+    description: >-
+      The whole lifecycle, identify through code-review. Deliberately the
+      expensive chain: success criteria written before anyone builds, a
+      logical model decided before a schema settles it, and a reviewer with
+      something other than its own opinion to rule against.
+    stages:
+      - name: discover
+        activities: [identify, conceptualize]
+      - name: design
+        activities: [plan, design]
+        depends_on: [discover]
+      - name: implement
+        activities: [test, build]
+        depends_on: [design]
+      - name: accept
+        activities: [verify, review, code-review]
+        depends_on: [implement]
+
+  - name: bugfix
+    description: >-
+      A reported bug, start to finish. Reproduction comes first and gates the
+      rest: a fix for a bug nobody reproduced is a guess with a commit
+      message.
+    stages:
+      - name: diagnose
+        activities: [diagnose]
+      - name: implement
+        activities: [plan, test, build]
+        depends_on: [diagnose]
+      - name: accept
+        activities: [verify, review, code-review]
+        depends_on: [implement]
+
+  - name: de-risk
+    description: >-
+      Stop at the proof. For work whose shape depends on an answer nobody
+      has, this ends at a proof of concept rather than at an implementation
+      built on an assumption.
+    stages:
+      - name: discover
+        activities: [identify, conceptualize]
+      - name: design
+        activities: [plan, design]
+        depends_on: [discover]
+      - name: prove
+        activities: [poc]
+        depends_on: [design]

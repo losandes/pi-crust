@@ -108,15 +108,15 @@ document *ARGS:
 
 # plan, test, build, verify, review, code-review: just crust sdlc "add a /health endpoint"
 sdlc *ARGS:
-    bun .pi-crust/lifecycles/sdlc.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --lifecycle sdlc
 
 # prove the risky part before building it: just crust de-risk "move sessions to redis"
 de-risk *ARGS:
-    bun .pi-crust/lifecycles/de-risk.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --lifecycle de-risk
 
 # a reported bug, start to finish: just crust bugfix "playback stops after track 3"
 bugfix *ARGS:
-    bun .pi-crust/lifecycles/bugfix.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --lifecycle bugfix
 
 # any ordered subset: just crust compose "..." --steps plan,build,verify
 compose *ARGS:

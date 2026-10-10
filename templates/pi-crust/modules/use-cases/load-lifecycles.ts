@@ -1,0 +1,76 @@
+/**
+ * Read the Lifecycles a repository offers, and refuse the ones that cannot
+ * run.
+ *
+ * `crust.lifecycles.yaml` is the team's; `crust.lifecycles.local.yaml` beside
+ * it is one developer's and is gitignored. A local layer may override a
+ * Lifecycle by name or add one the team file does not have — the same rule
+ * Activities follow, for the same reason: whoever writes the local file can
+ * write the committed one.
+ *
+ * Validation happens at load rather than at execution. A Lifecycle with a
+ * cycle or a dangling dependency cannot produce an order, and discovering
+ * that three Activities into a run wastes the three.
+ */
+
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import {
+  DEFAULT_LIFECYCLES_PATH,
+  lifecycleFaults,
+  lifecyclesFileSchema,
+  type TLifecycleConfig,
+} from '../typedefs/lifecycle'
+
+/** The local layer sits beside whichever file was chosen. */
+export const localLifecyclesPath = (path: string): string =>
+  join(
+    dirname(path),
+    (path.split('/').at(-1) ?? '').replace(/\.yaml$/, '.local.yaml'),
+  )
+
+const parseFile = (path: string): readonly TLifecycleConfig[] =>
+  lifecyclesFileSchema.parse(Bun.YAML.parse(readFileSync(path, 'utf8')))
+    .lifecycles
+
+/**
+ * A local Lifecycle replaces the team's outright rather than merging into it.
+ *
+ * Activities merge per key because they are a bag of settings. A Lifecycle is
+ * a graph, and half-merging a graph — the team's stages with one of yours
+ * spliced in by name — produces an arrangement neither party wrote. Naming a
+ * Lifecycle locally means replacing it.
+ */
+export const mergeLifecycles = (
+  base: readonly TLifecycleConfig[],
+  local: readonly TLifecycleConfig[],
+): readonly TLifecycleConfig[] => {
+  const overrides = new Map(local.map((one) => [one.name, one] as const))
+  const known = new Set(base.map((one) => one.name))
+
+  return [
+    ...base.map((one) => overrides.get(one.name) ?? one),
+    ...local.filter((one) => !known.has(one.name)),
+  ]
+}
+
+export const loadLifecycles = (
+  path: string = DEFAULT_LIFECYCLES_PATH,
+): readonly TLifecycleConfig[] => {
+  const base = existsSync(path) ? parseFile(path) : []
+  const localPath = localLifecyclesPath(path)
+  const merged = existsSync(localPath)
+    ? mergeLifecycles(base, parseFile(localPath))
+    : base
+
+  const faults = merged.flatMap(lifecycleFaults)
+  if (faults.length > 0) {
+    throw new Error(
+      `lifecycle configuration cannot run:\n${faults
+        .map((fault) => `  ${fault.lifecycle}: ${fault.message}`)
+        .join('\n')}`,
+    )
+  }
+
+  return merged
+}

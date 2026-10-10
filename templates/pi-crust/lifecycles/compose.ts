@@ -1,10 +1,19 @@
 #!/usr/bin/env bun
 
 /**
- * pi-crust Compose — any ordered subset of the steps, named at the call site.
+ * pi-crust Compose — execute a Lifecycle, named or spelled out.
  *
  * Usage:
+ *     bun .pi-crust/lifecycles/compose.ts "<prompt>" --lifecycle sdlc [--run-id a1b2c3d4] [--resume]
  *     bun .pi-crust/lifecycles/compose.ts "<prompt>" --steps plan,build,verify [--run-id a1b2c3d4] [--resume]
+ *
+ * The Composer does not decide what is appropriate for an objective — Triage
+ * and the Operator do that. It validates the plan it is handed and runs it.
+ *
+ * `--lifecycle` names one from `crust.lifecycles.yaml`, whose Stages and
+ * dependencies decide the order. `--steps` spells the Activities out at the
+ * call site. Naming both is a usage error rather than a precedence rule
+ * nobody can remember.
  *
  * Phases: engineer(request) -> one per named step, in the order given
  *
@@ -25,7 +34,9 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../modules/typedefs/settlement'
+import { activityOrder, lifecycleNamed } from '../modules/typedefs/lifecycle'
 import { isStepName, STEP_NAMES } from '../modules/typedefs/step'
+import { loadLifecycles } from '../modules/use-cases/load-lifecycles'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
@@ -59,8 +70,45 @@ export const parseSteps = (steps: string | undefined): readonly string[] => {
  * a handler into exit 1 — and something will branch on the difference between
  * "you asked for a step that does not exist" and "the run failed".
  */
+/**
+ * The Activities to run, from whichever way the caller said it.
+ *
+ * A Lifecycle is resolved and flattened here rather than inside the engine,
+ * so that a named Lifecycle and the same list spelled out reach the runner
+ * as the same thing and produce the same trace.
+ */
+export const plannedActivities = (
+  args: TWorkflowArgs,
+  lifecyclesPath?: string,
+): readonly string[] => {
+  if (args.lifecycle !== undefined && args.steps !== undefined) {
+    throw new Error(
+      'name a lifecycle or list the steps, not both — ' +
+        `got --lifecycle ${args.lifecycle} and --steps ${args.steps}`,
+    )
+  }
+  if (args.lifecycle === undefined) {
+    return parseSteps(args.steps)
+  }
+  const lifecycles = loadLifecycles(lifecyclesPath)
+  const found = lifecycleNamed(lifecycles, args.lifecycle)
+  if (found === undefined) {
+    throw new Error(
+      `unknown lifecycle: ${args.lifecycle} — this repository offers ` +
+        `${lifecycles.map((one) => one.name).join(', ')}`,
+    )
+  }
+  const names = activityOrder(found)
+  if (names.length === 0) {
+    throw new Error(
+      `lifecycle '${args.lifecycle}' declares no activities to run`,
+    )
+  }
+  return names
+}
+
 export const main = (args: TWorkflowArgs): Promise<number> => {
-  const names = safeParseSettlement(() => parseSteps(args.steps))
+  const names = safeParseSettlement(() => plannedActivities(args))
   if (names.status === 'error') {
     process.stderr.write(`${errorMessage(names.error)}\n`)
     return Promise.resolve(2)
