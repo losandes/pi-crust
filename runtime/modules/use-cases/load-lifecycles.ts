@@ -54,6 +54,10 @@ export const mergeLifecycles = (
   ]
 }
 
+/** The lifecycles file beside whichever config was chosen. */
+export const lifecyclesBeside = (configPath: string): string =>
+  join(dirname(configPath), 'crust.lifecycles.yaml')
+
 export const loadLifecycles = (
   path: string = DEFAULT_LIFECYCLES_PATH,
 ): readonly TLifecycleConfig[] => {

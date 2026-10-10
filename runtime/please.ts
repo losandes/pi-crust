@@ -24,28 +24,30 @@ import { existsSync } from 'node:fs'
 import { askMenuChoice, askOne, askOrder, askText } from './modules/data/ask'
 import { copyToClipboard } from './modules/data/clipboard'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { loadConfig } from './modules/use-cases/load-config'
-import {
-  effectiveOrder,
-  orderSteps,
-  visibleSteps,
-} from './modules/use-cases/step-order'
 import { box, paint, writeLine } from './modules/data/terminal'
+import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
+import { TRUST_DEFAULT } from './modules/typedefs/trust'
+import type { TDelivery } from './modules/use-cases/compose-request'
 import {
   DELIVERIES,
-  LIFECYCLES,
-  OPERATORS,
-  STEP_CHOICES,
-  TRUST_CHOICES,
   isNamedLifecycle,
   justArgv,
   resumeArgvFor,
   runArgv,
   shellLine,
+  TRUST_CHOICES,
 } from './modules/use-cases/compose-request'
-import type { TDelivery } from './modules/use-cases/compose-request'
-import { TRUST_DEFAULT } from './modules/typedefs/trust'
+import { loadConfig } from './modules/use-cases/load-config'
+import {
+  lifecyclesBeside,
+  loadLifecycles,
+} from './modules/use-cases/load-lifecycles'
+import {
+  chosenPlanner,
+  exclusiveCount,
+  expandChoices,
+  menuOptions,
+} from './modules/use-cases/menu-options'
 
 const DEFAULT_DB = '.pi-crust/data/crust.db'
 
@@ -71,7 +73,7 @@ const waitingRuns = (dbPath: string): readonly TWaiting[] => {
   try {
     return db
       .query(
-        "SELECT run_id, lifecycle, status, started_at FROM sessions " +
+        'SELECT run_id, lifecycle, status, started_at FROM sessions ' +
           "WHERE status='waiting' ORDER BY started_at DESC LIMIT 20",
       )
       .all() as TWaiting[]
@@ -148,26 +150,6 @@ const planResume = async (
  * answer may legitimately be a named chain, a chain chosen for you, or steps
  * you picked yourself.
  */
-const LIFECYCLE_MARK = '@'
-const OPERATOR_MARK = '!'
-
-/** The operator chosen, or '' when the chain was named rather than chosen. */
-const chosenOperator = (chosen: readonly string[]): string =>
-  chosen
-    .filter((choice) => choice.startsWith(OPERATOR_MARK))
-    .map((choice) => choice.slice(1))[0] ?? ''
-
-/** A chosen lifecycle becomes the steps it runs; a chosen step is itself. */
-const expandSteps = (chosen: readonly string[]): readonly string[] =>
-  chosen.flatMap((choice) => {
-    if (choice.startsWith(OPERATOR_MARK)) return []
-    if (!choice.startsWith(LIFECYCLE_MARK)) return [choice]
-    const named = LIFECYCLES.find(
-      (lifecycle) => lifecycle.name === choice.slice(1),
-    )
-    return named === undefined ? [] : [...named.steps]
-  })
-
 /** A new run: steps, prompt, trust, delivery, approval point. */
 const planNewRun = async (): Promise<readonly string[] | undefined> => {
   /*
@@ -175,65 +157,49 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
    * in. Read here rather than threaded in, because `please` is the only
    * caller and a parameter would exist solely to be passed one level.
    */
-  const cfg = loadConfig(configPathFromEnv() ?? DEFAULT_CONFIG_PATH)
-  const order = effectiveOrder(cfg.steps.order)
-  const offered = visibleSteps(STEP_CHOICES, cfg.steps.hidden)
+  const configPath = configPathFromEnv() ?? DEFAULT_CONFIG_PATH
+  const cfg = loadConfig(configPath)
+  const lifecycles = loadLifecycles(lifecyclesBeside(configPath))
+  const options = menuOptions(cfg.agents, lifecycles)
 
-  const chosen = await askMenuChoice(
-    'what should it do?',
-    [
-      ...LIFECYCLES.map((lifecycle) => ({
-        value: `${LIFECYCLE_MARK}${lifecycle.name}`,
-        label: lifecycle.name,
-        detail: lifecycle.summary,
-      })),
-      ...OPERATORS.map((operator) => ({
-        value: `${OPERATOR_MARK}${operator.name}`,
-        label: `${operator.name} — let it choose`,
-        detail: operator.summary,
-      })),
-      ...orderSteps(offered, order).map((step) => ({
-        value: step,
-        label: `  ${step}`,
-        detail: '',
-      })),
-    ],
-    {
-      multiple: true,
-      preselected: [0],
+  const chosen = await askMenuChoice('what should it do?', options, {
+    multiple: true,
+    preselected: [0],
+    /*
+     * Lifecycles and operators are both exclusive, and exclusive with each
+     * other: each answers the whole question. A lifecycle names the chain,
+     * an operator chooses it, and a list of steps IS one — so any two of
+     * them together are two answers where one was asked for. Picking
+     * `scout` while `sdlc` was still held once produced a run that did the
+     * entire lifecycle and then scouted.
+     */
+    exclusive: Array.from(
+      { length: exclusiveCount(lifecycles) },
+      (_, index) => index,
+    ),
+    preview: (ticked, highlighted) => {
       /*
-       * Lifecycles and operators are both exclusive, and exclusive with each
-       * other: each answers the whole question. A lifecycle names the chain,
-       * an operator chooses it, and a list of steps IS one — so any two of
-       * them together are two answers where one was asked for. Picking
-       * `scout` while `sdlc` was still held once produced a run that did the
-       * entire lifecycle and then scouted.
+       * What the cursor is on, when it is not already part of the answer.
+       *
+       * Scrolling the list is how you find out what a lifecycle contains,
+       * and a preview that only updates on selection means ticking things
+       * to read them and un-ticking them again.
        */
-      exclusive: [...LIFECYCLES, ...OPERATORS].map((_, index) => index),
-      preview: (ticked, highlighted) => {
-        /*
-         * What the cursor is on, when it is not already part of the answer.
-         *
-         * Scrolling the list is how you find out what a lifecycle contains,
-         * and a preview that only updates on selection means ticking things
-         * to read them and un-ticking them again.
-         */
-        const previewing = !ticked.includes(highlighted) && highlighted !== ''
-        const shown = previewing ? [highlighted] : ticked
+      const previewing = !ticked.includes(highlighted) && highlighted !== ''
+      const shown = previewing ? [highlighted] : ticked
 
-        const operator = chosenOperator(shown)
-        if (operator !== '') {
-          const says = `${operator} chooses the chain, then runs it`
-          return previewing ? `${says}   (not selected)` : says
-        }
-        const chain = orderSteps(expandSteps(shown), order)
-        if (chain.length === 0) return 'nothing yet'
-        return previewing
-          ? `${chain.join(' → ')}   (not selected)`
-          : chain.join(' → ')
-      },
+      const operator = chosenPlanner(shown)
+      if (operator !== '') {
+        const says = `${operator} chooses the chain, then runs it`
+        return previewing ? `${says}   (not selected)` : says
+      }
+      const chain = expandChoices(shown, lifecycles)
+      if (chain.length === 0) return 'nothing yet'
+      return previewing
+        ? `${chain.join(' → ')}   (not selected)`
+        : chain.join(' → ')
     },
-  )
+  })
   const chosenSteps = chosen.values
   if (chosenSteps === undefined) return undefined
   if (chosenSteps.length === 0) {
@@ -241,7 +207,7 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
     return undefined
   }
 
-  const operator = chosenOperator(chosenSteps)
+  const operator = chosenPlanner(chosenSteps)
   /*
    * Sorted into the configured order, not the order they were ticked.
    *
@@ -249,7 +215,7 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
    * inconsistent — `a` for all produced list order from the same screen.
    * Anyone who wants a different sequence says so with `r`, once.
    */
-  const defaultOrder = orderSteps(expandSteps(chosenSteps), order)
+  const defaultOrder = expandChoices(chosenSteps, lifecycles)
   const steps =
     chosen.reorder && operator === ''
       ? ((await askOrder('what order?', defaultOrder)) ?? defaultOrder)
@@ -301,9 +267,8 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
    * running a step of it.
    */
   const approveAfter =
-    operator !== ''
-      ? ''
-      : await askOne('stop and show you, after which step?', [
+    operator === ''
+      ? await askOne('stop and show you, after which step?', [
           {
             value: '',
             label: 'nowhere extra',
@@ -311,6 +276,7 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
           },
           ...steps.map((step) => ({ value: step, label: step, detail: '' })),
         ])
+      : ''
   if (approveAfter === undefined) return undefined
 
   const stream = await askOne('show its thinking as it goes?', [
@@ -341,8 +307,7 @@ export const main = async (): Promise<number> => {
     return EXIT.CANCELLED
   }
 
-  const argv =
-    which === NEW_RUN ? await planNewRun() : await planResume(which)
+  const argv = which === NEW_RUN ? await planNewRun() : await planResume(which)
   if (argv === undefined) {
     writeLine(paint('nothing started.', 'dim'))
     return EXIT.CANCELLED
@@ -371,8 +336,16 @@ export const main = async (): Promise<number> => {
    * enough that starting one nobody confirmed is the wrong default.
    */
   const go = await askOne('go?', [
-    { value: 'run', label: 'run it', detail: 'starts now, attached to this terminal' },
-    { value: 'print', label: 'just give me the line', detail: 'copy it, change it, run it yourself' },
+    {
+      value: 'run',
+      label: 'run it',
+      detail: 'starts now, attached to this terminal',
+    },
+    {
+      value: 'print',
+      label: 'just give me the line',
+      detail: 'copy it, change it, run it yourself',
+    },
   ])
   if (go !== 'run') {
     const copied = await copyToClipboard(line)

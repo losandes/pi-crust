@@ -37,6 +37,15 @@ export const agentConfigSchema = z.object({
   purpose: z.string().default(''),
   prompt_engineering: promptEngineeringSchema,
   harness_engineering: z.array(z.string()).default([]),
+  /**
+   * Kept out of interactive menus. Described in full on the Activity schema
+   * in `activity.ts`, which is the canonical definition; this mirrors it so
+   * a loaded config carries the flag through to the menu.
+   *
+   * The two schemas are converging — an agent IS an Activity — and should
+   * become one once nothing reads `agents` by that name.
+   */
+  hidden: z.boolean().default(false),
   /** allowlist; undefined = all tools usable */
   tools: z.array(z.string()).optional(),
   // What this agent may MODIFY in the repo, enforced in code after every call
@@ -130,30 +139,8 @@ export const routingConfigSchema = z.object({
 })
 export type TRoutingConfig = Readonly<z.infer<typeof routingConfigSchema>>
 
-/**
- * How the step menu behaves. Neither key changes what CAN run.
- *
- * `order` is the sequence a hand-picked chain runs in; `hidden` is what the
- * menu stops offering. A lifecycle, an operator, or an explicit `--steps`
- * still runs anything — hiding a step is a preference about a menu, and
- * disabling one would be a developer quietly running a shorter chain than
- * the repository agreed to.
- */
-export const stepsConfigSchema = z.object({
-  /**
-   * A partial list is normal and safe: the steps named here take the slots
-   * that named steps occupy in the built-in order, and everything else stays
-   * exactly where it was.
-   */
-  order: z.array(z.string()).default([]),
-  /** Kept out of `please`'s menu. Still runnable by name. */
-  hidden: z.array(z.string()).default([]),
-})
-export type TStepsConfig = Readonly<z.infer<typeof stepsConfigSchema>>
-
 export const crustConfigSchema = z.object({
   defaults: configDefaultsSchema.prefault({}),
-  steps: stepsConfigSchema.prefault({}),
   observability: observabilityConfigSchema.prefault({}),
   routing: routingConfigSchema.prefault({}),
   agents: z.array(agentConfigSchema).default([]),
