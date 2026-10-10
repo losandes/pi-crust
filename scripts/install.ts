@@ -6,7 +6,8 @@
  *     bun <pi-crust>/scripts/install.ts [--force]
  *
  * Stamps: .pi-crust/ (modules, stages, lifecycles, config, prompts, recipes, README),
- * .env.sample, .gitignore entries, and a `mod crust` line in the root justfile.
+ * .env.pi-crust.sample, .gitignore entries, and a `mod crust` line in the root
+ * justfile.
  * Existing files are skipped unless --force.
  */
 
@@ -29,19 +30,40 @@ const TEMPLATES = resolve(
   'templates',
 )
 
+/**
+ * The stamp is generated, so none of it is committed by default.
+ *
+ * Listing the runtime paths one at a time meant a new one had to be added
+ * here before it could be ignored, and a path nobody remembered to add got
+ * committed silently. Ignoring the directory and re-including what a team
+ * must share inverts that: a new runtime path is ignored the day it is
+ * written, and anything committed has to be named.
+ *
+ * Two things are named. The roster, because it is the agreement about which
+ * agents run. And `crust.just`, because the installer appends a `mod crust`
+ * line to the root justfile, and a `mod` pointing at a missing file fails
+ * EVERY `just` invocation in the repository, not only `just crust` — so
+ * ignoring it would break an unrelated recipe for anyone who cloned before
+ * installing.
+ *
+ * Nothing else is re-included, including `prompt-engineering/` and
+ * `harness-engineering/`. A developer who customises those can un-ignore
+ * them; presuming they want to is how a generated tree becomes a tree
+ * nobody dares regenerate.
+ *
+ * The negation works because `.pi-crust/` itself is not excluded, only its
+ * children. Git cannot re-include a path whose parent directory is excluded,
+ * so `.pi-crust/` and `.pi-crust/*` are not interchangeable here.
+ *
+ * One developer's overrides of the committed roster are ignored by pattern
+ * rather than by exact name, so the rule still covers a config pointed
+ * somewhere else.
+ */
 const GITIGNORE_ENTRIES = [
-  '.pi-crust/data/sessions/',
-  '.pi-crust/data/crust.db*',
-  // Where pi-crust was installed from, on THIS machine. Two developers
-  // sharing a repository do not share a path, and a worktree checked out
-  // somewhere else does not either.
-  '.pi-crust/data/pi-crust-home',
-  '.pi-crust/node_modules/',
-  // One developer's overrides of the committed roster — a cheaper model
-  // while iterating, a different port. Ignored by pattern rather than by
-  // exact name so it still covers a config pointed somewhere else.
+  '.pi-crust/*',
+  '!.pi-crust/crust.just',
+  '!.pi-crust/config/',
   '.pi-crust/config/*.local.yaml',
-  '.env',
 ]
 
 const JUST_MODULE = "mod crust '.pi-crust/crust.just'"
@@ -185,7 +207,15 @@ const main = (): number => {
   const tally: TTally = { stamped: [], skipped: [] }
 
   stamp(join(TEMPLATES, 'pi-crust'), join(root, '.pi-crust'), force, tally)
-  stamp(join(TEMPLATES, 'env.sample'), join(root, '.env.sample'), force, tally)
+  // Namespaced rather than `.env.sample`: the root of somebody else's
+  // repository is not ours to claim, and a project with its own sample would
+  // otherwise have it overwritten by an install.
+  stamp(
+    join(TEMPLATES, 'env.sample'),
+    join(root, '.env.pi-crust.sample'),
+    force,
+    tally,
+  )
   ensureGitignore(root, tally)
   ensureJustModule(root, tally)
   recordHome(root, tally)
@@ -213,7 +243,9 @@ const main = (): number => {
       : `  dependencies: bun install failed — run it yourself in .pi-crust/ (${(installed.stderr ?? '').trim().slice(-200)})`,
   )
   say('\nnext steps:')
-  say('  1. cp .env.sample .env     # then set the key(s) your roster needs')
+  say(
+    '  1. cp .env.pi-crust.sample .env     # then set the key(s) your roster needs',
+  )
   say('  2. just crust demo          # two cheap read-only runs, end to end')
   say('  3. just crust sessions      # what just happened')
   say('  4. just crust observe       # the trace UI, needs bun')
