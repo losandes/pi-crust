@@ -45,7 +45,7 @@ Nothing here needs a `.gitignore` edit. Every directory that receives your work 
 | Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner |
 | Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                        |
 | Override a prompt                 | Write `.pi-crust/prompt-engineering/<activity>/system.md`. It wins; nothing else changes   |
-| Add a theme                       | Register it in `config/crust.themes.yaml` and put the `.scss` beside it                    |
+| Add a theme                       | Register it in `config/crust.themes.yaml` and put the `.css` beside it                     |
 | Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                          |
 
 A local layer may set any key and may add an Activity or Lifecycle the team file does not have. It is not restricted, because whoever writes it can equally write the committed file.

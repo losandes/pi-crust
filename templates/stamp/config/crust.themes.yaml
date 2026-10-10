@@ -9,7 +9,13 @@
 # repository, relative to .pi-crust/ — which is how you ship your own without
 # pi-crust knowing anything about it.
 #
-# Put your .scss beside this file and name it below.
+# Plain CSS, not SCSS. A theme is a block of colour channels under its own
+# `[data-theme='name']` selector, so nesting and variables buy nothing, and
+# compiling would put a build step between editing the file and seeing the
+# colour change. The trace UI reads this file and injects the CSS; reload to
+# pick up an edit.
+#
+# Put your .css beside this file and name it below.
 
 default: auto
 
@@ -31,6 +37,7 @@ themes:
     builtin: true
 
   # Yours. Delete this, or copy it and point at your own stylesheet.
+  # Start by copying a palette block out of the trace UI's tokens.css.
   # - name: midnight
   #   label: Midnight
-  #   stylesheet: config/midnight.scss
+  #   stylesheet: config/midnight.css

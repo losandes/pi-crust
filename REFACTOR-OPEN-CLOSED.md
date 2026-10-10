@@ -40,7 +40,7 @@ Nothing executable is stamped. A team changes behaviour by writing configuration
 │   ├── crust.lifecycles.yaml         tracked   every available Lifecycle
 │   ├── crust.lifecycles.local.yaml   ignored   personal override
 │   ├── crust.themes.yaml             tracked   every registered theme
-│   └── *.scss                        tracked   custom theme definitions
+│   └── *.css                         tracked   custom theme definitions
 ├── data/                             ignored   this developer's runs
 └── prompt-engineering/
     ├── README.md                     tracked   how to add or override a prompt
@@ -107,7 +107,7 @@ The cost is a run that works for one developer and fails for everyone else, when
 
 Shipping the default themes as registrations rather than as built-ins is what lets a team delete one. The same argument applies to Activities and Lifecycles: the stamped file lists everything the core skill offers, so removing an entry removes the capability rather than merely leaving the default in place.
 
-`*.scss` in `config/` defines custom themes only. Default theme styles stay in the core skill and are referenced by registration.
+`*.css` in `config/` defines custom themes only. Default theme styles stay in the core skill and are referenced by registration.
 
 ### Activity visibility and order
 

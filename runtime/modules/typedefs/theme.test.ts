@@ -76,7 +76,7 @@ test(
   () => {
     // given
     const given = themesFileSchema.parse(
-      Bun.YAML.parse('themes:\n  - name: midnight\n    stylesheet: x.scss\n'),
+      Bun.YAML.parse('themes:\n  - name: midnight\n    stylesheet: x.css\n'),
     )
 
     // when

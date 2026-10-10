@@ -10,17 +10,35 @@
  * distinctly from "I picked dark and my system happens to agree".
  */
 
+/**
+ * The themes that ship. A repository may register others, and may remove
+ * these — so this is what the app knows, never what it offers. The offered
+ * list comes from `crust.themes.yaml` through `/api/themes`.
+ */
 export const THEMES = ['auto', 'light', 'dark', 'high-contrast'] as const
 
-export type TTheme = (typeof THEMES)[number]
+/**
+ * A theme name, which is any string a repository registered.
+ *
+ * It was a union of the four that shipped. It cannot be: the set is open
+ * now, and a union would make a team's own theme a type error at the only
+ * places that handle it.
+ */
+export type TTheme = string
 
 /** What a theme is actually called when written onto the document. */
-export type TResolvedTheme = Exclude<TTheme, 'auto'>
+export type TResolvedTheme = string
 
 export const THEME_STORAGE_KEY = 'crust.theme'
 
+/**
+ * Anything non-empty is a theme name. Validation belongs with the registry,
+ * which is the only thing that knows what a repository offers; a stored
+ * preference for a theme that has since been removed simply finds no rules
+ * and falls through to the base palette.
+ */
 export const isTheme = (value: unknown): value is TTheme =>
-  typeof value === 'string' && (THEMES as readonly string[]).includes(value)
+  typeof value === 'string' && value !== ''
 
 /**
  * What the operating system is asking for.

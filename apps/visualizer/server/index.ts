@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import type { PiCrustDb } from "./db.ts";
 import { WorkspaceRegistry } from "./registry.ts";
+import { BUILTIN_THEMES, workspaceThemes } from "./themes.ts";
 import {
   registryPath,
   registryStamp,
@@ -280,6 +281,31 @@ const server = Bun.serve({
 
     /** Every watched tree, including the ones that cannot currently be read. */
     "/api/workspaces": safely(() => json(describeWorkspaces())),
+
+    /*
+     * The themes a workspace registers.
+     *
+     * Per workspace rather than per server: this app observes one repository
+     * at a time but can watch several, and a theme is the repository's
+     * statement about itself. Absent a workspace, the first one answers —
+     * the picker has to show something before anything is selected.
+     */
+    "/api/themes": safely((req) => {
+      const label = workspaceQuery(req);
+      const named = label === undefined ? undefined : registry.byLabel(label);
+      if (label !== undefined && named === undefined) {
+        return notFound(`no workspace ${label}`);
+      }
+      const root = (label === undefined
+        ? registry.states()[0]?.root
+        : registry.states().find((state) => state.label === label)?.root) ?? "";
+
+      return json(
+        root === ""
+          ? { default: "auto", themes: BUILTIN_THEMES, problem: "" }
+          : workspaceThemes(root),
+      );
+    }),
 
     "/api/sessions": safely((req) => {
       const label = workspaceQuery(req);

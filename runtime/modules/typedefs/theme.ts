@@ -11,9 +11,13 @@
  * repository, which is how a team ships its own without the package knowing
  * anything about it.
  *
- * Nothing here parses CSS. A theme is a reference, and the visualizer is what
- * loads it — so a broken stylesheet is a visible styling fault rather than a
- * configuration error that stops a run.
+ * Nothing here parses CSS. A theme is a reference, and the trace UI's server
+ * is what reads it — so a broken stylesheet is a visible styling fault rather
+ * than a configuration error that stops a run.
+ *
+ * Plain CSS rather than SCSS: a theme is a block of channel triples under one
+ * selector, and compiling would put a build step between editing a file and
+ * seeing the colour change.
  */
 
 import { z } from 'zod'
