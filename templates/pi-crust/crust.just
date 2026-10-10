@@ -38,9 +38,9 @@ default:
 # start here: two cheap read-only runs, end to end
 demo:
     @echo "1/2  prompt: one agent, one prompt"
-    bun .pi-crust/stages/prompt.ts --config {{config}} --agent scout "reply with a one-line summary of this repo"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} --agent scout "reply with a one-line summary of this repo" --steps prompt
     @echo "\n2/2  scout: read-only recon"
-    bun .pi-crust/stages/scout.ts --config {{config}} "list the top-level directories in this repo and what each is for. change nothing."
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --steps scout
     @echo "\nboth done. now run:  just crust sessions    (or: just crust observe)"
 
 # ── run a stage, or a whole lifecycle ───────────────────────────────────────
@@ -48,63 +48,63 @@ demo:
 
 # one agent, one prompt: just crust prompt "summarize this repo"
 prompt *ARGS:
-    bun .pi-crust/stages/prompt.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps prompt
 
 # read-only recon: just crust scout "where is auth handled"
 scout *ARGS:
-    bun .pi-crust/stages/scout.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps scout
 
 # 1.2 the outcome and how success is recognised: just crust identify "..."
 identify *ARGS:
-    bun .pi-crust/stages/identify.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps identify
 
 # 1.2b reproduce it and name the cause: just crust diagnose "playback stops after track 3"
 diagnose *ARGS:
-    bun .pi-crust/stages/diagnose.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps diagnose
 
 # 1.3 what the solution must mean and do: just crust conceptualize "..."
 conceptualize *ARGS:
-    bun .pi-crust/stages/conceptualize.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps conceptualize
 
 # 2.2 how it physically exists here: just crust design "..."
 design *ARGS:
-    bun .pi-crust/stages/design.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps design
 
 # 2.0 answer one hypothesis cheaply: just crust poc "..."
 poc *ARGS:
-    bun .pi-crust/stages/poc.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps poc
 
 # plan only: just crust plan "add a /health endpoint"
 plan *ARGS:
-    bun .pi-crust/stages/plan.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps plan
 
 # write the tests that would prove it: just crust test "add a /health endpoint"
 test *ARGS:
-    bun .pi-crust/stages/test.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps test
 
 # implement only: just crust build "add a /health endpoint"
 build *ARGS:
-    bun .pi-crust/stages/build.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps build
 
 # run the checks the changed paths select: just crust verify "pre-PR sweep"
 verify *ARGS:
-    bun .pi-crust/stages/verify.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps verify
 
 # is it what was asked for: just crust review "add a /health endpoint"
 review *ARGS:
-    bun .pi-crust/stages/review.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps review
 
 # does it match this repo's conventions: just crust code-review "the /health work"
 code-review *ARGS:
-    bun .pi-crust/stages/code-review.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps code-review
 
 # land the working tree: just crust commit "the /health work"
 commit *ARGS:
-    bun .pi-crust/stages/commit.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps commit
 
 # write it up from the diff: just crust document "the /health work"
 document *ARGS:
-    bun .pi-crust/stages/document.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps document
 
 # plan, test, build, verify, review, code-review: just crust sdlc "add a /health endpoint"
 sdlc *ARGS:
@@ -131,27 +131,27 @@ compose *ARGS:
 
 # what is technically true: just crust technical-research "can we stream this"
 technical-research *ARGS:
-    bun .pi-crust/stages/technical-research.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps technical-research
 
 # what users need: just crust ux-research "why do they abandon upload"
 ux-research *ARGS:
-    bun .pi-crust/stages/ux-research.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps ux-research
 
 # the domain's own rules: just crust domain-research "what is an episode"
 domain-research *ARGS:
-    bun .pi-crust/stages/domain-research.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps domain-research
 
 # how it could be attacked: just crust security-research "the webhook endpoint"
 security-research *ARGS:
-    bun .pi-crust/stages/security-research.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps security-research
 
 # what the data shows: just crust data-research "did p95 move after the change"
 data-research *ARGS:
-    bun .pi-crust/stages/data-research.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps data-research
 
 # an interface somebody can build: just crust ux-design "the retry screen"
 ux-design *ARGS:
-    bun .pi-crust/stages/ux-design.ts --config {{config}} "$@"
+    bun .pi-crust/lifecycles/compose.ts --config {{config}} "$@" --steps ux-design
 
 # let it choose the steps: just crust operator "the webhook drops retries"
 operator *ARGS:
