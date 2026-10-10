@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 /**
- * pi-crust Advisor — choose the chain, and hand it back.
+ * pi-crust Triage — choose the chain, and hand it back.
  *
  * Usage:
- *     bun .pi-crust/stages/advisor.ts "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
+ *     bun .pi-crust/stages/triage.ts "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
  *
- * Phases: engineer(request) -> advisor. Nothing follows, by construction.
+ * Phases: engineer(request) -> triage. Nothing follows, by construction.
  *
  * The operator chooses a chain and the run executes it. This chooses the
  * same chain and prints the command, which is a different thing to want
@@ -30,7 +30,7 @@ import { readRunState } from '../modules/use-cases/read-run-state'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
 import { runWorkflow } from '../modules/use-cases/run-workflow'
 
-export const STEPS = ['advisor'] as const
+export const STEPS = ['triage'] as const
 
 export const main = async (args: TWorkflowArgs): Promise<number> => {
   /*
@@ -59,7 +59,7 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
 }
 
 if (import.meta.main) {
-  await runCli('.pi-crust/stages/advisor.ts', (args) =>
+  await runCli('.pi-crust/stages/triage.ts', (args) =>
     main(workflowArgs(args, resolvePrompt(args.prompt))),
   )
 }

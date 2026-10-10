@@ -41,7 +41,7 @@ export const STEP_NAMES = [
    * that nothing after this one was going to run, without knowing which
    * flags the run was started with.
    */
-  'advisor',
+  'triage',
   'identify',
   'diagnose',
   'conceptualize',

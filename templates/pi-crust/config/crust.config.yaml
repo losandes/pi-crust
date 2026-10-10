@@ -477,12 +477,12 @@ agents:
   # Chooses the chain and performs none of it. Its envelope is the only one the
   # runner EXECUTES, which is why `steps_valid` gates it: an invented step name
   # is not a weak suggestion, it is a run that cannot start.
-  - name: advisor
+  - name: triage
     color: amber
     purpose: Choose the smallest chain that can produce the outcome, and hand it back.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/advisor/system.md
-      user: .pi-crust/prompt-engineering/advisor/user.md
+      system: .pi-crust/prompt-engineering/triage/system.md
+      user: .pi-crust/prompt-engineering/triage/user.md
     writes: []                     # it recommends; the developer runs it
     tools:                         # enough to size the work, not to do it
       - read

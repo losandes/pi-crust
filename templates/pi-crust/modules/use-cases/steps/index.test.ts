@@ -30,7 +30,7 @@ test(
       'agent:ux-designer',
       'agent:operator',
       // the same choice, handed back rather than executed
-      'agent:advisor',
+      'agent:triage',
       'agent:analyst',
       'agent:diagnostician',
       'agent:solutions-architect',

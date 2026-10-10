@@ -158,9 +158,9 @@ operator *ARGS:
     bun .pi-crust/stages/operator.ts --config {{config}} "$@"
 
 # Prints the compose command and the reasoning behind it; starts nothing.
-# recommend the steps instead of running them: just crust advise "..."
-advise *ARGS:
-    bun .pi-crust/stages/advisor.ts --config {{config}} "$@"
+# recommend a lifecycle instead of running it: just crust triage "..."
+triage *ARGS:
+    bun .pi-crust/stages/triage.ts --config {{config}} "$@"
 
 # build the command by answering questions: just crust please
 please:

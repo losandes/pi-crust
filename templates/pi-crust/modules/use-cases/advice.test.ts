@@ -4,12 +4,12 @@ import { adviceCommand, shellQuoted } from './advice'
 
 const state = (
   payload: Readonly<Record<string, unknown>>,
-  agent = 'advisor',
+  agent = 'triage',
   valid = true,
 ): TRunState =>
   ({
     run_id: 'a1b2c3d4',
-    lifecycle: 'advisor',
+    lifecycle: 'triage',
     request: '',
     status: 'ok',
     engineer: 'tester',
@@ -22,14 +22,14 @@ const state = (
     resume_from: undefined,
     failed_gates: [],
     envelopes: [
-      { phase: 'advisor', agent, output_type: 'OperatorPlanOutput', valid, attempt: 1, payload },
+      { phase: 'triage', agent, output_type: 'OperatorPlanOutput', valid, attempt: 1, payload },
     ],
   }) as TRunState
 
 test(
   [
     'given use-cases/advice::adviceCommand',
-    'when the advisor chose a chain',
+    'when the triage chose a chain',
     'it should hand back the command that would run it',
   ].join(', '),
   () => {
@@ -77,7 +77,7 @@ test(
     // given — a command that would start a run with no steps is not a
     // smaller recommendation, it is a broken one
     const empty = state({ steps: [] })
-    const invalid = state({ steps: ['scout'] }, 'advisor', false)
+    const invalid = state({ steps: ['scout'] }, 'triage', false)
     const other = state({ steps: ['scout'] }, 'operator')
 
     // when
@@ -88,7 +88,7 @@ test(
     ]
 
     // then — including an envelope from a different agent: only the
-    // advisor's recommendation is the advisor's recommendation
+    // triage's recommendation is the triage's recommendation
     expect(actual).toEqual([undefined, undefined, undefined])
   },
 )

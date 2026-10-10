@@ -1,5 +1,5 @@
 /**
- * Turning an advisor's chosen chain into the command that would run it.
+ * Turning an triage's chosen chain into the command that would run it.
  *
  * The agent does not write this line. It chose steps; the shape of the
  * invocation belongs to the code that knows what `compose` takes today, and
@@ -13,7 +13,7 @@ import { isStepName } from '../typedefs/step'
 /** The envelope field the chain lives in, as the trace recorded it. */
 const chainOf = (state: TRunState): readonly string[] =>
   state.envelopes
-    .filter((envelope) => envelope.agent === 'advisor' && envelope.valid)
+    .filter((envelope) => envelope.agent === 'triage' && envelope.valid)
     .flatMap((envelope) => {
       const steps = (envelope.payload as { steps?: unknown }).steps
       return Array.isArray(steps)
@@ -34,7 +34,7 @@ export const shellQuoted = (value: string): string =>
   `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('$', '\\$').replaceAll('`', '\\`')}"`
 
 /**
- * The line to run, or nothing when the advisor chose no usable chain.
+ * The line to run, or nothing when the triage chose no usable chain.
  *
  * Nothing rather than an empty `--steps`: a command that would start a run
  * with no steps is not a smaller recommendation, it is a broken one.

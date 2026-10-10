@@ -342,22 +342,22 @@ export const uxDesignStep = (options: TStepOptions): TStep =>
   })
 
 /**
- * advisor: choose the chain, and hand it back rather than run it.
+ * triage: choose the chain, and hand it back rather than run it.
  *
  * Identical reasoning to the operator, identical envelope, and deliberately
  * NOT the operator with a flag. A run's trace should say what was going to
  * happen without a reader having to recover the flags it started with, and
  * `operator` means "the rest of this run is about to be chosen for you"
- * while `advisor` means "nothing follows this".
+ * while `triage` means "nothing follows this".
  *
  * `stepsValid` still applies. A recommendation naming a step that does not
  * exist is a command the developer cannot run, which is the same defect as
  * a chain that cannot start.
  */
-export const advisorStep = (options: TStepOptions): TStep =>
+export const triageStep = (options: TStepOptions): TStep =>
   agentStep({
-    name: 'advisor',
-    owner: 'advisor',
+    name: 'triage',
+    owner: 'triage',
     description:
       'Choose the smallest chain that can produce the outcome, and hand it back as a command',
     spec: operatorPlanOutput,

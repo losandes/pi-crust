@@ -1,4 +1,4 @@
-# Advisor Agent
+# Triage Agent
 
 ## Purpose
 

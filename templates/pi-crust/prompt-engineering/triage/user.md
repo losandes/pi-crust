@@ -1,4 +1,4 @@
-# Advisor Task
+# Triage Task
 
 ## Variables
 
@@ -34,7 +34,7 @@ Your `facts` are facts about the SHAPE of the work — that an app exists, that 
 
 **Your chain will NOT be executed.** It is printed as a command for a developer to read, weigh and run themselves — so the `steps` array is a recommendation, and the reasoning in `plan.md` is the part they will actually judge it by. Every name must still be one of the steps above, spelled exactly: a name that is not a step fails the `steps_valid` gate and comes straight back to you, and a recommendation nobody can run is worse than none.
 
-You cannot plan an `operator` or an `advisor`. Either would replan the chain you just chose.
+You cannot plan an `operator` or an `triage`. Either would replan the chain you just chose.
 
 ## Report
 

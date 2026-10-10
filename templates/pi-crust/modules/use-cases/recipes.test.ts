@@ -60,7 +60,7 @@ test(
       .map((line) => line.trim())
 
     // then
-    expect(actual.every((line) => /(advisor|operator)\.ts/.test(line))).toBe(
+    expect(actual.every((line) => /(triage|operator)\.ts/.test(line))).toBe(
       true,
     )
   },
