@@ -27,15 +27,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 lifecycles:
-  # Your own short chain. Stages run in the order you declare them; a Stage's
-  # Activities run one after another unless you say otherwise.
+  # Your own short chain. A serial Stage is a sequence, so three dependent
+  # Activities are one Stage — splitting them would say nothing extra and
+  # would read as three progression steps that are really one.
   - name: quick
     description: Plan it, build it, and check it still compiles.
     stages:
-      - name: decide
-        activities: [plan]
-      - name: implement
-        activities: [build, verify]
+      - name: deliver
+        activities: [plan, build, verify]
 
   # Independence, said out loud. Both researchers only read the repository and
   # write their own findings file, so neither can see the other's work in

@@ -6,7 +6,10 @@
 # appears in as many Lifecycles as you like.
 #
 # Stages run in the order they are declared. A Stage says how its own
-# Activities run:
+# Activities run, and a serial Stage is a SEQUENCE — which is why `deliver`
+# holds five Activities rather than being split into five Stages. Grouping is
+# not how independence is expressed; `strategy` is.
+#
 #
 #   strategy: serial      one after another, in the order listed (the default)
 #   strategy: concurrent  all at once, because they do not depend on each other
@@ -33,12 +36,8 @@ lifecycles:
     stages:
       - name: discover
         activities: [identify, conceptualize]
-      - name: design
-        activities: [plan, design]
-      - name: implement
-        activities: [test, build]
-      - name: verify
-        activities: [verify]
+      - name: deliver
+        activities: [plan, design, test, build, verify]
       - name: accept
         strategy: concurrent
         activities: [review, code-review]
@@ -51,10 +50,8 @@ lifecycles:
     stages:
       - name: diagnose
         activities: [diagnose]
-      - name: implement
-        activities: [plan, test, build]
-      - name: verify
-        activities: [verify]
+      - name: deliver
+        activities: [plan, test, build, verify]
       - name: accept
         strategy: concurrent
         activities: [review, code-review]
@@ -67,7 +64,5 @@ lifecycles:
     stages:
       - name: discover
         activities: [identify, conceptualize]
-      - name: design
-        activities: [plan, design]
       - name: prove
-        activities: [poc]
+        activities: [plan, design, poc]

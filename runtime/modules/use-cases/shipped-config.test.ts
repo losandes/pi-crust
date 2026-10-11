@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activitiesFileSchema } from '../typedefs/activity'
 import { agentConfigSchema } from '../typedefs/config'
+import { activityOrder } from '../typedefs/lifecycle'
 import { loadLifecycles } from './load-lifecycles'
 
 /*
@@ -154,5 +155,83 @@ test(
     expect(survey?.stages.find((one) => one.name === 'research')?.strategy).toBe(
       'concurrent',
     )
+  },
+)
+
+test(
+  [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    'when the shipped lifecycles are read',
+    'it should cut stages by progression, not one stage per activity',
+  ].join(', '),
+  () => {
+    // given
+    const given = join(STAMP, 'crust.lifecycles.yaml')
+
+    // when
+    const actual = loadLifecycles(given, shippedAgents())
+    const stagesOf = (name: string) =>
+      actual.find((one) => one.name === name)?.stages.map((s) => s.name)
+
+    // then
+    expect(stagesOf('sdlc')).toEqual(['discover', 'deliver', 'accept'])
+    expect(stagesOf('bugfix')).toEqual(['diagnose', 'deliver', 'accept'])
+    expect(stagesOf('de-risk')).toEqual(['discover', 'prove'])
+  },
+)
+
+test(
+  [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    'when the shipped sdlc is flattened',
+    'it should run the same activities in the same order it always has',
+  ].join(', '),
+  () => {
+    // given
+    const given = join(STAMP, 'crust.lifecycles.yaml')
+
+    // when
+    const actual = loadLifecycles(given, shippedAgents())
+    const sdlc = actual.find((one) => one.name === 'sdlc')
+
+    // then
+    expect(activityOrder(sdlc ?? { name: '', description: '', stages: [] })).toEqual([
+      'identify',
+      'conceptualize',
+      'plan',
+      'design',
+      'test',
+      'build',
+      'verify',
+      'review',
+      'code-review',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    'when a shipped stage is serial',
+    'it should be allowed to hold a sequence, which is why there are three of them',
+  ].join(', '),
+  () => {
+    // given
+    const given = join(STAMP, 'crust.lifecycles.yaml')
+
+    // when
+    const actual = loadLifecycles(given, shippedAgents())
+    const sdlc = actual.find((one) => one.name === 'sdlc')
+    const deliver = sdlc?.stages.find((one) => one.name === 'deliver')
+
+    // then
+    expect(deliver?.strategy).toBe('serial')
+    expect(deliver?.activities).toEqual([
+      'plan',
+      'design',
+      'test',
+      'build',
+      'verify',
+    ])
   },
 )

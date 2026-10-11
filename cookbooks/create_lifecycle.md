@@ -17,13 +17,13 @@ lifecycles:
   - name: quick
     description: Plan it, build it, and check it still compiles.
     stages:
-      - name: decide
-        activities: [plan]
-      - name: implement
-        activities: [build, verify]
+      - name: deliver
+        activities: [plan, build, verify]
 ```
 
-`strategy` defaults to `serial`, which means the Activities run one after another in the order listed. A serial Stage is a **sequence**, so a chain of dependent work is one Stage rather than one Stage per Activity.
+`strategy` defaults to `serial`, which means the Activities run one after another in the order listed. A serial Stage is a **sequence**, so a chain of dependent work is one Stage rather than one Stage per Activity — the three above are one Stage for exactly that reason.
+
+The shipped `sdlc` is cut the same way: `discover`, then `deliver` holding plan through verify, then `accept`. Three Stages for nine Activities, because only two boundaries in that chain are real progression points.
 
 Stages run in the order they are declared. There is no `depends_on`: a Stage depends on the Stage before it.
 
