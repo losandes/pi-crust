@@ -2,10 +2,11 @@
  * Loading the roster, and resolving a name to the agent that answers to it.
  */
 
-import { fileExists, readText } from '../data/files'
 import { dirname, join } from 'node:path'
+import { fileExists, readText } from '../data/files'
 import {
   activitiesFileSchema,
+  activityPatchFileSchema,
   mergeActivities,
 } from '../typedefs/activity'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
@@ -89,15 +90,16 @@ const activitiesBeside = (configPath: string): readonly unknown[] => {
   if (!fileExists(path)) {
     return []
   }
-  const base = activitiesFileSchema.parse(Bun.YAML.parse(readText(path)))
-    .activities
+  const base = activitiesFileSchema.parse(
+    Bun.YAML.parse(readText(path)),
+  ).activities
   const localPath = path.replace(/\.yaml$/, '.local.yaml')
 
   return fileExists(localPath)
     ? mergeActivities(
         base as unknown as readonly Record<string, unknown>[],
-        activitiesFileSchema.parse(Bun.YAML.parse(readText(localPath)))
-          .activities as unknown as readonly Record<string, unknown>[],
+        activityPatchFileSchema.parse(Bun.YAML.parse(readText(localPath)))
+          .activities,
       )
     : base
 }
@@ -123,10 +125,14 @@ export const loadConfigWithNotes = (
   }
 }
 
-export const loadConfig = (path: string = DEFAULT_CONFIG_PATH): TPiCrustConfig =>
-  loadConfigWithNotes(path).config
+export const loadConfig = (
+  path: string = DEFAULT_CONFIG_PATH,
+): TPiCrustConfig => loadConfigWithNotes(path).config
 
-export const resolveAgent = (cfg: TPiCrustConfig, name: string): TAgentConfig => {
+export const resolveAgent = (
+  cfg: TPiCrustConfig,
+  name: string,
+): TAgentConfig => {
   const agent = cfg.agents.find((candidate) => candidate.name === name)
   if (agent === undefined) {
     throw new Error(

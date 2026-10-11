@@ -5,6 +5,7 @@ import {
   activitiesFileSchema,
   activityConfigSchema,
   activityNamed,
+  activityPatchFileSchema,
   mergeActivities,
   offerable,
 } from './activity'
@@ -282,5 +283,67 @@ test(
 
     // then
     expect(actual).toEqual(['plan', 'build', 'verify'])
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::activityPatchFileSchema',
+    'when a local layer names an Activity and one key',
+    'it should parse, because a patch is not a whole Activity',
+  ].join(', '),
+  () => {
+    // given — the full schema rejects this for having no prompts, which
+    // would make every partial override an error
+    const given = { activities: [{ name: 'builder', thinking: 'high' }] }
+
+    // when
+    const actual = activityPatchFileSchema.safeParse(given)
+
+    // then
+    expect(actual.success).toBe(true)
+  },
+)
+
+test(
+  [
+    'given typedefs/activity',
+    'when the shipped local example is merged over the shipped registry',
+    'it should produce Activities the full schema accepts',
+  ].join(', '),
+  () => {
+    // given — the example is documentation that runs: a key renamed in the
+    // schema has to break it, or it keeps teaching the old shape
+    const read = (name: string) =>
+      Bun.YAML.parse(
+        readFileSync(
+          join(
+            import.meta.dir,
+            '..',
+            '..',
+            '..',
+            'templates',
+            'stamp',
+            'config',
+            name,
+          ),
+          'utf8',
+        ),
+      )
+    const base = activitiesFileSchema.parse(read('crust.activities.yaml'))
+    const local = activityPatchFileSchema.parse(
+      read('crust.activities.local.example.yaml'),
+    )
+
+    // when
+    const actual = activitiesFileSchema.safeParse({
+      activities: mergeActivities(
+        base.activities as unknown as readonly Record<string, unknown>[],
+        local.activities,
+      ),
+    })
+
+    // then
+    expect(actual.success).toBe(true)
   },
 )

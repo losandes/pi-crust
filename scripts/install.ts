@@ -6,7 +6,7 @@
  *     bun <pi-crust>/scripts/install.ts [--force]
  *
  * Stamps: .pi-crust/ (modules, stages, lifecycles, config, prompts, recipes, README),
- * .env.pi-crust.sample, .gitignore entries, and a `mod crust` line in the root
+ * .env.pi-crust.example, .gitignore entries, and a `mod crust` line in the root
  * justfile.
  * Existing files are skipped unless --force.
  */
@@ -241,12 +241,12 @@ const main = (): number => {
   const tally: TTally = { stamped: [], skipped: [] }
 
   stamp(join(TEMPLATES, 'stamp'), join(root, '.pi-crust'), force, tally)
-  // Namespaced rather than `.env.sample`: the root of somebody else's
-  // repository is not ours to claim, and a project with its own sample would
+  // Namespaced rather than `.env.example`: the root of somebody else's
+  // repository is not ours to claim, and a project with its own example would
   // otherwise have it overwritten by an install.
   stamp(
-    join(TEMPLATES, 'env.sample'),
-    join(root, '.env.pi-crust.sample'),
+    join(TEMPLATES, 'env.example'),
+    join(root, '.env.pi-crust.example'),
     force,
     tally,
   )
@@ -267,7 +267,7 @@ const main = (): number => {
   }
   say('\nnext steps:')
   say(
-    '  1. cp .env.pi-crust.sample .env     # then set the key(s) your roster needs',
+    '  1. cp .env.pi-crust.example .env     # then set the key(s) your roster needs',
   )
   say('  2. just crust demo          # two cheap read-only runs, end to end')
   say('  3. just crust sessions      # what just happened')

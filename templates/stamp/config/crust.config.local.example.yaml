@@ -8,83 +8,36 @@
 #     cp .pi-crust/config/crust.config.local.example.yaml \
 #        .pi-crust/config/crust.config.local.yaml
 #
-# This exists because a repository with several developers has one roster and
-# several sets of credentials, licences and habits. The committed config is
-# the team's answer; this is yours, and a run that is using one says so on its
-# first line rather than quietly billing a model nobody else chose.
+# This exists because a repository with several developers has one answer and
+# several sets of credentials, licences and habits. The committed file is the
+# team's; this is yours, and a run using one says so on its first line rather
+# than quietly billing a model nobody else chose.
+#
+# There is one of these per registry. Activities are overridden in
+# crust.activities.local.yaml and lifecycles in crust.lifecycles.local.yaml —
+# each file has its own local layer, and each has an example beside it.
 # ─────────────────────────────────────────────────────────────────────────────
-
 
 # ── What a local layer may change ────────────────────────────────────────────
 #
-# Four keys on an agent or on `defaults`:
+# Anything this file can say, with the local value winning key by key. There
+# is no restricted subset: whoever writes this file can equally edit the
+# committed one, and runs the result on their own machine against their own
+# checkout, so a restriction here would be friction in the one file whose
+# purpose is to have none.
 #
-#     model          which model answers — your licence, not everyone's
-#     thinking       off | minimal | low | medium | high | xhigh | max
-#     color          a theme role: blue amber green purple cyan pink violet
-#                    orange teal indigo rose lime
-#     coding_agent   pi | claude_code
-#
-# And two keys under `steps`, which shape the `just crust please` menu:
-#
-#     order          the sequence a hand-picked chain runs in
-#     hidden         steps kept out of the menu
-#
-# Everything else is REFUSED BY NAME, loudly, rather than ignored. `writes`,
-# `tools`, `protected_files`, the prompts and all of `routing` are boundaries
-# and standards the repository reviewed — a file nobody reviews must not be
-# able to move them. An override that silently did nothing would be worse:
-# you would believe it applied.
-#
-# A local layer also cannot ADD an agent. Steps bind to the owner names in
-# the registry, so a local-only agent would never run.
+# What that means in practice: keep safety boundaries out of here by choice
+# rather than because you were stopped. A `writes` list narrowed locally is a
+# run behaving differently from everyone else's for a reason nobody can see in
+# review.
+# ─────────────────────────────────────────────────────────────────────────────
 
-
-# ── Everything below is illustration. Delete what you do not want. ───────────
-
-# Applies to every agent that has not named its own.
+# Applies to every Activity that has not named its own.
 defaults:
-  model: anthropic/claude-sonnet-5
-  thinking: medium
+  model: anthropic/claude-opus-5
+  thinking: high
 
-agents:
-  # Override one agent, and only the keys you name. Everything else about it —
-  # its purpose, prompts, tools and writes boundary — stays as the repository
-  # has it.
-  - name: builder
-    model: anthropic/claude-opus-5
-    thinking: high
-
-  # The cheap end of a roster, while iterating on a prompt.
-  - name: scout
-    model: anthropic/claude-haiku-4-5
-    thinking: low
-
-  # Colour is a theme role, never a hex: each theme decides what `cyan` looks
-  # like, so a lane stays legible in light and high-contrast too.
-  - name: reviewer
-    color: cyan
-
-  # Naming an agent this roster does not have is a WARNING, not an error — a
-  # name goes stale when somebody renames an agent upstream, and that must not
-  # break your runs. The warning is printed, because an override that silently
-  # did nothing is the confusion all of this exists to avoid.
-
-steps:
-  # The order a hand-picked chain runs in. A PARTIAL list is the normal case:
-  # the steps named here take the slots that named steps occupy in the order
-  # above them, and everything unnamed stays exactly where it was. So these
-  # two lines swap `build` and `plan` and move nothing else.
-  order:
-    - build
-    - plan
-
-  # Kept out of the `please` menu — useful if you drive this with lifecycles
-  # or the operator and never pick these by hand.
-  #
-  # HIDDEN, not disabled: a lifecycle, an operator, or an explicit `--steps`
-  # still runs them. Hiding is a preference about a menu, not a permission.
-  hidden:
-    - prompt
-    - poc
-    - revise
+# Where the trace goes, and how fast the UI follows it. Useful when two
+# checkouts of the same repository would otherwise write to one database.
+observability:
+  poll_ms: 250

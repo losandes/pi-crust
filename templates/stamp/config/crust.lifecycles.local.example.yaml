@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# Copy it to `crust.lifecycles.local.yaml` — same directory, drop the
+# `.example` — and it is picked up automatically on the next run. That name is
+# gitignored, so what you put in it stays on your machine.
+#
+#     cp .pi-crust/config/crust.lifecycles.local.example.yaml \
+#        .pi-crust/config/crust.lifecycles.local.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── How this merges with the team's file ─────────────────────────────────────
+#
+# A Lifecycle REPLACES the team's outright, unlike an Activity, which merges
+# key by key. An Activity is a bag of settings; a Lifecycle is a graph, and
+# splicing one of your Stages into somebody else's graph by name produces an
+# arrangement neither of you wrote.
+#
+# So naming `sdlc` here means "my sdlc, entirely" — copy the team's and edit
+# it, rather than writing only the part you wanted to change.
+#
+# A name the team file does not have is simply a new Lifecycle.
+#
+# Both files are validated together at load. A Stage that depends on one this
+# Lifecycle does not declare, or a cycle, is refused before the run starts
+# rather than three Activities in.
+# ─────────────────────────────────────────────────────────────────────────────
+
+lifecycles:
+  # Your own short chain. Stages run in dependency order; Activities within a
+  # Stage run in the order you list them.
+  - name: quick
+    description: Plan it, build it, and check it still compiles.
+    stages:
+      - name: decide
+        activities: [plan]
+      - name: implement
+        activities: [build, verify]
+        depends_on: [decide]
+
+  # Independent work, said out loud. These two Stages depend on nothing, so
+  # neither waits for the other — today they are flattened into the order
+  # written here, and declaring the independence is what lets that stop being
+  # true without this file changing.
+  - name: survey
+    description: Look at it from two directions before deciding anything.
+    stages:
+      - name: technical
+        activities: [technical-research]
+      - name: domain
+        activities: [domain-research]
+      - name: decide
+        activities: [conceptualize]
+        depends_on: [technical, domain]

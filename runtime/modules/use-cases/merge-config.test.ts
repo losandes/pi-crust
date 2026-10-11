@@ -4,7 +4,13 @@ import { applyLocalOverrides, localConfigPath } from './merge-config'
 const roster = () => ({
   defaults: { model: 'base', thinking: 'medium', protected_files: ['a/'] },
   agents: [
-    { name: 'scout', model: 'base', thinking: 'low', writes: [], color: 'amber' },
+    {
+      name: 'scout',
+      model: 'base',
+      thinking: 'low',
+      writes: [],
+      color: 'amber',
+    },
     { name: 'builder', model: 'dear', thinking: 'high', writes: undefined },
   ],
 })
@@ -82,116 +88,69 @@ test(
 test(
   [
     'given use-cases/merge-config::applyLocalOverrides',
-    'when the local layer tries to widen an agent writes list',
-    'it should REFUSE, because a reviewed boundary is not one person to move',
+    'when the local layer sets a key that used to be refused',
+    'it should apply it, because the file has no second principal to protect',
   ].join(' '),
   () => {
-    // given
+    // given — a boundary was unreachable here on the grounds that an
+    // unreviewed file must not move it. Whoever writes this file can edit
+    // the committed one instead, so the restriction was friction rather
+    // than protection.
     const local = { agents: [{ name: 'scout', writes: ['src/'] }] }
 
     // when
-    const attempt = () => applyLocalOverrides(roster(), local)
+    const actual = applyLocalOverrides(roster(), local)
 
     // then
-    expect(attempt).toThrow(/may only override/)
-    expect(attempt).toThrow(/agents\[scout\]: 'writes'/)
-  },
-)
-
-test(
-  [
-    'given use-cases/merge-config::applyLocalOverrides',
-    'when the local layer tries to change protected_files',
-    'it should refuse that too, naming the key rather than dropping it',
-  ].join(' '),
-  () => {
-    // given
-    const local = { defaults: { protected_files: [] } }
-
-    // when
-    const attempt = () => applyLocalOverrides(roster(), local)
-
-    // then
-    expect(attempt).toThrow(/defaults: 'protected_files'/)
-  },
-)
-
-test(
-  [
-    'given use-cases/merge-config::applyLocalOverrides',
-    'when the local layer tries to change routing',
-    'it should refuse: which checks must pass is the repository standard',
-  ].join(' '),
-  () => {
-    // given
-    const local = { routing: { checks: [] } }
-
-    // when
-    const attempt = () => applyLocalOverrides(roster(), local)
-
-    // then
-    expect(attempt).toThrow(/top-level 'routing'/)
-  },
-)
-
-test(
-  [
-    'given use-cases/merge-config::applyLocalOverrides',
-    'when the local layer names an agent the roster does not have',
-    'it should warn and carry on, never add it and never fail the run',
-  ].join(' '),
-  () => {
-    // given
-    const local = { agents: [{ name: 'tinkerer', model: 'mine' }] }
-
-    // when
-    const applied = applyLocalOverrides(roster(), local) as {
-      document: { agents: readonly { name: string }[] }
-      warnings: readonly string[]
-    }
-
-    // then
-    expect(applied.document.agents.map((agent) => agent.name)).toEqual([
-      'scout',
-      'builder',
+    const agents = (
+      actual.document as { agents: { name: string; writes?: string[] }[] }
+    ).agents
+    expect(agents.find((agent) => agent.name === 'scout')?.writes).toEqual([
+      'src/',
     ])
-    expect(applied.warnings).toHaveLength(1)
-    expect(applied.warnings[0]).toContain('tinkerer')
   },
 )
 
 test(
   [
     'given use-cases/merge-config::applyLocalOverrides',
-    'when all four overridable keys are used at once',
-    'it should accept every one of them',
+    'when the local layer sets a top-level section',
+    'it should merge into it rather than replacing the whole section',
   ].join(' '),
   () => {
-    // given
-    const local = {
-      agents: [
-        {
-          name: 'scout',
-          model: 'mine',
-          thinking: 'xhigh',
-          color: 'cyan',
-          coding_agent: 'claude_code',
-        },
-      ],
-    }
+    // given — one key of observability, not all of it
+    const local = { observability: { poll_ms: 250 } }
 
     // when
-    const applied = applyLocalOverrides(roster(), local) as {
-      document: { agents: readonly Record<string, unknown>[] }
-    }
+    const actual = applyLocalOverrides(
+      { ...roster(), observability: { db: 'x.db', poll_ms: 500 } },
+      local,
+    )
 
     // then
-    expect(applied.document.agents[0]).toMatchObject({
-      model: 'mine',
-      thinking: 'xhigh',
-      color: 'cyan',
-      coding_agent: 'claude_code',
-    })
+    expect(
+      (actual.document as { observability: unknown }).observability,
+    ).toEqual({ db: 'x.db', poll_ms: 250 })
+  },
+)
+
+test(
+  [
+    'given use-cases/merge-config::applyLocalOverrides',
+    'when the local layer names an agent the config does not have',
+    'it should warn and point at the registry, rather than failing a run',
+  ].join(' '),
+  () => {
+    // given — a name goes stale when somebody renames an Activity upstream,
+    // and a colleague's private file must not break everyone's runs
+    const local = { agents: [{ name: 'ghost', model: 'x' }] }
+
+    // when
+    const actual = applyLocalOverrides(roster(), local)
+
+    // then
+    expect(actual.warnings[0]).toContain('ghost')
+    expect(actual.warnings[0]).toContain('crust.activities.yaml')
   },
 )
 
@@ -199,56 +158,50 @@ test(
   [
     'given use-cases/merge-config::applyLocalOverrides',
     'when the local file is empty',
-    'it should hand back the roster untouched rather than erase it',
+    'it should leave the committed config exactly as it was',
   ].join(' '),
   () => {
-    // given — an empty YAML document parses to null
-    const local = undefined
+    // given — the normal case for most developers most of the time
+    const base = roster()
 
     // when
-    const applied = applyLocalOverrides(roster(), local)
+    const actual = applyLocalOverrides(base, {})
 
     // then
-    expect(applied.document).toEqual(roster())
-    expect(applied.warnings).toEqual([])
+    expect(actual.document).toEqual(base)
+    expect(actual.warnings).toEqual([])
   },
 )
 
 test(
   [
     'given use-cases/merge-config::applyLocalOverrides',
-    'when the local layer sets its own step order and hides steps',
-    'it should accept both, because neither changes what can run',
+    'when several keys are overridden at once',
+    'it should apply all of them and disturb nothing else',
   ].join(' '),
   () => {
     // given
-    const local = { steps: { order: ['build', 'plan'], hidden: ['poc'] } }
-
-    // when
-    const applied = applyLocalOverrides(roster(), local) as {
-      document: { steps: { order: readonly string[]; hidden: readonly string[] } }
+    const local = {
+      defaults: { model: 'local/model' },
+      agents: [{ name: 'scout', thinking: 'low', color: 'cyan' }],
     }
 
-    // then
-    expect(applied.document.steps.order).toEqual(['build', 'plan'])
-    expect(applied.document.steps.hidden).toEqual(['poc'])
-  },
-)
-
-test(
-  [
-    'given use-cases/merge-config::applyLocalOverrides',
-    'when the local layer invents a key under steps',
-    'it should refuse by name, as it does everywhere else',
-  ].join(' '),
-  () => {
-    // given
-    const local = { steps: { disabled: ['code-review'] } }
-
     // when
-    const attempt = () => applyLocalOverrides(roster(), local)
+    const actual = applyLocalOverrides(roster(), local)
+    const document = actual.document as {
+      defaults: Record<string, unknown>
+      agents: Record<string, unknown>[]
+    }
+    const scout = document.agents.find((agent) => agent.name === 'scout')
 
     // then
-    expect(attempt).toThrow(/steps: 'disabled'/)
+    expect(document.defaults.model).toBe('local/model')
+    expect(scout?.thinking).toBe('low')
+    expect(scout?.color).toBe('cyan')
+    expect(scout?.purpose).toBe(
+      (roster() as { agents: Record<string, unknown>[] }).agents.find(
+        (agent) => agent.name === 'scout',
+      )?.purpose,
+    )
   },
 )

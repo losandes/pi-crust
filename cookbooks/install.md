@@ -26,7 +26,7 @@ The installer records where it ran from in `.pi-crust/data/pi-crust-home`, which
 | `prompt-engineering/README.md`           | how to add or override a prompt                              | yes               |
 | `prompt-engineering/example/`            | the shape of a prompt                                        | no — illustrative |
 | `data/`                                  | this developer's runs, and where pi-crust is on this machine | no — never shared |
-| `.env.pi-crust.sample`                   | the variables a roster may need, at the repository root      | yes               |
+| `.env.pi-crust.example`                   | the variables a roster may need, at the repository root      | yes               |
 | `justfile`                               | gains a `crust` recipe; created if the repository has none   | yes               |
 
 **No code is stamped.** The runtime — modules, the Activity runner, the Planners, the shipped prompts, the pi extensions, the recipes — lives in the pi-crust package. That is what makes an update safe: it can replace every file it owns without touching a file you wrote, because none of them are the same file.
@@ -54,7 +54,7 @@ Three capabilities are not configurable and cannot be removed: **Triage** recomm
 
 ## Post-install checklist
 
-1. **Env** — `cp .env.pi-crust.sample .env`, then set `OPENROUTER_API_KEY` in `.env`. The installer does not create `.env` for you, and does not ignore it either; confirm your repository already does. (v1 runs Pi; `ANTHROPIC_API_KEY` / `CLAUDE_CODE_PATH` are only needed once Claude Code lands in v2.)
+1. **Env** — `cp .env.pi-crust.example .env`, then set `OPENROUTER_API_KEY` in `.env`. The installer does not create `.env` for you, and does not ignore it either; confirm your repository already does. (v1 runs Pi; `ANTHROPIC_API_KEY` / `CLAUDE_CODE_PATH` are only needed once Claude Code lands in v2.)
 2. **Dependencies** — `install.ts` runs `bun install` inside `.pi-crust/` for you (one package: `zod`). If that step reported a failure, run it yourself.
 3. **Pi is installed and on PATH** — `pi --version`. Set `PI_PATH` in `.env` if it is not.
 4. **The model resolves** — the config's default `gemini-3.6-flash` must be a registered id in `~/.pi/agent/models.json`. Check with `pi --list-models` or read the file directly; see `references/config.md` for model resolution.
