@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Assess the security of whatever the `prompt` names, and write your findings, threat scenarios and constraints to `<context_handoff_dir>/security-research.md`. Then emit your `Report` JSON.
+Assess the security of whatever the `prompt` names, and write your findings, threat scenarios and constraints to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -68,7 +68,7 @@ Respond with ONLY valid JSON matching `ResearchOutput` — no prose before or af
     }
   ],
   "not_investigated": ["<what you did not look at, so a reader knows the shape of the hole>"],
-  "artifacts": ["<context_handoff_dir>/security-research.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<the constraints architecture and engineering must design within>"
 }
 ```

@@ -1,7 +1,13 @@
 import { expect, test } from 'bun:test'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema } from '../typedefs/config'
-import { changedPaths, matchesPattern, permitted } from './enforce-permissions'
+import {
+  changedPaths,
+  handoffDocument,
+  matchesPattern,
+  permitted,
+  resolveWrites,
+} from './enforce-permissions'
 
 const configWith = (
   agents: ReadonlyArray<Partial<TAgentConfig> & Readonly<{ name: string }>>,
@@ -138,7 +144,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const cfg = configWith([{ name: 'builder' }])
+    const cfg = configWith([{ name: 'builder', writes: ['*'] }])
 
     // when
     const protectedPath = permitted(
@@ -168,7 +174,7 @@ test(
     // given
     const cfg = configWith([
       { name: 'maintainer', writes: ['.pi-crust/modules/'] },
-      { name: 'builder' },
+      { name: 'builder', writes: ['*'] },
     ])
 
     // when
@@ -205,5 +211,102 @@ test(
 
     // then
     expect(actual).toEqual(['src/a.ts', 'src/c.ts'])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::permitted',
+    'when an agent declares an empty writes list',
+    'it should be refused everywhere, because nothing grants it anything',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = configWith([{ name: 'scout', writes: [] }])
+
+    // when
+    const actual = permitted('src/server.ts', agentNamed(cfg, 'scout'), cfg)
+
+    // then
+    expect(actual).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::resolveWrites',
+    'when a pattern names the handoff directory by token',
+    'it should become a path relative to the repository root',
+  ].join(', '),
+  () => {
+    // given
+    const given = ['{handoff}/review.md', 'specs/']
+
+    // when
+    const actual = resolveWrites(
+      given,
+      '/repo',
+      '/repo/.pi-crust/data/sessions/abc/context_handoff',
+    )
+
+    // then
+    expect(actual).toEqual([
+      '.pi-crust/data/sessions/abc/context_handoff/review.md',
+      'specs/',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::resolveWrites',
+    'when the handoff directory sits outside the repository',
+    'it should stay absolute, so no snapshot path can ever match it',
+  ].join(', '),
+  () => {
+    // given
+    const given = ['{handoff}/review.md']
+
+    // when
+    const actual = resolveWrites(given, '/repo', '/elsewhere/handoff')
+
+    // then
+    expect(actual).toEqual(['/elsewhere/handoff/review.md'])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::handoffDocument',
+    'when an agent declares a handoff document among other paths',
+    'it should name that document, so the prompt and the permission agree',
+  ].join(', '),
+  () => {
+    // given
+    const given = ['{handoff}/plan.md', 'specs/']
+
+    // when
+    const actual = handoffDocument(given, '/repo', '/repo/handoff')
+
+    // then
+    expect(actual).toEqual('handoff/plan.md')
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::handoffDocument',
+    'when an agent writes only repository paths',
+    'it should name nothing rather than mistake a glob for its document',
+  ].join(', '),
+  () => {
+    // given
+    const given = ['**/*.test.ts', '**/tests/']
+
+    // when
+    const actual = handoffDocument(given, '/repo', '/repo/handoff')
+
+    // then
+    expect(actual).toBeUndefined()
   },
 )

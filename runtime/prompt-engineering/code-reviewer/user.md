@@ -45,7 +45,7 @@ Judge the change in `changed_files` against this repository's ratified conventio
 3. If `previous_envelope` carries `disputes`, answer each one before you rule. Check the evidence it cites. Then either withdraw the finding, or restate it with **new** evidence. Repeating a disputed finding with the same evidence ends the loop and sends it to the developer — the harness counts that, not you.
 4. The blocking automated checks have already run — their output is in `previous_envelope`. Read it. Do not re-run them.
 5. Rule on each convention the skill names, with a `file:line` for every finding.
-6. Write the review to `<context_handoff_dir>/code_review.md`, then emit your `Report` JSON.
+6. Write the review to `{{output_document}}`, then emit your `Report` JSON.
 
 ## Report
 
@@ -82,7 +82,7 @@ Respond with ONLY valid JSON matching `ReviewOutput` — no prose before or afte
     { "requirement": "<the convention, as the record states it>", "met": true, "evidence": "src/server.ts:42 — settles rather than throws" }
   ],
   "blocking": ["<what must change, naming the rule it breaks>"],
-  "artifacts": ["<context_handoff_dir>/code_review.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the builder must fix>"
 }
 ```

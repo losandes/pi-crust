@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Answer the technical question in `prompt` from evidence, and write what you found to `<context_handoff_dir>/technical-research.md`. Then emit your `Report` JSON.
+Answer the technical question in `prompt` from evidence, and write what you found to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -68,7 +68,7 @@ Respond with ONLY valid JSON matching `ResearchOutput` — no prose before or af
     }
   ],
   "not_investigated": ["<what you did not look at, so a reader knows the shape of the hole>"],
-  "artifacts": ["<context_handoff_dir>/technical-research.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what an architect or engineer must know before deciding>"
 }
 ```

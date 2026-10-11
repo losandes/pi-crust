@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Reproduce the reported behaviour, find what causes it, and write what you found to `<context_handoff_dir>/diagnosis.md`. Then emit your `Report` JSON.
+Reproduce the reported behaviour, find what causes it, and write what you found to `{{output_document}}`. Then emit your `Report` JSON.
 
 Work in this order, and stop at the first step you cannot complete honestly:
 
@@ -79,7 +79,7 @@ Respond with ONLY valid JSON matching `DiagnosisOutput` — no prose before or a
   "confidence": "confirmed",
   "suspect_files": ["<path where the cause lives>"],
   "reproducing_test": "<path to a test that fails because of this bug, or \"\" if one cannot exist>",
-  "artifacts": ["<context_handoff_dir>/diagnosis.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what whoever fixes this must know, including what must NOT change>"
 }
 ```

@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Specify the interface the `prompt` calls for, and write the full specification to `<context_handoff_dir>/ux-design.md`. Then emit your `Report` JSON.
+Specify the interface the `prompt` calls for, and write the full specification to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -71,7 +71,7 @@ Respond with ONLY valid JSON matching `UxDesignOutput` — no prose before or af
     { "decision": "<a choice you made to satisfy a requirement>", "rationale": "<the requirement it serves>" }
   ],
   "unspecified": ["<deliberately left open, and what would settle it>"],
-  "artifacts": ["<context_handoff_dir>/ux-design.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what an engineer needs in order to build this without asking you questions>"
 }
 ```

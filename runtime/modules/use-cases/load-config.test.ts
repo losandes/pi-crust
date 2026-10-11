@@ -11,6 +11,7 @@ defaults:
 agents:
   - name: planner
     thinking: high
+    writes: [specs/]
     prompt_engineering:
       system: .pi-crust/prompt-engineering/planner/system.md
       user: .pi-crust/prompt-engineering/planner/user.md
@@ -69,7 +70,7 @@ test(
   [
     'given use-cases/load-config::parseConfig',
     'when an agent declares writes as an empty list',
-    'it should stay an empty list rather than becoming unrestricted',
+    'it should stay empty, and not inherit the default the other keys do',
   ].join(', '),
   () => {
     // given
@@ -80,7 +81,7 @@ test(
 
     // then
     expect(resolveAgent(parsed, 'scout').writes).toEqual([])
-    expect(resolveAgent(parsed, 'planner').writes).toBeUndefined()
+    expect(resolveAgent(parsed, 'planner').writes).toEqual(['specs/'])
   },
 )
 
@@ -117,5 +118,29 @@ test(
     expect(() => resolveAgent(parsed, 'tester')).toThrow(
       /not defined in the config — available: planner, scout/,
     )
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::parseConfig',
+    'when an agent declares no writes at all',
+    'it should refuse, because silence used to grant the widest permission',
+  ].join(', '),
+  () => {
+    // given
+    const yaml = `
+agents:
+  - name: drifter
+    prompt_engineering:
+      system: s.md
+      user: u.md
+`
+
+    // when
+    const actual = () => parseConfig(yaml)
+
+    // then
+    expect(actual).toThrow()
   },
 )

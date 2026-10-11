@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Give the accepted logical architecture a physical shape in this repository, including the signals that make its behaviour knowable, and write it to `<context_handoff_dir>/design.md`. Then emit your `Report` JSON.
+Give the accepted logical architecture a physical shape in this repository, including the signals that make its behaviour knowable, and write it to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -61,7 +61,7 @@ Respond with ONLY valid JSON matching `DesignOutput` — no prose before or afte
   "physical_architecture": "<components, interfaces, schemas, data flow>",
   "observability": ["<signal -> the question it answers>"],
   "records_to_write": ["<a decision a human should consider recording>"],
-  "artifacts": ["<context_handoff_dir>/design.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the builder must not have to invent>"
 }
 ```

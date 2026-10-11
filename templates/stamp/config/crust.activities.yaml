@@ -28,7 +28,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/analyst/system.md
       user: prompt-engineering/analyst/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/identify.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
 
   # 1.2b Diagnose. For work that starts from a symptom rather than from a
@@ -47,6 +47,7 @@ activities:
     # fixes what it found — a fix nobody planned, tested or reviewed, with the
     # reproduction destroyed. Narrow these globs to your own test layout.
     writes:
+      - "{handoff}/diagnosis.md"
       - "**/*.test.*"
       - "**/*_test.*"
       - "**/test/**"
@@ -65,7 +66,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/solutions-architect/system.md
       user: prompt-engineering/solutions-architect/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/conceptualize.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
 
   - name: technical-architect
@@ -74,7 +75,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/technical-architect/system.md
       user: prompt-engineering/technical-architect/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/design.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
 
   - name: planner
@@ -88,6 +89,7 @@ activities:
     harness_engineering:
       - harness-engineering/subagents.ts      # registers the four subagent_* tools below
     writes:                        # the plan is the only thing it may leave in the repo
+      - "{handoff}/plan.md"
       - specs/
     tools:                         # full recon + write for plan.md; no edit — the planner never touches repo files
       - bash
@@ -105,8 +107,9 @@ activities:
     prompt_engineering:
       system: prompt-engineering/builder/system.md
       user: prompt-engineering/builder/user.md
-    # No `writes` key: unrestricted, and the only agent that is. It still cannot
-    # touch defaults.protected_files — the builder does not get to edit its own grader.
+    writes: ['*']                  # unrestricted, and the only agent that is. It
+    # still cannot touch defaults.protected_files — the builder does not get to
+    # edit its own grader. Said out loud because silence no longer grants it.
 
   - name: scout
     color: orange
@@ -116,7 +119,7 @@ activities:
       user: prompt-engineering/scout/user.md
     harness_engineering:
       - harness-engineering/subagents.ts      # registers the four subagent_* tools below
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/scout_findings.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -154,7 +157,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/code-reviewer/system.md
       user: prompt-engineering/code-reviewer/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/code_review.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
 
   - name: reviewer
@@ -165,7 +168,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/reviewer/system.md
       user: prompt-engineering/reviewer/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/review.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
 
   - name: documenter
@@ -176,6 +179,7 @@ activities:
       system: prompt-engineering/documenter/system.md
       user: prompt-engineering/documenter/user.md
     writes:                        # documentation only
+      - "{handoff}/document.md"
       - "**/adr/"
       - "**/docs/"                 # Markdown anywhere, because docs live next to the
       - "**/*.md"                  # code they describe as often as in a docs folder.
@@ -195,7 +199,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/technical-researcher/system.md
       user: prompt-engineering/technical-researcher/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/technical-research.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -212,7 +216,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/ux-researcher/system.md
       user: prompt-engineering/ux-researcher/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/ux-research.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -229,7 +233,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/domain-researcher/system.md
       user: prompt-engineering/domain-researcher/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/domain-research.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -246,7 +250,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/security-researcher/system.md
       user: prompt-engineering/security-researcher/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/security-research.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -265,7 +269,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/data-researcher/system.md
       user: prompt-engineering/data-researcher/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/data-research.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -282,7 +286,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/ux-designer/system.md
       user: prompt-engineering/ux-designer/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/ux-design.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:
       - bash
@@ -302,7 +306,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/triage/system.md
       user: prompt-engineering/triage/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/plan.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:      # enough to size the work, not to do it
       - read
@@ -314,7 +318,7 @@ activities:
     prompt_engineering:
       system: prompt-engineering/operator/system.md
       user: prompt-engineering/operator/user.md
-    writes: []  # the findings file only; `writes: []` keeps it out of the repo
+    writes: ['{handoff}/plan.md']  # its findings, and nothing else in the repo
                 # its deliverable goes to context_handoff/
     tools:      # enough to size the work, not to do it
       - read

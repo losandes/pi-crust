@@ -28,7 +28,7 @@ Read `previous_envelope` if there is one. When a stage already established facts
 
 ## Task
 
-Choose the smallest chain of steps that can reasonably produce the outcome, and write your reasoning to `<context_handoff_dir>/plan.md`. Then emit your `Report` JSON.
+Choose the smallest chain of steps that can reasonably produce the outcome, and write your reasoning to `{{output_document}}`. Then emit your `Report` JSON.
 
 Your `facts` are facts about the SHAPE of the work — that an app exists, that a spec names four phases, that a step's output is what another needs. They are not findings about the problem; establishing those is what the steps you choose are for, and a fact you could not establish with read, grep, find and ls is a fact you should not be reporting.
 
@@ -78,7 +78,7 @@ Respond with ONLY valid JSON matching `OperatorPlanOutput` — no prose before o
   ],
   "excluded": ["<step you considered and left out, and why>"],
   "completion": "<how a reader knows the chain finished the job>",
-  "artifacts": ["<context_handoff_dir>/plan.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the first step of your chain must know>"
 }
 ```

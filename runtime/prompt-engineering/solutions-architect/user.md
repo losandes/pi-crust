@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Decide what the solution must mean and do, compare the approaches worth comparing, and write it to `<context_handoff_dir>/conceptualize.md`. Then emit your `Report` JSON.
+Decide what the solution must mean and do, compare the approaches worth comparing, and write it to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -65,7 +65,7 @@ Respond with ONLY valid JSON matching `ConceptualizeOutput` — no prose before 
     { "approach": "<an alternative worth considering>", "rejected_because": "<what disqualified it>" }
   ],
   "observability_questions": ["<what must be knowable about this in operation>"],
-  "artifacts": ["<context_handoff_dir>/conceptualize.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the technical architect must preserve>"
 }
 ```

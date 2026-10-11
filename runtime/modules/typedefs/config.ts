@@ -52,11 +52,24 @@ export const agentConfigSchema = z.object({
   // (see modules/use-cases/enforce-permissions.ts). `tools` cannot express
   // this: `bash` runs anything and `write` reaches any path, so an agent's
   // capability list is a statement of intent that nothing checks.
-  //   undefined -> unrestricted, except the roster-wide `protected_files`
-  //   []        -> read-only: may modify nothing tracked
-  //   [...]     -> only these. A trailing "/" means a directory prefix; a "*"
-  //                makes it a glob; anything else is an exact path.
-  writes: z.array(z.string()).optional(),
+  // What this agent may change, and where its own documents go.
+  //
+  //   ['*']            -> anywhere, except the roster-wide `protected_files`
+  //   []               -> nothing: it modifies no file at all
+  //   ['{handoff}/x.md'] -> only that document, inside this run's handoff dir
+  //   [...]            -> only these. A trailing "/" means a directory prefix;
+  //                       a "*" makes it a glob; anything else is exact.
+  //
+  // Required, with no default. Omitting it used to mean "anywhere", so
+  // silence granted the most dangerous permission and an agent nobody had
+  // thought about was the least restricted one on the roster.
+  //
+  // `{handoff}` expands to this run's context_handoff directory, which has a
+  // different path every run and so cannot be written literally. Naming the
+  // document here rather than only in the prompt is what lets two agents run
+  // concurrently: a stage can only claim concurrency when its agents' paths
+  // do not overlap, and that is a question about this list.
+  writes: z.array(z.string()),
 })
 export type TAgentConfig = Readonly<z.infer<typeof agentConfigSchema>>
 

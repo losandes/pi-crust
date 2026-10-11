@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Turn the request into an outcome with criteria anyone could check, and write it to `<context_handoff_dir>/identify.md`. Then emit your `Report` JSON.
+Turn the request into an outcome with criteria anyone could check, and write it to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -63,7 +63,7 @@ Respond with ONLY valid JSON matching `IdentifyOutput` — no prose before or af
   "out_of_scope": ["<what this deliberately does not cover>"],
   "requirements": ["<supported by evidence, not by convenience>"],
   "constraints": ["<what already limits the solution space>"],
-  "artifacts": ["<context_handoff_dir>/identify.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the architect must know>"
 }
 ```

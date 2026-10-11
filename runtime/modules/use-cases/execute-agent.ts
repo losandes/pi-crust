@@ -22,7 +22,11 @@ import type { TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
 import type { TPhaseHandle, TRun } from '../typedefs/run'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
-import { enforcePermissions, PermissionBreach } from './enforce-permissions'
+import {
+  enforcePermissions,
+  handoffDocument,
+  PermissionBreach,
+} from './enforce-permissions'
 import { extractJson } from './extract-json'
 import { resolveAgent } from './load-config'
 import { trustStance } from '../typedefs/trust'
@@ -297,6 +301,16 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       ? JSON.stringify(call.previous, null, 2)
       : '(none)',
     context_handoff_dir: resolve(run.contextHandoffDir),
+    /*
+     * Where this agent's own document goes, from its `writes`. Prompts used
+     * to hardcode the filename, which meant the path the agent was told and
+     * the path it was permitted to write were two separate declarations that
+     * could disagree — and redirecting an Activity's output meant forking its
+     * prompt.
+     */
+    output_document:
+      handoffDocument(agent.writes, run.repoRoot, run.contextHandoffDir) ??
+      resolve(run.contextHandoffDir),
     // Named, never hardcoded: a prompt says "load every skill listed here",
     // and the config decides what that list contains.
     //

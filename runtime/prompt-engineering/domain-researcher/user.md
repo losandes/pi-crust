@@ -26,7 +26,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 ## Task
 
-Model the part of the domain the `prompt` concerns, and write it to `<context_handoff_dir>/domain-research.md`. Then emit your `Report` JSON.
+Model the part of the domain the `prompt` concerns, and write it to `{{output_document}}`. Then emit your `Report` JSON.
 
 ## Report
 
@@ -68,7 +68,7 @@ Respond with ONLY valid JSON matching `ResearchOutput` — no prose before or af
     }
   ],
   "not_investigated": ["<what you did not look at, so a reader knows the shape of the hole>"],
-  "artifacts": ["<context_handoff_dir>/domain-research.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<the terms, rules and invariants the software model must honour>"
 }
 ```

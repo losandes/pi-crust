@@ -40,7 +40,7 @@ Confirm that the work reported in `previous_envelope` is what was asked for.
 2. Establish the change. When `change_base` names a ref or a range, that is the change — read it with `git diff <change_base>`, because the work may already be committed and absent from the working tree. Otherwise read the code on disk, starting from `changed_files` and `previous_envelope.changed_files`.
 3. If `previous_envelope` carries `disputes`, answer each one before you rule. Check the evidence it cites. Then either withdraw the finding, or restate it with **new** evidence. Repeating a disputed finding with the same evidence ends the loop and sends it to the developer — the harness counts that, not you.
 4. Rule on every requirement in the spec — one `findings` entry each, with evidence.
-5. Write the review to `<context_handoff_dir>/review.md`, then emit your `Report` JSON.
+5. Write the review to `{{output_document}}`, then emit your `Report` JSON.
 
 ## Report
 
@@ -77,7 +77,7 @@ Respond with ONLY valid JSON matching `ReviewOutput` — no prose before or afte
     { "requirement": "<the ask, in the requester's words>", "met": true, "evidence": "src/server.ts:42 — handler registered" }
   ],
   "blocking": ["<what must change before this can be approved>"],
-  "artifacts": ["<context_handoff_dir>/review.md"],
+  "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the builder must fix, or how to verify if approved>"
 }
 ```

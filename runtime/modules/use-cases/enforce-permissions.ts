@@ -28,9 +28,10 @@
  *
  * Two keys drive it, both in crust.config.yaml:
  *     defaults.protected_files   paths no agent may touch unless it names them
- *     agents[].writes   omitted = unrestricted · [] = read-only · [...] = only these
+ *     agents[].writes   ['*'] = unrestricted · [] = read-only · [...] = only these
  */
 
+import { resolve } from 'node:path'
 import { checkoutPath } from '../data/git'
 import type { TTreeSnapshot } from '../data/working-tree'
 import { deletePath, snapshotTree } from '../data/working-tree'
@@ -111,17 +112,77 @@ export const alwaysWritable = (cfg: TPiCrustConfig): readonly string[] => [
   `${cfg.defaults.data_dir.replace(/\/+$/, '')}/`,
 ]
 
+/**
+ * The token a `writes` entry uses for this run's handoff directory.
+ *
+ * The directory is named after the run, so no configuration file can write
+ * its path literally. The token is what lets an Activity declare the document
+ * it produces anyway — and declaring it is what makes "these two Activities
+ * do not write the same thing" a question a check can answer.
+ */
+export const HANDOFF_TOKEN = '{handoff}'
+
+/**
+ * An agent's declared paths, with `{handoff}` resolved against this run.
+ *
+ * Repo-relative, because that is what a tree snapshot reports. An absolute
+ * handoff directory outside the repository resolves to a path no snapshot
+ * will ever contain, which is correct: the agent is free to write there and
+ * nothing in the repo changed.
+ */
+export const resolveWrites = (
+  writes: readonly string[],
+  repoRoot: string,
+  handoffDir: string,
+): readonly string[] => {
+  const absolute = resolve(handoffDir)
+  const root = `${resolve(repoRoot)}/`
+  const relative = absolute.startsWith(root)
+    ? absolute.slice(root.length)
+    : absolute
+
+  return writes.map((pattern) =>
+    pattern.startsWith(HANDOFF_TOKEN)
+      ? `${relative}${pattern.slice(HANDOFF_TOKEN.length)}`
+      : pattern,
+  )
+}
+
+/**
+ * The document an Activity produces, as the agent should be told to write it.
+ *
+ * The first `{handoff}` entry naming a file. A prompt renders this rather
+ * than hardcoding a filename, so redirecting an Activity's output — findings
+ * into `specs/` instead of the handoff directory — is a configuration change
+ * and not a prompt fork.
+ */
+export const handoffDocument = (
+  writes: readonly string[],
+  repoRoot: string,
+  handoffDir: string,
+): string | undefined => {
+  const named = writes.find(
+    (pattern) => pattern.startsWith(HANDOFF_TOKEN) && /\.[a-z]+$/.test(pattern),
+  )
+
+  return named === undefined
+    ? undefined
+    : resolveWrites([named], repoRoot, handoffDir)[0]
+}
+
 /** Session runtime first, then the agent's own list, then what is protected. */
 export const permitted = (
   path: string,
   agent: TAgentConfig,
   cfg: TPiCrustConfig,
+  /** `{handoff}` already resolved; defaults to the agent's literal list */
+  writes: readonly string[] = agent.writes,
 ): boolean => {
   if (alwaysWritable(cfg).some((pattern) => matchesPattern(path, pattern))) {
     return true
   }
   // naming a path is what unlocks a protected one
-  if ((agent.writes ?? []).some((pattern) => matchesPattern(path, pattern))) {
+  if (writes.some((pattern) => matchesPattern(path, pattern))) {
     return true
   }
   if (
@@ -131,8 +192,14 @@ export const permitted = (
   ) {
     return false
   }
-  // undefined = unrestricted, [] = no repo writes
-  return agent.writes === undefined
+
+  /*
+   * `*` on its own is the only way to say "anywhere", and it is deliberately
+   * something a developer has to type. It used to be what an omitted `writes`
+   * meant, which made the widest permission the one granted by saying
+   * nothing.
+   */
+  return agent.writes.includes('*')
 }
 
 /**
@@ -165,7 +232,7 @@ export const rollBack = (
 }
 
 const scopeOf = (agent: TAgentConfig, cfg: TPiCrustConfig): string => {
-  if (agent.writes === undefined) {
+  if (agent.writes.includes('*')) {
     return `barred from ${cfg.defaults.protected_files.join(', ')}`
   }
   return agent.writes.length === 0
@@ -190,7 +257,14 @@ export const enforcePermissions = (
 ): readonly string[] => {
   const after = snapshotTree(run.repoRoot)
   const touched = changedPaths(before, after)
-  const breaches = touched.filter((path) => !permitted(path, agent, run.cfg))
+  const writes = resolveWrites(
+    agent.writes,
+    run.repoRoot,
+    run.contextHandoffDir,
+  )
+  const breaches = touched.filter(
+    (path) => !permitted(path, agent, run.cfg, writes),
+  )
   if (breaches.length === 0) {
     return touched
   }
