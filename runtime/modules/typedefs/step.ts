@@ -64,6 +64,12 @@ export const isStepName = (name: string): name is TStepName =>
   (STEP_NAMES as readonly string[]).includes(name)
 
 /** What a step is handed. Folded forward by `runSteps`, never mutated. */
+/** One upstream result, with the Activity that produced it. */
+export type TUpstream = Readonly<{
+  step: TStepName
+  envelope: TEnvelopeBase
+}>
+
 export type TStepContext = Readonly<{
   run: TRun
   prompt: string
@@ -77,6 +83,18 @@ export type TStepContext = Readonly<{
    * confident lie. The driver knows; it now says.
    */
   previousStep: TStepName | undefined
+  /**
+   * Every Activity the preceding Unit produced, with its name.
+   *
+   * `previous` answers "the envelope before this one", which a concurrent
+   * Stage makes into a question with several right answers. This is all of
+   * them, in declaration order, and it is what an agent downstream of a
+   * concurrent Stage is actually shown — picking one and discarding the rest
+   * would silently drop the finding the second Activity existed to produce.
+   *
+   * One entry in the ordinary case, so nothing serial has to care.
+   */
+  upstream: readonly TUpstream[]
   /** HEAD as it was before this run committed anything, for `document` */
   baseline: string
   /**

@@ -159,7 +159,7 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
    */
   const configPath = configPathFromEnv() ?? DEFAULT_CONFIG_PATH
   const cfg = loadConfig(configPath)
-  const lifecycles = loadLifecycles(lifecyclesBeside(configPath))
+  const lifecycles = loadLifecycles(lifecyclesBeside(configPath), cfg.agents)
   const options = menuOptions(cfg.agents, lifecycles)
 
   const chosen = await askMenuChoice('what should it do?', options, {

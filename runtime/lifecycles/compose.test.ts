@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
+import { plannedNames } from '../modules/use-cases/plan-units'
 import { plannedActivities } from './compose'
 
 const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
@@ -44,7 +45,7 @@ test(
   [
     'given lifecycles/compose::plannedActivities',
     'when a lifecycle is named',
-    'it should run the activities its stages and dependencies order',
+    'it should plan the stages it declares, in the order it declares them',
   ].join(', '),
   () => {
     // given
@@ -54,7 +55,8 @@ test(
     const actual = plannedActivities(args({ lifecycle: 'sdlc' }), given)
 
     // then
-    expect(actual).toEqual(['identify', 'conceptualize', 'build'])
+    expect(actual.map((stage) => stage.name)).toEqual(['discover', 'implement'])
+    expect(plannedNames(actual)).toEqual(['identify', 'conceptualize', 'build'])
   },
 )
 
@@ -72,7 +74,9 @@ test(
     const actual = plannedActivities(given)
 
     // then
-    expect(actual).toEqual(['plan', 'build', 'verify'])
+    expect(plannedNames(actual)).toEqual(['plan', 'build', 'verify'])
+    expect(actual).toHaveLength(1)
+    expect(actual[0]?.strategy).toEqual('serial')
   },
 )
 

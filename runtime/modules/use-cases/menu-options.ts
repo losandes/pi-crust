@@ -23,8 +23,8 @@
 
 import type { TActivityConfig } from '../typedefs/activity'
 import { activityOrder, type TLifecycleConfig } from '../typedefs/lifecycle'
-import { DEFAULT_STEP_OPTIONS, STEP_NAMES } from '../typedefs/step'
-import { STEP_REGISTRY } from './steps'
+import { STEP_NAMES } from '../typedefs/step'
+import { performerOf } from './steps'
 
 /**
  * The Planners, which are capabilities rather than Activities.
@@ -59,17 +59,12 @@ export type TMenuOption = Readonly<{
 export const LIFECYCLE_MARK = '@'
 export const PLANNER_MARK = '!'
 
-/** Who performs a step, as the registry binds it. */
-const ownerOf = (step: string): string =>
-  STEP_REGISTRY[step as keyof typeof STEP_REGISTRY]?.(DEFAULT_STEP_OPTIONS)
-    .requires[0] ?? ''
-
 /** What a step is for, taken from the performer the registry binds it to. */
 const purposeOf = (
   activities: readonly TActivityConfig[],
   step: string,
 ): string =>
-  activities.find((activity) => activity.name === ownerOf(step))?.purpose ?? ''
+  activities.find((activity) => activity.name === performerOf(step))?.purpose ?? ''
 
 /**
  * A step is hidden when the Activity that performs it is.
@@ -82,7 +77,7 @@ const isHidden = (
   activities: readonly TActivityConfig[],
   step: string,
 ): boolean =>
-  activities.find((activity) => activity.name === ownerOf(step))?.hidden ??
+  activities.find((activity) => activity.name === performerOf(step))?.hidden ??
   false
 
 /** Lifecycles first, then planners, then the work a person may pick. */

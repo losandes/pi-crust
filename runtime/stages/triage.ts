@@ -28,6 +28,7 @@ import { adviceCommand } from '../modules/use-cases/advice'
 import { loadConfig } from '../modules/use-cases/load-config'
 import { readRunState } from '../modules/use-cases/read-run-state'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
+import { asSingleStage } from '../modules/use-cases/plan-units'
 import { runWorkflow } from '../modules/use-cases/run-workflow'
 
 export const STEPS = ['triage'] as const
@@ -40,7 +41,7 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
    * would have to guess which run was its own.
    */
   const withId: TWorkflowArgs = { ...args, runId: args.runId ?? newId(8) }
-  const code = await runWorkflow(withId, STEPS)
+  const code = await runWorkflow(withId, asSingleStage(STEPS))
   /*
    * Printed after the run rather than by the agent, because the agent is
    * not the authority on how this factory is invoked: it chose the steps,

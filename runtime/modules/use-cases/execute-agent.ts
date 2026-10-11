@@ -300,6 +300,25 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     previous_envelope: call.previous
       ? JSON.stringify(call.previous, null, 2)
       : '(none)',
+    /*
+     * Everything upstream, not just the first of it.
+     *
+     * A concurrent Stage hands several envelopes forward, and
+     * `previous_envelope` can only carry one. Rendering the rest here — each
+     * labelled with the Activity that produced it — is what stops a
+     * downstream agent from silently judging half the work. Identical to
+     * `previous_envelope` in the ordinary single-upstream case, so a prompt
+     * may use either.
+     */
+    previous_envelopes:
+      (call.upstream ?? []).length > 0
+        ? (call.upstream ?? [])
+            .map(
+              (one) =>
+                `## from ${one.step}\n\n${JSON.stringify(one.envelope, null, 2)}`,
+            )
+            .join('\n\n')
+        : '(none)',
     context_handoff_dir: resolve(run.contextHandoffDir),
     /*
      * Where this agent's own document goes, from its `writes`. Prompts used

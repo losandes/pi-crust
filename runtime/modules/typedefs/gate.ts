@@ -2,6 +2,7 @@
  * Gates and agent calls — what a claim must survive before it is believed.
  */
 
+import type { TUpstream } from './step'
 import type { TEnvelopeBase, TEnvelopeSpec } from './envelope'
 import type { TRun } from './run'
 
@@ -59,6 +60,15 @@ export type TAgentCall<TEnvelope extends TEnvelopeBase = TEnvelopeBase> =
     outputType: TEnvelopeSpec<TEnvelope>
     prompt: string
     previous?: TEnvelopeBase
+    /**
+     * Every Activity the preceding Unit produced, named.
+     *
+     * `previous` is one of these. A concurrent Stage produces several, and an
+     * agent shown only the first would be judging half the work its
+     * predecessors did — so the prompt renders all of them, with the Activity
+     * that produced each.
+     */
+    upstream?: readonly TUpstream[]
     gates?: readonly TGate[]
     /**
      * The paths this call is about, for `routing.skills`.

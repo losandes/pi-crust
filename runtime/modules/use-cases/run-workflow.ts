@@ -32,7 +32,9 @@ import { loopAgents, runReviseLoop } from './revise-loop'
 import { selfAnsweredIn } from './human-gate'
 import { finish, finishWaiting } from './run-phase'
 import type { TWaiting } from './run-steps'
-import { recordRequest, runSteps } from './run-steps'
+import type { TStage } from '../typedefs/lifecycle'
+import { plannedNames, unitsFrom } from './plan-units'
+import { recordRequest, runSteps, runUnits } from './run-steps'
 import { chainNote, plannedChain } from './operator-plan'
 import {
   describeTrust,
@@ -133,8 +135,9 @@ const runPlannedChain = async (
 
 export const runWorkflow = async (
   args: TWorkflowArgs,
-  names: readonly string[],
+  plan: readonly TStage[],
 ): Promise<number> => {
+  const names = plannedNames(plan)
   const loaded = loadConfigWithNotes(args.config)
   const cfg = loaded.config
   const options = {
@@ -214,6 +217,7 @@ export const runWorkflow = async (
       prompt: args.prompt,
       previous: undefined,
       previousStep: undefined,
+      upstream: [],
       baseline,
       outcomes: [],
     }
@@ -221,9 +225,9 @@ export const runWorkflow = async (
     // and threading an out-parameter through every step for one optional
     // outcome would be worse than a single assignment nothing else can see.
     let waiting: TWaiting | undefined
-    const ctx = await runSteps(
+    const ctx = await runUnits(
       run,
-      steps,
+      unitsFrom(plan, steps),
       start,
       parseApproveAfter(args.approveAfter),
       (stopped) => {

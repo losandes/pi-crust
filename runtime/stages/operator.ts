@@ -18,6 +18,7 @@ import { EXIT } from '../modules/typedefs/run-state'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
+import { asSingleStage } from '../modules/use-cases/plan-units'
 import { runWorkflow } from '../modules/use-cases/run-workflow'
 
 export const STEPS = ['operator'] as const
@@ -29,7 +30,7 @@ export const CONFLICTING_STEPS =
   '  just crust compose "<what you want>" --steps a,b # you choose'
 
 export const main = (args: TWorkflowArgs): Promise<number> =>
-  runWorkflow(args, STEPS)
+  runWorkflow(args, asSingleStage(STEPS))
 
 if (import.meta.main) {
   await runCli('.pi-crust/stages/operator.ts', (args) => {

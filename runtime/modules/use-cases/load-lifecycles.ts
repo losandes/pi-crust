@@ -14,12 +14,15 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import type { TAgentConfig } from '../typedefs/config'
 import {
   DEFAULT_LIFECYCLES_PATH,
   lifecycleFaults,
   lifecyclesFileSchema,
   type TLifecycleConfig,
 } from '../typedefs/lifecycle'
+import { concurrencyFaults } from './concurrency-faults'
+import { performerOf } from './steps'
 
 /** The local layer sits beside whichever file was chosen. */
 export const localLifecyclesPath = (path: string): string =>
@@ -59,6 +62,12 @@ export const lifecyclesBeside = (configPath: string): string =>
 
 export const loadLifecycles = (
   path: string = DEFAULT_LIFECYCLES_PATH,
+  /*
+   * The roster, when the caller has it. A Stage claiming concurrency is only
+   * checkable against what its Activities may write, and a caller reading
+   * lifecycles to list them — the menu — has no roster and needs no check.
+   */
+  agents: readonly TAgentConfig[] = [],
 ): readonly TLifecycleConfig[] => {
   const base = existsSync(path) ? parseFile(path) : []
   const localPath = localLifecyclesPath(path)
@@ -66,7 +75,10 @@ export const loadLifecycles = (
     ? mergeLifecycles(base, parseFile(localPath))
     : base
 
-  const faults = merged.flatMap(lifecycleFaults)
+  const faults = merged.flatMap((lifecycle) => [
+    ...lifecycleFaults(lifecycle),
+    ...concurrencyFaults(lifecycle, agents, performerOf),
+  ])
   if (faults.length > 0) {
     throw new Error(
       `lifecycle configuration cannot run:\n${faults

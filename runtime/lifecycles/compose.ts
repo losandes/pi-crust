@@ -34,7 +34,11 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../modules/typedefs/settlement'
-import { activityOrder, lifecycleNamed } from '../modules/typedefs/lifecycle'
+import type { TAgentConfig } from '../modules/typedefs/config'
+import type { TStage } from '../modules/typedefs/lifecycle'
+import { loadConfigWithNotes } from '../modules/use-cases/load-config'
+import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
+import { asSingleStage } from '../modules/use-cases/plan-units'
 import { isStepName, STEP_NAMES } from '../modules/typedefs/step'
 import { loadLifecycles } from '../modules/use-cases/load-lifecycles'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
@@ -71,16 +75,18 @@ export const parseSteps = (steps: string | undefined): readonly string[] => {
  * "you asked for a step that does not exist" and "the run failed".
  */
 /**
- * The Activities to run, from whichever way the caller said it.
+ * The plan to run, from whichever way the caller said it.
  *
- * A Lifecycle is resolved and flattened here rather than inside the engine,
- * so that a named Lifecycle and the same list spelled out reach the runner
- * as the same thing and produce the same trace.
+ * Stages, not a flat list. A Lifecycle keeps the arrangement it declared, and
+ * `--steps a,b,c` becomes the one serial Stage it has always meant — so both
+ * spellings reach the engine as the same kind of thing, and the engine never
+ * has to ask which way it was asked for.
  */
 export const plannedActivities = (
   args: TWorkflowArgs,
   lifecyclesPath?: string,
-): readonly string[] => {
+  agents: readonly TAgentConfig[] = [],
+): readonly TStage[] => {
   if (args.lifecycle !== undefined && args.steps !== undefined) {
     throw new Error(
       'name a lifecycle or list the steps, not both — ' +
@@ -88,9 +94,9 @@ export const plannedActivities = (
     )
   }
   if (args.lifecycle === undefined) {
-    return parseSteps(args.steps)
+    return asSingleStage(parseSteps(args.steps))
   }
-  const lifecycles = loadLifecycles(lifecyclesPath)
+  const lifecycles = loadLifecycles(lifecyclesPath, agents)
   const found = lifecycleNamed(lifecycles, args.lifecycle)
   if (found === undefined) {
     throw new Error(
@@ -98,22 +104,35 @@ export const plannedActivities = (
         `${lifecycles.map((one) => one.name).join(', ')}`,
     )
   }
-  const names = activityOrder(found)
-  if (names.length === 0) {
+  const stages = stagePlan(found)
+  if (stages.every((stage) => stage.activities.length === 0)) {
     throw new Error(
       `lifecycle '${args.lifecycle}' declares no activities to run`,
     )
   }
-  return names
+  return stages
 }
 
 export const main = (args: TWorkflowArgs): Promise<number> => {
-  const names = safeParseSettlement(() => plannedActivities(args))
-  if (names.status === 'error') {
-    process.stderr.write(`${errorMessage(names.error)}\n`)
+  /*
+   * The roster is read here only so a concurrency claim can be checked
+   * against it before anything starts. `runWorkflow` reads the config again
+   * for the run itself, which is one read more than strictly needed and the
+   * alternative is threading a half-loaded config through a planner whose
+   * job is to answer a question about a file.
+   */
+  const planned = safeParseSettlement(() =>
+    plannedActivities(
+      args,
+      undefined,
+      loadConfigWithNotes(args.config).config.agents,
+    ),
+  )
+  if (planned.status === 'error') {
+    process.stderr.write(`${errorMessage(planned.error)}\n`)
     return Promise.resolve(2)
   }
-  return runWorkflow(args, names.data)
+  return runWorkflow(args, planned.data)
 }
 
 if (import.meta.main) {

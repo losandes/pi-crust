@@ -69,6 +69,18 @@ export const STEP_REGISTRY: Readonly<Record<TStepName, TStepFactory>> = {
 }
 
 /** Agents every chosen step needs, deduplicated — checked before any spawn. */
+/**
+ * The agent a step is performed by, as the registry binds it.
+ *
+ * Empty for the deterministic steps — `verify` and `commit` have no
+ * performer. The menu asks this to decide what a step is for and whether it
+ * is hidden; the concurrency check asks it to find out what a step may write.
+ * One answer, because two would eventually disagree.
+ */
+export const performerOf = (step: string): string | undefined =>
+  STEP_REGISTRY[step as keyof typeof STEP_REGISTRY]?.(DEFAULT_STEP_OPTIONS)
+    .requires[0]
+
 export const requiredAgents = (steps: readonly TStep[]): readonly string[] => [
   ...new Set(steps.flatMap((step) => step.requires)),
 ]
