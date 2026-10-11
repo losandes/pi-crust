@@ -21,14 +21,14 @@
 #
 # A name the team file does not have is simply a new Lifecycle.
 #
-# Both files are validated together at load. A Stage that depends on one this
-# Lifecycle does not declare, or a cycle, is refused before the run starts
+# Both files are validated together at load. Two Stages with one name, or a
+# Stage naming the same Activity twice, is refused before the run starts
 # rather than three Activities in.
 # ─────────────────────────────────────────────────────────────────────────────
 
 lifecycles:
-  # Your own short chain. Stages run in dependency order; Activities within a
-  # Stage run in the order you list them.
+  # Your own short chain. Stages run in the order you declare them; a Stage's
+  # Activities run one after another unless you say otherwise.
   - name: quick
     description: Plan it, build it, and check it still compiles.
     stages:
@@ -36,19 +36,16 @@ lifecycles:
         activities: [plan]
       - name: implement
         activities: [build, verify]
-        depends_on: [decide]
 
-  # Independent work, said out loud. These two Stages depend on nothing, so
-  # neither waits for the other — today they are flattened into the order
-  # written here, and declaring the independence is what lets that stop being
-  # true without this file changing.
+  # Independence, said out loud. Both researchers only read the repository and
+  # write their own findings file, so neither can see the other's work in
+  # progress — which is what `concurrent` claims, and what the disjoint
+  # `writes` check verifies before the run starts.
   - name: survey
     description: Look at it from two directions before deciding anything.
     stages:
-      - name: technical
-        activities: [technical-research]
-      - name: domain
-        activities: [domain-research]
+      - name: research
+        strategy: concurrent
+        activities: [technical-research, domain-research]
       - name: decide
         activities: [conceptualize]
-        depends_on: [technical, domain]

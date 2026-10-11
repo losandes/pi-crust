@@ -1,13 +1,25 @@
 # Every Lifecycle this repository offers.
 #
 # A Lifecycle is the progression of an objective. It holds Stages; a Stage
-# holds Activities and may depend on Stages before it. Activities themselves
-# are registered in crust.activities.yaml — named here, defined there, so the
-# same Activity appears in as many Lifecycles as you like.
+# holds Activities. Activities themselves are registered in
+# crust.activities.yaml — named here, defined there, so the same Activity
+# appears in as many Lifecycles as you like.
 #
-# Dependencies are declared rather than implied by position. Today they are
-# flattened back to a serial order; declaring them is what lets that stop
-# being true without every team rewriting this file.
+# Stages run in the order they are declared. A Stage says how its own
+# Activities run:
+#
+#   strategy: serial      one after another, in the order listed (the default)
+#   strategy: concurrent  all at once, because they do not depend on each other
+#
+# `concurrent` is a claim, not a grouping. It says these Activities can run
+# against the same working tree at the same time without reading each other's
+# half-finished work, and it is enforced: a concurrent Stage whose Activities
+# declare overlapping `writes` is refused at load.
+#
+# Which is why `accept` is the only concurrent Stage here. A reviewer and a
+# code-reviewer both read the finished diff and both write only their own
+# findings file, so neither can see the other's work in progress. Everything
+# else in these chains needs what came before it.
 #
 # Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
 
@@ -23,13 +35,13 @@ lifecycles:
         activities: [identify, conceptualize]
       - name: design
         activities: [plan, design]
-        depends_on: [discover]
       - name: implement
         activities: [test, build]
-        depends_on: [design]
+      - name: verify
+        activities: [verify]
       - name: accept
-        activities: [verify, review, code-review]
-        depends_on: [implement]
+        strategy: concurrent
+        activities: [review, code-review]
 
   - name: bugfix
     description: >-
@@ -41,10 +53,11 @@ lifecycles:
         activities: [diagnose]
       - name: implement
         activities: [plan, test, build]
-        depends_on: [diagnose]
+      - name: verify
+        activities: [verify]
       - name: accept
-        activities: [verify, review, code-review]
-        depends_on: [implement]
+        strategy: concurrent
+        activities: [review, code-review]
 
   - name: de-risk
     description: >-
@@ -56,7 +69,5 @@ lifecycles:
         activities: [identify, conceptualize]
       - name: design
         activities: [plan, design]
-        depends_on: [discover]
       - name: prove
         activities: [poc]
-        depends_on: [design]

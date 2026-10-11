@@ -8,9 +8,8 @@
  * Activities follow, for the same reason: whoever writes the local file can
  * write the committed one.
  *
- * Validation happens at load rather than at execution. A Lifecycle with a
- * cycle or a dangling dependency cannot produce an order, and discovering
- * that three Activities into a run wastes the three.
+ * Validation happens at load rather than at execution. Discovering that a
+ * Lifecycle cannot run three Activities into the run wastes the three.
  */
 
 import { existsSync, readFileSync } from 'node:fs'

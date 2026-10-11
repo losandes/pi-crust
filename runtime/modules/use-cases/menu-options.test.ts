@@ -24,7 +24,6 @@ stages:
     activities: [identify]
   - name: implement
     activities: [build]
-    depends_on: [discover]
 `),
 )
 

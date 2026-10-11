@@ -23,7 +23,7 @@ lifecycles:
         activities: [plan]
       - name: build
         activities: [build]
-        depends_on: [plan]
+
 `
 
 test(
@@ -101,28 +101,26 @@ lifecycles:
 test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
-    'when a lifecycle has a dependency cycle',
+    'when two stages in a lifecycle share a name',
     'it should refuse at load rather than three activities into a run',
   ].join(', '),
   () => {
     // given
     const given = written(`
 lifecycles:
-  - name: looped
+  - name: doubled
     stages:
       - name: a
         activities: [plan]
-        depends_on: [b]
-      - name: b
+      - name: a
         activities: [build]
-        depends_on: [a]
 `)
 
     // when
     const actual = () => loadLifecycles(given)
 
     // then
-    expect(actual).toThrow(/cycle/)
+    expect(actual).toThrow(/two stages are named/)
   },
 )
 

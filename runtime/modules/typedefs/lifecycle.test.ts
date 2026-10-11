@@ -5,13 +5,14 @@ import {
   lifecycleFaults,
   lifecycleNamed,
   lifecyclesFileSchema,
-  stageOrder,
+  stageOf,
+  stagePlan,
 } from './lifecycle'
 
 const lifecycle = (yaml: string) =>
   lifecycleConfigSchema.parse(Bun.YAML.parse(yaml))
 
-/** The three shipped lifecycles, as the files declared them. */
+/** The three shipped lifecycles, as the files declare them. */
 const SDLC = [
   'identify',
   'conceptualize',
@@ -37,7 +38,7 @@ const DE_RISK = ['identify', 'conceptualize', 'plan', 'design', 'poc']
 test(
   [
     'given typedefs/lifecycle::activityOrder',
-    'when the sdlc lifecycle is expressed as dependent stages',
+    'when the sdlc lifecycle is expressed as stages',
     'it should flatten to the order the file it replaces declared',
   ].join(', '),
   () => {
@@ -46,16 +47,22 @@ test(
 name: sdlc
 stages:
   - name: discover
-    activities: [identify, conceptualize]
+    activities: [identify]
+  - name: conceive
+    activities: [conceptualize]
+  - name: plan
+    activities: [plan]
   - name: design
-    activities: [plan, design]
-    depends_on: [discover]
-  - name: implement
-    activities: [test, build]
-    depends_on: [design]
+    activities: [design]
+  - name: test
+    activities: [test]
+  - name: build
+    activities: [build]
+  - name: verify
+    activities: [verify]
   - name: accept
-    activities: [verify, review, code-review]
-    depends_on: [implement]
+    strategy: concurrent
+    activities: [review, code-review]
 `)
 
     // when
@@ -69,7 +76,7 @@ stages:
 test(
   [
     'given typedefs/lifecycle::activityOrder',
-    'when the bugfix lifecycle is expressed as dependent stages',
+    'when the bugfix lifecycle is expressed as stages',
     'it should flatten to the order the file it replaces declared',
   ].join(', '),
   () => {
@@ -79,12 +86,17 @@ name: bugfix
 stages:
   - name: diagnose
     activities: [diagnose]
-  - name: implement
-    activities: [plan, test, build]
-    depends_on: [diagnose]
+  - name: plan
+    activities: [plan]
+  - name: test
+    activities: [test]
+  - name: build
+    activities: [build]
+  - name: verify
+    activities: [verify]
   - name: accept
-    activities: [verify, review, code-review]
-    depends_on: [implement]
+    strategy: concurrent
+    activities: [review, code-review]
 `)
 
     // when
@@ -98,7 +110,7 @@ stages:
 test(
   [
     'given typedefs/lifecycle::activityOrder',
-    'when the de-risk lifecycle is expressed as dependent stages',
+    'when the de-risk lifecycle is expressed as stages',
     'it should flatten to the order the file it replaces declared',
   ].join(', '),
   () => {
@@ -107,13 +119,15 @@ test(
 name: de-risk
 stages:
   - name: discover
-    activities: [identify, conceptualize]
+    activities: [identify]
+  - name: conceive
+    activities: [conceptualize]
+  - name: plan
+    activities: [plan]
   - name: design
-    activities: [plan, design]
-    depends_on: [discover]
+    activities: [design]
   - name: prove
     activities: [poc]
-    depends_on: [design]
 `)
 
     // when
@@ -126,77 +140,144 @@ stages:
 
 test(
   [
-    'given typedefs/lifecycle::stageOrder',
-    'when stages declare dependencies out of written order',
-    'it should order by the dependencies rather than by position',
+    'given typedefs/lifecycle::stageSchema',
+    'when a stage does not say how its activities run',
+    'it should be serial, so a file written before strategy existed is unchanged',
   ].join(', '),
   () => {
-    // given — written last-first on purpose
-    const given = lifecycle(`
-name: inverted
+    // given
+    const given = `
+name: anything
 stages:
-  - name: third
-    activities: [verify]
-    depends_on: [second]
-  - name: second
-    activities: [build]
-    depends_on: [first]
-  - name: first
-    activities: [plan]
-`)
+  - name: implement
+    activities: [test, build]
+`
 
     // when
-    const actual = stageOrder(given)
+    const actual = lifecycle(given)
 
     // then
-    expect(actual).toEqual(['first', 'second', 'third'])
+    expect(actual.stages[0]?.strategy).toBe('serial')
   },
 )
 
 test(
   [
-    'given typedefs/lifecycle::stageOrder',
-    'when nothing depends on anything',
-    'it should keep the written order so a trace stays comparable',
+    'given typedefs/lifecycle::stageSchema',
+    'when a stage claims a strategy that does not exist',
+    'it should refuse, rather than fall back to serial behind a typo',
+  ].join(', '),
+  () => {
+    // given
+    const given = `
+name: anything
+stages:
+  - name: accept
+    strategy: parallel
+    activities: [review, code-review]
+`
+
+    // when
+    const actual = () => lifecycle(given)
+
+    // then
+    expect(actual).toThrow()
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::stagePlan',
+    'when stages are declared',
+    'it should keep them in declaration order, with their strategies',
   ].join(', '),
   () => {
     // given
     const given = lifecycle(`
-name: flat
+name: anything
 stages:
-  - name: a
-    activities: [scout]
-  - name: b
-    activities: [plan]
-  - name: c
+  - name: first
+    activities: [a]
+  - name: second
+    strategy: concurrent
+    activities: [b, c]
+`)
+
+    // when
+    const actual = stagePlan(given)
+
+    // then
+    expect(actual.map((stage) => [stage.name, stage.strategy])).toEqual([
+      ['first', 'serial'],
+      ['second', 'concurrent'],
+    ])
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::stageOf',
+    'when an activity belongs to a stage',
+    'it should return that stage, so a gate can be lifted to it',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: anything
+stages:
+  - name: build
+    activities: [build]
+  - name: accept
+    strategy: concurrent
+    activities: [review, code-review]
+`)
+
+    // when
+    const actual = stageOf(given, 'code-review')
+
+    // then
+    expect(actual?.name).toBe('accept')
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::stageOf',
+    'when the lifecycle does not run that activity',
+    'it should return nothing',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: anything
+stages:
+  - name: build
     activities: [build]
 `)
 
     // when
-    const actual = stageOrder(given)
+    const actual = stageOf(given, 'poc')
 
     // then
-    expect(actual).toEqual(['a', 'b', 'c'])
+    expect(actual).toBeUndefined()
   },
 )
 
 test(
   [
     'given typedefs/lifecycle::lifecycleFaults',
-    'when two stages depend on each other',
-    'it should report a cycle rather than ordering them arbitrarily',
+    'when two stages share a name',
+    'it should refuse, because a gate naming that stage would be ambiguous',
   ].join(', '),
   () => {
     // given
     const given = lifecycle(`
-name: looped
+name: twice
 stages:
-  - name: a
-    activities: [plan]
-    depends_on: [b]
-  - name: b
+  - name: implement
     activities: [build]
-    depends_on: [a]
+  - name: implement
+    activities: [verify]
 `)
 
     // when
@@ -204,31 +285,32 @@ stages:
 
     // then
     expect(actual).toHaveLength(1)
-    expect(actual[0]?.message).toContain('cycle')
+    expect(actual[0]?.message).toContain("two stages are named 'implement'")
   },
 )
 
 test(
   [
     'given typedefs/lifecycle::lifecycleFaults',
-    'when a stage depends on one the lifecycle does not declare',
-    'it should name the missing stage rather than silently ignoring it',
+    'when one stage names the same activity twice',
+    'it should refuse, because concurrently that is an activity racing itself',
   ].join(', '),
   () => {
     // given
     const given = lifecycle(`
-name: dangling
+name: doubled
 stages:
-  - name: a
-    activities: [plan]
-    depends_on: [nowhere]
+  - name: accept
+    strategy: concurrent
+    activities: [review, review]
 `)
 
     // when
     const actual = lifecycleFaults(given)
 
     // then
-    expect(actual[0]?.message).toContain('nowhere')
+    expect(actual).toHaveLength(1)
+    expect(actual[0]?.message).toContain("names activity 'review' twice")
   },
 )
 
@@ -243,11 +325,11 @@ test(
     const given = lifecycle(`
 name: fine
 stages:
-  - name: a
-    activities: [plan]
-  - name: b
+  - name: build
     activities: [build]
-    depends_on: [a]
+  - name: accept
+    strategy: concurrent
+    activities: [review, code-review]
 `)
 
     // when
@@ -261,8 +343,8 @@ stages:
 test(
   [
     'given typedefs/lifecycle::lifecycleNamed',
-    'when a lifecycle the file does not declare is asked for',
-    'it should be absent rather than an empty lifecycle that runs nothing',
+    'when the file declares that lifecycle',
+    'it should return it',
   ].join(', '),
   () => {
     // given
@@ -270,12 +352,38 @@ test(
       Bun.YAML.parse(`
 lifecycles:
   - name: sdlc
-    stages: []
+    stages:
+      - name: build
+        activities: [build]
+  - name: bugfix
+    stages:
+      - name: diagnose
+        activities: [diagnose]
 `),
-    )
+    ).lifecycles
 
     // when
-    const actual = lifecycleNamed(given.lifecycles, 'nope')
+    const actual = lifecycleNamed(given, 'bugfix')
+
+    // then
+    expect(actual?.stages[0]?.activities).toEqual(['diagnose'])
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::lifecycleNamed',
+    'when the file does not declare it',
+    'it should return nothing',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecyclesFileSchema.parse(
+      Bun.YAML.parse('lifecycles: []'),
+    ).lifecycles
+
+    // when
+    const actual = lifecycleNamed(given, 'sdlc')
 
     // then
     expect(actual).toBeUndefined()

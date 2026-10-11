@@ -1,20 +1,33 @@
 /**
  * A Lifecycle: the progression of an objective, as configuration.
  *
- * A Lifecycle holds Stages, a Stage holds Activities, and a Stage may depend
- * on Stages that came before it. That is the whole shape. The Activities
- * themselves are registered elsewhere — a Lifecycle names them, it does not
- * define them, so the same Activity participates in as many Lifecycles as a
- * team likes without being duplicated.
+ * A Lifecycle holds Stages and a Stage holds Activities. That is the whole
+ * shape. The Activities themselves are registered elsewhere — a Lifecycle
+ * names them, it does not define them, so the same Activity participates in
+ * as many Lifecycles as a team likes without being duplicated.
  *
- * Dependencies are declared rather than implied by position. Today they are
- * flattened back to a serial order, which is what the current engine
- * executes; declaring them now is what lets the engine stop flattening later
- * without every team rewriting their configuration.
+ * Stages run in the order they are declared, and a Stage declares how its own
+ * Activities run:
  *
- * A Stage with no `depends_on` depends on nothing and could run first. That
- * is deliberate, not an omission: a Lifecycle whose Stages are genuinely
- * independent should say so.
+ *     serial      one after another, in the order listed — the default
+ *     concurrent  all at once, because they do not depend on each other
+ *
+ * The default matters more than the feature. A file that never mentions
+ * `strategy` behaves exactly as it did when strategy did not exist, so
+ * adopting concurrency is something a team opts into one Stage at a time
+ * rather than something that happens to them on upgrade.
+ *
+ * `serial` also keeps Stage counts low, which is the reason it exists at all.
+ * Without it, grouping would be the only way to say "independent", so every
+ * dependent pair would need its own Stage and a Lifecycle would be a list of
+ * singletons. A serial Stage is a sequence; a concurrent Stage is a claim.
+ *
+ * There is no `depends_on`. A Stage depends on the Stage before it, and
+ * nothing else. That forecloses exactly one shape — parallel branches of
+ * unequal length, a one-Activity branch running alongside a two-Activity
+ * branch — which no Lifecycle has needed. Re-introducing the key later stays
+ * compatible with every file written in the meantime, because "omitted means
+ * the previous Stage" would remain true of all of them.
  */
 
 import { z } from 'zod'
@@ -22,12 +35,21 @@ import { z } from 'zod'
 export const DEFAULT_LIFECYCLES_PATH =
   '.pi-crust/config/crust.lifecycles.yaml'
 
+export const STAGE_STRATEGIES = ['serial', 'concurrent'] as const
+export type TStageStrategy = (typeof STAGE_STRATEGIES)[number]
+
 export const stageSchema = z.object({
   name: z.string(),
-  /** Activity names, in the order they should run within this Stage. */
+  /**
+   * How this Stage's Activities run against each other.
+   *
+   * Unknown values are refused rather than coerced. A typo that silently fell
+   * back to `serial` would be a Stage a team believes is concurrent and is
+   * not, which is the failure that never announces itself.
+   */
+  strategy: z.enum(STAGE_STRATEGIES).default('serial'),
+  /** Activity names. In a serial Stage this is also the order they run in. */
   activities: z.array(z.string()).default([]),
-  /** Stages that must complete before this one may begin. */
-  depends_on: z.array(z.string()).default([]),
 })
 export type TStage = Readonly<z.infer<typeof stageSchema>>
 
@@ -49,107 +71,89 @@ export type TLifecycleFault = Readonly<{
   message: string
 }>
 
-const unknownDependencies = (
+/**
+ * Two Stages with one name.
+ *
+ * Harmless while Stages are only a grouping, and not harmless once a Stage is
+ * a thing a trace records and `--approve-after stage:<name>` addresses. A
+ * name that matches two Stages makes a gate ambiguous, so it is refused here
+ * rather than resolved by a rule nobody would guess.
+ */
+const duplicateStages = (
   lifecycle: TLifecycleConfig,
 ): readonly TLifecycleFault[] => {
-  const declared = new Set(lifecycle.stages.map((stage) => stage.name))
+  const seen = lifecycle.stages.map((stage) => stage.name)
 
-  return lifecycle.stages.flatMap((stage) =>
-    stage.depends_on
-      .filter((needed) => !declared.has(needed))
-      .map((needed) => ({
-        lifecycle: lifecycle.name,
-        message:
-          `stage '${stage.name}' depends on '${needed}', which this ` +
-          'lifecycle does not declare',
-      })),
+  return [...new Set(seen.filter((name, at) => seen.indexOf(name) !== at))].map(
+    (name) => ({
+      lifecycle: lifecycle.name,
+      message:
+        `two stages are named '${name}'; a gate naming a stage could not ` +
+        'say which one it meant',
+    }),
   )
 }
 
 /**
- * Stage names in an order that satisfies every dependency, or nothing when
- * the graph cannot be ordered.
+ * An Activity named twice in one Stage.
  *
- * Kahn's algorithm, with ties broken by declaration order so that a Lifecycle
- * whose Stages are all independent runs in the order it was written. Without
- * that tiebreak the same configuration could order differently between runs,
- * and a trace would stop being comparable with the one before it.
+ * In a serial Stage that is a repeat somebody probably did not mean. In a
+ * concurrent Stage it is the same Activity racing itself, in one working
+ * tree, writing the same paths.
  */
-export const stageOrder = (
+const repeatedActivities = (
   lifecycle: TLifecycleConfig,
-): readonly string[] | undefined => {
-  const names = lifecycle.stages.map((stage) => stage.name)
-  const blockers = new Map(
-    lifecycle.stages.map((stage) => [
-      stage.name,
-      new Set(stage.depends_on.filter((needed) => names.includes(needed))),
-    ]),
-  )
+): readonly TLifecycleFault[] =>
+  lifecycle.stages.flatMap((stage) => {
+    const seen = stage.activities
 
-  const settle = (
-    done: readonly string[],
-  ): readonly string[] | undefined => {
-    if (done.length === names.length) {
-      return done
-    }
-    const ready = names.find(
-      (name) =>
-        !done.includes(name) &&
-        [...(blockers.get(name) ?? [])].every((needed) =>
-          done.includes(needed),
-        ),
-    )
+    return [
+      ...new Set(seen.filter((name, at) => seen.indexOf(name) !== at)),
+    ].map((name) => ({
+      lifecycle: lifecycle.name,
+      message: `stage '${stage.name}' names activity '${name}' twice`,
+    }))
+  })
 
-    // Nothing is ready and nothing is finished: every remaining Stage is
-    // waiting on another, which is a cycle.
-    return ready === undefined ? undefined : settle([...done, ready])
-  }
-
-  return settle([])
-}
-
-/** Every fault in a Lifecycle: unknown dependencies first, then cycles. */
+/** Every structural fault in a Lifecycle, in the order worth fixing them. */
 export const lifecycleFaults = (
   lifecycle: TLifecycleConfig,
-): readonly TLifecycleFault[] => {
-  const unknown = unknownDependencies(lifecycle)
-  if (unknown.length > 0) {
-    return unknown
-  }
-
-  return stageOrder(lifecycle) === undefined
-    ? [
-        {
-          lifecycle: lifecycle.name,
-          message:
-            'stages depend on each other in a cycle, so no order satisfies ' +
-            'them — a lifecycle progresses, it does not loop',
-        },
-      ]
-    : []
-}
+): readonly TLifecycleFault[] => [
+  ...duplicateStages(lifecycle),
+  ...repeatedActivities(lifecycle),
+]
 
 /**
- * The Activities a Lifecycle runs, in order.
+ * The Stages a Lifecycle runs, in order.
  *
- * Stages are ordered by their dependencies; Activities within a Stage keep
- * the order they were declared in. The result is the flat list the current
- * engine executes, which is why a configured Lifecycle produces the same
- * trace as the file it replaces.
+ * Declaration order *is* the order, so this is the identity — and it is still
+ * worth naming. Callers ask for the execution plan rather than reaching into
+ * `.stages`, which is where the answer would have to change if branching ever
+ * arrives.
+ */
+export const stagePlan = (
+  lifecycle: TLifecycleConfig,
+): readonly TStage[] => lifecycle.stages
+
+/**
+ * The Activities a Lifecycle runs, flattened.
+ *
+ * This discards the Stage boundary and the strategy with it, so it answers
+ * "which Activities" and never "in what arrangement". It is what the menu
+ * shows a person and what `--steps` expands to; the engine takes
+ * `stagePlan()` instead, because flattening is the thing it must stop doing.
  */
 export const activityOrder = (
   lifecycle: TLifecycleConfig,
-): readonly string[] => {
-  const order = stageOrder(lifecycle)
-  if (order === undefined) {
-    return []
-  }
-  const byName = new Map(
-    lifecycle.stages.map((stage) => [stage.name, stage] as const),
-  )
+): readonly string[] =>
+  lifecycle.stages.flatMap((stage) => stage.activities)
 
-  return order.flatMap((name) => byName.get(name)?.activities ?? [])
-}
+/** The Stage an Activity belongs to, or nothing when it is in none of them. */
+export const stageOf = (
+  lifecycle: TLifecycleConfig,
+  activity: string,
+): TStage | undefined =>
+  lifecycle.stages.find((stage) => stage.activities.includes(activity))
 
 /** Look a Lifecycle up by name. Absent means the file does not declare it. */
 export const lifecycleNamed = (
