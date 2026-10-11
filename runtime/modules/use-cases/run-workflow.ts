@@ -218,6 +218,7 @@ export const runWorkflow = async (
       previous: undefined,
       previousStep: undefined,
       upstream: [],
+      cohort: [],
       baseline,
       outcomes: [],
     }

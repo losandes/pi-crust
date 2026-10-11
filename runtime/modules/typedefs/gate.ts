@@ -69,6 +69,8 @@ export type TAgentCall<TEnvelope extends TEnvelopeBase = TEnvelopeBase> =
      * that produced each.
      */
     upstream?: readonly TUpstream[]
+    /** agents running alongside this one, for attributing writes by path */
+    cohort?: readonly string[]
     gates?: readonly TGate[]
     /**
      * The paths this call is about, for `routing.skills`.

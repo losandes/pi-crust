@@ -62,6 +62,7 @@ export const agentStep = <TEnvelope extends TEnvelopeBase>(
         prompt: ctx.prompt,
         ...(ctx.previous === undefined ? {} : { previous: ctx.previous }),
         upstream: ctx.upstream,
+        cohort: ctx.cohort,
         gates: params.gates,
         ...(changedPaths === undefined ? {} : { changedPaths }),
         ...(params.changeBase === undefined || params.changeBase === ''

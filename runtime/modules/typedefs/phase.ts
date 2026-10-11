@@ -29,6 +29,23 @@ export const PHASE_STATUSES = [
    * makes a steered step run again instead of being skipped.
    */
   'superseded',
+  /*
+   * Never started, because the run stopped before reaching it.
+   *
+   * A run that stops at a gate used to leave everything downstream with no
+   * row at all, which reads identically to "this lifecycle does not have
+   * that activity". The difference matters to anyone asking why a chain
+   * produced nothing: blocked says the work is still owed.
+   */
+  'blocked',
+  /*
+   * Was going to run, and will not, because the run is ending.
+   *
+   * Distinct from `blocked`, which is waiting on a person and will resume,
+   * and from `fail`, which is something that ran and did not work. An
+   * activity downstream of a failure is neither.
+   */
+  'cancelled',
 ] as const
 
 export type TPhaseKind = (typeof PHASE_KINDS)[number]

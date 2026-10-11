@@ -98,12 +98,26 @@ const runUnit = async (
   unit: TUnit,
   ctx: TStepContext,
 ): Promise<readonly TRan[]> => {
+  /*
+   * Each Activity is told who else is running, and never itself. Permission
+   * enforcement uses it to attribute a write by the path it landed on rather
+   * than by the window it landed in.
+   */
+  const withCohort = (step: TStep): TStepContext => ({
+    ...ctx,
+    cohort:
+      unit.strategy === 'concurrent'
+        ? unit.steps
+            .filter((other) => other.name !== step.name)
+            .map((other) => other.name)
+        : [],
+  })
   const one = (step: TStep): Promise<TRan> =>
     skipIfDone(
       run,
       step.params,
-      (handle) => step.execute(ctx, handle),
-      () => step.replay(ctx),
+      (handle) => step.execute(withCohort(step), handle),
+      () => step.replay(withCohort(step)),
     ).then((result) => ({ step, result }))
 
   if (unit.strategy !== 'concurrent') {
@@ -129,6 +143,37 @@ const runUnit = async (
   }
 
   return done
+}
+
+/**
+ * Say what the run is not going to do, and why, before it stops.
+ *
+ * A run that halts leaves every Activity after it with no record at all,
+ * which on the trace is indistinguishable from a Lifecycle that never had
+ * those Activities. The difference is the whole question a reader has:
+ * `blocked` says the work is still owed and a person is holding it,
+ * `cancelled` says it is not coming.
+ *
+ * Recorded as an event rather than as phase rows, because a phase row claims
+ * something was started and these were not.
+ */
+const recordUnreached = (
+  run: TRun,
+  remaining: readonly TUnit[],
+  status: 'blocked' | 'cancelled',
+  because: string,
+): void => {
+  const names = remaining.flatMap((unit) => unit.steps.map((step) => step.name))
+  if (names.length === 0) {
+    return
+  }
+  run.tracer.event({
+    run_id: run.runId,
+    phase_id: '',
+    type: 'log',
+    name: `activities_${status}`,
+    payload: { activities: names, status, because },
+  })
 }
 
 /**
@@ -218,6 +263,7 @@ export const runUnits = (
       previousStep:
         unit.strategy === 'concurrent' ? primary?.step.name : last?.step.name,
       upstream,
+      cohort: [],
       outcomes: [
         ...ctx.outcomes,
         ...ran.map((one) => ({
@@ -299,6 +345,12 @@ export const runUnits = (
           request: path,
         },
       })
+      recordUnreached(
+        run,
+        units.slice(index + 1),
+        'blocked',
+        `waiting for a person after '${gate.stage}'`,
+      )
       onWaiting({ reason: gate, path })
       return next
     }
@@ -360,6 +412,12 @@ export const runUnits = (
     if (verdict.kind === 'refused' || verdict.kind === 'exhausted') {
       // Not a throw: the stage did its job and said something true. The run
       // is what cannot continue, and `finish` settles that with the reason.
+      recordUnreached(
+        run,
+        units.slice(index + 1),
+        'cancelled',
+        `regression ${verdict.kind}: ${verdict.reason}`,
+      )
       run.console.note(`regression ${verdict.kind}: ${verdict.reason}`)
       run.tracer.event({
         run_id: run.runId,

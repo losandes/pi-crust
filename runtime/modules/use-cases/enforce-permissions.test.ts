@@ -310,3 +310,30 @@ test(
     expect(actual).toBeUndefined()
   },
 )
+
+test(
+  [
+    'given use-cases/enforce-permissions::permitted',
+    'when a path belongs to an activity running alongside this one',
+    'it should be that activity\'s, because disjointness was checked at load',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = configWith([
+      { name: 'reviewer', writes: ['reviews/'] },
+      { name: 'code-reviewer', writes: ['code-reviews/'] },
+    ])
+
+    // when
+    const mine = permitted('reviews/x.md', agentNamed(cfg, 'reviewer'), cfg)
+    const theirs = permitted(
+      'code-reviews/x.md',
+      agentNamed(cfg, 'reviewer'),
+      cfg,
+    )
+
+    // then
+    expect(mine).toEqual(true)
+    expect(theirs).toEqual(false)
+  },
+)

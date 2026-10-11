@@ -95,6 +95,15 @@ export type TStepContext = Readonly<{
    * One entry in the ordinary case, so nothing serial has to care.
    */
   upstream: readonly TUpstream[]
+  /**
+   * The other Activities running at the same time as this one, by name.
+   *
+   * Empty unless a concurrent Stage is in flight. It exists so permission
+   * enforcement can tell this agent's writes from its siblings' by the paths
+   * they declared, rather than by the interval they ran in — which is the
+   * only question an interval cannot answer once two things share it.
+   */
+  cohort: readonly string[]
   /** HEAD as it was before this run committed anything, for `document` */
   baseline: string
   /**

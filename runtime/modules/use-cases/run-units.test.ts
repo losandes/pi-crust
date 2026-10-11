@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
@@ -11,11 +11,13 @@ import type { TUnit } from '../typedefs/unit'
 import { createRun } from './create-run'
 import { runUnits } from './run-steps'
 
+/** Where this run's events land, so a test can read what it recorded. */
+const EVENTS = new WeakMap<object, string>()
+
 const aRun = (): TRun => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-units-'))
   const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
-
-  return createRun({
+  const run = createRun({
     cfg: crustConfigSchema.parse({
       defaults: { data_dir: join(dir, 'runtime') },
       observability: { db: join(dir, 'crust.db') },
@@ -26,7 +28,16 @@ const aRun = (): TRun => {
     engineer: 'tester',
     resume: new Set<string>(),
   })
+  EVENTS.set(run, join(dir, 'events.jsonl'))
+
+  return run
 }
+
+const eventsOf = (run: TRun): readonly Record<string, unknown>[] =>
+  readFileSync(EVENTS.get(run) ?? '', 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
 
 /** A step that records when it started and finished, so overlap is observable. */
 const timedStep = (
@@ -69,6 +80,7 @@ const contextFor = (run: TRun): TStepContext =>
     previous: undefined,
     previousStep: undefined,
     upstream: [],
+    cohort: [],
     baseline: '',
     outcomes: [],
   }) as unknown as TStepContext
@@ -167,6 +179,107 @@ test(
     expect(actual.outcomes.map((one) => one.step)).toEqual([
       'review',
       'code-review',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/run-steps::runUnits',
+    'when a gate stops the run',
+    'it should record what it did not reach as blocked, not as nothing at all',
+  ].join(', '),
+  async () => {
+    // given
+    const run = aRun()
+    const log: string[] = []
+    const given = [
+      unit('design', 'serial', [timedStep('plan', log, 1)]),
+      unit('implement', 'serial', [timedStep('build', log, 1)]),
+      unit('accept', 'serial', [timedStep('review', log, 1)]),
+    ]
+
+    // when
+    await runUnits(run, given, contextFor(run), ['plan'])
+
+    // then
+    expect(log).toEqual(['plan:start', 'plan:end'])
+    const blocked = eventsOf(run).find(
+      (event) => event.name === 'activities_blocked',
+    )
+    expect(blocked?.payload).toMatchObject({
+      activities: ['build', 'review'],
+      status: 'blocked',
+    })
+  },
+)
+
+test(
+  [
+    'given use-cases/run-steps::runUnits',
+    'when an activity inside a concurrent stage is named in --approve-after',
+    'it should let its siblings finish, then pause at the stage boundary',
+  ].join(', '),
+  async () => {
+    // given
+    const run = aRun()
+    const log: string[] = []
+    const given = [
+      unit('accept', 'concurrent', [
+        timedStep('review', log, 30),
+        timedStep('code-review', log, 1),
+      ]),
+      unit('deliver', 'serial', [timedStep('commit', log, 1)]),
+    ]
+
+    // when
+    await runUnits(run, given, contextFor(run), ['code-review'])
+
+    // then
+    expect(log).toEqual([
+      'review:start',
+      'code-review:start',
+      'code-review:end',
+      'review:end',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/run-steps::runUnits',
+    'when a serial stage is named with the stage prefix',
+    'it should pause after the whole stage, not after its first activity',
+  ].join(', '),
+  async () => {
+    // given
+    const run = aRun()
+    const log: string[] = []
+    const given = [
+      {
+        stage: 'design',
+        strategy: 'serial' as const,
+        steps: [timedStep('plan', log, 1)],
+        endsStage: false,
+      },
+      {
+        stage: 'design',
+        strategy: 'serial' as const,
+        steps: [timedStep('design', log, 1)],
+        endsStage: true,
+      },
+      unit('implement', 'serial', [timedStep('build', log, 1)]),
+    ]
+
+    // when
+    await runUnits(run, given, contextFor(run), ['stage:design'])
+
+    // then
+    expect(log).toEqual([
+      'plan:start',
+      'plan:end',
+      'design:start',
+      'design:end',
     ])
   },
 )

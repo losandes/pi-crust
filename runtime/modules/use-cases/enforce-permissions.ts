@@ -254,16 +254,35 @@ export const enforcePermissions = (
   run: TRun,
   agent: TAgentConfig,
   before: TTreeSnapshot,
+  /*
+   * The agents running alongside this one, when a Stage claimed concurrency.
+   *
+   * Attribution used to be entirely a question of WHEN: everything that
+   * changed between the snapshots was this agent's doing. Concurrently that
+   * is false, and not in a harmless way — each agent's diff contains its
+   * siblings' writes, so both would be failed for work neither did, and the
+   * rollback would discard it.
+   *
+   * So attribution is a question of WHERE. A path one of these siblings
+   * declared is that sibling's, and this agent is not answerable for it.
+   * That is only sound because a concurrent Stage is refused at load unless
+   * its Activities' declared paths are disjoint — without that check, "it
+   * belongs to a sibling" would be a way to launder a breach.
+   *
+   * Empty for a serial Activity, which is every Activity in a serial Stage,
+   * so the ordinary case is unchanged.
+   */
+  siblings: readonly TAgentConfig[] = [],
 ): readonly string[] => {
   const after = snapshotTree(run.repoRoot)
   const touched = changedPaths(before, after)
-  const writes = resolveWrites(
-    agent.writes,
-    run.repoRoot,
-    run.contextHandoffDir,
-  )
+  const resolveFor = (one: TAgentConfig): readonly string[] =>
+    resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)
+  const writes = resolveFor(agent)
+  const theirs = (path: string): boolean =>
+    siblings.some((one) => permitted(path, one, run.cfg, resolveFor(one)))
   const breaches = touched.filter(
-    (path) => !permitted(path, agent, run.cfg, writes),
+    (path) => !permitted(path, agent, run.cfg, writes) && !theirs(path),
   )
   if (breaches.length === 0) {
     return touched

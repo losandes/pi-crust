@@ -546,7 +546,22 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // accepted: an agent does not get to report success on a phase in which it
   // wrote somewhere it was not allowed to.
   const enforced = safeParseSettlement(() =>
-    enforcePermissions(run, agent, treeBefore),
+    enforcePermissions(
+      run,
+      agent,
+      treeBefore,
+      /*
+       * Resolved from the roster rather than carried: a cohort is Activity
+       * names, and what enforcement needs is what those Activities declared.
+       * A name the roster does not have contributes nothing, which is right
+       * — an unknown agent cannot be made responsible for a path.
+       */
+      (call.cohort ?? []).flatMap((name) => {
+        const sibling = run.cfg.agents.find((one) => one.name === name)
+
+        return sibling === undefined ? [] : [sibling]
+      }),
+    ),
   )
   if (enforced.status === 'error') {
     if (enforced.error instanceof PermissionBreach) {
