@@ -78,17 +78,6 @@ export const activityPatchFileSchema = z.object({
   activities: z.array(z.record(z.string(), z.unknown())).default([]),
 })
 
-/**
- * Activities an interactive list offers, in the order the file declares them.
- *
- * Planners are excluded by the caller rather than here: Triage, the Operator
- * and the Composer are core capabilities that never appear in the registry,
- * so there is nothing to filter out at this level.
- */
-export const offerable = (
-  activities: readonly TActivityConfig[],
-): readonly TActivityConfig[] => activities.filter((one) => !one.hidden)
-
 /** Look an Activity up by name. Absent means the registry does not have it. */
 export const activityNamed = (
   activities: readonly TActivityConfig[],

@@ -273,9 +273,11 @@ activities:
     color: cyan
 ```
 
-Anything else is refused by name — `writes`, `tools`, `protected_files`, the prompts, and all of `routing`. Those are boundaries and standards the repository reviewed, and a file nobody reviews must not be able to move them: a local layer that could widen `writes` could hand an agent write access to the repository in a line that appears in no diff. Refusing loudly rather than ignoring matters just as much, because an override that silently does nothing is one a developer will believe applied.
+A local layer may set anything the committed file can, key by key, with the local value winning. There is no restricted subset. The restriction that used to be here — four keys, and no adding an agent — protected nothing: whoever writes the local file can equally edit the committed one, and runs the result on their own machine against their own checkout. There is no second principal to protect, and the restriction was friction in the one file whose purpose is to have none.
 
-A local layer cannot add an agent. Steps bind to the owner names in the registry, so a local-only agent would be unreachable anyway, and allowing it would smuggle in a prompt and a writes list by the back door.
+That makes the convention yours to keep rather than the tool's to enforce. A `writes` list narrowed locally is a run behaving differently from everyone else's for a reason no reviewer can see, which is worth avoiding by choice.
+
+Adding an Activity belongs in `crust.activities.local.yaml` rather than here, because that is the registry a Lifecycle resolves names against. An Activity named here that the committed config does not have is a warning pointing at that file.
 
 Naming an agent the roster does not have is a **warning**, not an error. Names go stale when somebody renames an agent upstream, and a colleague's private file must not break your run — but the warning is printed, because a typo that quietly did nothing is the confusion this is meant to avoid.
 
@@ -299,28 +301,28 @@ A hex still works and is honoured verbatim. It is the escape hatch for a colour 
 
 An agent that names nothing takes a role by position, so adjacent lanes in a waterfall always differ. Twelve roles cover a roster of eighteen agents, which means two agents far apart in the list can share — distinguishable in practice, because what matters is the lanes on screen together.
 
-## What the step menu offers, and in what order
+## What the interactive menu offers, and in what order
 
-`steps.order` is the sequence a hand-picked chain runs in. Tick the steps you want in any order at all — the chain is sorted into this one. Before, the menu recorded the order you tabbed them in, which was undiscoverable and inconsistent: pressing `a` for all produced list order from the same screen.
+Everything registered in `crust.activities.yaml`, in the order that file declares them, with the Lifecycles from `crust.lifecycles.yaml` above them and the Operator between. Reorder the registry to reorder the menu; nothing else records a sequence, so nothing else can drift out of step with the Activities that exist.
 
-A partial list is the normal case and is safe. The steps named take the slots that named steps occupy in the built-in order, and everything unnamed stays exactly where it was — so `order: [design, plan]` swaps those two and moves nothing else. The obvious alternative, "listed first then the rest", would silently relegate every step you did not mention.
+`hidden: true` on an Activity keeps it out of the menu, for people who drive the factory with Lifecycles or a Planner and never pick it by hand.
 
-`steps.hidden` keeps steps out of `please`'s menu, for people who drive the factory with lifecycles or an operator and never pick those steps by hand.
+Hidden is not disabled, and the distinction is deliberate. A Lifecycle, a Planner and an explicit `--steps` all still run a hidden Activity. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to.
 
-Hidden is not disabled, and the distinction is deliberate. A lifecycle, an operator and an explicit `--steps` all still run a hidden step. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to, which is the same reason a local layer may not touch `routing.checks`.
-
-That is also what makes both keys safe to override per developer:
+Because the flag lives on the Activity, a local layer can hide one without changing what the team ships:
 
 ```yaml
-# crust.config.local.yaml
-steps:
-  hidden: [prompt, scout, poc, revise]
-  order: [build, plan]
+# crust.activities.local.yaml
+activities:
+  - name: security-researcher
+    hidden: true
 ```
 
-Both are replaced wholesale rather than merged, because an order is a sequence and half of one merged into another is neither.
+The menu lists the work rather than the performer: a registry entry is named for who does it (`planner`), and the thing you pick is what gets done (`plan`). An Activity is hidden through the performer the registry binds each step to.
 
-When a chain needs a different order for one run, press `r` at the step menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the step. It costs nothing in the common case, because nothing happens unless you ask for it.
+There is no `steps` block. It held an `order` and a `hidden` list, and both are gone — presentation order is the registry's order, and hiding is a property of the Activity. Execution order comes from the Lifecycle, or from the list given to `--steps`.
+
+When a chain needs a different order for one run, press `r` at the menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the selected item.
 
 ## The trust dial has four behaviours, so it has four names
 

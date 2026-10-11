@@ -7,7 +7,6 @@ import {
   activityNamed,
   activityPatchFileSchema,
   mergeActivities,
-  offerable,
 } from './activity'
 
 /**
@@ -91,28 +90,6 @@ test(
   },
 )
 
-test(
-  [
-    'given typedefs/activity::offerable',
-    'when some Activities are hidden',
-    'it should keep the declared order and drop only the hidden ones',
-  ].join(', '),
-  () => {
-    // given — order is presentation, and the file is the only place it lives
-    const prompts = { system: 's.md', user: 'u.md' }
-    const given = [
-      { name: 'plan', prompt_engineering: prompts },
-      { name: 'security-research', prompt_engineering: prompts, hidden: true },
-      { name: 'build', prompt_engineering: prompts },
-    ].map((one) => activityConfigSchema.parse(one))
-
-    // when
-    const actual = offerable(given).map((one) => one.name)
-
-    // then
-    expect(actual).toEqual(['plan', 'build'])
-  },
-)
 
 test(
   [

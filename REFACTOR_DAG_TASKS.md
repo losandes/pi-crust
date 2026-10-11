@@ -99,8 +99,4 @@ Order matters: 1–2 make the configuration honest, 3–5 make concurrent writes
 
 ## Known leftovers, not blocking
 
-`references/config.md:276-278` still documents the local-override restriction that was removed — it claims `writes` is refused and that a local layer cannot add an agent. Both are false. Line 316 documents the deleted `steps:` block.
-
-`offerable()` in `typedefs/activity.ts` is dead. `menu-options.ts` resolves hiding through the step's owner instead.
-
 `web_search` and `web_fetch` are named by six Activities each and do not exist in pi — pi 1.1.0 ships `bash`, `edit`, `find`, `grep`, `ls`, `read`, `write`. Deferred deliberately.
