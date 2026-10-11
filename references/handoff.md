@@ -24,7 +24,7 @@ export const envelopeBaseSchema = z.object({
 })
 ```
 
-`status` is load-bearing: an envelope that parses but reports `status: 'fail'` throws, failing the phase. An agent declaring its own failure is not a successful phase.
+`status` is load-bearing: an envelope that parses but reports `status: 'fail'` throws, failing the activity run. An agent declaring its own failure is not a successful activity run.
 
 The starter types in `modules/typedefs/envelope.ts`, each paired with a spec the call site passes as `outputType:`:
 
@@ -38,7 +38,7 @@ planOutputSchema = envelopeBaseSchema.extend({
 
 buildOutputSchema = envelopeBaseSchema.extend({
   changed_files: z.array(z.string()).default([]),
-  commit_message: z.string().default(''),     // consumed by the git commit phase
+  commit_message: z.string().default(''),     // consumed by the git commit activity run
   disputes: z.array(disputeSchema).default([]),  // {finding, evidence, reason}
 })                                            // a revise's answers that were not fixes
 
@@ -59,11 +59,11 @@ documentOutputSchema = envelopeBaseSchema.extend({
 })
 ```
 
-`commit_message` defaults to empty, so a git phase consuming it always needs a fallback — see `cookbooks/create_lifecycle.md`.
+`commit_message` defaults to empty, so a git activity run consuming it always needs a fallback — see `cookbooks/create_lifecycle.md`.
 
 **Each `commit_message` describes its own agent's work product, never the next one's**: `planOutput`'s covers the spec file, `buildOutput`'s the code, `documentOutput`'s the write-up. A chain that commits once can use whichever fits; a chain that commits more than once needs all three, and reusing one agent's sentence for another's diff is how a commit log starts lying.
 
-There is no test output type: running the repository's checks is a `kind: 'code'` phase, and its `TQualityResult` reaches the next agent as a `VerifyOutput` built by `verificationEnvelope`.
+There is no test output type: running the repository's checks is a `kind: 'code'` activity run, and its `TQualityResult` reaches the next agent as a `VerifyOutput` built by `verificationEnvelope`.
 
 Two of these are adapters rather than agent reports — code shaped as an envelope so an agent can be handed a deterministic result through the same door: `verifyOutput` (a lint/test block's result) and `changesOutput` (a captured `git diff`, from `changesAsEnvelope`). The consuming agent cannot tell the difference, which is the point.
 
@@ -74,7 +74,7 @@ The envelope is a **manifest of claims**. Gates verify those claims after the fa
 **Every agent call passes a concrete output type**, and the agent's final JSON is parsed against exactly that type. No untyped handoffs.
 
 ```ts
-const plan = await phase(planParams, (ph) =>
+const plan = await activity run(planParams, (ph) =>
   callAgent(run, ph, {
     outputType: planOutput,
     prompt,
@@ -85,7 +85,7 @@ const plan = await phase(planParams, (ph) =>
 
 The user prompt asks for the shape; the schema enforces it. They always travel as a pair, which is what lets one agent serve many calls — same system prompt, different user prompt + output type per call site. Output types live in code, never in `crust.config.yaml`.
 
-**Parse failure is not a restart.** If the response doesn't parse or doesn't validate, the harness re-prompts the **same session** with a correction naming the required fields — bounded by `JSON_FIX_ATTEMPTS` in `execute-agent.ts` (2). Gate violations use the identical mechanism, bounded instead by the phase's `retries`. A cold restart would throw away the context that produced the near-miss.
+**Parse failure is not a restart.** If the response doesn't parse or doesn't validate, the harness re-prompts the **same session** with a correction naming the required fields — bounded by `JSON_FIX_ATTEMPTS` in `execute-agent.ts` (2). Gate violations use the identical mechanism, bounded instead by the activity run's `retries`. A cold restart would throw away the context that produced the near-miss.
 
 In v1 there is no separate continue call to make: `data/pi-agent.ts` passes `--session-id`, which pi treats as create-or-continue, so running an agent and continuing it are the same call with the same id. Before parsing, the harness also tolerates a fenced `json` code block or prose wrapped around the object — but the prompt still asks for bare JSON, and every failed attempt is persisted as an invalid envelope row.
 
@@ -93,14 +93,14 @@ In v1 there is no separate continue call to make: `data/pi-agent.ts` passes `--s
 
 `data/prompt-files.ts` renders the agent's `user.md`, substituting:
 
-| Placeholder               | Value                                                                                                      |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `{{prompt}}`              | the engineer's ask (or the workflow's per-call prompt)                                                     |
-| `{{previous_envelope}}`   | the upstream envelope JSON, from `callAgent(..., { previous })`                                            |
-| `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/`                                                         |
-| `{{skills}}`              | the skill paths `routing.skills` selected for this agent, phase and change; `(none)` when it selected none |
-| `{{changed_files}}`       | the paths this call is about, one per line, or `(none)`                                                    |
-| `{{change_base}}`         | the ref or range `--base` named, or `(the uncommitted working tree)`                                       |
+| Placeholder               | Value                                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `{{prompt}}`              | the engineer's ask (or the workflow's per-call prompt)                                                            |
+| `{{previous_envelope}}`   | the upstream envelope JSON, from `callAgent(..., { previous })`                                                   |
+| `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/`                                                                |
+| `{{skills}}`              | the skill paths `routing.skills` selected for this agent, activity run and change; `(none)` when it selected none |
+| `{{changed_files}}`       | the paths this call is about, one per line, or `(none)`                                                           |
+| `{{change_base}}`         | the ref or range `--base` named, or `(the uncommitted working tree)`                                              |
 
 A `user.md` declares one h3 per incoming datum, then the task, then the output contract:
 
@@ -181,21 +181,21 @@ The map records the model each session was created with. If config drift changes
 
 `valid` keeps its meaning: *parsed against the declared schema*. Whether the gates liked it lives in `gate_results`, which is where that question belongs.
 
-This matters because of what used to happen when it did not. A phase whose gates failed terminally threw before anything was written, so the agent's work sat in the repository while its report vanished — and a later phase in the same session read `previous_envelope: (none)` and carried on as though no one had done anything.
+This matters because of what used to happen when it did not. A activity run whose gates failed terminally threw before anything was written, so the agent's work sat in the repository while its report vanished — and a later activity run in the same session read `previous_envelope: (none)` and carried on as though no one had done anything.
 
-## How a phase is replayed
+## How a activity run is replayed
 
-`--resume` skips a phase already recorded successful for the session and replays its result instead. Three sources, one per kind:
+`--resume` skips a activity run already recorded successful for the session and replays its result instead. Three sources, one per kind:
 
-| Phase kind                   | Replayed from                                                              |
+| Activity Run kind            | Replayed from                                                              |
 | ---------------------------- | -------------------------------------------------------------------------- |
 | agent                        | `{sessionDir}/{agent}/envelope.json`, parsed against the step's spec       |
-| code                         | the payload the phase filed under the `step_result` event                  |
+| code                         | the payload the activity run filed under the `step_result` event           |
 | git (commit, change capture) | the recorded sha, or simply re-captured — a diff is deterministic and free |
 
 Two rules hold this together:
 
-- **A skipped phase opens no new phase row.** The trace already holds the successful one; a second would corrupt the completed set the next resume reads, and the reporter and resume would start to disagree.
-- **A code phase's verdict is not its status.** A verify phase that ran a red suite succeeded at its job. Replay reads `{passed, failures}` from what the phase recorded, never from `status === 'success'`.
+- **A skipped activity run opens no new activity run row.** The trace already holds the successful one; a second would corrupt the completed set the next resume reads, and the reporter and resume would start to disagree.
+- **A code activity run's verdict is not its status.** A verify activity run that ran a red suite succeeded at its job. Replay reads `{passed, failures}` from what the activity run recorded, never from `status === 'success'`.
 
-A missing `envelope.json` on a replayed agent phase is an error naming the exact path and both ways forward — drop `--resume`, or run that step alone. It is never a silent `previous: undefined`.
+A missing `envelope.json` on a replayed agent activity run is an error naming the exact path and both ways forward — drop `--resume`, or run that step alone. It is never a silent `previous: undefined`.

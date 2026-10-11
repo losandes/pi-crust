@@ -1,8 +1,8 @@
 /**
  * Steps: one named, independently runnable unit of a workflow.
  *
- * A workflow used to be a hand-written sequence of phases. A step is that same
- * phase plus the two things composition needs — the agents it requires (so a
+ * A workflow used to be a hand-written sequence of activity runs. A step is that same
+ * activityRun plus the two things composition needs — the agents it requires (so a
  * chain validates its whole roster before anything spawns) and how it is
  * REPLAYED (so `--resume` can skip it without inventing its result).
  *
@@ -11,8 +11,8 @@
  */
 
 import type { TEnvelopeBase } from './envelope'
-import type { TPhaseParams } from './phase'
-import type { TPhaseHandle, TRun } from './run'
+import type { TActivityRunParams } from './activity-run'
+import type { TActivityRunHandle, TRun } from './run'
 
 export const STEP_NAMES = [
   'prompt',
@@ -151,8 +151,8 @@ export type TStepResult = Readonly<{
   /**
    * Did THIS step's own criterion hold?
    *
-   * Not the same question as "did the phase run". A verify phase that ran the
-   * suite did its job even when the suite came back red: the phase succeeds and
+   * Not the same question as "did the activityRun run". A verify activityRun that ran the
+   * suite did its job even when the suite came back red: the activityRun succeeds and
    * `accepted` is false, which is what `finish(accepted:)` settles.
    */
   accepted: boolean
@@ -160,10 +160,10 @@ export type TStepResult = Readonly<{
 
 export type TStep = Readonly<{
   name: TStepName
-  params: TPhaseParams
+  params: TActivityRunParams
   /** agent names this step needs, checked before anything spawns */
   requires: readonly string[]
-  execute: (ctx: TStepContext, handle: TPhaseHandle) => Promise<TStepResult>
+  execute: (ctx: TStepContext, handle: TActivityRunHandle) => Promise<TStepResult>
   replay: (ctx: TStepContext) => Promise<TStepResult>
 }>
 
@@ -181,7 +181,7 @@ export type TStepOptions = Readonly<{
    * kill a run at its last step with the work already finished.
    */
   deliver: string
-  /** 1 for the first occurrence; 2+ suffixes the phase name (`build_2`) */
+  /** 1 for the first occurrence; 2+ suffixes the activityRun name (`build_2`) */
   instance: number
 }>
 
@@ -195,5 +195,5 @@ export const DEFAULT_STEP_OPTIONS: TStepOptions = {
 }
 
 /** `build`, `build_2`, `build_3` … so a composed chain can repeat a step. */
-export const stepPhaseName = (name: TStepName, instance: number): string =>
+export const stepActivityRunName = (name: TStepName, instance: number): string =>
   instance <= 1 ? name : `${name}_${instance}`

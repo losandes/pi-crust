@@ -1,5 +1,5 @@
 /**
- * What a step decided, assumed, and could not settle — per phase.
+ * What a step decided, assumed, and could not settle — per activityRun.
  *
  * This is the half of the trust change the terminal already had and the
  * screen did not. A chain that decides its own questions instead of stopping
@@ -52,7 +52,7 @@ export type TLedgerQuestion = Readonly<{
   outcome: TQuestionOutcome
 }>
 
-export type TPhaseLedger = Readonly<{
+export type TActivityRunLedger = Readonly<{
   decisions: readonly TLedgerDecision[]
   assumptions: readonly TLedgerAssumption[]
   questions: readonly TLedgerQuestion[]
@@ -60,7 +60,7 @@ export type TPhaseLedger = Readonly<{
   total: number
 }>
 
-export const EMPTY_LEDGER: TPhaseLedger = {
+export const EMPTY_LEDGER: TActivityRunLedger = {
   decisions: [],
   assumptions: [],
   questions: [],
@@ -95,19 +95,19 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     : {}
 
 /**
- * The envelope a phase produced, preferring the one that validated.
+ * The envelope a activityRun produced, preferring the one that validated.
  *
- * A retried phase writes one row per attempt, and an invalid attempt is a
+ * A retried activityRun writes one row per attempt, and an invalid attempt is a
  * record of the correction loop rather than of what the step held. Latest
  * valid wins; if none validated, the latest row is still better than nothing,
  * because a reader asking "what did this step decide" is better served by a
  * rejected answer than by a blank panel.
  */
 const envelopeFor = (
-  phaseId: string,
+  activityRunId: string,
   envelopes: readonly Envelope[],
 ): Envelope | undefined => {
-  const mine = envelopes.filter((row) => row.phase_id === phaseId)
+  const mine = envelopes.filter((row) => row.activity_run_id === activityRunId)
   const valid = mine.filter((row) => row.valid === 1)
   const pool = valid.length > 0 ? valid : mine
   return pool.reduce<Envelope | undefined>(
@@ -119,7 +119,7 @@ const envelopeFor = (
   )
 }
 
-/** Questions this phase's run-time events say were answered by the step itself. */
+/** Questions this activity-run's run-time events say were answered by the step itself. */
 const decidedQuestions = (events: readonly EventRow[]): ReadonlySet<string> =>
   new Set(
     events
@@ -142,21 +142,21 @@ const gateOpened = (events: readonly EventRow[]): boolean =>
   events.some((event) => event.name === 'human_gate_open')
 
 /**
- * What a reader is being asked to accept, for one phase.
+ * What a reader is being asked to accept, for one activityRun.
  *
- * `events` may be the whole run's — they are filtered to the phase here, so
+ * `events` may be the whole run's — they are filtered to the activityRun here, so
  * no caller has to remember to.
  */
-export const phaseLedger = (
-  phaseId: string,
+export const activityRunLedger = (
+  activityRunId: string,
   envelopes: readonly Envelope[],
   events: readonly EventRow[],
-): TPhaseLedger => {
-  const envelope = envelopeFor(phaseId, envelopes)
+): TActivityRunLedger => {
+  const envelope = envelopeFor(activityRunId, envelopes)
   if (envelope === undefined) return EMPTY_LEDGER
 
   const payload = parsed(envelope.payload_json)
-  const mine = events.filter((event) => event.phase_id === phaseId)
+  const mine = events.filter((event) => event.activity_run_id === activityRunId)
   const decided = decidedQuestions(mine)
   const open = openQuestions(mine)
   const stopped = gateOpened(mine)
@@ -187,8 +187,8 @@ export const phaseLedger = (
      * A question named in a `self_answered` event WAS decided, whatever its
      * flags say; one named in `open_questions` was explicitly reported as
      * nobody's yet. Only when neither event mentions it do we fall back to
-     * the shape of the question itself — a phase that stopped escalated
-     * something, and a phase that did not had an answer or did not need one.
+     * the shape of the question itself — a activityRun that stopped escalated
+     * something, and a activityRun that did not had an answer or did not need one.
      */
     const outcome: TQuestionOutcome = decided.has(question)
       ? 'decided'
@@ -217,24 +217,24 @@ export const phaseLedger = (
 }
 
 /**
- * How many of a phase's entries are the kind that stop a reader.
+ * How many of a activity-run's entries are the kind that stop a reader.
  *
  * A tab badge wants one number, and "everything in the ledger" is the wrong
  * one — a step with nine assumptions and no open questions is not asking for
  * anything. What counts is what a person still has to act on.
  */
-export const needsYou = (ledger: TPhaseLedger): number =>
+export const needsYou = (ledger: TActivityRunLedger): number =>
   ledger.questions.filter((question) => question.outcome !== 'decided').length
 
-/** The same ledger, for every phase in a run, keyed by phase_id. */
+/** The same ledger, for every activityRun in a run, keyed by activity_run_id. */
 export const runLedger = (
-  phaseIds: readonly string[],
+  activityRunIds: readonly string[],
   envelopes: readonly Envelope[],
   events: readonly EventRow[],
-): ReadonlyMap<string, TPhaseLedger> =>
+): ReadonlyMap<string, TActivityRunLedger> =>
   new Map(
-    phaseIds.map((phaseId) => [
-      phaseId,
-      phaseLedger(phaseId, envelopes, events),
+    activityRunIds.map((activityRunId) => [
+      activityRunId,
+      activityRunLedger(activityRunId, envelopes, events),
     ]),
   )

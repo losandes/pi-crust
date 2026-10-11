@@ -1,6 +1,6 @@
 # `.pi-crust/` — the pi-crust in this repository
 
-`.pi-crust/` is a software factory: repeatable **agents plus code** workflows. Deterministic TypeScript owns sequencing, retries, and acceptance; coding agents work inside bounded phases; typed JSON envelopes carry context between them; every event streams into SQLite as it happens. Agent proposes, code disposes.
+`.pi-crust/` is a software factory: repeatable **agents plus code** workflows. Deterministic TypeScript owns sequencing, retries, and acceptance; coding agents work inside bounded activity runs; typed JSON envelopes carry context between them; every event streams into SQLite as it happens. Agent proposes, code disposes.
 
 ## Why it is here, and who put it there
 
@@ -18,7 +18,7 @@ Reach for it when you want to:
 - create a new workflow, or change an existing chain
 - add an agent, retune a model, or change what an agent is allowed to write
 - run a workflow and have the run watched and reported on
-- understand a trace — which phase failed, what a gate rejected, what a run cost
+- understand a trace — which activity run failed, what a gate rejected, what a run cost
 
 The skill carries cookbooks for each of those and will load only the one your request needs. It also knows the rules this code enforces, which is why asking it beats editing by hand the first few times.
 
@@ -38,7 +38,7 @@ The skill carries cookbooks for each of those and will load only the one your re
 ├── modules/
 │   ├── typedefs/     types and zod schemas only
 │   ├── data/         everything that touches the outside world — git, sqlite, pi, disk
-│   └── use-cases/    orchestration and policy — phases, gates, permissions, quality
+│   └── use-cases/    orchestration and policy — activity runs, gates, permissions, quality
 ├── prompt-engineering/   what each agent is told              (tracked — edit here)
 ├── harness-engineering/  pi extensions each agent can load    (tracked)
 └── data/                 runtime only; nothing here is authored
@@ -79,13 +79,13 @@ bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
 
 The prompt is inline text or a path to a file. `--run-id` is optional on every workflow: given one, the run joins that session and each agent resumes its existing context window; omitted, a fresh id is minted and printed.
 
-A run that stopped is picked up rather than restarted. `just crust report` names the phase it stopped at and prints the command that continues it:
+A run that stopped is picked up rather than restarted. `just crust report` names the activity run it stopped at and prints the command that continues it:
 
 ```bash
 bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
 ```
 
-`--resume` works on every workflow and skips the phases already recorded successful for that session.
+`--resume` works on every workflow and skips the activity runs already recorded successful for that session.
 
 ## Where to edit what
 

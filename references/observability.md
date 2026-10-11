@@ -10,24 +10,24 @@ Location comes from `observability.db` in `crust.config.yaml`, default `.pi-crus
 
 ## Event schema
 
-`trace-db.ts` emits these types, every one logged against its `run_id` **and** `phase_id`:
+`trace-db.ts` emits these types, every one logged against its `run_id` **and** `activity_run_id`:
 
-| Type          | Emitted when                                                                                                                                                                           |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `phase_start` | a `phase(phaseParams({...}), body)` block is entered                                                                                                                                   |
-| `agent_start` | a coding agent is spawned or resumed for `callAgent(run, ph, {...})`                                                                                                                   |
-| `tool_call`   | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
-| `handoff`     | an envelope crosses from one agent to the next                                                                                                                                         |
-| `gate_pass`   | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations`                                                                          |
-| `gate_fail`   | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations`                                                                                         |
-| `log`         | an explicit `ph.log(...)` from the workflow script                                                                                                                                     |
-| `agent_end`   | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
-| `phase_end`   | the block exits; carries the resolved status                                                                                                                                           |
-| `error`       | a raise inside a phase block                                                                                                                                                           |
+| Type                 | Emitted when                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `activity_run_start` | a `activity run(activityRunParams({...}), body)` block is entered                                                                                                                      |
+| `agent_start`        | a coding agent is spawned or resumed for `callAgent(run, ph, {...})`                                                                                                                   |
+| `tool_call`          | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
+| `handoff`            | an envelope crosses from one agent to the next                                                                                                                                         |
+| `gate_pass`          | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations`                                                                          |
+| `gate_fail`          | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations`                                                                                         |
+| `log`                | an explicit `ph.log(...)` from the workflow script                                                                                                                                     |
+| `agent_end`          | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
+| `activity_run_end`   | the block exits; carries the resolved status                                                                                                                                           |
+| `error`              | a raise inside a activity run block                                                                                                                                                    |
 
-`parent_id` nests spans, so an agent phase expands into its tool-call spans in the UI.
+`parent_id` nests spans, so an agent activity run expands into its tool-call spans in the UI.
 
-**Spend is itemised per phase.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the phase made, so a phase that retried on a bad envelope or a failed gate shows what all its attempts cost, not just the last one. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
+**Spend is itemised per activity run.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the activity run made, so a activity run that retried on a bad envelope or a failed gate shows what all its attempts cost, not just the last one. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
 
 `reasoning_tokens` is the thinking share and is **inside** `output_tokens`, not a fifth component — measured across every session on disk, reasoning never exceeds output and the four components always reconcile to the total. It bills at the output rate, so the panel nests it under output rather than adding it. Runs predating the breakdown have no `usage` key at all; the lump `cost` and the event's own `tokens` still stand, and the UI says so rather than rendering zeroes.
 
@@ -43,7 +43,7 @@ The gate event payload carries `attempt` too, so the `gate_results` table and th
 
 **A `tool_call` is the one event that spans time**, so it fills both `started_at` and `ended_at` on the row — the tool's real start and return. Every other type is a point in time: `started_at` is when it was recorded and `ended_at` stays NULL. Lay tool calls out on a time axis from those columns, never by parsing `payload_json` (`duration_ms` is in the payload too, as pi's own number, but it is a convenience, not the source for layout).
 
-**Streaming is solved by construction.** `data/pi-agent.ts` tails pi's JSONL stdout line by line and the tracer inserts each event into `crust.db` **while the agent is still working** — never batched at phase end (verified in the first smoke run: tool calls visible mid-run). Everything downstream is a poll → render.
+**Streaming is solved by construction.** `data/pi-agent.ts` tails pi's JSONL stdout line by line and the tracer inserts each event into `crust.db` **while the agent is still working** — never batched at activity run end (verified in the first smoke run: tool calls visible mid-run). Everything downstream is a poll → render.
 
 ## Tables
 
@@ -57,8 +57,8 @@ sessions (
   total_tokens  INTEGER, total_cost REAL
 );
 
-phases (
-  phase_id      TEXT PRIMARY KEY,
+activity runs (
+  activity_run_id      TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
   seq           INTEGER,
   name TEXT, kind TEXT, owner TEXT, description TEXT,
@@ -71,9 +71,9 @@ phases (
 events (
   event_id      TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,   -- every event logs against run + phase
+  activity_run_id      TEXT REFERENCES activity runs,   -- every event logs against run + activity run
   parent_id     TEXT,                     -- span nesting
-  type          TEXT,   -- phase_start | phase_end | agent_start | agent_end | tool_call
+  type          TEXT,   -- activity_run_start | activity_run_end | agent_start | agent_end | tool_call
                         -- | handoff | gate_pass | gate_fail | log | error
   name          TEXT,
   payload_json  TEXT,
@@ -84,7 +84,7 @@ events (
 envelopes (
   envelope_id   TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
+  activity_run_id      TEXT REFERENCES activity runs,
   agent         TEXT,
   output_type   TEXT,              -- name of the data_types model it parsed against
   payload_json  TEXT,
@@ -96,7 +96,7 @@ envelopes (
 gate_results (
   id            INTEGER PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
+  activity_run_id      TEXT REFERENCES activity runs,
   attempt       INTEGER,
   gate          TEXT,
   passed        INTEGER,
@@ -129,9 +129,9 @@ agent_sessions (                   -- the queryable mirror of agent_map.json
 
 **A hung agent emits nothing**, which is exactly when you need its pid: no events, no tokens, no output to read. `processes` is the only table that can answer "what is this run running, and how do I stop it" — `just crust procs <run_id>` lists what is live, `just crust kill <run_id>` stops children before the parent, and both verify the recorded `command` still matches the pid before signalling it. A killed run finalizes its own trace: SIGTERM and SIGINT are turned into `SystemExit` in `session.ensure`, so the session lands on `fail` with its process rows closed instead of reading `running` forever.
 
-**Derived, never stored:** phase durations (`ended_at − started_at`), session phase-progress (query `phases` by `run_id`), lane layout (`kind` + `owner`).
+**Derived, never stored:** activity run durations (`ended_at − started_at`), session activity run-progress (query `activity-runs` by `run_id`), lane layout (`kind` + `owner`).
 
-Phase status invariants: `queued` only for manifest-declared phases not yet entered (dashed in the UI); `running` on enter; only a clean exit writes `success` — agent phases additionally need the envelope parsed and gates green; everything else resolves to `fail`. `blocked` and `cancelled` are not phase rows: nothing started, so there is nothing to open a row for. They arrive as `activities_blocked` and `activities_cancelled` events naming what the run did not reach and why — blocked when a person is holding it and the work is still owed, cancelled when it is not coming. Without them a halted run leaves everything downstream with no record at all, which reads the same as a lifecycle that never had those Activities.
+Activity Run status invariants: `queued` only for manifest-declared activity runs not yet entered (dashed in the UI); `running` on enter; only a clean exit writes `success` — agent activity runs additionally need the envelope parsed and gates green; everything else resolves to `fail`. `blocked` and `cancelled` are not activity run rows: nothing started, so there is nothing to open a row for. They arrive as `activities_blocked` and `activities_cancelled` events naming what the run did not reach and why — blocked when a person is holding it and the work is still owed, cancelled when it is not coming. Without them a halted run leaves everything downstream with no record at all, which reads the same as a lifecycle that never had those Activities.
 
 ## WAL pragmas
 
@@ -167,11 +167,11 @@ No `run-id` means the most recent session. `--db` wins over the config's `observ
 
 Exit codes, because an agent will branch on them:
 
-| Code | Means                                         |
-| ---- | --------------------------------------------- |
-| `0`  | the run succeeded and has no unfinished phase |
-| `1`  | it failed, or it is incomplete                |
-| `2`  | no such session, or a usage error             |
+| Code | Means                                                |
+| ---- | ---------------------------------------------------- |
+| `0`  | the run succeeded and has no unfinished activity run |
+| `1`  | it failed, or it is incomplete                       |
+| `2`  | no such session, or a usage error                    |
 
 ### `TRunState` — the JSON contract
 
@@ -188,16 +188,16 @@ Exit codes, because an agent will branch on them:
   "ended_at": "2024-01-01T00:08:00.000Z",
   "tokens": 12345,
   "cost": 0.4212,
-  "phases": [
+  "activity runs": [
     {
-      "seq": 3, "phase_id": "a1b2c3d4_03_build",
+      "seq": 3, "activity_run_id": "a1b2c3d4_03_build",
       "name": "build", "kind": "agent", "owner": "builder",
       "description": "Implement the plan exactly",
       "status": "fail", "attempt": 2,
       "error": "builder failed gates after 2 attempt(s)",
       "started_at": "…", "ended_at": "…",
       "gates": [
-        { "gate": "diffMatchesClaims", "phase": "build", "attempt": 2,
+        { "gate": "diffMatchesClaims", "activity run": "build", "attempt": 2,
           "passed": false, "violations": ["src/a.ts: not in the diff"],
           "checks": [{ "item": "src/a.ts", "ok": false, "note": "not in the diff" }] }
       ],
@@ -208,7 +208,7 @@ Exit codes, because an agent will branch on them:
   "resume_from": "build",
   "failed_gates": [ … ],
   "envelopes": [
-    { "phase": "build", "agent": "builder", "output_type": "BuildOutput",
+    { "activity run": "build", "agent": "builder", "output_type": "BuildOutput",
       "valid": true, "attempt": 2, "payload": { … } }
   ]
 }
@@ -216,9 +216,9 @@ Exit codes, because an agent will branch on them:
 
 Three fields carry the weight:
 
-- **`completed`** — phase names whose LATEST record is `success`. A session that ran `build` twice and failed the second time does not list `build`; the latest record per name wins, which is what makes resume correct across a joined session.
-- **`resume_from`** — the first phase, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every phase succeeded and there is nothing to resume.
-- **`logs[].name`** — the event name, not just the payload. The console echoes every printed line as a `log` too, so a code phase files its verdict under `step_result` and replay asks for it by that name. "The phase's last log" is usually a human sentence.
+- **`completed`** — activity run names whose LATEST record is `success`. A session that ran `build` twice and failed the second time does not list `build`; the latest record per name wins, which is what makes resume correct across a joined session.
+- **`resume_from`** — the first activity run, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every activity run succeeded and there is nothing to resume.
+- **`logs[].name`** — the event name, not just the payload. The console echoes every printed line as a `log` too, so a code activity run files its verdict under `step_result` and replay asks for it by that name. "The activity run's last log" is usually a human sentence.
 
 `error`, `ended_at`, `started_at` and `resume_from` are omitted when absent — `JSON.stringify` drops undefined keys. Read them as optional.
 
@@ -226,7 +226,7 @@ Three fields carry the weight:
 
 ## One envelope row per attempt
 
-An envelope is persisted the moment it PARSES, not after its gates pass. A gate-corrected phase therefore writes one `envelopes` row per attempt, and the accepted envelope is the highest-attempt row with `valid = 1`. That is more rows than earlier versions wrote, and it is the point: a phase whose gate failed terminally used to lose both the row and `envelope.json`, so a later phase resuming the session had nothing to read — the agent's work was on disk and its report was not.
+An envelope is persisted the moment it PARSES, not after its gates pass. A gate-corrected activity run therefore writes one `envelopes` row per attempt, and the accepted envelope is the highest-attempt row with `valid = 1`. That is more rows than earlier versions wrote, and it is the point: a activity run whose gate failed terminally used to lose both the row and `envelope.json`, so a later activity run resuming the session had nothing to read — the agent's work was on disk and its report was not.
 
 ## Narration
 
@@ -234,7 +234,7 @@ Agents stream their reasoning and prose a few characters at a time. Those deltas
 
 Every narration event and every tool call carries the turn that produced it. That is what lets a reader see which calls a passage of thinking caused: a trace interleaves several agents, so adjacency in time is not causation.
 
-The database keeps a bounded tail per phase. `raw_output.jsonl` keeps the complete text, so a long phase can lose its earliest thinking from the UI while remaining whole on disk.
+The database keeps a bounded tail per activity run. `raw_output.jsonl` keeps the complete text, so a long activity run can lose its earliest thinking from the UI while remaining whole on disk.
 
 ## Watching several working trees
 

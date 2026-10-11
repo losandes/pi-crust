@@ -17,10 +17,10 @@ import type { TAgentConfig } from '../typedefs/config'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
 import type { TAgentCall, TGate } from '../typedefs/gate'
 import { violationsOf } from '../typedefs/gate'
-import type { TPhase } from '../typedefs/phase'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
-import type { TPhaseHandle, TRun } from '../typedefs/run'
+import type { TActivityRunHandle, TRun } from '../typedefs/run'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import {
   enforcePermissions,
@@ -66,12 +66,12 @@ const agentSessionId = (run: TRun, agent: TAgentConfig): string => {
  * default: an unattended run writing a model's reasoning to stdout buries the
  * one line that said what went wrong.
  */
-/** How often a running phase checks whether anybody has said anything. */
+/** How often a running activityRun checks whether anybody has said anything. */
 export const INBOX_POLL_MS = 1_000
 
 const eventForwarder = (
   run: TRun,
-  phase: TPhase,
+  activityRun: TActivityRun,
   agentName: string,
   stream: boolean,
 ) => {
@@ -84,7 +84,7 @@ const eventForwarder = (
     const { text, started_at, ended_at, ...rest } = record
     run.tracer.event({
       run_id: run.runId,
-      phase_id: phase.phase_id,
+      activity_run_id: activityRun.activity_run_id,
       type: 'narration',
       name: `${agentName} ${rest.channel}`,
       started_at,
@@ -105,7 +105,7 @@ const eventForwarder = (
     const { label, started_at, ended_at, ...payload } = record
     run.tracer.event({
       run_id: run.runId,
-      phase_id: phase.phase_id,
+      activity_run_id: activityRun.activity_run_id,
       type: 'tool_call',
       name: label,
       ...(started_at === undefined ? {} : { started_at }),
@@ -123,7 +123,7 @@ const eventForwarder = (
 
 const persistEnvelope = (
   run: TRun,
-  phase: TPhase,
+  activityRun: TActivityRun,
   agentName: string,
   spec: TEnvelopeSpec<TEnvelopeBase>,
   envelope: TEnvelopeBase | undefined,
@@ -135,7 +135,7 @@ const persistEnvelope = (
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify({ raw: raw.slice(-2000) })
   run.tracer.envelopeRow(
-    phase,
+    activityRun,
     agentName,
     spec.name,
     payloadJson,
@@ -170,7 +170,7 @@ type TParsed = Readonly<{ envelope: TEnvelopeBase; attempt: number }>
  */
 const parseWithRetries = (
   run: TRun,
-  phase: TPhase,
+  activityRun: TActivityRun,
   spec: TEnvelopeSpec<TEnvelopeBase>,
   first: TPiResult,
   send: TSend,
@@ -185,12 +185,12 @@ const parseWithRetries = (
     if (settled.status === 'ok') {
       // Persisted the MOMENT it parses, not after the gates rule on it. A
       // terminal gate failure used to lose the envelope entirely, so a later
-      // phase resuming the session had no previous_envelope to read — the
+      // activityRun resuming the session had no previous_envelope to read — the
       // agent's work was on disk and its report was not.
       persistEnvelope(
         run,
-        phase,
-        phase.params.owner,
+        activityRun,
+        activityRun.params.owner,
         spec,
         settled.data,
         round,
@@ -201,8 +201,8 @@ const parseWithRetries = (
     const reason = errorMessage(settled.error)
     persistEnvelope(
       run,
-      phase,
-      phase.params.owner,
+      activityRun,
+      activityRun.params.owner,
       spec,
       undefined,
       round,
@@ -211,11 +211,11 @@ const parseWithRetries = (
     )
     if (round > JSON_FIX_ATTEMPTS) {
       throw new Error(
-        `${phase.params.owner} never produced valid ${spec.name} JSON: ${reason}`,
+        `${activityRun.params.owner} never produced valid ${spec.name} JSON: ${reason}`,
       )
     }
     run.console.retry(
-      phase.params.owner,
+      activityRun.params.owner,
       round,
       JSON_FIX_ATTEMPTS,
       `invalid ${spec.name} JSON: ${reason}`,
@@ -232,7 +232,7 @@ const parseWithRetries = (
 
 const runGates = (
   run: TRun,
-  phase: TPhase,
+  activityRun: TActivityRun,
   gates: readonly TGate[],
   envelope: TEnvelopeBase,
   gateAttempt: number,
@@ -240,10 +240,10 @@ const runGates = (
   gates.flatMap((gate) => {
     const report = gate.check(envelope, run)
     const found = violationsOf(report)
-    run.tracer.gateRow(phase, gate.name, report, gateAttempt)
+    run.tracer.gateRow(activityRun, gate.name, report, gateAttempt)
     run.tracer.event({
       run_id: run.runId,
-      phase_id: phase.phase_id,
+      activity_run_id: activityRun.activity_run_id,
       type: found.length > 0 ? 'gate_fail' : 'gate_pass',
       name: gate.name,
       payload: {
@@ -257,27 +257,27 @@ const runGates = (
   })
 
 /**
- * What a workflow calls inside an agent phase. Valid in that phase only — a
- * code or engineer phase that spawns an agent would render in the wrong lane
+ * What a workflow calls inside an agent activityRun. Valid in that activityRun only — a
+ * code or engineer activityRun that spawns an agent would render in the wrong lane
  * and hide the spend.
  */
 export const callAgent = <TEnvelope extends TEnvelopeBase>(
   run: TRun,
-  handle: TPhaseHandle,
+  handle: TActivityRunHandle,
   call: TAgentCall<TEnvelope>,
 ): Promise<TEnvelope> => {
-  if (handle.phase.params.kind !== 'agent') {
-    throw new Error('callAgent() is only valid inside an agent phase')
+  if (handle.activityRun.params.kind !== 'agent') {
+    throw new Error('callAgent() is only valid inside an agent activity-run')
   }
-  return executeAgent(run, handle.phase, call)
+  return executeAgent(run, handle.activityRun, call)
 }
 
 export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   run: TRun,
-  phase: TPhase,
+  activityRun: TActivityRun,
   call: TAgentCall<TEnvelope>,
 ): Promise<TEnvelope> => {
-  const agent = resolveAgent(run.cfg, phase.params.owner)
+  const agent = resolveAgent(run.cfg, activityRun.params.owner)
   const agentDir = ensureDir(join(run.sessionDir, agent.name))
   const spec = call.outputType as unknown as TEnvelopeSpec<TEnvelopeBase>
   const gates = call.gates ?? []
@@ -292,7 +292,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     run.cfg,
     agent.name,
     changedPaths,
-    phase.params.name,
+    activityRun.params.name,
   )
 
   const variables = {
@@ -385,7 +385,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   const sessionId = agentSessionId(run, agent)
   run.tracer.event({
     run_id: run.runId,
-    phase_id: phase.phase_id,
+    activity_run_id: activityRun.activity_run_id,
     type: 'agent_start',
     name: agent.name,
     payload: {
@@ -411,12 +411,12 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   let spent: TUsageBreakdown = emptyUsage
 
   /*
-   * One forwarder for the whole phase, not one per send. Turn numbers have to
+   * One forwarder for the whole activityRun, not one per send. Turn numbers have to
    * keep climbing across a parse retry or a gate correction — those re-enter
    * the SAME pi session, so restarting the count would make two different
    * passages of thinking claim the same turn and attract each other's calls.
    */
-  const forwardEvents = eventForwarder(run, phase, agent.name, run.stream)
+  const forwardEvents = eventForwarder(run, activityRun, agent.name, run.stream)
 
   /*
    * Someone outside this process may want to say something to the agent while
@@ -425,7 +425,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * second terminal and this process all have.
    *
    * Polling rather than watching: a watcher is one more thing to leak when a
-   * phase ends badly, and a second of latency on a message a human just typed
+   * activityRun ends badly, and a second of latency on a message a human just typed
    * is not worth a file descriptor and a cleanup path.
    */
   const deliverFromInbox = (control: piAgent.TPiControl): (() => void) => {
@@ -436,12 +436,12 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       for (const entry of batch.messages) {
         run.console.note(
           entry.kind === 'abort'
-            ? `${entry.from} aborted this phase`
+            ? `${entry.from} aborted this activityRun`
             : `${entry.from} ${entry.kind === 'steer' ? 'steered' : 'queued a follow-up'}: ${entry.message}`,
         )
         run.tracer.event({
           run_id: run.runId,
-          phase_id: phase.phase_id,
+          activity_run_id: activityRun.activity_run_id,
           type: 'log',
           name: `inbox_${entry.kind}`,
           payload: { ...entry, agent: agent.name },
@@ -497,13 +497,13 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   }
 
   // What the tree looked like before this agent got its hands on it. Every send
-  // in this phase — first prompt, JSON retries, gate corrections — is measured
+  // in this activityRun — first prompt, JSON retries, gate corrections — is measured
   // against this one baseline.
   const treeBefore = snapshotTree(run.repoRoot)
 
   const first = await parseWithRetries(
     run,
-    phase,
+    activityRun,
     spec,
     await send(userText),
     send,
@@ -514,21 +514,21 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     parsed: TParsed,
     round: number,
   ): Promise<TParsed> => {
-    const violations = runGates(run, phase, gates, parsed.envelope, round)
+    const violations = runGates(run, activityRun, gates, parsed.envelope, round)
     if (violations.length === 0) {
       return parsed
     }
-    if (round > phase.params.retries) {
+    if (round > activityRun.params.retries) {
       throw new GateFailure(
         `${agent.name} failed gates after ${round} attempt(s):\n- ` +
           violations.join('\n- '),
       )
     }
-    run.updatePhase(phase.phase_id, { attempt: round })
+    run.updateActivityRun(activityRun.activity_run_id, { attempt: round })
     run.console.retry(
       agent.name,
       round,
-      phase.params.retries,
+      activityRun.params.retries,
       `${violations.length} gate violation(s)`,
     )
     const corrected = await send(
@@ -536,14 +536,14 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
         '\n\nFix these problems, then re-emit ONLY your Report JSON.',
     )
     return settleGates(
-      await parseWithRetries(run, phase, spec, corrected, send),
+      await parseWithRetries(run, activityRun, spec, corrected, send),
       round + 1,
     )
   }
   const { envelope } = await settleGates(first, 1)
 
   // Permission is checked after every send is done, and before the envelope is
-  // accepted: an agent does not get to report success on a phase in which it
+  // accepted: an agent does not get to report success on an activity run in which it
   // wrote somewhere it was not allowed to.
   const enforced = safeParseSettlement(() =>
     enforcePermissions(
@@ -567,7 +567,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     if (enforced.error instanceof PermissionBreach) {
       run.tracer.event({
         run_id: run.runId,
-        phase_id: phase.phase_id,
+        activity_run_id: activityRun.activity_run_id,
         type: 'error',
         name: 'permission_breach',
         payload: {
@@ -583,7 +583,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   if (enforced.data.length > 0) {
     run.tracer.event({
       run_id: run.runId,
-      phase_id: phase.phase_id,
+      activity_run_id: activityRun.activity_run_id,
       type: 'log',
       name: 'paths_touched',
       payload: { agent: agent.name, paths: enforced.data },
@@ -606,17 +606,17 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   })
   run.tracer.event({
     run_id: run.runId,
-    phase_id: phase.phase_id,
+    activity_run_id: activityRun.activity_run_id,
     type: 'handoff',
     name: agent.name,
     payload: { artifacts: envelope.artifacts, summary: envelope.summary },
   })
   run.tracer.event({
     run_id: run.runId,
-    phase_id: phase.phase_id,
+    activity_run_id: activityRun.activity_run_id,
     type: 'agent_end',
     name: agent.name,
-    // Phase totals, not the last send's: a retried phase paid for every attempt.
+    // ActivityRun totals, not the last send's: a retried activityRun paid for every attempt.
     tokens: spent.total_tokens,
     payload: {
       cost: spent.total_cost,

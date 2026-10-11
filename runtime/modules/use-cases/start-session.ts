@@ -45,7 +45,7 @@ const workflowName = (): string =>
   basename(process.argv[1] ?? 'crust').replace(/\.ts$/, '')
 
 export type TSessionOptions = Readonly<{
-  /** skip phases already recorded successful for this run_id */
+  /** skip activityRuns already recorded successful for this run_id */
   resume?: boolean
   /** echo agent narration to the terminal as it arrives (`--stream`) */
   stream?: boolean
@@ -54,14 +54,14 @@ export type TSessionOptions = Readonly<{
 }>
 
 /**
- * Which phases this run must not do again.
+ * Which activityRuns this run must not do again.
  *
  * Read through `readRunState` — the reporter's function — so `just crust report`
  * and `--resume` cannot disagree. Resuming needs an run_id, because resuming an
- * unnamed session is resuming nothing; and a session with every phase green has
+ * unnamed session is resuming nothing; and a session with every activity run green has
  * nothing left to do, which is said out loud rather than silently re-run.
  */
-const completedPhases = (
+const completedActivityRuns = (
   cfg: TPiCrustConfig,
   runId: string | undefined,
 ): ReadonlySet<string> => {
@@ -78,18 +78,18 @@ const completedPhases = (
     )
   }
   /*
-   * A WAITING run always has something to do, even when every phase it
+   * A WAITING run always has something to do, even when every activity run it
    * recorded succeeded: the thing it was waiting for was a person, and they
    * have now answered. Refusing here left such a run `waiting` for ever —
    * work finished, decision made, nothing to mark it done.
    *
    * `resume_from` cannot tell the difference on its own. It names the first
-   * RECORDED phase that is not successful, and a chain stopped at its first
+   * RECORDED activityRun that is not successful, and a chain stopped at its first
    * gate has not recorded the stages it never reached.
    */
   if (state.resume_from === undefined && state.status !== 'waiting') {
     throw new Error(
-      `every phase of '${runId}' already succeeded — nothing to resume. ` +
+      `every activity run of '${runId}' already succeeded — nothing to resume. ` +
         'Drop --run-id to start a new run.',
     )
   }
@@ -102,7 +102,7 @@ export const startSession = (
   options: TSessionOptions = {},
 ): TRun => {
   const resume = options.resume
-    ? completedPhases(cfg, runId)
+    ? completedActivityRuns(cfg, runId)
     : new Set<string>()
   const id = runId || newId(8)
   const tracer = createTracer(
@@ -130,7 +130,7 @@ export const startSession = (
    * that happens before anybody opens the UI.
    */
   registerWorkspace(run.repoRoot, tracer.dbPath)
-  // This process is the run. Record it before any phase opens, so a run that
+  // This process is the run. Record it before any activityRun opens, so a run that
   // hangs in its first agent call is still killable by run_id.
   tracer.processStart(
     id,
@@ -157,7 +157,7 @@ export const startSession = (
   run.console.sessionStarted(id, run.engineer)
   if (resume.size > 0) {
     run.console.note(
-      `resuming: ${resume.size} phase(s) already successful — ` +
+      `resuming: ${resume.size} activityRun(s) already successful — ` +
         `${[...resume].join(', ')}`,
     )
   }

@@ -49,7 +49,7 @@ export const NarrationPane = ({
   events,
   agent,
   envelope,
-  phaseStatus,
+  activityRunStatus,
   consults,
   runId,
   runStatus,
@@ -61,7 +61,7 @@ export const NarrationPane = ({
   /** the step's final output, rendered as the last message it sent */
   envelope?: Envelope
   /** the STEP's status — it colours the last message, not the run's */
-  phaseStatus: string
+  activityRunStatus: string
   runId: string
   runStatus: string
 }>) => {
@@ -136,11 +136,11 @@ export const NarrationPane = ({
           {summary !== '' && (
             <div
               className={`${styles.final} ${
-                phaseStatus === 'fail' ? styles.finalFail : styles.finalOk
+                activityRunStatus === 'fail' ? styles.finalFail : styles.finalOk
               }`}
             >
               <span className={styles.finalKey}>
-                {phaseStatus === 'fail' ? 'it failed' : 'its answer'}
+                {activityRunStatus === 'fail' ? 'it failed' : 'its answer'}
               </span>
               <p className={styles.finalText}>{summary}</p>
             </div>

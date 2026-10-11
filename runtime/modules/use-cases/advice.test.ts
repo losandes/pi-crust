@@ -17,12 +17,12 @@ const state = (
     ended_at: undefined,
     tokens: 0,
     cost: 0,
-    phases: [],
+    activityRuns: [],
     completed: [],
     resume_from: undefined,
     failed_gates: [],
     envelopes: [
-      { phase: 'triage', agent, output_type: 'OperatorPlanOutput', valid, attempt: 1, payload },
+      { activityRun: 'triage', agent, output_type: 'OperatorPlanOutput', valid, attempt: 1, payload },
     ],
   }) as TRunState
 

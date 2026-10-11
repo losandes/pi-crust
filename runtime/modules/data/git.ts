@@ -1,5 +1,5 @@
 /**
- * Low-level git operations for code phases.
+ * Low-level git operations for code activityRuns.
  *
  * Every invocation is an argv list, never a shell string — no quoting bugs, no
  * shell injection.
@@ -24,7 +24,7 @@ const run = (
   }
 }
 
-/** Run git, or throw. Used where a failure means the phase cannot continue. */
+/** Run git, or throw. Used where a failure means the activityRun cannot continue. */
 const git = (...args: readonly string[]): string => {
   const result = run(args)
   if (result.status !== 0) {
@@ -86,13 +86,13 @@ export const repoRoot = (): string => {
 export const commitAll = (message: string): string => {
   if (!isRepo()) {
     throw new Error(
-      'not a git repository — a commit phase needs one. Run `git init` in the ' +
+      'not a git repository — a commit activityRun needs one. Run `git init` in the ' +
         'repo root (and make a first commit) before running a workflow that commits.',
     )
   }
   git('add', '-A')
   if (!git('status', '--porcelain')) {
-    throw new Error('nothing to commit — the preceding phases changed no files')
+    throw new Error('nothing to commit — the preceding activityRuns changed no files')
   }
   git('commit', '-m', message)
   return git('rev-parse', '--short', 'HEAD')

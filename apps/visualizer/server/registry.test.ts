@@ -27,10 +27,10 @@ const tree = (
       " total_tokens INTEGER, total_cost REAL, archived INTEGER DEFAULT 0," +
       " workspace_root TEXT, branch TEXT)",
   );
-  db.run("CREATE TABLE phases (phase_id TEXT PRIMARY KEY, run_id TEXT, seq INTEGER," +
+  db.run("CREATE TABLE activity_runs (activity_run_id TEXT PRIMARY KEY, run_id TEXT, seq INTEGER," +
     " name TEXT, kind TEXT, owner TEXT, description TEXT, status TEXT," +
     " attempt INTEGER, retries INTEGER, error TEXT, started_at TEXT, ended_at TEXT)");
-  db.run("CREATE TABLE events (event_id TEXT PRIMARY KEY, run_id TEXT, phase_id TEXT," +
+  db.run("CREATE TABLE events (event_id TEXT PRIMARY KEY, run_id TEXT, activity_run_id TEXT," +
     " parent_id TEXT, type TEXT, name TEXT, payload_json TEXT, tokens INTEGER," +
     " started_at TEXT, ended_at TEXT)");
   db.run("CREATE TABLE agent_sessions (run_id TEXT, agent TEXT, coding_agent TEXT," +

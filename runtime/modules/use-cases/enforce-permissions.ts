@@ -14,7 +14,7 @@
  * So permission is verified the way every other claim in this system is — after
  * the fact, against the repo itself. `snapshotTree()` fingerprints the working
  * tree's change-set before an agent runs; `enforcePermissions()` compares it
- * afterwards and fails the phase if the agent touched anything outside its
+ * afterwards and fails the activityRun if the agent touched anything outside its
  * allowlist.
  *
  * Comparing change-sets, rather than watching for writes, is what catches the
@@ -24,7 +24,7 @@
  *
  * A breach is NOT a gate violation. Gates are for work an agent can be asked to
  * redo; a breach cannot be corrected by re-prompting, because the write already
- * happened. It aborts the phase and names every offending path.
+ * happened. It aborts the activityRun and names every offending path.
  *
  * Two keys drive it, both in crust.config.yaml:
  *     defaults.protected_files   paths no agent may touch unless it names them
@@ -248,7 +248,7 @@ const scopeOf = (agent: TAgentConfig, cfg: TPiCrustConfig): string => {
  *
  * Detection alone would leave the repo holding the unauthorized change while
  * reporting a failure, so anything the agent introduced outside its allowlist
- * is rolled back before the phase dies. What it cannot undo, it names.
+ * is rolled back before the activityRun dies. What it cannot undo, it names.
  */
 export const enforcePermissions = (
   run: TRun,

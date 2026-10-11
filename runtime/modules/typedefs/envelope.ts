@@ -171,7 +171,7 @@ export type TRisk = Readonly<z.infer<typeof riskSchema>>
 /**
  * The stage's claim that it did its job, and the evidence for it.
  *
- * Not "did the phase run" — the harness knows that. This is the stage ruling
+ * Not "did the activityRun run" — the harness knows that. This is the stage ruling
  * on its own objective, which the next stage's intake is entitled to reject.
  */
 export const objectiveSchema = z.object({
@@ -298,7 +298,7 @@ export const buildOutputSchema = contextEnvelopeSchema.extend({
    * omission read as "I changed nothing", which is a claim nobody made.
    */
   changed_files: z.array(z.string()),
-  /** consumed by the git commit phase */
+  /** consumed by the git commit activityRun */
   commit_message: z.string().default(''),
   /** findings answered with evidence rather than a change; empty on a plain build */
   disputes: z.array(disputeSchema).default([]),

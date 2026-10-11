@@ -8,7 +8,7 @@
  * it because nobody was at the keyboard.
  *
  * The answer comes back out of band — `approve`, `reject`, `answer` — and the
- * run is picked up with `--resume`, which already knows how to skip the phases
+ * run is picked up with `--resume`, which already knows how to skip the activity runs
  * that succeeded. A human's answer enters the next stage's context as a FACT
  * attributed to them, not as an agent's inference.
  *
@@ -276,7 +276,7 @@ export const renderDecisionRequest = (
     'stored with the session — a gate you asked for with `--approve-after` is ' +
     'a property of the invocation, so dropping it means the next gate never ' +
     'fires.\n\n' +
-    'Nothing is running. The run resumes from the first phase that has not ' +
+    'Nothing is running. The run resumes from the first activityRun that has not ' +
     'succeeded, so answering costs only the stages that still have to happen.\n'
   )
 }

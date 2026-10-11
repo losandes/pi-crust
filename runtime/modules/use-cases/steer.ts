@@ -14,7 +14,7 @@
  * when you have not.
  */
 
-import type { TPhaseState } from '../typedefs/run-state'
+import type { TActivityRunState } from '../typedefs/run-state'
 
 /**
  * How a branch inherits the conversations it is branching from.
@@ -56,36 +56,36 @@ export type TSteer = Readonly<{
  * regressed once already, is described by its trace and not by its config.
  */
 export const stepsToReplay = (
-  phases: readonly TPhaseState[],
+  activityRuns: readonly TActivityRunState[],
   step: string,
 ): readonly string[] => {
-  const target = phases.filter((phase) => phase.name === step).at(-1)
+  const target = activityRuns.filter((activityRun) => activityRun.name === step).at(-1)
   if (target === undefined) return []
-  const after = phases.filter((phase) => phase.seq >= target.seq)
-  return [...new Set(after.map((phase) => phase.name))]
+  const after = activityRuns.filter((activityRun) => activityRun.seq >= target.seq)
+  return [...new Set(after.map((activityRun) => activityRun.name))]
 }
 
 /**
- * The phase rows a steer must mark superseded for the replay to happen.
+ * The activityRun rows a steer must mark superseded for the replay to happen.
  *
- * Resume skips a step whose LATEST phase succeeded, so this is precisely the
+ * Resume skips a step whose LATEST activityRun succeeded, so this is precisely the
  * set that would otherwise be skipped. Earlier attempts are left alone: they
  * are history, and the one being replaced is the one that was standing.
  */
-export const phasesToSupersede = (
-  phases: readonly TPhaseState[],
+export const activityRunsToSupersede = (
+  activityRuns: readonly TActivityRunState[],
   step: string,
 ): readonly string[] => {
-  const names = new Set(stepsToReplay(phases, step))
-  return phases
-    .filter((phase) => names.has(phase.name) && phase.status === 'success')
+  const names = new Set(stepsToReplay(activityRuns, step))
+  return activityRuns
+    .filter((activityRun) => names.has(activityRun.name) && activityRun.status === 'success')
     .filter(
-      (phase) =>
-        !phases.some(
-          (other) => other.name === phase.name && other.seq > phase.seq,
+      (activityRun) =>
+        !activityRuns.some(
+          (other) => other.name === activityRun.name && other.seq > activityRun.seq,
         ),
     )
-    .map((phase) => phase.phase_id)
+    .map((activityRun) => activityRun.activity_run_id)
 }
 
 /**

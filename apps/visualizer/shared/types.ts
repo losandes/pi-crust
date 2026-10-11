@@ -2,7 +2,7 @@
  * Types shared by the read-only server and the Vue client.
  *
  * Every interface mirrors a table in crust.db one-for-one (see
- * references/observability.md). Nothing here is derived state: phase durations,
+ * references/observability.md). Nothing here is derived state: activityRun durations,
  * session progress and lane layout are computed in the UI, never stored.
  */
 
@@ -16,8 +16,8 @@
  */
 export type SessionStatus = "running" | "waiting" | "success" | "fail";
 
-/** phases.status — queued only for manifest-declared phases not yet entered. */
-export type PhaseStatus =
+/** activityRuns.status — queued only for manifest-declared activityRuns not yet entered. */
+export type ActivityRunStatus =
   | "queued"
   | "running"
   | "success"
@@ -25,20 +25,20 @@ export type PhaseStatus =
   /** Succeeded once, then replaced by a later run of the same step. */
   | "superseded";
 
-/** phases.kind — decides which lane a block renders in. */
-export type PhaseKind = "engineer" | "code" | "agent";
+/** activityRuns.kind — decides which lane a block renders in. */
+export type ActivityRunKind = "engineer" | "code" | "agent";
 
 /** events.type — the ten types the tracer emits. */
 export type EventType =
-  | "phase_start"
-  | "phase_end"
+  | "activity_run_start"
+  | "activity_run_end"
   | "agent_start"
   | "agent_end"
   | "tool_call"
   /** A passage of an agent's thinking or prose, keyed to the turn that produced it. */
   | "narration"
   | "handoff"
-  /** What a phase was OBSERVED to write, as opposed to what it reported. */
+  /** What a activityRun was OBSERVED to write, as opposed to what it reported. */
   | "artifacts"
   /** A question put to a finished step, and its answer. */
   | "consult"
@@ -80,13 +80,13 @@ export interface Session {
 }
 
 /**
- * A session row with its phases embedded, so the L1 table draws the
+ * A session row with its activityRuns embedded, so the L1 table draws the
  * mini-progress dots without a second request per row.
  */
 export interface SessionSummary extends Session {
-  /** Full phase rows, ordered by seq — one dot each. */
-  phases: Phase[];
-  phase_count: number;
+  /** Full activityRun rows, ordered by seq — one dot each. */
+  activityRuns: ActivityRun[];
+  activity_run_count: number;
   /**
    * The session's agents, same shape and merge rules as SessionDetail.agents —
    * so an L1 card can color its per-agent dots without a request per card.
@@ -94,15 +94,15 @@ export interface SessionSummary extends Session {
   agents: AgentSession[];
 }
 
-export interface Phase {
-  phase_id: string;
+export interface ActivityRun {
+  activity_run_id: string;
   run_id: string;
   seq: number | null;
   name: string | null;
-  kind: PhaseKind | null;
+  kind: ActivityRunKind | null;
   owner: string | null;
   description: string | null;
-  status: PhaseStatus | null;
+  status: ActivityRunStatus | null;
   attempt: number | null;
   retries: number | null;
   error: string | null;
@@ -115,8 +115,8 @@ export interface Event {
   rowid: number;
   event_id: string;
   run_id: string;
-  phase_id: string | null;
-  /** Span nesting: an agent phase expands into its tool-call children. */
+  activity_run_id: string | null;
+  /** Span nesting: an agent activityRun expands into its tool-call children. */
   parent_id: string | null;
   type: EventType | null;
   name: string | null;
@@ -130,7 +130,7 @@ export interface Event {
 export interface Envelope {
   envelope_id: string;
   run_id: string;
-  phase_id: string | null;
+  activity_run_id: string | null;
   agent: string | null;
   /** Name of the data_types model the response was parsed against. */
   output_type: string | null;
@@ -144,7 +144,7 @@ export interface Envelope {
 export interface GateResult {
   id: number;
   run_id: string;
-  phase_id: string | null;
+  activity_run_id: string | null;
   attempt: number | null;
   gate: string | null;
   /** SQLite integer boolean. */
@@ -211,8 +211,8 @@ export interface AgentStartPayload {
 }
 
 /**
- * Tokens and dollars per component for one agent phase, summed across every
- * send it made (a retried phase paid more than once). Mirrors pi's `usage`:
+ * Tokens and dollars per component for one agent activityRun, summed across every
+ * send it made (a retried activityRun paid more than once). Mirrors pi's `usage`:
  * `input_tokens` EXCLUDES cache reads, which bill at their own rate.
  */
 export interface UsageBreakdown {
@@ -283,7 +283,7 @@ export interface SessionDetail {
   /** Derived from agent_end payloads, so historical runs have it too. */
   usage: SessionUsage;
   /** Ordered by seq. */
-  phases: Phase[];
+  activityRuns: ActivityRun[];
   /**
    * One entry per agent that has run OR is running under this run_id — lane
    * labels come from here. Finished agents come from the agent_sessions table;

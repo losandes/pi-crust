@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import {
   artifactViolations,
-  phaseArtifacts,
+  activityRunArtifacts,
   relativeToSession,
   runArtifacts,
 } from './artifacts'
@@ -12,14 +12,14 @@ const DIR = `/repo/.pi-crust/data/sessions/${RUN}/context_handoff`
 
 const envelope = (
   agent: string,
-  phaseId: string,
+  activityRunId: string,
   payload: Readonly<Record<string, unknown>>,
   valid = 1,
 ): Envelope =>
   ({
-    envelope_id: `${phaseId}_${agent}`,
+    envelope_id: `${activityRunId}_${agent}`,
     run_id: RUN,
-    phase_id: phaseId,
+    activity_run_id: activityRunId,
     agent,
     output_type: 'Output',
     payload_json: JSON.stringify(payload),
@@ -36,14 +36,14 @@ const file = (path: string, title = ''): HandoffFile => ({
 })
 
 const artifactEvent = (
-  phaseId: string,
+  activityRunId: string,
   payload: Readonly<Record<string, unknown>>,
 ): EventRow =>
   ({
     rowid: 1,
-    event_id: `evt_${phaseId}`,
+    event_id: `evt_${activityRunId}`,
     run_id: RUN,
-    phase_id: phaseId,
+    activity_run_id: activityRunId,
     parent_id: null,
     type: 'artifacts',
     name: 'design',
@@ -75,7 +75,7 @@ test(
       runId: RUN,
       envelopes,
       events: [],
-      present: [file('context_handoff/design.md', 'Design — Phase 1')],
+      present: [file('context_handoff/design.md', 'Design — ActivityRun 1')],
     })
 
     // then
@@ -83,9 +83,9 @@ test(
       {
         path: 'context_handoff/design.md',
         name: 'design.md',
-        title: 'Design — Phase 1',
+        title: 'Design — ActivityRun 1',
         source: 'reported',
-        phaseId: `${RUN}_05_design`,
+        activityRunId: `${RUN}_05_design`,
         agent: 'technical-architect',
         summary: 'Physical shape for the accepted architecture.',
         notes: 'The builder must not invent the table names.',
@@ -179,10 +179,10 @@ test(
       ],
     })
 
-    // then — and the unreported document is still attributed to the phase
+    // then — and the unreported document is still attributed to the activityRun
     // that was OBSERVED to create it
     expect(
-      actual.map((entry) => [entry.name, entry.source, entry.phaseId]),
+      actual.map((entry) => [entry.name, entry.source, entry.activityRunId]),
     ).toEqual([
       ['diagnosis.md', 'observed', `${RUN}_07_diagnose`],
       ['decision-request.md', 'system', undefined],
@@ -250,8 +250,8 @@ test(
 test(
   [
     'given lib/artifacts::artifactViolations',
-    'when a phase changed or removed another phase\u2019s document',
-    'it should report it, and say nothing about a phase that only created',
+    'when a activityRun changed or removed another activityRun\u2019s document',
+    'it should report it, and say nothing about a activityRun that only created',
   ].join(', '),
   () => {
     // given — nothing forbids this today: the handoff directory is granted to
@@ -272,7 +272,7 @@ test(
     // then
     expect(actual).toEqual([
       {
-        phaseId: `${RUN}_06_build`,
+        activityRunId: `${RUN}_06_build`,
         modified: ['design.md'],
         deleted: ['plan.md'],
       },
@@ -282,8 +282,8 @@ test(
 
 test(
   [
-    'given lib/artifacts::relativeToSession and phaseArtifacts',
-    'when a path is absolute and a list spans several phases',
+    'given lib/artifacts::relativeToSession and activityRunArtifacts',
+    'when a path is absolute and a list spans several activity-run',
     'it should shorten the path and narrow the list to one step',
   ].join(', '),
   () => {
@@ -302,7 +302,7 @@ test(
     // when
     const actual = [
       relativeToSession(absolute, RUN),
-      ...phaseArtifacts(all, `${RUN}_02_two`).map((entry) => entry.name),
+      ...activityRunArtifacts(all, `${RUN}_02_two`).map((entry) => entry.name),
     ]
 
     // then

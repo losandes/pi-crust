@@ -1,8 +1,8 @@
 /**
  * Hash routing, small enough to own.
  *
- * `#/` is the session list, `#/<run_id>` a waterfall, `#/<run_id>/<phase_id>`
- * a phase panel. A router library would be more code than this and would make
+ * `#/` is the session list, `#/<run_id>` a waterfall, `#/<run_id>/<activity_run_id>`
+ * a activityRun panel. A router library would be more code than this and would make
  * the skill less portable, which is the only axis this app competes on.
  *
  * The store is framework-free and React subscribes via `useSyncExternalStore`,
@@ -11,7 +11,7 @@
 
 export type TRoute = Readonly<{
   runId: string | undefined
-  phaseId: string | undefined
+  activityRunId: string | undefined
   /**
    * Which working tree the run is in, when the link says.
    *
@@ -27,7 +27,7 @@ export type TRoute = Readonly<{
  * `#/<run>`, or `#/<workspace>:<run>` — one segment either way.
  *
  * A colon rather than another slash, so a link written before workspaces
- * existed still parses as the run it always meant, and so a phase id stays
+ * existed still parses as the run it always meant, and so a activityRun id stays
  * the second segment rather than sliding depending on what precedes it.
  */
 const splitRun = (
@@ -50,12 +50,12 @@ export const parseHash = (hash: string): TRoute => {
     .filter(Boolean)
     .map(decodeURIComponent)
   const { runId, workspace } = splitRun(parts[0])
-  return { runId, phaseId: parts[1], workspace }
+  return { runId, activityRunId: parts[1], workspace }
 }
 
 export const hrefFor = (
   runId?: string,
-  phaseId?: string,
+  activityRunId?: string,
   workspace?: string,
 ): string => {
   if (runId === undefined) return '#/'
@@ -63,17 +63,17 @@ export const hrefFor = (
     workspace === undefined || workspace === ''
       ? encodeURIComponent(runId)
       : `${encodeURIComponent(workspace)}:${encodeURIComponent(runId)}`
-  return phaseId === undefined
+  return activityRunId === undefined
     ? `#/${run}`
-    : `#/${run}/${encodeURIComponent(phaseId)}`
+    : `#/${run}/${encodeURIComponent(activityRunId)}`
 }
 
 export const navigate = (
   runId?: string,
-  phaseId?: string,
+  activityRunId?: string,
   workspace?: string,
 ): void => {
-  window.location.hash = hrefFor(runId, phaseId, workspace)
+  window.location.hash = hrefFor(runId, activityRunId, workspace)
 }
 
 /**
@@ -85,7 +85,7 @@ export const navigate = (
  */
 let snapshot: TRoute = {
   runId: undefined,
-  phaseId: undefined,
+  activityRunId: undefined,
   workspace: undefined,
 }
 let snapshotFor = '\u0000'

@@ -11,7 +11,7 @@ import type { TEventPayload } from './trace'
 
 export type TGateOutcome = Readonly<{
   gate: string
-  phase: string
+  activityRun: string
   attempt: number
   passed: boolean
   violations: readonly string[]
@@ -19,7 +19,7 @@ export type TGateOutcome = Readonly<{
 }>
 
 export type TEnvelopeRecord = Readonly<{
-  phase: string
+  activityRun: string
   agent: string
   output_type: string
   valid: boolean
@@ -30,19 +30,19 @@ export type TEnvelopeRecord = Readonly<{
 /**
  * One `log` event, with the name it was filed under.
  *
- * The name matters on replay: the console echoes every phase line as a `log`
+ * The name matters on replay: the console echoes every activity run line as a `log`
  * too, so "the last log" is usually a human sentence rather than the verdict a
  * code step recorded. A step files its own result under `step_result` and asks
  * for it back by that name.
  */
-export type TPhaseLog = Readonly<{
+export type TActivityRunLog = Readonly<{
   name: string
   payload: TEventPayload
 }>
 
-export type TPhaseState = Readonly<{
+export type TActivityRunState = Readonly<{
   seq: number
-  phase_id: string
+  activity_run_id: string
   name: string
   kind: string
   owner: string
@@ -53,7 +53,7 @@ export type TPhaseState = Readonly<{
   started_at: string | undefined
   ended_at: string | undefined
   gates: readonly TGateOutcome[]
-  logs: readonly TPhaseLog[]
+  logs: readonly TActivityRunLog[]
 }>
 
 export type TRunState = Readonly<{
@@ -66,12 +66,12 @@ export type TRunState = Readonly<{
   ended_at: string | undefined
   tokens: number
   cost: number
-  phases: readonly TPhaseState[]
-  /** phase NAMES whose LATEST record is success */
+  activityRuns: readonly TActivityRunState[]
+  /** activityRun NAMES whose LATEST record is success */
   completed: readonly string[]
-  /** first phase, in seq order, whose latest record is not success */
+  /** first activityRun, in seq order, whose latest record is not success */
   resume_from: string | undefined
-  /** failed gates, newest attempt per gate, newest phase first */
+  /** failed gates, newest attempt per gate, newest activityRun first */
   failed_gates: readonly TGateOutcome[]
   envelopes: readonly TEnvelopeRecord[]
 }>

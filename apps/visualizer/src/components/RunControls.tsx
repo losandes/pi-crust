@@ -53,7 +53,7 @@ export const RunControls = ({
    * The steps a steer from here would replay, in the order the run took.
    *
    * Passed in rather than derived here, because only the caller has the
-   * phases — and the dialog names them, since "steer from here" otherwise
+   * activityRuns — and the dialog names them, since "steer from here" otherwise
    * hides the cost that all of them run again.
    */
   replaying?: readonly string[]

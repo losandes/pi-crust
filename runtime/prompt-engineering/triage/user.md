@@ -30,7 +30,7 @@ Read `previous_envelope` if there is one. When a stage already established facts
 
 Choose the smallest chain of steps that can reasonably produce the outcome, and write your reasoning to `{{output_document}}`. Then emit your `Report` JSON.
 
-Your `facts` are facts about the SHAPE of the work — that an app exists, that a spec names four phases, that a step's output is what another needs. They are not findings about the problem; establishing those is what the steps you choose are for, and a fact you could not establish with read, grep, find and ls is a fact you should not be reporting.
+Your `facts` are facts about the SHAPE of the work — that an app exists, that a spec names four activity runs, that a step's output is what another needs. They are not findings about the problem; establishing those is what the steps you choose are for, and a fact you could not establish with read, grep, find and ls is a fact you should not be reporting.
 
 **Your chain will NOT be executed.** It is printed as a command for a developer to read, weigh and run themselves — so the `steps` array is a recommendation, and the reasoning in `plan.md` is the part they will actually judge it by. Every name must still be one of the steps above, spelled exactly: a name that is not a step fails the `steps_valid` gate and comes straight back to you, and a recommendation nobody can run is worse than none.
 

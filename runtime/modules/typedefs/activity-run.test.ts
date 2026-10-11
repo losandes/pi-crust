@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
-import { phaseParams } from './phase'
+import { activityRunParams } from './activity-run'
 
 test(
   [
-    'given typedefs/phase::phaseParams',
-    'when the description explains the phase',
+    'given typedefs/activityRun::activityRunParams',
+    'when the description explains the activity-run',
     'it should normalise the whitespace and keep every field',
   ].join(', '),
   () => {
@@ -17,7 +17,7 @@ test(
     } as const
 
     // when
-    const actual = phaseParams(input)
+    const actual = activityRunParams(input)
 
     // then
     expect(actual).toEqual({
@@ -32,9 +32,9 @@ test(
 
 test(
   [
-    'given typedefs/phase::phaseParams',
+    'given typedefs/activityRun::activityRunParams',
     'when the description is blank',
-    'it should throw at construction rather than open the phase',
+    'it should throw at construction rather than open the activity-run',
   ].join(', '),
   () => {
     // given
@@ -46,14 +46,14 @@ test(
     } as const
 
     // when, then
-    expect(() => phaseParams(input)).toThrow(/description is required/)
+    expect(() => activityRunParams(input)).toThrow(/description is required/)
   },
 )
 
 test(
   [
-    'given typedefs/phase::phaseParams',
-    'when the description only restates the phase name',
+    'given typedefs/activityRun::activityRunParams',
+    'when the description only restates the activityRun name',
     'it should throw naming the echo',
   ].join(', '),
   () => {
@@ -66,13 +66,13 @@ test(
     } as const
 
     // when, then
-    expect(() => phaseParams(input)).toThrow(/only restates the phase name/)
+    expect(() => activityRunParams(input)).toThrow(/only restates the activityRun name/)
   },
 )
 
 test(
   [
-    'given typedefs/phase::phaseParams',
+    'given typedefs/activityRun::activityRunParams',
     'when retries are given',
     'it should carry them through',
   ].join(', '),
@@ -87,7 +87,7 @@ test(
     } as const
 
     // when
-    const actual = phaseParams(input)
+    const actual = activityRunParams(input)
 
     // then
     expect(actual.retries).toEqual(2)

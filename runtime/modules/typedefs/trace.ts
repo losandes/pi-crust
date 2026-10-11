@@ -4,17 +4,17 @@
 
 import type { TAgentConfig } from './config'
 import type { TGateReport } from './gate'
-import type { TPhase } from './phase'
+import type { TActivityRun } from './activity-run'
 
 export type TEventPayload = Readonly<Record<string, unknown>>
 
-/** One traced event, always logged against run_id + phase. */
+/** One traced event, always logged against run_id + activityRun. */
 export type TEventRecord = Readonly<{
   run_id: string
-  phase_id: string
+  activity_run_id: string
   /**
-   * phase_start | agent_start | tool_call | handoff | gate_pass | gate_fail |
-   * log | agent_end | phase_end | error
+   * activity_run_start | agent_start | tool_call | handoff | gate_pass | gate_fail |
+   * log | agent_end | activity_run_end | error
    */
   type: string
   name: string
@@ -31,7 +31,7 @@ export type TEventRecord = Readonly<{
 /** Everything optional on an event, so a caller writes only what it knows. */
 export type TEventInput = Readonly<{
   run_id: string
-  phase_id?: string
+  activity_run_id?: string
   type: string
   name?: string
   payload?: TEventPayload
@@ -68,7 +68,7 @@ export type TTracer = Readonly<{
   ) => void
   processEnd: (runId: string, pid: number) => void
   processesEndAll: (runId: string) => void
-  maxPhaseSeq: (runId: string) => number
+  maxActivityRunSeq: (runId: string) => number
   /**
    * The payloads of every event of one name, in order.
    *
@@ -80,9 +80,9 @@ export type TTracer = Readonly<{
     runId: string,
     name: string,
   ) => readonly Readonly<Record<string, unknown>>[]
-  phaseUpsert: (phase: TPhase) => void
+  activityRunUpsert: (activityRun: TActivityRun) => void
   envelopeRow: (
-    phase: TPhase,
+    activityRun: TActivityRun,
     agent: string,
     outputType: string,
     payloadJson: string,
@@ -90,7 +90,7 @@ export type TTracer = Readonly<{
     attempt: number,
   ) => void
   gateRow: (
-    phase: TPhase,
+    activityRun: TActivityRun,
     gate: string,
     report: TGateReport,
     attempt: number,

@@ -135,7 +135,7 @@ A breach is not a gate violation. Gates are for work an agent can be asked to re
 
 1. every unauthorized change the agent **introduced** is rolled back — tracked files with `git checkout --`, untracked files by deletion;
 2. a path that was **already dirty** before the agent ran is left untouched. The operator had uncommitted work there, and discarding it to tidy up would be the same harm this module exists to prevent;
-3. the phase fails and names every path with what happened to it.
+3. the activity run fails and names every path with what happened to it.
 
 ```yaml
 defaults:
@@ -234,12 +234,12 @@ routing:
       path: .claude/skills/code-review   # passed to the coding agent as --skill
       agents: [code-reviewer]            # omit to give it to every agent
       when: ["**/*.ts", "**/*.tsx"]
-      phases: []                         # omit to give it to every phase
+      activity runs: []                         # omit to give it to every activity run
 
     - name: respond-to-pr-comments       # how to ANSWER a review, so no `when:`
       path: .claude/skills/respond-to-pr-comments
       agents: [builder]
-      phases: [revise]                   # `revise_2` matches this too
+      activity runs: [revise]                   # `revise_2` matches this too
 
   checks:
     - name: test
@@ -252,16 +252,16 @@ routing:
       timeout_seconds: 600
 ```
 
-| Key                           | Default | Meaning                                                                                                           |
-| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                   |
-| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                  |
-| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                  |
-| `skills[].phases`             | `[]`    | phase names that receive it; empty is every phase. An instance suffix is stripped, so `revise` matches `revise_2` |
-| `checks[].argv`               | —       | at least one token; never a shell string                                                                          |
-| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                         |
-| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                           |
-| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                              |
+| Key                           | Default | Meaning                                                                                                                         |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                                 |
+| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                                |
+| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                                |
+| `skills[].activity runs`      | `[]`    | activity run names that receive it; empty is every activity run. An instance suffix is stripped, so `revise` matches `revise_2` |
+| `checks[].argv`               | —       | at least one token; never a shell string                                                                                        |
+| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                                       |
+| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                                         |
+| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                                            |
 
 ### `cwd`, and why changed paths are rebased onto it
 
@@ -275,7 +275,7 @@ Without the rebase, a root-relative path handed to a command running in a subdir
 
 ### Declaring nothing is not the same as passing
 
-A `verify` phase where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
+A `verify` activity run where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
 
 | Changed paths | Matched checks | Verdict                                                |
 | ------------- | -------------- | ------------------------------------------------------ |
@@ -285,9 +285,9 @@ A `verify` phase where paths changed and **no check matched them** FAILS, and sa
 
 ### How a skill reaches the agent
 
-`executeAgent` resolves the list for the agent it is about to call — by agent name, by changed path, and by the phase it is running — and passes each entry as `--skill <path>`. Two render variables carry the same information into the prompt, so an agent can be told to follow them without any prompt naming a path: `{{skills}}` (newline-separated, or `(none)`) and `{{changed_files}}`.
+`executeAgent` resolves the list for the agent it is about to call — by agent name, by changed path, and by the activity run it is running — and passes each entry as `--skill <path>`. Two render variables carry the same information into the prompt, so an agent can be told to follow them without any prompt naming a path: `{{skills}}` (newline-separated, or `(none)`) and `{{changed_files}}`.
 
-`phases:` is what makes "this skill is about how to answer a review" expressible: a skill routed to the builder's `revise` phase reaches it and nothing else, where a `when:` glob would have given it to every build that touched the same files.
+`activity runs:` is what makes "this skill is about how to answer a review" expressible: a skill routed to the builder's `revise` activity run reaches it and nothing else, where a `when:` glob would have given it to every build that touched the same files.
 
 A code-review agent handed `(none)` must say so and withhold approval. A review with no conventions loaded is not a review, and inventing them is worse than declining.
 
@@ -334,7 +334,7 @@ blue  amber  green  purple  cyan  pink  violet  orange  teal  indigo  rose  lime
 
 Each theme decides what a role looks like — `amber` is `232 182 74` on dark and `150 100 10` on light, because the second has to be legible on white. The visualizer resolves a role to `rgb(var(--amber-rgb))` at render, so switching theme re-colours every lane, including lanes in runs recorded months earlier. That works because the trace stores the role it was given rather than a finished colour.
 
-`red` is deliberately not offered. It means a failed phase everywhere else in the interface, and an agent permanently wearing the failure colour reads as broken at a glance.
+`red` is deliberately not offered. It means a failed activity run everywhere else in the interface, and an agent permanently wearing the failure colour reads as broken at a glance.
 
 A hex still works and is honoured verbatim. It is the escape hatch for a colour the palette does not have, and it is theme-unaware by definition: it will be whatever you wrote on every theme, and its contrast is yours to own rather than the theme's.
 

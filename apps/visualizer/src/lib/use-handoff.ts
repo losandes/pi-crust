@@ -3,7 +3,7 @@
  *
  * Not polled on a timer. The listing stats a directory and reads the first
  * kilobyte of each file, and nothing in it changes between the moments a
- * phase ends — so it is fetched on the signal that something may have been
+ * activityRun ends — so it is fetched on the signal that something may have been
  * written, which is an `artifacts` event arriving, rather than twice a second
  * forever.
  */

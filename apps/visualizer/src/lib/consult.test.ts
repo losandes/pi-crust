@@ -5,19 +5,19 @@ import {
   staleAfterAmend,
   type TConsult,
 } from './consult'
-import type { EventRow, Phase } from './types'
+import type { EventRow, ActivityRun } from './types'
 
 const RUN = 'c35f2c7d'
 
 const consultEvent = (
-  phaseId: string,
+  activityRunId: string,
   payload: Readonly<Record<string, unknown>>,
 ): EventRow =>
   ({
     rowid: 1,
-    event_id: `evt_${phaseId}`,
+    event_id: `evt_${activityRunId}`,
     run_id: RUN,
-    phase_id: phaseId,
+    activity_run_id: activityRunId,
     parent_id: null,
     type: 'consult',
     name: 'agent ask',
@@ -27,9 +27,9 @@ const consultEvent = (
     ended_at: null,
   }) as EventRow
 
-const phase = (seq: number, name: string, endedAt: string): Phase =>
+const activityRun = (seq: number, name: string, endedAt: string): ActivityRun =>
   ({
-    phase_id: `${RUN}_0${seq}_${name}`,
+    activity_run_id: `${RUN}_0${seq}_${name}`,
     run_id: RUN,
     seq,
     name,
@@ -42,7 +42,7 @@ const phase = (seq: number, name: string, endedAt: string): Phase =>
     error: null,
     started_at: endedAt,
     ended_at: endedAt,
-  }) as Phase
+  }) as ActivityRun
 
 test(
   [
@@ -91,14 +91,14 @@ test(
   () => {
     // given — the honest cost of amending: the plan was derived from the
     // design as it read BEFORE the change, and nothing else records that
-    const phases = [
-      phase(4, 'conceptualize', '2026-10-06T10:00:00Z'),
-      phase(5, 'design', '2026-10-06T11:00:00Z'),
-      phase(6, 'plan', '2026-10-06T12:00:00Z'),
+    const activityRuns = [
+      activityRun(4, 'conceptualize', '2026-10-06T10:00:00Z'),
+      activityRun(5, 'design', '2026-10-06T11:00:00Z'),
+      activityRun(6, 'plan', '2026-10-06T12:00:00Z'),
     ]
     const consults: readonly TConsult[] = [
       {
-        phaseId: `${RUN}_05_design`,
+        activityRunId: `${RUN}_05_design`,
         mode: 'amend',
         agent: 'technical-architect',
         question: 'shorten the migration section',
@@ -111,7 +111,7 @@ test(
     ]
 
     // when
-    const actual = staleAfterAmend(consults, phases)
+    const actual = staleAfterAmend(consults, activityRuns)
 
     // then — the plan ran before the amendment and is stale; conceptualize
     // came first and cannot have depended on it
@@ -128,10 +128,10 @@ test(
   () => {
     // given — a replay following an amend is the ordinary way to resolve
     // staleness, and marking it afterwards would make the flag permanent
-    const phases = [phase(5, 'design', '2026-10-06T11:00:00Z'), phase(6, 'plan', '2026-10-06T14:00:00Z')]
+    const activityRuns = [activityRun(5, 'design', '2026-10-06T11:00:00Z'), activityRun(6, 'plan', '2026-10-06T14:00:00Z')]
     const consults: readonly TConsult[] = [
       {
-        phaseId: `${RUN}_05_design`,
+        activityRunId: `${RUN}_05_design`,
         mode: 'amend',
         agent: 'technical-architect',
         question: 'shorten it',
@@ -144,7 +144,7 @@ test(
     ]
 
     // when
-    const actual = staleAfterAmend(consults, phases)
+    const actual = staleAfterAmend(consults, activityRuns)
 
     // then
     expect([...actual]).toEqual([])
@@ -160,7 +160,7 @@ test(
   () => {
     // given — an ask changes no document, so nothing downstream can be
     // derived from something that moved
-    const phases = [phase(5, 'design', '2026-10-06T11:00:00Z'), phase(6, 'plan', '2026-10-06T12:00:00Z')]
+    const activityRuns = [activityRun(5, 'design', '2026-10-06T11:00:00Z'), activityRun(6, 'plan', '2026-10-06T12:00:00Z')]
     const consults = consultsOf([
       consultEvent(`${RUN}_05_design`, {
         mode: 'ask',
@@ -174,7 +174,7 @@ test(
 
     // when
     const actual = [
-      [...staleAfterAmend(consults, phases)].length,
+      [...staleAfterAmend(consults, activityRuns)].length,
       consultsFor(consults, `${RUN}_05_design`).length,
       consultsFor(consults, `${RUN}_06_plan`).length,
     ]

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { crustConfigSchema } from '../typedefs/config'
 import {
-  basePhaseName,
+  baseActivityRunName,
   matchingChecks,
   matchingPaths,
   matchingSkills,
@@ -188,8 +188,8 @@ test(
 test(
   [
     'given use-cases/route-by-path::matchingSkills',
-    'when a skill names the phases that receive it',
-    'it should reach those phases and their numbered repeats, and no other',
+    'when a skill names the activities that receive it',
+    'it should reach those activities and their numbered repeats, and no other',
   ].join(', '),
   () => {
     // given
@@ -199,7 +199,7 @@ test(
           name: 'answer-a-review',
           path: 'skills/answer-a-review',
           agents: ['builder'],
-          phases: ['revise'],
+          activity_runs: ['revise'],
         },
       ],
     })
@@ -219,8 +219,8 @@ test(
 test(
   [
     'given use-cases/route-by-path::matchingSkills',
-    'when a skill declares no phases',
-    'it should reach every phase, including a call that names none',
+    'when a skill declares no activity-run',
+    'it should reach every activity run, including a call that names none',
   ].join(', '),
   () => {
     // given
@@ -241,16 +241,16 @@ test(
 
 test(
   [
-    'given use-cases/route-by-path::basePhaseName',
-    'when a phase carries an instance suffix',
-    'it should strip the numbering, because a repeat is not a different phase',
+    'given use-cases/route-by-path::baseActivityRunName',
+    'when an activity run carries an instance suffix',
+    'it should strip the numbering, because a repeat is not a different activity-run',
   ].join(', '),
   () => {
     // given
     const names = ['revise', 'revise_2', 'code-review_3', 'build']
 
     // when
-    const actual = names.map(basePhaseName)
+    const actual = names.map(baseActivityRunName)
 
     // then
     expect(actual).toEqual(['revise', 'revise', 'code-review', 'build'])

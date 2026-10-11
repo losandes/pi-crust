@@ -2,7 +2,7 @@
  * Read an agent's last envelope back off disk — the replay path for resume.
  *
  * `executeAgent` writes `{sessionDir}/{agent}/envelope.json` the moment a
- * response parses, so a phase that already succeeded in this session can be
+ * response parses, so an activity run that already succeeded in this session can be
  * replayed without re-spawning the agent. Four metadata keys are added by the
  * writer and are not part of the contract, so they come off before the schema
  * sees the object.

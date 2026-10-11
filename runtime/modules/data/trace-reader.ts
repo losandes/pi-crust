@@ -23,8 +23,8 @@ export type TTraceSessionRow = Readonly<{
   total_cost: number | null
 }>
 
-export type TTracePhaseRow = Readonly<{
-  phase_id: string
+export type TTraceActivityRunRow = Readonly<{
+  activity_run_id: string
   seq: number
   name: string
   kind: string
@@ -38,7 +38,7 @@ export type TTracePhaseRow = Readonly<{
 }>
 
 export type TTraceEventRow = Readonly<{
-  phase_id: string | null
+  activity_run_id: string | null
   type: string
   name: string
   payload_json: string | null
@@ -46,7 +46,7 @@ export type TTraceEventRow = Readonly<{
 }>
 
 export type TTraceEnvelopeRow = Readonly<{
-  phase_id: string | null
+  activity_run_id: string | null
   agent: string
   output_type: string
   payload_json: string | null
@@ -56,7 +56,7 @@ export type TTraceEnvelopeRow = Readonly<{
 }>
 
 export type TTraceGateRow = Readonly<{
-  phase_id: string | null
+  activity_run_id: string | null
   gate: string
   passed: number
   attempt: number
@@ -67,7 +67,7 @@ export type TTraceGateRow = Readonly<{
 /** Everything one session wrote, as rows. Shaping is the use-case's job. */
 export type TTraceRows = Readonly<{
   session: TTraceSessionRow
-  phases: readonly TTracePhaseRow[]
+  activityRuns: readonly TTraceActivityRunRow[]
   events: readonly TTraceEventRow[]
   envelopes: readonly TTraceEnvelopeRow[]
   gates: readonly TTraceGateRow[]
@@ -116,27 +116,27 @@ export const readTrace = (
   const id = session.run_id
   const rows: TTraceRows = {
     session,
-    phases: db
-      .query<TTracePhaseRow, [string]>(
-        'SELECT phase_id, seq, name, kind, owner, description, status, attempt,' +
-          ' error, started_at, ended_at FROM phases WHERE run_id=? ORDER BY seq',
+    activityRuns: db
+      .query<TTraceActivityRunRow, [string]>(
+        'SELECT activity_run_id, seq, name, kind, owner, description, status, attempt,' +
+          ' error, started_at, ended_at FROM activity_runs WHERE run_id=? ORDER BY seq',
       )
       .all(id),
     events: db
       .query<TTraceEventRow, [string]>(
-        'SELECT phase_id, type, name, payload_json, started_at FROM events' +
+        'SELECT activity_run_id, type, name, payload_json, started_at FROM events' +
           ' WHERE run_id=? ORDER BY rowid',
       )
       .all(id),
     envelopes: db
       .query<TTraceEnvelopeRow, [string]>(
-        'SELECT phase_id, agent, output_type, payload_json, valid, attempt,' +
+        'SELECT activity_run_id, agent, output_type, payload_json, valid, attempt,' +
           ' created_at FROM envelopes WHERE run_id=? ORDER BY rowid',
       )
       .all(id),
     gates: db
       .query<TTraceGateRow, [string]>(
-        'SELECT phase_id, gate, passed, attempt, violations_json, checks_json' +
+        'SELECT activity_run_id, gate, passed, attempt, violations_json, checks_json' +
           ' FROM gate_results WHERE run_id=? ORDER BY id',
       )
       .all(id),

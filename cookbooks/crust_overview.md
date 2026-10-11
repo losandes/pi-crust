@@ -32,7 +32,7 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 │   └── compose.ts               any ordered subset, named with --steps
 ├── modules/                     ALL low-level logic — workflow scripts stay thin
 │   ├── typedefs/                types and zod schemas only
-│   │   ├── phase.ts             TPhaseParams, TPhase
+│   │   ├── activity run.ts             TActivityRunParams, TActivityRun
 │   │   ├── envelope.ts          one output type per agent call, plus TEnvelopeSpec
 │   │   ├── config.ts            TAgentConfig, TPiCrustConfig
 │   │   └── gate.ts · pi.ts · quality.ts · changes.ts · trace.ts · run.ts
@@ -42,7 +42,7 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 │   │   ├── trace-db.ts          JSONL + SQLite, written as it happens
 │   │   └── git.ts · files.ts · clock.ts · ids.ts · terminal.ts · prompt-files.ts
 │   └── use-cases/               orchestration and policy
-│       ├── run-phase.ts         runPhase(run)(params, body) and finish(run)
+│       ├── run-activity-run.ts         runActivityRun(run)(params, body) and finish(run)
 │       ├── execute-agent.ts     prompt → pi → typed parse → gates → envelope
 │       ├── steps/               one file per step kind, plus the registry
 │       ├── run-steps.ts         fold a context through an ordered step list
@@ -50,8 +50,8 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 │       ├── dispute-ledger.ts    counts repeated findings, so neither agent does
 │       ├── select-range.ts      --base: which change verify and the reviews judge
 │       ├── run-workflow.ts      the body every step-based workflow shares
-│       ├── resume.ts            skipIfDone: run the phase, or replay it
-│       ├── replay.ts            how a hand-written workflow's phases replay
+│       ├── resume.ts            skipIfDone: run the activity run, or replay it
+│       ├── replay.ts            how a hand-written workflow's activity runs replay
 │       ├── read-run-state.ts    the ONE answer to "what is already done"
 │       ├── route-by-path.ts     which skills load, which checks run, by changed path
 │       ├── gates/               gate.check(envelope, run) -> TGateReport
@@ -72,19 +72,19 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 
 **v1 runs Pi only.** `coding_agent: pi`, default model `gemini-3.6-flash`, thinking `medium`. `claude_code` is specced in the config and stubbed in the interface — it lands in v2.
 
-## The phase model
+## The activity run model
 
-Every run is a sequence of **phases**, each one `await phase(phaseParams({...}), body)`. Three kinds, three swim lanes:
+Every run is a sequence of **activity runs**, each one `await activity run(activityRunParams({...}), body)`. Three kinds, three swim lanes:
 
-- **engineer** — the human lane; today the system-input phase (who asked, and for what).
+- **engineer** — the human lane; today the system-input activity run (who asked, and for what).
 - **agent** — `callAgent(run, ph, {...})`: prompt in → typed envelope out → gates verified.
-- **code** — deterministic steps that stand alone (git commit, quality blocks, change capture). Never buried inside an agent phase.
+- **code** — deterministic steps that stand alone (git commit, quality blocks, change capture). Never buried inside an agent activity run.
 
-**Success must be earned — every phase defaults to `fail`.** A clean exit flips it to success; agent phases additionally require the envelope to parse and all gates to come back green. A throw keeps it failed, records an error event, and aborts the run. `retries: N` on an agent phase buys extra gate-correction rounds through the same session before that throw happens.
+**Success must be earned — every activity run defaults to `fail`.** A clean exit flips it to success; agent activity runs additionally require the envelope to parse and all gates to come back green. A throw keeps it failed, records an error event, and aborts the run. `retries: N` on an agent activity run buys extra gate-correction rounds through the same session before that throw happens.
 
 ## The step model
 
-A **step** is a phase plus the two things composition needs: the agents it requires, and how it is REPLAYED. Eleven of them, each runnable on its own:
+A **step** is a activity run plus the two things composition needs: the agents it requires, and how it is REPLAYED. Eleven of them, each runnable on its own:
 
 | Step          | Kind  | Owner         | Asks                                                   |
 | ------------- | ----- | ------------- | ------------------------------------------------------ |
@@ -129,11 +129,11 @@ bun .pi-crust/report.ts                      # where did the last run stop?
 bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
 ```
 
-`--resume` skips every phase already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
+`--resume` skips every activity run already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
 
 ## When you have finished reading this
 
-You are done with startup. List the workflows (`ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts`, plus each `Phases:` docstring line) as a table, and **wait for the engineer's request.**
+You are done with startup. List the workflows (`ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts`, plus each `Activity Runs:` docstring line) as a table, and **wait for the engineer's request.**
 
 Do not survey anything else — not the trace db, not the config, not past runs, not the repo tree. You do not yet know what the request is, so anything you gather now is a guess about what will matter, spent from the context the real work needs. Every cookbook and reference below is lazy-loaded, one per request, and that is the whole design.
 

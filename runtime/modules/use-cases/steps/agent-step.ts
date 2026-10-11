@@ -10,9 +10,9 @@
 
 import type { TEnvelopeBase, TEnvelopeSpec } from '../../typedefs/envelope'
 import type { TGate } from '../../typedefs/gate'
-import { phaseParams } from '../../typedefs/phase'
+import { activityRunParams } from '../../typedefs/activity-run'
 import type { TStep, TStepContext, TStepName } from '../../typedefs/step'
-import { stepPhaseName } from '../../typedefs/step'
+import { stepActivityRunName } from '../../typedefs/step'
 import { callAgent } from '../execute-agent'
 import { intakeRejection, intakeViolations } from '../intake'
 import { readEnvelope } from '../read-envelope'
@@ -36,11 +36,11 @@ export type TAgentStepParams<TEnvelope extends TEnvelopeBase> = Readonly<{
 export const agentStep = <TEnvelope extends TEnvelopeBase>(
   params: TAgentStepParams<TEnvelope>,
 ): TStep => {
-  const phaseName = stepPhaseName(params.name, params.instance)
+  const activityRunName = stepActivityRunName(params.name, params.instance)
   return {
     name: params.name,
-    params: phaseParams({
-      name: phaseName,
+    params: activityRunParams({
+      name: activityRunName,
       kind: 'agent',
       owner: params.owner,
       description: params.description,
@@ -54,7 +54,7 @@ export const agentStep = <TEnvelope extends TEnvelopeBase>(
       // is the agent's own, in its `## Intake` instruction.
       const violations = intakeViolations(ctx.previous, ctx.previousStep ?? '')
       if (violations.length > 0) {
-        throw new Error(intakeRejection(violations, phaseName))
+        throw new Error(intakeRejection(violations, activityRunName))
       }
       const changedPaths = params.changedPathsOf?.(ctx)
       const envelope = await callAgent(ctx.run, handle, {
@@ -76,7 +76,7 @@ export const agentStep = <TEnvelope extends TEnvelopeBase>(
       const settled = readEnvelope(ctx.run, params.owner, params.spec)
       if (settled.status === 'error') {
         throw new Error(
-          `cannot resume phase '${phaseName}': ${settled.error.message}. ` +
+          `cannot resume activityRun '${activityRunName}': ${settled.error.message}. ` +
             'Either drop --resume so it runs again, or run that step on its ' +
             `own: bun .pi-crust/stages/${params.name}.ts --run-id ` +
             `${ctx.run.runId} "<the original request>"`,

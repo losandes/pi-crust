@@ -94,7 +94,7 @@ export async function fetchSession(
   return {
     session: detail.session,
     usage: detail.usage ?? { read: 0, written: 0 },
-    phases: detail.phases ?? [],
+    activityRuns: detail.activityRuns ?? [],
     agents: detail.agents ?? [],
   }
 }
@@ -120,7 +120,7 @@ export function fetchHealth(): Promise<HealthResponse> {
   return getJson('/api/health') as Promise<HealthResponse>
 }
 
-// PhaseDetail imports the prompts type from here alongside fetchPrompts.
+// ActivityRunDetail imports the prompts type from here alongside fetchPrompts.
 export type { PromptsResponse }
 
 export async function fetchPrompts(

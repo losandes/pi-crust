@@ -24,7 +24,7 @@
  * a red line.
  *
  * This reads the SAME function `--resume` reads (`readRunState`), so the two
- * can never disagree about which phases are already done.
+ * can never disagree about which activityRuns are already done.
  */
 
 import { isStepName } from './modules/typedefs/step'
@@ -151,16 +151,16 @@ export const renderReport = (state: TRunState): string => {
     `${paint('tokens:', 'bold')} ${state.tokens.toLocaleString('en-US')}` +
       `   ${paint('cost:', 'bold')} $${state.cost.toFixed(4)}`,
   ]
-  const phases = state.phases.flatMap((phase) => [
-    `  ${MARKS[phase.status] ?? '·'} ${phase.seq.toString().padStart(2, '0')} ` +
-      `${phase.name.padEnd(16)} ${phase.kind.padEnd(9)} ${phase.owner.padEnd(12)}` +
-      ` ${phase.status}`,
-    ...(phase.error ? [paint(`      ${phase.error}`, 'red')] : []),
-    ...phase.gates.filter((gate) => !gate.passed).flatMap(gateLines),
+  const activityRuns = state.activityRuns.flatMap((activityRun) => [
+    `  ${MARKS[activityRun.status] ?? '·'} ${activityRun.seq.toString().padStart(2, '0')} ` +
+      `${activityRun.name.padEnd(16)} ${activityRun.kind.padEnd(9)} ${activityRun.owner.padEnd(12)}` +
+      ` ${activityRun.status}`,
+    ...(activityRun.error ? [paint(`      ${activityRun.error}`, 'red')] : []),
+    ...activityRun.gates.filter((gate) => !gate.passed).flatMap(gateLines),
   ])
   const tail =
     state.resume_from === undefined
-      ? [paint('every phase succeeded — nothing to resume', 'green')]
+      ? [paint('every activity run succeeded — nothing to resume', 'green')]
       : [
           `${paint('resume from:', 'bold')} ${state.resume_from}`,
           `  ${resumeCommand(state)}`,
@@ -168,7 +168,7 @@ export const renderReport = (state: TRunState): string => {
   return [
     box('run', header, state.resume_from === undefined ? 'green' : 'yellow'),
     '',
-    ...(phases.length > 0 ? phases : ['  (no phases recorded)']),
+    ...(activityRuns.length > 0 ? activityRuns : ['  (no activityRuns recorded)']),
     '',
     ...tail,
   ].join('\n')

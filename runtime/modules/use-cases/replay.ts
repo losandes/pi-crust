@@ -1,28 +1,28 @@
 /**
- * How a hand-written workflow's phases are replayed under `--resume`.
+ * How a hand-written workflow's activityRuns are replayed under `--resume`.
  *
  * The step library answers this per step. The workflows with real control flow
  * — bounded fix loops, conditional tails — are not steps, so they say it at the
- * call site: `phase(params, body, replay)`. One extra argument, and the cost is
- * deliberate. A resume primitive that guessed how to rehydrate a phase would
+ * call site: `activityRun(params, body, replay)`. One extra argument, and the cost is
+ * deliberate. A resume primitive that guessed how to rehydrate an activity run would
  * have to return `undefined as TResult` and launder a hole into every caller.
  *
- * Three sources, one per kind of phase:
+ * Three sources, one per kind of activityRun:
  *
  *   agent  →  the envelope on disk, written the moment it parsed
- *   code   →  the verdict the phase recorded, under its own event name
+ *   code   →  the verdict the activityRun recorded, under its own event name
  *   git    →  the capture is simply redone; it is deterministic and free
  */
 
 import type { TChangeCapture, TChangeSet } from '../typedefs/changes'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
 import type { TQualityResult } from '../typedefs/quality'
-import type { TPhaseHandle, TRun } from '../typedefs/run'
+import type { TActivityRunHandle, TRun } from '../typedefs/run'
 import { captureChanges } from './capture-changes'
 import { readEnvelope } from './read-envelope'
 import { recordStepResult, replayStepResult } from './resume'
 
-/** A phase whose only product was the record of it happening. */
+/** A activityRun whose only product was the record of it happening. */
 export const replayNothing = (): Promise<void> => Promise.resolve(undefined)
 
 export const replayAgent =
@@ -36,7 +36,7 @@ export const replayAgent =
     if (settled.status === 'error') {
       throw new Error(
         `cannot resume '${agentName}': ${settled.error.message}. Either drop ` +
-          '--resume so the phase runs again, or run that step on its own.',
+          '--resume so the activityRun runs again, or run that step on its own.',
       )
     }
     return Promise.resolve(settled.data)
@@ -46,12 +46,12 @@ export const replayAgent =
  * Log a deterministic block's verdict — for humans, and for replay.
  *
  * The verdict is filed under its own event name because the console echoes
- * every printed line as a `log` too, so "the phase's last log" is usually a
+ * every printed line as a `log` too, so "the activity-run's last log" is usually a
  * sentence rather than a result.
  */
 export const recordQuality = (
   run: TRun,
-  handle: TPhaseHandle,
+  handle: TActivityRunHandle,
   result: TQualityResult,
 ): void => {
   const passed = result.checks.filter((check) => check.passed).length
@@ -69,20 +69,20 @@ export const recordQuality = (
 }
 
 /**
- * The verdict a previous run recorded — NOT its phase status.
+ * The verdict a previous run recorded — NOT its activityRun status.
  *
- * A test phase that ran the suite did its job even when the suite came back
+ * A test activityRun that ran the suite did its job even when the suite came back
  * red, so `status === 'success'` says nothing about whether the code passed.
  * Inferring one from the other would reintroduce exactly the bug that
  * `finish(accepted:)` exists to prevent.
  */
 export const replayQuality =
-  (run: TRun, phaseName: string): (() => Promise<TQualityResult>) =>
+  (run: TRun, activityRunName: string): (() => Promise<TQualityResult>) =>
   () => {
-    const payload = replayStepResult(run, phaseName)
+    const payload = replayStepResult(run, activityRunName)
     if (payload === undefined) {
       throw new Error(
-        `cannot resume '${phaseName}': this session recorded no verdict for ` +
+        `cannot resume '${activityRunName}': this session recorded no verdict for ` +
           'it. Drop --resume so the checks run again.',
       )
     }
@@ -102,11 +102,11 @@ export const replayQuality =
 
 /** The commit already landed; there is nothing to redo and nothing to undo. */
 export const replayCommit =
-  (run: TRun, phaseName: string): (() => Promise<void>) =>
+  (run: TRun, activityRunName: string): (() => Promise<void>) =>
   () => {
-    const payload = replayStepResult(run, phaseName)
+    const payload = replayStepResult(run, activityRunName)
     run.console.note(
-      `${phaseName}: already committed as ${String(payload?.sha ?? '(unknown)')}`,
+      `${activityRunName}: already committed as ${String(payload?.sha ?? '(unknown)')}`,
     )
     return Promise.resolve(undefined)
   }

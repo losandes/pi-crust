@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { crustConfigSchema } from '../typedefs/config'
-import { phaseParams } from '../typedefs/phase'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import { createRun } from './create-run'
 import { skipIfDone } from './resume'
@@ -25,7 +25,7 @@ const runWith = (completed: readonly string[]): TRun => {
   })
 }
 
-const params = phaseParams({
+const params = activityRunParams({
   name: 'build',
   kind: 'code',
   owner: 'quality',
@@ -35,8 +35,8 @@ const params = phaseParams({
 test(
   [
     'given use-cases/resume::skipIfDone',
-    'when the phase is not in the completed set',
-    'it should run the body and open a phase row',
+    'when the activityRun is not in the completed set',
+    'it should run the body and open an activity run row',
   ].join(', '),
   async () => {
     // given
@@ -52,19 +52,19 @@ test(
 
     // then
     expect(actual).toEqual('ran')
-    expect(run.phases().map((phase) => phase.params.name)).toEqual(['build'])
+    expect(run.activityRuns().map((activityRun) => activityRun.params.name)).toEqual(['build'])
   },
 )
 
 test(
   [
     'given use-cases/resume::skipIfDone',
-    'when the phase already succeeded in this session',
+    'when the activityRun already succeeded in this session',
     'it should replay it and count it, without opening a second db row',
   ].join(', '),
   async () => {
     // given a duplicate DB row would corrupt the completed set the next
-    // resume reads — but the run still has to know the phase succeeded
+    // resume reads — but the run still has to know the activityRun succeeded
     const run = runWith(['build'])
 
     // when
@@ -77,10 +77,10 @@ test(
 
     // then
     expect(actual).toEqual('replayed')
-    // recorded in THIS run's phases, because `finish` judges the run by them:
+    // recorded in THIS run's activityRuns, because `finish` judges the run by them:
     // a resumed chain that re-ran nothing was reported failed having done
     // everything asked of it
-    expect(run.phases().map((phase) => phase.status)).toEqual(['success'])
-    expect(run.phases()[0]?.phase_id).toContain('replayed')
+    expect(run.activityRuns().map((activityRun) => activityRun.status)).toEqual(['success'])
+    expect(run.activityRuns()[0]?.activity_run_id).toContain('replayed')
   },
 )

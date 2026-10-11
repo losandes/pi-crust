@@ -33,7 +33,7 @@ const TITLES: Readonly<Record<TStatKind, string>> = {
     'conversation itself: it is spend, not size. The gap between it and read + ' +
     'written is cached context re-read on later turns.',
   runtime:
-    'Duration — wall-clock from the first phase starting to the last one ending.',
+    'Duration — wall-clock from the first activityRun starting to the last one ending.',
   read:
     'Read — raw tokens the models took in: prompts, file contents and tool results, ' +
     'counted the first time they enter the context. Excludes cached re-reads of ' +

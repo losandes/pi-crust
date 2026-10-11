@@ -140,7 +140,7 @@ test(
   [
     'given lib/palette::AGENT_ROLES',
     'when the failure colour is considered for an agent',
-    'it should be absent, because red means a failed phase everywhere else',
+    'it should be absent, because red means a failed activityRun everywhere else',
   ].join(' '),
   () => {
     // given

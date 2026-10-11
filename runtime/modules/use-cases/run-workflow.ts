@@ -9,7 +9,7 @@
  *
  * Hand-written workflows still exist, and should: a conditional tail is real
  * control flow that a list of names cannot express. Those keep their own `main`
- * and call `skipIfDone` per phase.
+ * and call `skipIfDone` per activityRun.
  *
  * One loop is no longer among them. A chain ending in `review` or `code-review`
  * gets the bounded revise loop here, so the generalisation is the step
@@ -30,7 +30,7 @@ import { loadConfigWithNotes } from './load-config'
 import type { TWorkflowArgs } from './parse-cli'
 import { loopAgents, runReviseLoop } from './revise-loop'
 import { selfAnsweredIn } from './human-gate'
-import { finish, finishWaiting } from './run-phase'
+import { finish, finishWaiting } from './run-activity-run'
 import type { TWaiting } from './run-steps'
 import type { TStage } from '../typedefs/lifecycle'
 import { plannedNames, unitsFrom } from './plan-units'
@@ -47,7 +47,7 @@ import { validateAgents } from './validate-agents'
 
 export const NOT_ACCEPTED =
   'a step did not meet its own criterion — a check failed, or a review was ' +
-  'not approved. The phases all ran; the work is what did not pass.'
+  'not approved. The activityRuns all ran; the work is what did not pass.'
 
 /**
  * HEAD before this run commits anything, for the documenter's diff.
@@ -62,7 +62,7 @@ const pinBaseline = (names: readonly string[]): string =>
  * Run the chain an operator planned, inside the run that planned it.
  *
  * Returns `undefined` when a planned step stopped for a person — the caller
- * settles the run as waiting, and a resume replays the operator phase from
+ * settles the run as waiting, and a resume replays the operator activityRun from
  * the trace and picks the chain up where it stopped.
  */
 const runPlannedChain = async (
@@ -111,7 +111,7 @@ const runPlannedChain = async (
     )
     run.tracer.event({
       run_id: run.runId,
-      phase_id: '',
+      activity_run_id: '',
       type: 'log',
       name: 'human_gate_open',
       payload: { activity: 'operator', kind: 'plan', request: path, steps: planned },

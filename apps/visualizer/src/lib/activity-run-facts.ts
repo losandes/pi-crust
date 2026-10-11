@@ -1,9 +1,9 @@
 /**
- * What a phase's events say, parsed once and testably.
+ * What a activityRun's events say, parsed once and testably.
  *
  * All of this was inline in the detail component, where a malformed payload
  * could only be reasoned about by reading JSX. Every function here answers one
- * question about a phase and tolerates the shapes older runs actually wrote —
+ * question about a activityRun and tolerates the shapes older runs actually wrote —
  * which is the part worth testing.
  */
 
@@ -14,7 +14,7 @@ import type {
   EventRow,
   GateCheck,
   GateResult,
-  Phase,
+  ActivityRun,
 } from './types'
 
 export type TUsageRow = Readonly<{
@@ -26,24 +26,24 @@ export type TUsageRow = Readonly<{
   title?: string
 }>
 
-export type TPhaseUsage = Readonly<{
+export type TActivityRunUsage = Readonly<{
   rows: readonly TUsageRow[]
   /** The run predates the per-component breakdown; only a total was recorded. */
   partial: boolean
 }>
 
 /**
- * What this phase's agent run spent, off its `agent_end` event.
+ * What this activity-run's agent run spent, off its `agent_end` event.
  *
- * Undefined for non-agent phases and for a run still in flight. Older runs
+ * Undefined for non-agent activityRuns and for a run still in flight. Older runs
  * recorded only a lump cost, so the breakdown is optional and rows are built
  * from whatever was written.
  */
-export const phaseUsage = (
-  phase: Phase,
+export const activityRunUsage = (
+  activityRun: ActivityRun,
   events: readonly EventRow[],
-): TPhaseUsage | undefined => {
-  if (phase.kind !== 'agent') return undefined
+): TActivityRunUsage | undefined => {
+  if (activityRun.kind !== 'agent') return undefined
   const end = events.find((event) => event.type === 'agent_end')
   if (end === undefined) return undefined
 
@@ -123,14 +123,14 @@ export const money = (amount: number): string => {
 }
 
 /**
- * The engineer's incoming ask, logged by every lifecycle's request phase as a `log`
+ * The engineer's incoming ask, logged by every lifecycle's request activityRun as a `log`
  * event with an `input` payload.
  */
 export const requestText = (
-  phase: Phase,
+  activityRun: ActivityRun,
   events: readonly EventRow[],
 ): string | undefined => {
-  if (phase.kind !== 'engineer') return undefined
+  if (activityRun.kind !== 'engineer') return undefined
   for (const event of events) {
     if (event.type !== 'log' || !event.payload_json) continue
     try {

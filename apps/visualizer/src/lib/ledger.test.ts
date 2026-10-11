@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test'
 import type { Envelope, Event as EventRow } from '../../shared/types'
-import { needsYou, phaseLedger, runLedger } from './ledger'
+import { needsYou, activityRunLedger, runLedger } from './ledger'
 
 const envelope = (
   over: Partial<Envelope> & { payload: Record<string, unknown> },
 ): Envelope => ({
   envelope_id: 'e1',
   run_id: 'r1',
-  phase_id: 'p1',
+  activity_run_id: 'p1',
   agent: 'analyst',
   output_type: 'ContextEnvelope',
   payload_json: JSON.stringify(over.payload),
@@ -21,7 +21,7 @@ const event = (over: Partial<EventRow>): EventRow => ({
   rowid: 1,
   event_id: 'ev1',
   run_id: 'r1',
-  phase_id: 'p1',
+  activity_run_id: 'p1',
   parent_id: null,
   type: 'log',
   name: null,
@@ -42,8 +42,8 @@ const question = (over: Record<string, unknown> = {}) => ({
 
 test(
   [
-    'given lib/ledger::phaseLedger',
-    'when the phase wrote decisions and assumptions',
+    'given lib/ledger::activityRunLedger',
+    'when the activityRun wrote decisions and assumptions',
     'it should carry both across with their reasons attached',
   ].join(', '),
   () => {
@@ -61,7 +61,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, [])
+    const actual = activityRunLedger('p1', envelopes, [])
 
     // then
     expect(actual.decisions[0]?.rationale).toBe('the rest are TODO')
@@ -72,7 +72,7 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
+    'given lib/ledger::activityRunLedger',
     'when the run recorded that the step answered its own question',
     'it should mark that question decided, whatever its flags say',
   ].join(', '),
@@ -92,7 +92,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, events)
+    const actual = activityRunLedger('p1', envelopes, events)
 
     // then
     expect(actual.questions[0]?.outcome).toBe('decided')
@@ -101,8 +101,8 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
-    'when the phase opened a human gate',
+    'given lib/ledger::activityRunLedger',
+    'when the activityRun opened a human gate',
     'it should mark its unanswered question escalated rather than decided',
   ].join(', '),
   () => {
@@ -118,7 +118,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, events)
+    const actual = activityRunLedger('p1', envelopes, events)
 
     // then
     expect(actual.questions[0]?.outcome).toBe('escalated')
@@ -127,7 +127,7 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
+    'given lib/ledger::activityRunLedger',
     'when the chain ended with questions nobody was asked to answer',
     'it should mark them open, which is neither decided nor blocking',
   ].join(', '),
@@ -146,7 +146,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, events)
+    const actual = activityRunLedger('p1', envelopes, events)
 
     // then
     expect(actual.questions[0]?.outcome).toBe('open')
@@ -155,7 +155,7 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
+    'given lib/ledger::activityRunLedger',
     'when no event mentions a question and the step offered no answer',
     'it should treat it as open rather than as something already settled',
   ].join(', '),
@@ -167,7 +167,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, [])
+    const actual = activityRunLedger('p1', envelopes, [])
 
     // then
     expect(actual.questions[0]?.outcome).toBe('open')
@@ -176,8 +176,8 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
-    'when a phase was retried and only the later attempt validated',
+    'given lib/ledger::activityRunLedger',
+    'when a activityRun was retried and only the later attempt validated',
     'it should read the valid envelope rather than the rejected one',
   ].join(', '),
   () => {
@@ -199,7 +199,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, [])
+    const actual = activityRunLedger('p1', envelopes, [])
 
     // then
     expect(actual.decisions[0]?.decision).toBe('accepted')
@@ -208,7 +208,7 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
+    'given lib/ledger::activityRunLedger',
     'when the payload is not valid JSON',
     'it should return an empty ledger rather than throwing at render time',
   ].join(', '),
@@ -220,7 +220,7 @@ test(
     ]
 
     // when
-    const actual = phaseLedger('p1', envelopes, [])
+    const actual = activityRunLedger('p1', envelopes, [])
 
     // then
     expect(actual.total).toBe(0)
@@ -229,8 +229,8 @@ test(
 
 test(
   [
-    'given lib/ledger::phaseLedger',
-    "when events belong to a different phase",
+    'given lib/ledger::activityRunLedger',
+    "when events belong to a different activity-run",
     'it should ignore them rather than attributing them to this one',
   ].join(', '),
   () => {
@@ -245,18 +245,18 @@ test(
     ]
     const foreign = [
       event({
-        phase_id: 'p2',
+        activity_run_id: 'p2',
         name: 'self_answered',
         payload_json: JSON.stringify({ question: 'span-tagged or interval?' }),
       }),
     ]
 
     // when
-    const ignored = phaseLedger('p1', envelopes, foreign)
-    const attributed = phaseLedger(
+    const ignored = activityRunLedger('p1', envelopes, foreign)
+    const attributed = activityRunLedger(
       'p1',
       envelopes,
-      foreign.map((row) => ({ ...row, phase_id: 'p1' })),
+      foreign.map((row) => ({ ...row, activity_run_id: 'p1' })),
     )
 
     // then
@@ -268,12 +268,12 @@ test(
 test(
   [
     'given lib/ledger::needsYou',
-    'when a phase decided everything it raised',
+    'when a activityRun decided everything it raised',
     'it should count nothing, because nobody is being asked for anything',
   ].join(', '),
   () => {
     // given — a badge that counts settled decisions cries wolf on every step
-    const ledger = phaseLedger(
+    const ledger = activityRunLedger(
       'p1',
       [
         envelope({
@@ -302,13 +302,13 @@ test(
 test(
   [
     'given lib/ledger::runLedger',
-    'when several phases are asked for at once',
-    'it should key each ledger by its own phase and leave empty ones empty',
+    'when several activityRuns are asked for at once',
+    'it should key each ledger by its own activityRun and leave empty ones empty',
   ].join(', '),
   () => {
     // given
     const envelopes = [
-      envelope({ phase_id: 'p1', payload: { unresolved: [question()] } }),
+      envelope({ activity_run_id: 'p1', payload: { unresolved: [question()] } }),
     ]
 
     // when

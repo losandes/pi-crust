@@ -125,7 +125,7 @@ test(
 test(
   [
     'given use-cases/human-gate::consequentialQuestions',
-    'when the envelope is a code phase output with no context',
+    'when the envelope is a code activityRun output with no context',
     'it should find nothing rather than fail',
   ].join(', '),
   () => {

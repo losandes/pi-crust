@@ -39,7 +39,7 @@ test(
     'it should deliver only what arrived afterwards',
   ].join(', '),
   () => {
-    // given — a phase that started after an earlier message was handled
+    // given — an activity run that started after an earlier message was handled
     const dir = workspace()
     postToInbox(dir, 'steer', 'old news', 'andy')
     const first = inboxSince(dir, 0)

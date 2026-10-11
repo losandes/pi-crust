@@ -15,7 +15,7 @@
  * self-assessment this whole design exists to distrust.
  *
  * The JUDGEMENT half belongs to the receiving agent, as its first act inside
- * its own phase, and lives in the prompts. It is not here and must not be: the
+ * its own activityRun, and lives in the prompts. It is not here and must not be: the
  * question "could I proceed without inventing something" is only honestly
  * answerable by whoever must proceed, and a third party asked to simulate it
  * has no stake in the answer. See the `## Intake` section of each user.md.
@@ -46,7 +46,7 @@ export const intakeViolations = (
   }
   const parsed = contextEnvelopeSchema.safeParse(envelope)
   if (!parsed.success) {
-    // Not a context envelope at all — `prompt` and the code phases produce
+    // Not a context envelope at all — `prompt` and the code activityRuns produce
     // these, and a stage receiving one has nothing structural to check.
     return []
   }
@@ -89,7 +89,7 @@ export const intakeViolations = (
   ]
 }
 
-/** One line a phase can fail with, or '' when nothing structural is wrong. */
+/** One line an activity run can fail with, or '' when nothing structural is wrong. */
 export const intakeRejection = (
   violations: readonly string[],
   receivingStep: string,

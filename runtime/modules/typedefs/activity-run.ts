@@ -1,13 +1,13 @@
 /**
- * Phase types for the pi-crust workflow system.
+ * ActivityRun types for the pi-crust workflow system.
  *
  * RULE (four-param rule): any function that takes more than 4 parameters takes
- * ONE of these objects instead. TAgentCall and TPhaseParams are the pattern.
+ * ONE of these objects instead. TAgentCall and TActivityRunParams are the pattern.
  */
 
 import { z } from 'zod'
 
-export const PHASE_KINDS = ['engineer', 'agent', 'code'] as const
+export const ACTIVITY_RUN_KINDS = ['engineer', 'agent', 'code'] as const
 /**
  * `waiting` is not a kind of failure.
  *
@@ -15,7 +15,7 @@ export const PHASE_KINDS = ['engineer', 'agent', 'code'] as const
  * running — it is waiting for guidance, and reporting it as failed teaches
  * people to ignore red.
  */
-export const PHASE_STATUSES = [
+export const ACTIVITY_RUN_STATUSES = [
   'queued',
   'running',
   'success',
@@ -48,48 +48,48 @@ export const PHASE_STATUSES = [
   'cancelled',
 ] as const
 
-export type TPhaseKind = (typeof PHASE_KINDS)[number]
-export type TPhaseStatus = (typeof PHASE_STATUSES)[number]
+export type TActivityRunKind = (typeof ACTIVITY_RUN_KINDS)[number]
+export type TActivityRunStatus = (typeof ACTIVITY_RUN_STATUSES)[number]
 
-export const phaseParamsSchema = z.object({
+export const activityRunParamsSchema = z.object({
   /** short id, unique within the run: "plan", "build" */
   name: z.string(),
   /** which lane the block renders in */
-  kind: z.enum(PHASE_KINDS),
+  kind: z.enum(ACTIVITY_RUN_KINDS),
   /** the engineer's name, "git", or an agent name from the config */
   owner: z.string(),
-  /** REQUIRED: what this phase does and why — see phaseParams below */
+  /** REQUIRED: what this activityRun does and why — see activityRunParams below */
   description: z.string(),
-  /** agent phases: gate-failure retries via continue */
+  /** agent activityRuns: gate-failure retries via continue */
   retries: z.number().int().default(0),
 })
 
-/** Everything runPhase() needs. Passed as one object, never loose params. */
-export type TPhaseParams = Readonly<z.infer<typeof phaseParamsSchema>>
+/** Everything runActivityRun() needs. Passed as one object, never loose params. */
+export type TActivityRunParams = Readonly<z.infer<typeof activityRunParamsSchema>>
 
 const collapseWhitespace = (text: string): string =>
   text.split(/\s+/).filter(Boolean).join(' ')
 
 /**
- * Build the params for a phase. A description that was not earned is rejected.
+ * Build the params for an activity run. A description that was not earned is rejected.
  *
- * A phase name identifies; a description explains. Both are required. The
- * description is the only sentence the trace, the console, and the phase block
+ * A activityRun name identifies; a description explains. Both are required. The
+ * description is the only sentence the trace, the console, and the activityRun block
  * in the UI ever show about intent — everything else is ids, statuses, and
  * timings. `commit_plan: "Commit the plan"` tells a reader nothing they could
  * not already see, so an echo is rejected the same way a blank one is. This
- * throws at construction on purpose: it fires before the phase opens, not after
+ * throws at construction on purpose: it fires before the activityRun opens, not after
  * a run is already in the trace.
  */
-export const phaseParams = (
-  params: Readonly<z.input<typeof phaseParamsSchema>>,
-): TPhaseParams => {
-  const parsed = phaseParamsSchema.parse(params)
+export const activityRunParams = (
+  params: Readonly<z.input<typeof activityRunParamsSchema>>,
+): TActivityRunParams => {
+  const parsed = activityRunParamsSchema.parse(params)
   const description = collapseWhitespace(parsed.description)
   if (description.length === 0) {
     throw new Error(
-      `phase '${parsed.name}': description is required — one sentence on what ` +
-        'this phase does and why. It is what the trace and the UI show.',
+      `activityRun '${parsed.name}': description is required — one sentence on what ` +
+        'this activityRun does and why. It is what the trace and the UI show.',
     )
   }
   if (
@@ -97,21 +97,21 @@ export const phaseParams = (
     parsed.name.replace(/_/g, ' ').toLowerCase()
   ) {
     throw new Error(
-      `phase '${parsed.name}': description '${description}' only restates the ` +
-        'phase name — say what it does and why instead.',
+      `activityRun '${parsed.name}': description '${description}' only restates the ` +
+        'activityRun name — say what it does and why instead.',
     )
   }
   return { ...parsed, description }
 }
 
-/** The persisted phase record — TPhaseParams plus lifecycle. */
-export type TPhase = Readonly<{
-  phase_id: string
+/** The persisted activityRun record — TActivityRunParams plus lifecycle. */
+export type TActivityRun = Readonly<{
+  activity_run_id: string
   run_id: string
   seq: number
-  params: TPhaseParams
+  params: TActivityRunParams
   /** success must be earned */
-  status: TPhaseStatus
+  status: TActivityRunStatus
   attempt: number
   error: string | undefined
   started_at: string | undefined

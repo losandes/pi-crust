@@ -122,7 +122,7 @@ test(
   [
     'given use-cases/intake::intakeViolations',
     'when the envelope is not a context envelope at all',
-    'it should report nothing, because a code phase has no beliefs to state',
+    'it should report nothing, because a code activityRun has no beliefs to state',
   ].join(', '),
   () => {
     // given a verify envelope, which code builds

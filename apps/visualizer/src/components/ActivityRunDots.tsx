@@ -1,5 +1,5 @@
-import type { Phase } from '../lib/types'
-import styles from './PhaseDots.module.css'
+import type { ActivityRun } from '../lib/types'
+import styles from './ActivityRunDots.module.css'
 
 const GLYPHS: Readonly<Record<string, string>> = {
   success: '\u25cf',
@@ -8,21 +8,21 @@ const GLYPHS: Readonly<Record<string, string>> = {
   fail: '\u2717',
 }
 
-export const PhaseDots = ({ phases }: { phases: readonly Phase[] }) => {
-  const ordered = phases.toSorted((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
+export const ActivityRunDots = ({ activityRuns }: { activityRuns: readonly ActivityRun[] }) => {
+  const ordered = activityRuns.toSorted((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
 
   if (ordered.length === 0) return <span className="faint">{'\u2014'}</span>
 
   return (
     <span className={styles.dots}>
-      {ordered.map((phase) => {
-        const status = phase.status ?? ''
+      {ordered.map((activityRun) => {
+        const status = activityRun.status ?? ''
         const tone = styles[status]
         return (
           <span
-            key={phase.phase_id}
+            key={activityRun.activity_run_id}
             className={tone === undefined ? styles.dot : `${styles.dot} ${tone}`}
-            title={`${phase.name} \u2014 ${status}`}
+            title={`${activityRun.name} \u2014 ${status}`}
           >
             {GLYPHS[status] ?? '\u25cb'}
           </span>

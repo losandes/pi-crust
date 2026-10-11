@@ -14,8 +14,8 @@
  *            step created. Everything another step wrote stays read-only,
  *            and anything that changes anyway is restored.
  *
- * Neither opens a phase. A consult is something that happened TO a step, not
- * a step of its own: giving it a phase row would put it in the waterfall,
+ * Neither opens an activity run. A consult is something that happened TO a step, not
+ * a step of its own: giving it an activity run row would put it in the waterfall,
  * change the run's shape, and make a question look like work the lifecycle
  * asked for.
  */
@@ -54,16 +54,16 @@ export const TOOLS: Readonly<Record<TConsultMode, readonly string[]>> = {
 
 export type TConsultRequest = Readonly<{
   runId: string
-  /** The phase being consulted — the thread hangs off it. */
-  phaseId: string
+  /** The activityRun being consulted — the thread hangs off it. */
+  activityRunId: string
   agent: string
-  /** The pi session that phase's agent left behind. */
+  /** The pi session that activity-run's agent left behind. */
   sessionId: string
   sessionDir: string
   handoffDir: string
   mode: TConsultMode
   question: string
-  /** Documents this phase created, which an amend may replace. */
+  /** Documents this activityRun created, which an amend may replace. */
   own: readonly string[]
 }>
 
@@ -142,7 +142,7 @@ export const preamble = (mode: TConsultMode): string =>
       ].join(' ')
 
 /**
- * Run one consult, bracketed by the same ownership rules a phase gets.
+ * Run one consult, bracketed by the same ownership rules an activity run gets.
  *
  * The bracket is the guarantee, and it is deliberately the SAME one: unlock
  * what this step owns, observe everything, re-lock, restore what belongs to
@@ -217,7 +217,7 @@ export const sessionDirFor = (
   agent: string,
 ): string => resolve(join(dataDir, 'sessions', runId, agent, 'pi_sessions'))
 
-/** The thread event a consult leaves on the phase it asked about. */
+/** The thread event a consult leaves on the activityRun it asked about. */
 export const consultEvent = (
   request: TConsultRequest,
   outcome: TConsultOutcome,

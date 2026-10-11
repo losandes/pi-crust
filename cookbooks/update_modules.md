@@ -12,7 +12,7 @@ Modules are layered, and the layer decides the file. The rule that settles every
 
 | Module                                                                                                          | Owns                                                                                                                                                                                                                               |
 | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `typedefs/phase.ts`                                                                                             | `TPhaseParams`, `TPhase`, and `phaseParams()` with its description rule                                                                                                                                                            |
+| `typedefs/activity-run.ts`                                                                                      | `TActivityRunParams`, `TActivityRun`, and `activityRunParams()` with its description rule                                                                                                                                          |
 | `typedefs/envelope.ts`                                                                                          | `envelopeBaseSchema` + one output type per agent call, and `TEnvelopeSpec`                                                                                                                                                         |
 | `typedefs/config.ts`                                                                                            | `TAgentConfig`, `TPiCrustConfig`, and the zod schemas that parse the roster                                                                                                                                                        |
 | `typedefs/gate.ts`                                                                                              | `TGateReport`, `addCheck`, `violationsOf`, and `TAgentCall`                                                                                                                                                                        |
@@ -24,7 +24,7 @@ Modules are layered, and the layer decides the file. The rule that settles every
 | `data/git.ts`                                                                                                   | branch, status, diff, commit — the raw plumbing `capture-changes.ts` composes                                                                                                                                                      |
 | `data/working-tree.ts`                                                                                          | fingerprinting the tree, so permission breaches can be detected and undone                                                                                                                                                         |
 | `data/files.ts` · `clock.ts` · `ids.ts` · `terminal.ts` · `prompt-files.ts` · `operator-env.ts` · `engineer.ts` | the rest of the outside world                                                                                                                                                                                                      |
-| `use-cases/run-phase.ts`                                                                                        | the phase primitive `runPhase(run)(params, body)` and `finish(run)`                                                                                                                                                                |
+| `use-cases/run-activity-run.ts`                                                                                 | the activity run primitive `runActivityRun(run)(params, body)` and `finish(run)`                                                                                                                                                   |
 | `use-cases/create-run.ts`                                                                                       | the Run: config + run_id + tracer + console, and the only mutable state in the system                                                                                                                                              |
 | `use-cases/start-session.ts`                                                                                    | mint or join `run_id`, maintain `agent_map.json`, create session dirs incl. `context_handoff/`                                                                                                                                     |
 | `use-cases/execute-agent.ts`                                                                                    | one agent call: render prompts → pi → typed parse → gates → permissions → envelope                                                                                                                                                 |
@@ -41,7 +41,7 @@ Modules report through `run.console` — never a bare write to stdout. Each cons
 
 ## The four-param rule
 
-**Any function taking more than 4 parameters gets them converted into a concrete type in `typedefs/`.** `TAgentCall` and `TPhaseParams` are the pattern — `phaseParams()` and `callAgent()` each take exactly one object. This is skill-wide: every module the factory generates obeys it.
+**Any function taking more than 4 parameters gets them converted into a concrete type in `typedefs/`.** `TAgentCall` and `TActivityRunParams` are the pattern — `activityRunParams()` and `callAgent()` each take exactly one object. This is skill-wide: every module the factory generates obeys it.
 
 ```ts
 /** Everything reviewChanges() needs. Passed as one object, never loose params. */
@@ -116,7 +116,7 @@ Rules that keep gates honest:
 
 - **Verify claims, never predict.** File names and counts are unknowable before the agent finishes; gates check what the envelope declared.
 - **Quantity as properties, not counts.** "at least one artifact", "ALL declared paths exist" — never `artifacts.length === 3`.
-- **Record checks, don't throw.** The harness feeds the derived violations back into the same session as a correction — context intact, bounded by the phase's `retries` — and traces every check, passed or failed, to `gate_results.checks_json` and the `gate_pass`/`gate_fail` event payload.
+- **Record checks, don't throw.** The harness feeds the derived violations back into the same session as a correction — context intact, bounded by the activity run's `retries` — and traces every check, passed or failed, to `gate_results.checks_json` and the `gate_pass`/`gate_fail` event payload.
 - **Check every item, even after one fails.** Don't early-return on the first problem; the agent fixes more per correction round when it sees every failure at once, and the trace shows the full picture.
 - **Don't gate the ungateable.** Plan quality and code taste are a reviewer agent's job or a human's.
 
@@ -126,7 +126,7 @@ Reusable gates live in `modules/use-cases/gates/` and are re-exported from its `
 
 - `type`, never `interface`. `Readonly` and `ReadonlyArray` on anything crossing a function boundary.
 - No `null` — `undefined`, or a value with a sensible default.
-- `data/` and `use-cases/` return settlements rather than throwing. The two sanctioned exceptions are `run-phase.ts`, which IS the error boundary, and `safeParseSettlement`, which wraps a throwing call once at the edge.
+- `data/` and `use-cases/` return settlements rather than throwing. The two sanctioned exceptions are `run-activity-run.ts`, which IS the error boundary, and `safeParseSettlement`, which wraps a throwing call once at the edge.
 - Build new values; do not mutate the ones you were handed. The run's counters live in a closure in `create-run.ts` precisely so no other layer has to.
 
 ## Before you finish

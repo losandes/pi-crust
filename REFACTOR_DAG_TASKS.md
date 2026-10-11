@@ -94,14 +94,16 @@ All twelve are delivered. What each one actually does, and what proves it:
 | 8   | Context composition           | `upstream` carries every result with its Activity; disagreement is reported |
 | 9   | Gates at both levels          | all four rows of the gate table have a behavioural test                     |
 | 10  | Run states                    | `blocked` and `cancelled` events name what the run did not reach            |
-| 11  | Trace vocabulary              | decided: **no migration** — see below                                       |
+| 11  | Trace vocabulary              | migrated: `activity_runs`, `activity_run_id`, `activity_run_start` / `_end` |
 | 12  | Documentation                 | config reference, observability, and both lifecycle cookbooks rewritten     |
 
-### Why `phase` stays
+### The trace speaks the model's vocabulary
 
-`phase` already means Activity Run. There is a `phases` table, a `phase_id` on every event, `phase_start` and `phase_end` event types, and **24 non-test files** read it. Adopting the DAG's word would be a schema migration against databases that already hold runs, for a vocabulary improvement with no behavioural consequence.
+`phase` meant Activity Run, and the word was chosen before a Stage was a thing the engine had. Once it was, one word covered two levels of the model — visibly so, in a payload carrying `stage` for an Activity next to `stage` for a Stage.
 
-The cost lands on existing traces, which are the one artifact nobody can regenerate. Left alone deliberately, not overlooked.
+Renamed throughout: an `activity_runs` table, `activity_run_id` on every event row, `activity_run_start` / `activity_run_end` event types, `TActivityRun*` types, and the prose in prompts and references. `TGateReason` and the agent-facing `regress_to` now say `activity`, because an Activity is what they always held.
+
+This was deferred once on the grounds of compatibility. That was wrong: nothing had shipped, so no database held a run anybody needed, and the rename only ever gets more expensive. A migration this size is cheap exactly once.
 
 ### What a Stage still does not do
 

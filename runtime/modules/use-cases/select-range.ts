@@ -14,7 +14,7 @@
  *   <ref>     `resolveBase`, which already decides between a branch point, an
  *             uncommitted tree, and a clean tree with a parent
  *
- * It throws rather than settles: every call site is inside a phase body, where
+ * It throws rather than settles: every call site is inside an activity run body, where
  * a throw is the error boundary. An explicit spec selecting NO path throws too
  * — a range that matches nothing must not read as "nothing changed, nothing to
  * check", which is the silent green `routing.checks` already guards against.

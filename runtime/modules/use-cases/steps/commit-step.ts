@@ -33,10 +33,10 @@ import {
   stagedPatch,
 } from '../../data/git'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
-import { phaseParams } from '../../typedefs/phase'
+import { activityRunParams } from '../../typedefs/activity-run'
 import type { TRun } from '../../typedefs/run'
 import type { TStep, TStepOptions } from '../../typedefs/step'
-import { stepPhaseName } from '../../typedefs/step'
+import { stepActivityRunName } from '../../typedefs/step'
 import { recordStepResult, replayStepResult } from '../resume'
 
 export const commitMessage = (
@@ -99,11 +99,11 @@ export const deliver = (
 }
 
 export const commitStep = (options: TStepOptions): TStep => {
-  const phaseName = stepPhaseName('commit', options.instance)
+  const activityRunName = stepActivityRunName('commit', options.instance)
   return {
     name: 'commit',
-    params: phaseParams({
-      name: phaseName,
+    params: activityRunParams({
+      name: activityRunName,
       kind: 'code',
       owner: 'git',
       description:
@@ -120,10 +120,10 @@ export const commitStep = (options: TStepOptions): TStep => {
     },
 
     replay: (ctx) => {
-      const payload = replayStepResult(ctx.run, phaseName)
+      const payload = replayStepResult(ctx.run, activityRunName)
       if (payload === undefined) {
         throw new Error(
-          `cannot resume phase '${phaseName}': this session recorded no ` +
+          `cannot resume activityRun '${activityRunName}': this session recorded no ` +
             'delivery. Drop --resume so it runs again.',
         )
       }

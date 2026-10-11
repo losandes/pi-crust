@@ -237,7 +237,7 @@
   --pink: rgb(var(--pink-rgb));
 
   /*
-   * Status roles. Components speak meaning, not colour — a phase is not green,
+   * Status roles. Components speak meaning, not colour — an activity run is not green,
    * it succeeded. High contrast then gets to disagree about the hue without
    * every component learning that it exists.
    */

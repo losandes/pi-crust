@@ -34,11 +34,11 @@ test(
 
     // then
     expect(tableNames(join(dir, 'crust.db'))).toEqual([
+      'activity_runs',
       'agent_sessions',
       'envelopes',
       'events',
       'gate_results',
-      'phases',
       'processes',
       'sessions',
       'sqlite_sequence',
@@ -174,7 +174,7 @@ test(
     // when
     const eventId = tracer.event({
       run_id: 'a1b2c3d4',
-      phase_id: 'a1b2c3d4_01_request',
+      activity_run_id: 'a1b2c3d4_01_request',
       type: 'log',
       name: 'request',
       payload: { message: 'hello' },

@@ -16,7 +16,7 @@
 
 import { errorMessage } from '../typedefs/settlement'
 import { regressionOf } from '../typedefs/envelope'
-import { phaseParams } from '../typedefs/phase'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import type { TStep, TStepContext, TUpstream } from '../typedefs/step'
 import type { TUnit } from '../typedefs/unit'
@@ -42,15 +42,15 @@ import { skipIfDone } from './resume'
  */
 export const MAX_RETURNS_PER_STAGE = 1
 
-/** The phase row a gate event should hang off, best effort. */
+/** The activityRun row a gate event should hang off, best effort. */
 const handleIdOf = (run: TRun, stepName: string): string =>
-  run.phases().findLast((phase) => phase.params.name === stepName)
-    ?.phase_id ?? ''
+  run.activityRuns().findLast((activityRun) => activityRun.params.name === stepName)
+    ?.activity_run_id ?? ''
 
 /**
- * The engineer phase every chain opens with: the ask, on the record.
+ * The engineer activityRun every chain opens with: the ask, on the record.
  *
- * Skippable like any other phase, so a resumed run does not re-record a request
+ * Skippable like any other activityRun, so a resumed run does not re-record a request
  * it already has.
  */
 export const recordRequest = (
@@ -60,7 +60,7 @@ export const recordRequest = (
 ): Promise<void> =>
   skipIfDone(
     run,
-    phaseParams({
+    activityRunParams({
       name: 'request',
       kind: 'engineer',
       owner: run.engineer,
@@ -154,7 +154,7 @@ const runUnit = async (
  * `blocked` says the work is still owed and a person is holding it,
  * `cancelled` says it is not coming.
  *
- * Recorded as an event rather than as phase rows, because a phase row claims
+ * Recorded as an event rather than as activityRun rows, because an activity run row claims
  * something was started and these were not.
  */
 const recordUnreached = (
@@ -169,7 +169,7 @@ const recordUnreached = (
   }
   run.tracer.event({
     run_id: run.runId,
-    phase_id: '',
+    activity_run_id: '',
     type: 'log',
     name: `activities_${status}`,
     payload: { activities: names, status, because },
@@ -200,7 +200,7 @@ const noteDisagreement = (
   run.console.note(`'${unit.stage}' disagreed with itself: ${split}`)
   run.tracer.event({
     run_id: run.runId,
-    phase_id: '',
+    activity_run_id: '',
     type: 'log',
     name: 'stage_disagreement',
     payload: { stage: unit.stage, outcomes: split },
@@ -335,7 +335,7 @@ export const runUnits = (
       )
       run.tracer.event({
         run_id: run.runId,
-        phase_id: handleIdOf(run, gate.activity),
+        activity_run_id: handleIdOf(run, gate.activity),
         type: 'log',
         name: 'human_gate_open',
         payload: {
@@ -372,7 +372,7 @@ export const runUnits = (
         )
         run.tracer.event({
           run_id: run.runId,
-          phase_id: handleIdOf(run, one.step.name),
+          activity_run_id: handleIdOf(run, one.step.name),
           type: 'log',
           name: 'self_answered',
           payload: { activity: one.step.name, ...decided, trust },
@@ -394,7 +394,7 @@ export const runUnits = (
       }
       run.tracer.event({
         run_id: run.runId,
-        phase_id: handleIdOf(run, step.name),
+        activity_run_id: handleIdOf(run, step.name),
         type: 'log',
         name: 'open_questions',
         payload: { activity: step.name, questions: trailing },

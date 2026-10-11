@@ -6,7 +6,7 @@ test(
   [
     'given use-cases/steps::resolveSteps',
     'when every step name is asked for',
-    'it should resolve each one to a phase of the right kind and owner',
+    'it should resolve each one to an activity run of the right kind and owner',
   ].join(', '),
   () => {
     // given
@@ -74,7 +74,7 @@ test(
   [
     'given use-cases/steps::resolveSteps',
     'when a step is named more than once',
-    'it should number the repeats so their phase names stay unique',
+    'it should number the repeats so their activityRun names stay unique',
   ].join(', '),
   () => {
     // given
@@ -114,7 +114,7 @@ test(
   [
     'given use-cases/steps::resolveSteps',
     'when the prompt step is pointed at another agent',
-    'it should own its phase with that agent and say so in the description',
+    'it should own its activityRun with that agent and say so in the description',
   ].join(', '),
   () => {
     // given

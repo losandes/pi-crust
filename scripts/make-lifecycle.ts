@@ -7,11 +7,11 @@
  *     bun <pi-crust>/scripts/make-lifecycle.ts --name review-docs --agents scout,builder
  *
  * `--steps` is the one to reach for: the generated file is four lines over the
- * step registry, and it inherits roster validation, the request phase, and
+ * step registry, and it inherits roster validation, the request activityRun, and
  * `--resume` without declaring any of them. `--agents` is the escape hatch for
  * a chain the ten steps do not cover.
  *
- * Each named agent becomes one agent phase, chained by envelope. Starter agents
+ * Each named agent becomes one agent activityRun, chained by envelope. Starter agents
  * map to their concrete output types; any other agent in the roster gets
  * `genericOutput` (define a concrete one in .pi-crust/modules/typedefs/envelope.ts
  * and swap it in).
@@ -88,15 +88,15 @@ const rosterNames = (): readonly string[] => {
   )
 }
 
-const phaseBlock = (
-  phaseName: string,
+const activityRunBlock = (
+  activityRunName: string,
   agent: string,
   outputType: string,
 ): string =>
-  `  // TODO: replace this description — say what THIS phase does and why.
-  previous = await phase(
-    phaseParams({
-      name: '${phaseName}',
+  `  // TODO: replace this description — say what THIS activityRun does and why.
+  previous = await activityRun(
+    activityRunParams({
+      name: '${activityRunName}',
       kind: 'agent',
       owner: '${agent}',
       description: 'Run ${agent} over the request and hand its envelope on',
@@ -118,7 +118,7 @@ const template = (
     chain: string
     imports: string
     agents: string
-    phases: string
+    activityRuns: string
   }>,
 ): string => `#!/usr/bin/env bun
 /**
@@ -127,12 +127,12 @@ const template = (
  * Usage:
  *     bun .pi-crust/lifecycles/${params.name}.ts "<prompt or path/to/prompt.md>" [--config .pi-crust/config/crust.config.yaml] [--run-id a1b2c3d4]
  *
- * Phases: engineer(request) -> ${params.chain}
+ * Activity Runs: engineer(request) -> ${params.chain}
  */
 
 import type { TEnvelopeBase } from '../modules/typedefs/envelope'
 import { ${params.imports} } from '../modules/typedefs/envelope'
-import { phaseParams } from '../modules/typedefs/phase'
+import { activityRunParams } from '../modules/typedefs/activity-run'
 import { callAgent } from '../modules/use-cases/execute-agent'
 import { artifactsExist } from '../modules/use-cases/gates'
 import { loadConfig } from '../modules/use-cases/load-config'
@@ -140,8 +140,8 @@ import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
 import { replayAgent, replayNothing } from '../modules/use-cases/replay'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
-import { resumablePhase } from '../modules/use-cases/resume'
-import { finish } from '../modules/use-cases/run-phase'
+import { resumableActivityRun } from '../modules/use-cases/resume'
+import { finish } from '../modules/use-cases/run-activity-run'
 import { startSession } from '../modules/use-cases/start-session'
 import { validateAgents } from '../modules/use-cases/validate-agents'
 
@@ -152,10 +152,10 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
   const cfg = loadConfig(args.config)
   validateAgents(cfg, REQUIRED_AGENTS)
   const run = startSession(cfg, args.runId, { resume: args.resume })
-  const phase = resumablePhase(run)
+  const activityRun = resumableActivityRun(run)
 
-  await phase(
-    phaseParams({
+  await activityRun(
+    activityRunParams({
       name: 'request',
       kind: 'engineer',
       owner: run.engineer,
@@ -167,7 +167,7 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
 
   let previous: TEnvelopeBase | undefined
 
-${params.phases}
+${params.activityRuns}
   return finish(run, { accepted: true })
 }
 
@@ -186,7 +186,7 @@ const stepsTemplate = (name: string, steps: readonly string[]): string =>
  * Usage:
  *     bun .pi-crust/lifecycles/${name}.ts "<prompt or path/to/prompt.md>" [--config .pi-crust/config/crust.config.yaml] [--run-id a1b2c3d4] [--resume]
  *
- * Phases: engineer(request) -> ${steps.join(' -> ')}
+ * Activity Runs: engineer(request) -> ${steps.join(' -> ')}
  *
  * TODO: replace this paragraph — say what this chain is FOR and when to reach
  * for it rather than one of the others.
@@ -285,11 +285,11 @@ const main = (): number => {
     (agent) => OUTPUT_TYPES[agent] ?? 'genericOutput',
   )
   const seen = new Map<string, number>()
-  const phases = agentNames.map((agent, index) => {
+  const activityRuns = agentNames.map((agent, index) => {
     const count = (seen.get(agent) ?? 0) + 1
     seen.set(agent, count)
-    const phaseName = count === 1 ? agent : `${agent}_${count}`
-    return phaseBlock(phaseName, agent, types[index] ?? 'genericOutput')
+    const activityRunName = count === 1 ? agent : `${agent}_${count}`
+    return activityRunBlock(activityRunName, agent, types[index] ?? 'genericOutput')
   })
 
   const code = writeFile(
@@ -299,7 +299,7 @@ const main = (): number => {
       chain: agentNames.join(' -> '),
       imports: [...new Set(types)].toSorted().join(', '),
       agents: JSON.stringify([...new Set(agentNames)].toSorted()),
-      phases: phases.join('\n'),
+      activityRuns: activityRuns.join('\n'),
     }),
     force,
   )
@@ -307,7 +307,7 @@ const main = (): number => {
     return code
   }
   say(
-    'next: replace each phase description — a generated one says nothing, and ' +
+    'next: replace each activityRun description — a generated one says nothing, and ' +
       'the description is the only intent the trace ever shows',
   )
   say(`run: bun .pi-crust/lifecycles/${name}.ts "your request"`)

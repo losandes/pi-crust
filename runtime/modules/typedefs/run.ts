@@ -8,7 +8,7 @@
 
 import type { TPiCrustConfig } from './config'
 import type { TEnvelopeBase } from './envelope'
-import type { TPhase, TPhaseStatus } from './phase'
+import type { TActivityRun, TActivityRunStatus } from './activity-run'
 import type { TTracer } from './trace'
 
 /** One agent's coding-agent session, as recorded in `agent_map.json`. */
@@ -27,8 +27,8 @@ export type TConsole = Readonly<{
     cost: number,
     dbPath: string,
   ) => void
-  phaseStarted: (phase: TPhase) => void
-  phaseEnded: (phase: TPhase, seconds: number) => void
+  activityRunStarted: (activityRun: TActivityRun) => void
+  activityRunEnded: (activityRun: TActivityRun, seconds: number) => void
   note: (message: string) => void
   /**
    * Lines a person is meant to READ and COPY — never clipped, never reflowed.
@@ -79,25 +79,25 @@ export type TRun = Readonly<{
   sessionDir: string
   contextHandoffDir: string
   /**
-   * Phase names already recorded successful for this session.
+   * ActivityRun names already recorded successful for this session.
    *
    * Empty unless the run was started with `--resume`. Populated from
    * `readRunState`, which is the same function the reporter reads, so the two
    * can never disagree about what is already done.
    */
   resume: ReadonlySet<string>
-  /** the phases this run has opened, in order */
-  phases: () => readonly TPhase[]
-  recordPhase: (phase: TPhase) => void
-  updatePhase: (
-    phaseId: string,
+  /** the activity runs this run has opened, in order */
+  activityRuns: () => readonly TActivityRun[]
+  recordActivityRun: (activityRun: TActivityRun) => void
+  updateActivityRun: (
+    activityRunId: string,
     patch: Readonly<{
-      status?: TPhaseStatus
+      status?: TActivityRunStatus
       attempt?: number
       error?: string
       ended_at?: string
     }>,
-  ) => TPhase
+  ) => TActivityRun
   nextSeq: () => number
   tokens: () => number
   cost: () => number
@@ -106,8 +106,8 @@ export type TRun = Readonly<{
   saveAgentMap: (agent: string, entry: TAgentMapEntry) => void
 }>
 
-/** What a phase body is handed. */
-export type TPhaseHandle = Readonly<{
-  phase: TPhase
+/** What an activity run body is handed. */
+export type TActivityRunHandle = Readonly<{
+  activityRun: TActivityRun
   log: (payload: Readonly<Record<string, unknown>>) => void
 }>

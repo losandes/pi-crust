@@ -1,11 +1,11 @@
 /**
  * document: write up the change, measured from the run's own baseline.
  *
- * The diff is captured inside the phase body, against `ctx.baseline` — the
+ * The diff is captured inside the activityRun body, against `ctx.baseline` — the
  * commit this run started from, not `main`, because a chain that commits as it
  * goes has already moved `main` by the time it documents. An empty change-set
  * throws before the documenter is spawned: there is nothing to document until
- * something was built, and a phase saying so costs nothing where an agent
+ * something was built, and an activity run saying so costs nothing where an agent
  * discovering it costs a context window.
  */
 
@@ -15,9 +15,9 @@ import {
   changeSetEmpty,
 } from '../../typedefs/changes'
 import { documentOutput } from '../../typedefs/envelope'
-import { phaseParams } from '../../typedefs/phase'
+import { activityRunParams } from '../../typedefs/activity-run'
 import type { TStep, TStepOptions } from '../../typedefs/step'
-import { stepPhaseName } from '../../typedefs/step'
+import { stepActivityRunName } from '../../typedefs/step'
 import { captureChanges, changesAsEnvelope } from '../capture-changes'
 import { callAgent } from '../execute-agent'
 import { artifactsExist, filesNonEmpty } from '../gates'
@@ -28,11 +28,11 @@ export const DOCUMENT_NOTES =
   'then copy the write-up into app_docs/ as your task describes.'
 
 export const documentStep = (options: TStepOptions): TStep => {
-  const phaseName = stepPhaseName('document', options.instance)
+  const activityRunName = stepActivityRunName('document', options.instance)
   return {
     name: 'document',
-    params: phaseParams({
-      name: phaseName,
+    params: activityRunParams({
+      name: activityRunName,
       kind: 'agent',
       owner: 'documenter',
       retries: 1,
@@ -71,7 +71,7 @@ export const documentStep = (options: TStepOptions): TStep => {
       const settled = readEnvelope(ctx.run, 'documenter', documentOutput)
       if (settled.status === 'error') {
         throw new Error(
-          `cannot resume phase '${phaseName}': ${settled.error.message}. ` +
+          `cannot resume activityRun '${activityRunName}': ${settled.error.message}. ` +
             'Drop --resume so it runs again.',
         )
       }

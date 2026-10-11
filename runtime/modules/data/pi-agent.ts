@@ -393,7 +393,7 @@ export const createToolCallTracker = (): Readonly<{
 /* ───────────────────────────── narration ───────────────────────────── */
 
 export type TNarrationRecord = Readonly<{
-  /** Monotonic within a phase: the nth model turn. Joins narration to calls. */
+  /** Monotonic within an activity run: the nth model turn. Joins narration to calls. */
   turn: number
   /** 'thinking' is reasoning; 'text' is what the agent chose to say. */
   channel: 'thinking' | 'text'
@@ -402,14 +402,14 @@ export type TNarrationRecord = Readonly<{
   ended_at: string
 }>
 
-/** A phase's narration is bounded: a long build must not blow up the trace. */
+/** A activity-run's narration is bounded: a long build must not blow up the trace. */
 export const NARRATION_CHARS = 4000
 
 /**
  * Folds pi's token stream into one record per turn, per channel.
  *
  * pi streams reasoning and prose a few characters at a time. Tracing each
- * delta would write thousands of rows per phase for text nobody reads
+ * delta would write thousands of rows per activityRun for text nobody reads
  * incrementally, so deltas accumulate and flush at the turn boundary — which
  * is exactly the unit the reader cares about: the agent thought, then it
  * acted.
@@ -578,7 +578,7 @@ export const createNarrationTracker = (): Readonly<{
  * the agent has stopped. `abort` stops the active operation.
  *
  * All three are no-ops once the process has gone, rather than throwing: a
- * person clicking "steer" a moment after a phase finished has made a timing
+ * person clicking "steer" a moment after an activity run finished has made a timing
  * mistake, not an error worth failing a run over.
  */
 export type TPiControl = Readonly<{
@@ -667,7 +667,7 @@ const parseJsonLine = (line: string): TUsagePayload | undefined => {
  *     part that teaches an agent to reach for a skill at all, and no amount of
  *     role description puts that back.
  *
- * An agent therefore starts a phase on the same footing as a developer opening
+ * An agent therefore starts an activity run on the same footing as a developer opening
  * a session in this repository, which is the only baseline worth having.
  */
 export const buildArgv = (

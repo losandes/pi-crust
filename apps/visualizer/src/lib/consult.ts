@@ -1,16 +1,16 @@
 /**
  * Questions put to a step after it finished, and what they changed.
  *
- * A consult is not a step: it opens no phase and does not appear in the
- * waterfall. It hangs off the phase it asked about, so the answer is found
+ * A consult is not a step: it opens no activityRun and does not appear in the
+ * waterfall. It hangs off the activityRun it asked about, so the answer is found
  * where the question made sense rather than at the end of the run.
  */
-import type { EventRow, Phase } from './types'
+import type { EventRow, ActivityRun } from './types'
 
 export type TConsultMode = 'ask' | 'amend'
 
 export type TConsult = Readonly<{
-  phaseId: string
+  activityRunId: string
   mode: TConsultMode
   agent: string
   question: string
@@ -31,7 +31,7 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 /** Every consult in the trace, oldest first — a thread reads downwards. */
 export const consultsOf = (events: readonly EventRow[]): readonly TConsult[] =>
   events
-    .filter((event) => event.type === 'consult' && event.phase_id !== null)
+    .filter((event) => event.type === 'consult' && event.activity_run_id !== null)
     .flatMap((event) => {
       try {
         const payload = JSON.parse(event.payload_json ?? '{}') as Record<
@@ -41,7 +41,7 @@ export const consultsOf = (events: readonly EventRow[]): readonly TConsult[] =>
         const mode = payload.mode === 'amend' ? 'amend' : 'ask'
         return [
           {
-            phaseId: event.phase_id ?? '',
+            activityRunId: event.activity_run_id ?? '',
             mode: mode as TConsultMode,
             agent: text(payload.agent),
             question: text(payload.question),
@@ -61,8 +61,8 @@ export const consultsOf = (events: readonly EventRow[]): readonly TConsult[] =>
 /** The thread belonging to one step. */
 export const consultsFor = (
   all: readonly TConsult[],
-  phaseId: string,
-): readonly TConsult[] => all.filter((entry) => entry.phaseId === phaseId)
+  activityRunId: string,
+): readonly TConsult[] => all.filter((entry) => entry.activityRunId === activityRunId)
 
 /**
  * Steps whose work was derived from a document that has since been amended.
@@ -78,18 +78,18 @@ export const consultsFor = (
  */
 export const staleAfterAmend = (
   consults: readonly TConsult[],
-  phases: readonly Phase[],
+  activityRuns: readonly ActivityRun[],
 ): ReadonlySet<string> => {
-  const seqOf = new Map(phases.map((phase) => [phase.phase_id, phase.seq ?? 0]))
+  const seqOf = new Map(activityRuns.map((activityRun) => [activityRun.activity_run_id, activityRun.seq ?? 0]))
   const stale = new Set<string>()
   for (const consult of consults) {
     if (consult.mode !== 'amend' || consult.amended.length === 0) continue
-    const amendedSeq = seqOf.get(consult.phaseId) ?? 0
-    for (const phase of phases) {
-      const ended = phase.ended_at ?? ''
-      if ((phase.seq ?? 0) <= amendedSeq) continue
+    const amendedSeq = seqOf.get(consult.activityRunId) ?? 0
+    for (const activityRun of activityRuns) {
+      const ended = activityRun.ended_at ?? ''
+      if ((activityRun.seq ?? 0) <= amendedSeq) continue
       // Ran before the amendment, so it saw the older text.
-      if (ended !== '' && ended < consult.at) stale.add(phase.phase_id)
+      if (ended !== '' && ended < consult.at) stale.add(activityRun.activity_run_id)
     }
   }
   return stale

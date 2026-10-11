@@ -11,7 +11,7 @@ import { dirname } from 'node:path'
 import type { TAgentConfig } from '../typedefs/config'
 import type { TGateReport } from '../typedefs/gate'
 import { reportPassed, violationsOf } from '../typedefs/gate'
-import type { TPhase } from '../typedefs/phase'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TEventInput, TTracer } from '../typedefs/trace'
 import { nowIso } from './clock'
 import { appendText, ensureDir } from './files'
@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   workspace_root TEXT,              -- the working tree this run ran in
   branch        TEXT                -- the branch it was on when it started
 );
-CREATE TABLE IF NOT EXISTS phases (
-  phase_id      TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS activity_runs (
+  activity_run_id      TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
   seq           INTEGER,
   name TEXT, kind TEXT, owner TEXT, description TEXT,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS phases (
 CREATE TABLE IF NOT EXISTS events (
   event_id      TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
+  activity_run_id      TEXT REFERENCES activity_runs,
   parent_id     TEXT,
   type          TEXT,
   name          TEXT,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS envelopes (
   envelope_id   TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
+  activity_run_id      TEXT REFERENCES activity_runs,
   agent         TEXT,
   output_type   TEXT,
   payload_json  TEXT,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS envelopes (
 CREATE TABLE IF NOT EXISTS gate_results (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
+  activity_run_id      TEXT REFERENCES activity_runs,
   attempt       INTEGER,
   gate          TEXT,
   passed        INTEGER,
@@ -140,7 +140,7 @@ export const createTracer = (
     const ts = nowIso()
     const record = {
       run_id: input.run_id,
-      phase_id: input.phase_id ?? '',
+      activity_run_id: input.activity_run_id ?? '',
       type: input.type,
       name: input.name ?? '',
       payload: input.payload ?? {},
@@ -154,12 +154,12 @@ export const createTracer = (
       `${JSON.stringify({ event_id: eventId, ts, ...record })}\n`,
     )
     db.run(
-      'INSERT INTO events (event_id, run_id, phase_id, parent_id, type, name,' +
+      'INSERT INTO events (event_id, run_id, activity_run_id, parent_id, type, name,' +
         ' payload_json, tokens, started_at, ended_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
       [
         eventId,
         record.run_id,
-        record.phase_id,
+        record.activity_run_id,
         record.parent_id,
         record.type,
         record.name,
@@ -180,21 +180,21 @@ export const createTracer = (
   }
 
   /**
-   * Close any phase the run left open, because the run is over and it is not.
+   * Close any activityRun the run left open, because the run is over and it is not.
    *
-   * A phase goes `running` when it starts and is updated when it settles. A
-   * run killed mid-phase — Ctrl-C, a crash, a terminal closing — never reaches
+   * A activityRun goes `running` when it starts and is updated when it settles. A
+   * run killed mid-activityRun — Ctrl-C, a crash, a terminal closing — never reaches
    * that update, so the row stays `running` forever: the session reads `fail`
-   * while the phase under it claims to still be working, with no process
-   * behind it. `just crust phases` and the visualizer both repeat the claim,
+   * while the activityRun under it claims to still be working, with no process
+   * behind it. `just crust activityRuns` and the visualizer both repeat the claim,
    * and a reader cannot tell an interrupted run from a live one.
    *
-   * Whatever ends a run ends its phases. `ended_at` is left alone when the
-   * phase already had one, so this only touches rows that never settled.
+   * Whatever ends a run ends its activityRuns. `ended_at` is left alone when the
+   * activityRun already had one, so this only touches rows that never settled.
    */
-  const phasesAbandon = (runId: string, reason: string): void => {
+  const activityRunsAbandon = (runId: string, reason: string): void => {
     db.run(
-      "UPDATE phases SET status='fail', error=COALESCE(error, ?), " +
+      "UPDATE activity_runs SET status='fail', error=COALESCE(error, ?), " +
         'ended_at=COALESCE(ended_at, ?) WHERE run_id=? AND status=?',
       [reason, nowIso(), runId, 'running'],
     )
@@ -268,9 +268,9 @@ export const createTracer = (
         runId,
       ])
       processesEndAll(runId)
-      // A gate opens between phases, so there should be none open. If there
+      // A gate opens between activityRuns, so there should be none open. If there
       // is, it did not finish, and saying so beats leaving it mid-sentence.
-      phasesAbandon(runId, 'the run stopped for a person while this phase was open')
+      activityRunsAbandon(runId, 'the run stopped for a person while this activityRun was open')
     },
 
     sessionFinish: (runId, ok) => {
@@ -280,9 +280,9 @@ export const createTracer = (
         runId,
       ])
       processesEndAll(runId) // nothing of this run is alive any more
-      phasesAbandon(
+      activityRunsAbandon(
         runId,
-        'the run ended while this phase was still running — interrupted, or it ' +
+        'the run ended while this activityRun was still running — interrupted, or it ' +
           'died without settling',
       )
     },
@@ -342,59 +342,59 @@ export const createTracer = (
 
     processesEndAll,
 
-    // ── phases ──────────────────────────────────────────────────────────────
+    // ── activityRuns ──────────────────────────────────────────────────────────────
     /**
      * Highest seq already recorded for this session; 0 when it is new.
      *
      * A joined run continues the sequence instead of restarting at 1 — which
-     * would collide with the first run's phases on both `seq` (breaking
-     * ordering) and `phase_id` (silently overwriting a row through the
-     * phaseUpsert conflict clause).
+     * would collide with the first run's activityRuns on both `seq` (breaking
+     * ordering) and `activity_run_id` (silently overwriting a row through the
+     * activityRunUpsert conflict clause).
      */
-    maxPhaseSeq: (runId) => {
+    maxActivityRunSeq: (runId) => {
       const row = db
         .query<{ max_seq: number | null }, [string]>(
-          'SELECT MAX(seq) AS max_seq FROM phases WHERE run_id = ?',
+          'SELECT MAX(seq) AS max_seq FROM activity_runs WHERE run_id = ?',
         )
         .get(runId)
       return row?.max_seq ?? 0
     },
 
-    phaseUpsert: (phase: TPhase) => {
-      const p = phase.params
+    activityRunUpsert: (activityRun: TActivityRun) => {
+      const p = activityRun.params
       db.run(
-        'INSERT INTO phases (phase_id, run_id, seq, name, kind, owner, description,' +
+        'INSERT INTO activity_runs (activity_run_id, run_id, seq, name, kind, owner, description,' +
           ' status, attempt, retries, error, started_at, ended_at)' +
           ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)' +
-          ' ON CONFLICT(phase_id) DO UPDATE SET status=excluded.status,' +
+          ' ON CONFLICT(activity_run_id) DO UPDATE SET status=excluded.status,' +
           ' attempt=excluded.attempt, error=excluded.error, ended_at=excluded.ended_at',
         [
-          phase.phase_id,
-          phase.run_id,
-          phase.seq,
+          activityRun.activity_run_id,
+          activityRun.run_id,
+          activityRun.seq,
           p.name,
           p.kind,
           p.owner,
           p.description,
-          phase.status,
-          phase.attempt,
+          activityRun.status,
+          activityRun.attempt,
           p.retries,
-          phase.error ?? null,
-          phase.started_at ?? null,
-          phase.ended_at ?? null,
+          activityRun.error ?? null,
+          activityRun.started_at ?? null,
+          activityRun.ended_at ?? null,
         ],
       )
     },
 
     // ── envelopes / gates / agent sessions ──────────────────────────────────
-    envelopeRow: (phase, agent, outputType, payloadJson, valid, attempt) => {
+    envelopeRow: (activityRun, agent, outputType, payloadJson, valid, attempt) => {
       db.run(
-        'INSERT INTO envelopes (envelope_id, run_id, phase_id, agent, output_type,' +
+        'INSERT INTO envelopes (envelope_id, run_id, activity_run_id, agent, output_type,' +
           ' payload_json, valid, attempt, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
         [
           `env_${newId(12)}`,
-          phase.run_id,
-          phase.phase_id,
+          activityRun.run_id,
+          activityRun.activity_run_id,
           agent,
           outputType,
           payloadJson,
@@ -406,13 +406,13 @@ export const createTracer = (
     },
 
     /** The report carries both the verdict and the evidence behind it. */
-    gateRow: (phase, gate, report: TGateReport, attempt) => {
+    gateRow: (activityRun, gate, report: TGateReport, attempt) => {
       db.run(
-        'INSERT INTO gate_results (run_id, phase_id, attempt, gate, passed,' +
+        'INSERT INTO gate_results (run_id, activity_run_id, attempt, gate, passed,' +
           ' violations_json, checks_json, created_at) VALUES (?,?,?,?,?,?,?,?)',
         [
-          phase.run_id,
-          phase.phase_id,
+          activityRun.run_id,
+          activityRun.activity_run_id,
           attempt,
           gate,
           reportPassed(report) ? 1 : 0,

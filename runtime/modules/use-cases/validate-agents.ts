@@ -2,7 +2,7 @@
  * Fail fast: every required name must resolve to a usable agent.
  *
  * Nothing spawns against a half-valid config — this runs before the session is
- * even minted, so a misnamed agent costs a second rather than a phase.
+ * even minted, so a misnamed agent costs a second rather than an activity run.
  */
 
 import { isFile } from '../data/files'

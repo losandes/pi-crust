@@ -37,29 +37,29 @@ const applies = (
   patterns: readonly string[],
 ): boolean => patterns.length === 0 || matchingPaths(paths, patterns).length > 0
 
-/** `revise_2` -> `revise`: an instance suffix is numbering, not a new phase. */
-export const basePhaseName = (name: string): string =>
+/** `revise_2` -> `revise`: an instance suffix is numbering, not a new activityRun. */
+export const baseActivityRunName = (name: string): string =>
   name.replace(/_\d+$/, '')
 
 /**
  * Skill paths this agent should load for this change, in declared order.
  *
- * `phase` narrows a skill to the phases it is about — a skill on how to answer
+ * `activityRun` narrows a skill to the activity runs it is about — a skill on how to answer
  * a review belongs to a revise and nowhere else. Omitted, and for any skill
- * declaring no `phases`, the behaviour is exactly what it was.
+ * declaring no `activityRuns`, the behaviour is exactly what it was.
  */
 export const matchingSkills = (
   cfg: TPiCrustConfig,
   agentName: string,
   paths: readonly string[],
-  phase = '',
+  activityRun = '',
 ): readonly string[] =>
   cfg.routing.skills
     .filter(
       (skill: TRoutingSkill) =>
         (skill.agents.length === 0 || skill.agents.includes(agentName)) &&
-        (skill.phases.length === 0 ||
-          skill.phases.includes(basePhaseName(phase))) &&
+        (skill.activity_runs.length === 0 ||
+          skill.activity_runs.includes(baseActivityRunName(activityRun))) &&
         applies(paths, skill.when),
     )
     .map((skill) => skill.path)

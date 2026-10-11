@@ -42,7 +42,7 @@ const MACHINERY = new Set([
   'disputes.json',
   'changes.diff',
   // Appended to every time a person sends the run back. Locked, a second
-  // steer would be refused by the mode the first one's phase set.
+  // steer would be refused by the mode the first one's activityRun set.
   'steering.md',
 ])
 

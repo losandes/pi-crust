@@ -244,7 +244,7 @@ export const codeReviewStep = (options: TStepOptions): TStep =>
  * revise: answer a review's blocking findings, with a fix or with evidence.
  *
  * The builder's own output type, not a second one: one `user.md` serves both
- * phases, and a separate schema would split the synced triad across one prompt.
+ * activityRuns, and a separate schema would split the synced triad across one prompt.
  * `disputesSupported` is what stops "I disagree" being an answer.
  */
 export const reviseStep = (options: TStepOptions): TStep =>

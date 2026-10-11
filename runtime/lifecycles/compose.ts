@@ -15,7 +15,7 @@
  * call site. Naming both is a usage error rather than a precedence rule
  * nobody can remember.
  *
- * Phases: engineer(request) -> one per named step, in the order given
+ * Activity Runs: engineer(request) -> one per named step, in the order given
  *
  * This is the escape hatch that stops the workflows directory growing a file
  * per permutation. A chain worth repeating earns its own script — a two-line

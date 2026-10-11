@@ -23,7 +23,7 @@
 /**
  * The roles an agent may take, in the order they are handed out.
  *
- * `red` is deliberately absent: it means a failed phase everywhere else in
+ * `red` is deliberately absent: it means a failed activityRun everywhere else in
  * this interface, and an agent permanently wearing the failure colour would
  * be read as broken at a glance.
  */

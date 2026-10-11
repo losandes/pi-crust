@@ -23,14 +23,14 @@ import {
   eventDurationMs,
   gateChecks,
   money,
-  phaseUsage,
+  activityRunUsage,
   requestText,
   violations,
-} from '../lib/phase-facts'
-import { needsYou, phaseLedger } from '../lib/ledger'
+} from '../lib/activity-run-facts'
+import { needsYou, activityRunLedger } from '../lib/ledger'
 import type { TArtifact } from '../lib/artifacts'
-import { phaseArtifacts, runArtifacts } from '../lib/artifacts'
-import type { Envelope, EventRow, GateResult, Phase } from '../lib/types'
+import { activityRunArtifacts, runArtifacts } from '../lib/artifacts'
+import type { Envelope, EventRow, GateResult, ActivityRun } from '../lib/types'
 import { useHandoff } from '../lib/use-handoff'
 import { usePrompts } from '../lib/use-prompts'
 import { consultsFor, consultsOf } from '../lib/consult'
@@ -42,7 +42,7 @@ import { NarrationPane } from './NarrationPane'
 import { RunControls } from './RunControls'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
-import styles from './PhaseDetail.module.css'
+import styles from './ActivityRunDetail.module.css'
 
 const NUM = new Intl.NumberFormat('en-US')
 
@@ -63,8 +63,8 @@ const useOpenSet = <TKey extends string | number>(resetKey: string) => {
     open: [],
   })
   /*
-   * The trace view replaces the phase object on every poll tick, so open and
-   * closed state is keyed on phase_id — a stable string. Without that, a
+   * The trace view replaces the activityRun object on every poll tick, so open and
+   * closed state is keyed on activity_run_id — a stable string. Without that, a
    * reader's choices would snap shut twice a second.
    */
   const open = state.key === resetKey ? state.open : []
@@ -97,76 +97,76 @@ const useOpenSet = <TKey extends string | number>(resetKey: string) => {
  */
 type TTab = 'chat' | 'highlights' | 'context' | 'events'
 
-export const PhaseDetail = ({
-  phase,
+export const ActivityRunDetail = ({
+  activityRun,
   runId,
   runStatus,
   events,
   envelopes,
   gates,
-  phases,
+  activityRuns,
   workspace,
   onClose,
 }: Readonly<{
-  phase: Phase
+  activityRun: ActivityRun
   runId: string
-  /** the RUN's status, not the phase's — the chat input talks to the run */
+  /** the RUN's status, not the activity-run's — the chat input talks to the run */
   runStatus: string
   events: readonly EventRow[]
   envelopes: readonly Envelope[]
   gates: readonly GateResult[]
-  /** Every phase of the run, so a steer can name what it would replay. */
-  phases: readonly Phase[]
+  /** Every activityRun of the run, so a steer can name what it would replay. */
+  activityRuns: readonly ActivityRun[]
   /** the tree this run is in — prompts and steering are files beside it */
   workspace?: string
   onClose: () => void
 }>) => {
-  const phaseEvents = useMemo(
+  const activityRunEvents = useMemo(
     () =>
       events
-        .filter((event) => event.phase_id === phase.phase_id)
+        .filter((event) => event.activity_run_id === activityRun.activity_run_id)
         .toSorted((a, b) => a.rowid - b.rowid),
-    [events, phase.phase_id],
+    [events, activityRun.activity_run_id],
   )
 
-  const phaseGates = useMemo(
+  const activityRunGates = useMemo(
     () =>
       gates
-        .filter((gate) => gate.phase_id === phase.phase_id)
+        .filter((gate) => gate.activity_run_id === activityRun.activity_run_id)
         .toSorted(
           (a, b) => (a.attempt ?? 0) - (b.attempt ?? 0) || a.id - b.id,
         ),
-    [gates, phase.phase_id],
+    [gates, activityRun.activity_run_id],
   )
 
-  const phaseOutputs = useMemo(
+  const activityRunOutputs = useMemo(
     () =>
       envelopes
-        .filter((envelope) => envelope.phase_id === phase.phase_id)
+        .filter((envelope) => envelope.activity_run_id === activityRun.activity_run_id)
         .toSorted((a, b) => (a.attempt ?? 0) - (b.attempt ?? 0)),
-    [envelopes, phase.phase_id],
+    [envelopes, activityRun.activity_run_id],
   )
 
   /*
-   * The agent's configuration, carried on its phase's `agent_start` event.
+   * The agent's configuration, carried on its activity-run's `agent_start` event.
    * Older rows carry only model and thinking — rows render what was recorded.
    */
   const agentConfig = useMemo(() => {
-    if (phase.kind !== 'agent') return undefined
-    const start = phaseEvents.find((event) => event.type === 'agent_start')
+    if (activityRun.kind !== 'agent') return undefined
+    const start = activityRunEvents.find((event) => event.type === 'agent_start')
     return start ? (parseAgentStart(start) ?? undefined) : undefined
-  }, [phase.kind, phaseEvents])
+  }, [activityRun.kind, activityRunEvents])
 
-  const usage = useMemo(() => phaseUsage(phase, phaseEvents), [phase, phaseEvents])
-  const ask = useMemo(() => requestText(phase, phaseEvents), [phase, phaseEvents])
+  const usage = useMemo(() => activityRunUsage(activityRun, activityRunEvents), [activityRun, activityRunEvents])
+  const ask = useMemo(() => requestText(activityRun, activityRunEvents), [activityRun, activityRunEvents])
 
-  const sections = useOpenSet<string>(phase.phase_id)
-  const openGates = useOpenSet<number>(phase.phase_id)
-  const openEvents = useOpenSet<string>(phase.phase_id)
-  const openPanels = useOpenSet<string>(phase.phase_id)
-  const rawView = useOpenSet<string>(phase.phase_id)
+  const sections = useOpenSet<string>(activityRun.activity_run_id)
+  const openGates = useOpenSet<number>(activityRun.activity_run_id)
+  const openEvents = useOpenSet<string>(activityRun.activity_run_id)
+  const openPanels = useOpenSet<string>(activityRun.activity_run_id)
+  const rawView = useOpenSet<string>(activityRun.activity_run_id)
 
-  const prompts = usePrompts(phase, workspace)
+  const prompts = usePrompts(activityRun, workspace)
 
   /*
    * The documents this step produced, from the envelope it reported and the
@@ -176,11 +176,11 @@ export const PhaseDetail = ({
   const handoff = useHandoff(runId, workspace, events)
   const artifacts = useMemo(
     () =>
-      phaseArtifacts(
+      activityRunArtifacts(
         runArtifacts({ runId, envelopes, events, present: handoff }),
-        phase.phase_id,
+        activityRun.activity_run_id,
       ),
-    [runId, envelopes, events, handoff, phase.phase_id],
+    [runId, envelopes, events, handoff, activityRun.activity_run_id],
   )
   const [viewing, setViewing] = useState<TArtifact | undefined>(undefined)
 
@@ -191,73 +191,73 @@ export const PhaseDetail = ({
    * trace, not by its configuration.
    */
   const replaying = useMemo(() => {
-    const target = phases.filter((entry) => entry.name === phase.name).at(-1)
+    const target = activityRuns.filter((entry) => entry.name === activityRun.name).at(-1)
     if (target === undefined) return []
     return [
       ...new Set(
-        phases
+        activityRuns
           .filter((entry) => (entry.seq ?? 0) >= (target.seq ?? 0))
           .map((entry) => entry.name ?? ''),
       ),
     ].filter((name) => name !== '')
-  }, [phases, phase.name])
+  }, [activityRuns, activityRun.name])
 
   /*
-   * Questions put to this step after it finished. They hang off the phase
+   * Questions put to this step after it finished. They hang off the activityRun
    * rather than the run, so a reader finds an answer where the question
    * made sense.
    */
   const consults = useMemo(
-    () => consultsFor(consultsOf(events), phase.phase_id),
-    [events, phase.phase_id],
+    () => consultsFor(consultsOf(events), activityRun.activity_run_id),
+    [events, activityRun.activity_run_id],
   )
 
   /*
-   * Keyed to the phase, so selecting a different step opens on chat again
+   * Keyed to the activityRun, so selecting a different step opens on chat again
    * rather than leaving you on whichever tab the last step was showing.
    */
-  const [tab, setTab] = useState<{ phase: string; name: TTab }>({
-    phase: phase.phase_id,
+  const [tab, setTab] = useState<{ activityRun: string; name: TTab }>({
+    activityRun: activityRun.activity_run_id,
     name: 'chat',
   })
-  const active: TTab = tab.phase === phase.phase_id ? tab.name : 'chat'
-  const show = (name: TTab) => () => setTab({ phase: phase.phase_id, name })
+  const active: TTab = tab.activityRun === activityRun.activity_run_id ? tab.name : 'chat'
+  const show = (name: TTab) => () => setTab({ activityRun: activityRun.activity_run_id, name })
 
   const ledger = useMemo(
-    () => phaseLedger(phase.phase_id, envelopes, events),
-    [phase.phase_id, envelopes, events],
+    () => activityRunLedger(activityRun.activity_run_id, envelopes, events),
+    [activityRun.activity_run_id, envelopes, events],
   )
 
-  const phaseDurationMs = useMemo(() => {
-    const start = ts(phase.started_at)
+  const activityRunDurationMs = useMemo(() => {
+    const start = ts(activityRun.started_at)
     if (!Number.isFinite(start)) return Number.NaN
-    const end = phase.status === 'running' ? Date.now() : ts(phase.ended_at)
+    const end = activityRun.status === 'running' ? Date.now() : ts(activityRun.ended_at)
     return Number.isFinite(end) ? end - start : Number.NaN
-  }, [phase.started_at, phase.ended_at, phase.status])
+  }, [activityRun.started_at, activityRun.ended_at, activityRun.status])
 
   return (
     <section className={styles.detail}>
       <header className={styles.head}>
         <div className={styles.main}>
-          <span className={styles.name}>{phase.name}</span>
-          <StatusChip status={phase.status ?? 'queued'} />
-          {Number.isFinite(phaseDurationMs) && (
-            <StatChip kind="runtime" value={phaseDurationMs} />
+          <span className={styles.name}>{activityRun.name}</span>
+          <StatusChip status={activityRun.status ?? 'queued'} />
+          {Number.isFinite(activityRunDurationMs) && (
+            <StatChip kind="runtime" value={activityRunDurationMs} />
           )}
         </div>
         <div className={styles.tags}>
           <span className={styles.tag}>
             <span className={styles.tagK}>owner</span>
-            <span className={styles.tagV}>{phase.owner ?? '—'}</span>
+            <span className={styles.tagV}>{activityRun.owner ?? '—'}</span>
           </span>
           <span className={styles.tag}>
             <span className={styles.tagK}>kind</span>
-            <span className={styles.tagV}>{phase.kind ?? '—'}</span>
+            <span className={styles.tagV}>{activityRun.kind ?? '—'}</span>
           </span>
           <span className={styles.tag}>
             <span className={styles.tagK}>attempt</span>
             <span className={styles.tagV}>
-              {phase.attempt ?? 0}/{phase.retries ?? 0}
+              {activityRun.attempt ?? 0}/{activityRun.retries ?? 0}
             </span>
           </span>
         </div>
@@ -271,7 +271,7 @@ export const PhaseDetail = ({
         </button>
       </header>
 
-      {phase.error && <div className={`error-bar ${styles.error}`}>{phase.error}</div>}
+      {activityRun.error && <div className={`error-bar ${styles.error}`}>{activityRun.error}</div>}
 
       <DocumentViewer
         artifact={viewing}
@@ -328,7 +328,7 @@ export const PhaseDetail = ({
           className={active === 'events' ? `${styles.tab} ${styles.on}` : styles.tab}
           onClick={show('events')}
         >
-          <Activity size={16} strokeWidth={2} /> events ({phaseEvents.length})
+          <Activity size={16} strokeWidth={2} /> events ({activityRunEvents.length})
         </button>
       </div>
 
@@ -342,13 +342,13 @@ export const PhaseDetail = ({
           <div className={styles.chatCols}>
             <div className={styles.chatCol}>
               <h4 className={styles.colHead}>thinking</h4>
-              {phase.kind === 'agent' ? (
+              {activityRun.kind === 'agent' ? (
                 <div className={styles.colBodyFlush}>
                   <NarrationPane
-                    events={phaseEvents}
-                    agent={phase.owner ?? phase.name ?? 'agent'}
-                    envelope={phaseOutputs.at(-1)}
-                    phaseStatus={phase.status ?? ''}
+                    events={activityRunEvents}
+                    agent={activityRun.owner ?? activityRun.name ?? 'agent'}
+                    envelope={activityRunOutputs.at(-1)}
+                    activityRunStatus={activityRun.status ?? ''}
                     consults={consults}
                     runId={runId}
                     runStatus={runStatus}
@@ -365,7 +365,7 @@ export const PhaseDetail = ({
             runId={runId}
             status={runStatus}
             workspace={workspace}
-            consultStep={phase.kind === 'agent' ? (phase.name ?? '') : undefined}
+            consultStep={activityRun.kind === 'agent' ? (activityRun.name ?? '') : undefined}
             replaying={replaying}
           />
         </div>
@@ -491,18 +491,18 @@ export const PhaseDetail = ({
             </DetailSection>
           )}
 
-          {phase.description && (
+          {activityRun.description && (
             <DetailSection
               title="description"
               icon={AlignLeft}
               open={sections.has('description')}
               onToggle={() => sections.toggle('description')}
             >
-              <p className={styles.desc}>{phase.description}</p>
+              <p className={styles.desc}>{activityRun.description}</p>
             </DetailSection>
           )}
 
-          {phase.kind === 'agent' && (
+          {activityRun.kind === 'agent' && (
             <DetailSection
               title="compiled prompts"
               icon={MessagesSquare}
@@ -568,12 +568,12 @@ export const PhaseDetail = ({
           <DetailSection
             title="gates"
             icon={ShieldCheck}
-            count={phaseGates.length}
+            count={activityRunGates.length}
             open={sections.has('gates')}
             onToggle={() => sections.toggle('gates')}
           >
-            {phaseGates.length === 0 && <div className="faint">no gate results</div>}
-            {phaseGates.map((gate) => {
+            {activityRunGates.length === 0 && <div className="faint">no gate results</div>}
+            {activityRunGates.map((gate) => {
               const checks = gateChecks(gate)
               const failures = violations(gate)
               return (
@@ -713,7 +713,7 @@ export const PhaseDetail = ({
           <DetailSection
             title="outputs"
             icon={Package}
-            count={phaseOutputs.length + artifacts.length}
+            count={activityRunOutputs.length + artifacts.length}
             open={sections.has('outputs')}
             onToggle={() => sections.toggle('outputs')}
           >
@@ -722,10 +722,10 @@ export const PhaseDetail = ({
                 <ArtifactList artifacts={artifacts} onOpen={setViewing} />
               </div>
             )}
-            {phaseOutputs.length === 0 && artifacts.length === 0 && (
+            {activityRunOutputs.length === 0 && artifacts.length === 0 && (
               <div className="faint">no outputs</div>
             )}
-            {phaseOutputs.map((envelope) => (
+            {activityRunOutputs.map((envelope) => (
               <div key={envelope.envelope_id} className={styles.output}>
                 <div className={styles.outputLine}>
                   <span className={styles.outputType}>{envelope.output_type}</span>
@@ -756,8 +756,8 @@ export const PhaseDetail = ({
 
       <div className={active === 'events' ? styles.events : styles.hidden}>
         <div className={styles.col}>
-          {phaseEvents.length === 0 && <div className="faint">no events</div>}
-          {phaseEvents.map((event) => {
+          {activityRunEvents.length === 0 && <div className="faint">no events</div>}
+          {activityRunEvents.map((event) => {
             const duration = eventDurationMs(event)
             const call = event.type === 'tool_call' ? parseToolCall(event) : null
             const open = openEvents.has(event.event_id)

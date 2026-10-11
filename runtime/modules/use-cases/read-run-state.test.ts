@@ -3,23 +3,23 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
-import type { TPhase, TPhaseStatus } from '../typedefs/phase'
-import { phaseParams } from '../typedefs/phase'
+import type { TActivityRun, TActivityRunStatus } from '../typedefs/activity-run'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TTracer } from '../typedefs/trace'
 import { latestLogPayload, readRunState } from './read-run-state'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-run-state-'))
 
-const phaseRecord = (
+const activityRunRecord = (
   runId: string,
   seq: number,
   name: string,
-  status: TPhaseStatus,
-): TPhase => ({
-  phase_id: `${runId}_${String(seq).padStart(2, '0')}_${name}`,
+  status: TActivityRunStatus,
+): TActivityRun => ({
+  activity_run_id: `${runId}_${String(seq).padStart(2, '0')}_${name}`,
   run_id: runId,
   seq,
-  params: phaseParams({
+  params: activityRunParams({
     name,
     kind: 'code',
     owner: 'quality',
@@ -35,20 +35,20 @@ const phaseRecord = (
 const session = (
   tracer: TTracer,
   runId: string,
-  phases: ReadonlyArray<readonly [number, string, TPhaseStatus]>,
+  activityRuns: ReadonlyArray<readonly [number, string, TActivityRunStatus]>,
 ): void => {
   tracer.sessionStart(runId, 'tester', 'sdlc')
   tracer.sessionRequest(runId, 'add a /health endpoint')
-  for (const [seq, name, status] of phases) {
-    tracer.phaseUpsert(phaseRecord(runId, seq, name, status))
+  for (const [seq, name, status] of activityRuns) {
+    tracer.activityRunUpsert(activityRunRecord(runId, seq, name, status))
   }
 }
 
 test(
   [
     'given use-cases/read-run-state::readRunState',
-    'when a phase name was run twice and the later run failed',
-    'it should treat that phase as incomplete and resume from it',
+    'when an activity run name was run twice and the later run failed',
+    'it should treat that activityRun as incomplete and resume from it',
   ].join(', '),
   () => {
     // given
@@ -74,7 +74,7 @@ test(
 test(
   [
     'given use-cases/read-run-state::readRunState',
-    'when every phase succeeded',
+    'when every activity run succeeded',
     'it should report nothing to resume from',
   ].join(', '),
   () => {
@@ -118,7 +118,7 @@ test(
 test(
   [
     'given use-cases/read-run-state::latestLogPayload',
-    'when a code phase recorded a verdict beside a console line',
+    'when a code activityRun recorded a verdict beside a console line',
     'it should return the verdict, not the console line',
   ].join(', '),
   () => {
@@ -127,17 +127,17 @@ test(
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     session(tracer, 'cccc3333', [[1, 'verify', 'success']])
-    const phaseId = 'cccc3333_01_verify'
+    const activityRunId = 'cccc3333_01_verify'
     tracer.event({
       run_id: 'cccc3333',
-      phase_id: phaseId,
+      activity_run_id: activityRunId,
       type: 'log',
       name: 'step_result',
       payload: { passed: false, failures: ['lint: exited 1'] },
     })
     tracer.event({
       run_id: 'cccc3333',
-      phase_id: phaseId,
+      activity_run_id: activityRunId,
       type: 'log',
       name: 'verify',
       payload: { message: 'verify finished', level: 'info' },

@@ -34,7 +34,7 @@ const contextOf = (
 test(
   [
     'given use-cases/operator-plan::plannedChain',
-    'when an operator phase chose a chain',
+    'when an operator activityRun chose a chain',
     'it should return that chain in the order it was planned',
   ].join(' '),
   () => {

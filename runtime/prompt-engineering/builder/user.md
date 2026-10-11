@@ -47,7 +47,7 @@ Two things you do not get to decide:
 - A finding a declared check decides — anything `verify` runs — may not be disputed. Fix it. Exit status is not a matter of opinion.
 - Whether the argument has gone on long enough. Do not re-argue a finding you already disputed with the same evidence: the harness counts repeats and ends the loop, so saying it louder costs a round and changes nothing.
 
-## When this phase is a POC
+## When this activity run is a POC
 
 A POC answers ONE question. Before touching anything, state the hypothesis and what evidence would support or disprove it — if you cannot, there is nothing to build yet and you should say so instead.
 
@@ -57,13 +57,13 @@ A disproved hypothesis usually means the chain should go back, not forward: set 
 
 Its code is not production code. List in `discard` what must not survive, and do not quietly improve it into something that looks shippable.
 
-Report `PocOutput` instead of `BuildOutput` for this phase: the same context fields, plus `hypothesis`, `evidence_sought`, `supported`, and `discard`.
+Report `PocOutput` instead of `BuildOutput` for this activity run: the same context fields, plus `hypothesis`, `evidence_sought`, `supported`, and `discard`.
 
 ## Report
 
 Respond with ONLY valid JSON matching `BuildOutput` — no prose before or after:
 
-**`changed_files` takes literal paths only.** Every entry is checked against the filesystem exactly as written, so a glob (`src/**`, `lib/*.ts`) fails the gate no matter how many files it would have matched — a path containing `*` cannot exist. Enumerate every file you touched, however long the list runs. Abbreviating a directory you rewrote is the one way to fail a phase whose work is already on disk.
+**`changed_files` takes literal paths only.** Every entry is checked against the filesystem exactly as written, so a glob (`src/**`, `lib/*.ts`) fails the gate no matter how many files it would have matched — a path containing `*` cannot exist. Enumerate every file you touched, however long the list runs. Abbreviating a directory you rewrote is the one way to fail a activity run whose work is already on disk.
 
 `disputes` is empty on a plain build. On a revise it holds one entry per finding you did not fix.
 

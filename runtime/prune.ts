@@ -38,7 +38,7 @@ const RUN_TABLES = [
   'envelopes',
   'agent_sessions',
   'processes',
-  'phases',
+  'activity_runs',
   'sessions',
 ] as const
 

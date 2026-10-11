@@ -1,9 +1,9 @@
 /**
- * The ONE phase primitive, and the one place a run is finalized.
+ * The ONE activityRun primitive, and the one place a run is finalized.
  *
- * `runPhase(run)(params, async (ph) => { … })` covers all three kinds
- * (engineer, agent, code). Success must be earned: every phase defaults to
- * fail; only a clean exit flips it (agent phases additionally require a parsed
+ * `runActivityRun(run)(params, async (ph) => { … })` covers all three kinds
+ * (engineer, agent, code). Success must be earned: every activity run defaults to
+ * fail; only a clean exit flips it (agent activityRuns additionally require a parsed
  * envelope and green gates, enforced inside executeAgent).
  */
 
@@ -22,13 +22,13 @@ import {
   snapshotHandoff,
 } from '../data/handoff-snapshot'
 import { EXIT } from '../typedefs/run-state'
-import type { TPhase, TPhaseParams } from '../typedefs/phase'
-import type { TPhaseHandle, TRun } from '../typedefs/run'
+import type { TActivityRun, TActivityRunParams } from '../typedefs/activity-run'
+import type { TActivityRunHandle, TRun } from '../typedefs/run'
 
-const openPhase = (run: TRun, params: TPhaseParams): TPhase => {
+const openActivityRun = (run: TRun, params: TActivityRunParams): TActivityRun => {
   const seq = run.nextSeq()
-  const phase: TPhase = {
-    phase_id: `${run.runId}_${String(seq).padStart(2, '0')}_${params.name}`,
+  const activityRun: TActivityRun = {
+    activity_run_id: `${run.runId}_${String(seq).padStart(2, '0')}_${params.name}`,
     run_id: run.runId,
     seq,
     params,
@@ -38,12 +38,12 @@ const openPhase = (run: TRun, params: TPhaseParams): TPhase => {
     started_at: nowIso(),
     ended_at: undefined,
   }
-  run.recordPhase(phase)
-  run.tracer.phaseUpsert(phase)
+  run.recordActivityRun(activityRun)
+  run.tracer.activityRunUpsert(activityRun)
   run.tracer.event({
     run_id: run.runId,
-    phase_id: phase.phase_id,
-    type: 'phase_start',
+    activity_run_id: activityRun.activity_run_id,
+    type: 'activity_run_start',
     name: params.name,
     payload: {
       kind: params.kind,
@@ -51,15 +51,15 @@ const openPhase = (run: TRun, params: TPhaseParams): TPhase => {
       description: params.description,
     },
   })
-  run.console.phaseStarted(phase)
-  return phase
+  run.console.activityRunStarted(activityRun)
+  return activityRun
 }
 
 /**
  * The event name carrying what a step was observed to write.
  *
  * Distinct from the step's own name because the trace is read back by name,
- * and a step emits log and phase events under that name too — asking for
+ * and a step emits log and activityRun events under that name too — asking for
  * "what did design write" has to mean exactly that.
  */
 export const artifactsEventName = (step: string): string =>
@@ -77,14 +77,14 @@ const createdBefore = (run: TRun, step: string): readonly string[] =>
         : [],
     )
 
-const handleFor = (run: TRun, phase: TPhase): TPhaseHandle => ({
-  phase,
+const handleFor = (run: TRun, activityRun: TActivityRun): TActivityRunHandle => ({
+  activityRun,
   log: (payload) => {
     run.tracer.event({
       run_id: run.runId,
-      phase_id: phase.phase_id,
+      activity_run_id: activityRun.activity_run_id,
       type: 'log',
-      name: phase.params.name,
+      name: activityRun.params.name,
       payload,
     })
     run.console.note(
@@ -92,32 +92,32 @@ const handleFor = (run: TRun, phase: TPhase): TPhaseHandle => ({
         .map(([key, value]) => `${key}: ${String(value)}`)
         .join(', '),
     )
-    if (phase.params.kind === 'engineer' && 'input' in payload) {
+    if (activityRun.params.kind === 'engineer' && 'input' in payload) {
       run.tracer.sessionRequest(run.runId, String(payload.input))
     }
   },
 })
 
 /**
- * Run one phase. Rethrows whatever the body threw, after recording the failure.
+ * Run one activityRun. Rethrows whatever the body threw, after recording the failure.
  *
- * The phase boundary is the one place in this system where a throw is
+ * The activityRun boundary is the one place in this system where a throw is
  * meaningful: it is what turns "something went wrong anywhere below" into a
- * recorded, failed phase and a finalized session.
+ * recorded, failed activityRun and a finalized session.
  */
-export const runPhase =
+export const runActivityRun =
   (run: TRun) =>
   async <TResult>(
-    params: TPhaseParams,
-    body: (handle: TPhaseHandle) => TResult | Promise<TResult>,
+    params: TActivityRunParams,
+    body: (handle: TActivityRunHandle) => TResult | Promise<TResult>,
   ): Promise<TResult> => {
-    const phase = openPhase(run, params)
+    const activityRun = openActivityRun(run, params)
     const clock = monotonicMs()
     /*
-     * What the handoff directory held before this phase touched it.
+     * What the handoff directory held before this activityRun touched it.
      *
      * Taken here rather than inside the agent call because a code step writes
-     * documents too, and because a phase that FAILED may still have written
+     * documents too, and because an activity run that FAILED may still have written
      * one — which is precisely the file a reader goes looking for.
      */
     const handoffBefore = snapshotHandoff(run.contextHandoffDir)
@@ -148,13 +148,13 @@ export const runPhase =
       if (!changed(change)) return
       run.tracer.event({
         run_id: run.runId,
-        phase_id: phase.phase_id,
+        activity_run_id: activityRun.activity_run_id,
         type: 'artifacts',
         name: artifactsEventName(params.name),
         payload: { ...change, observed: true },
       })
       /*
-       * Lock on the way out, including when the phase failed: a failed step
+       * Lock on the way out, including when the activityRun failed: a failed step
        * can still have written the document a reader wants, and the step
        * after it has no more right to overwrite that one than any other.
        */
@@ -194,7 +194,7 @@ export const runPhase =
       lockArtifacts(run.contextHandoffDir, restored)
       run.tracer.event({
         run_id: run.runId,
-        phase_id: phase.phase_id,
+        activity_run_id: activityRun.activity_run_id,
         type: 'artifacts',
         name: `${params.name} restored`,
         payload: {
@@ -208,30 +208,30 @@ export const runPhase =
       )
     }
     // This function IS the error boundary: turning a throw into a recorded
-    // phase failure and a finalized session is its whole job, and the error is
+    // activityRun failure and a finalized session is its whole job, and the error is
     // rethrown rather than swallowed.
     // biome-ignore lint/plugin: this layer owns the error boundary and rethrows
     try {
-      const result = await body(handleFor(run, phase))
+      const result = await body(handleFor(run, activityRun))
       recordArtifacts()
-      const ended = run.updatePhase(phase.phase_id, {
+      const ended = run.updateActivityRun(activityRun.activity_run_id, {
         status: 'success',
         ended_at: nowIso(),
       })
       run.tracer.event({
         run_id: run.runId,
-        phase_id: phase.phase_id,
-        type: 'phase_end',
+        activity_run_id: activityRun.activity_run_id,
+        type: 'activity_run_end',
         name: params.name,
         payload: { status: 'success' },
       })
-      run.tracer.phaseUpsert(ended)
-      run.console.phaseEnded(ended, (monotonicMs() - clock) / 1000)
+      run.tracer.activityRunUpsert(ended)
+      run.console.activityRunEnded(ended, (monotonicMs() - clock) / 1000)
       return result
     } catch (error) {
       recordArtifacts()
       // success must be earned
-      const failed = run.updatePhase(phase.phase_id, {
+      const failed = run.updateActivityRun(activityRun.activity_run_id, {
         status: 'fail',
         error: String(error instanceof Error ? error.message : error).slice(
           0,
@@ -241,21 +241,21 @@ export const runPhase =
       })
       run.tracer.event({
         run_id: run.runId,
-        phase_id: phase.phase_id,
+        activity_run_id: activityRun.activity_run_id,
         type: 'error',
         name: params.name,
         payload: { error: failed.error },
       })
       run.tracer.event({
         run_id: run.runId,
-        phase_id: phase.phase_id,
-        type: 'phase_end',
+        activity_run_id: activityRun.activity_run_id,
+        type: 'activity_run_end',
         name: params.name,
         payload: { status: 'fail' },
       })
-      run.tracer.phaseUpsert(failed)
+      run.tracer.activityRunUpsert(failed)
       run.tracer.sessionFinish(run.runId, false)
-      run.console.phaseEnded(failed, (monotonicMs() - clock) / 1000)
+      run.console.activityRunEnded(failed, (monotonicMs() - clock) / 1000)
       run.console.sessionFinished(
         false,
         run.tokens(),
@@ -274,10 +274,10 @@ export type TFinishParams = Readonly<{
 /**
  * Finalize the run and return its exit code. Call this exactly once.
  *
- * Two criteria, not one. Every phase must have passed, AND the workflow's own
+ * Two criteria, not one. Every activityRun must have passed, AND the workflow's own
  * acceptance test must hold. They are different questions on purpose: a test
- * phase that ran the suite did its job even when the suite came back red, so
- * the PHASE succeeds while the RUN must not. One call settles the db, the
+ * activityRun that ran the suite did its job even when the suite came back red, so
+ * the ACTIVITY RUN succeeds while the RUN must not. One call settles the db, the
  * banner, and the exit code together, so the three cannot disagree.
  */
 /**
@@ -308,15 +308,15 @@ export const finishWaiting = (run: TRun, requestPath: string): number => {
 
 export const finish = (run: TRun, params: TFinishParams = {}): number => {
   const accepted = params.accepted ?? true
-  const phases = run.phases()
-  const phasesOk =
-    phases.length > 0 && phases.every((phase) => phase.status === 'success')
-  const ok = phasesOk && accepted
-  if (phasesOk && !accepted) {
+  const activityRuns = run.activityRuns()
+  const activityRunsOk =
+    activityRuns.length > 0 && activityRuns.every((activityRun) => activityRun.status === 'success')
+  const ok = activityRunsOk && accepted
+  if (activityRunsOk && !accepted) {
     const note = params.reason || "the run's acceptance criterion was not met"
     run.tracer.event({
       run_id: run.runId,
-      phase_id: phases.at(-1)?.phase_id ?? '',
+      activity_run_id: activityRuns.at(-1)?.activity_run_id ?? '',
       type: 'error',
       name: 'not_accepted',
       payload: { reason: note },

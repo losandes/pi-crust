@@ -2,7 +2,7 @@
  * The bounded revise loop: a chain that ends in a review answers it.
  *
  * Any chain whose last step is `review` or `code-review` feeds the blocking
- * findings back to the builder as a `revise` phase, re-reviews, and stops —
+ * findings back to the builder as a `revise` activityRun, re-reviews, and stops —
  * approved, deadlocked, or out of rounds. It is the step library's loop now,
  * not one workflow's hand-written control flow.
  *
@@ -151,7 +151,7 @@ type TLoopState = Readonly<{
 /**
  * Run the loop. Returns what the workflow should settle the run with.
  *
- * Every phase goes through `runSteps`, so `--resume`, tracing and gates need
+ * Every activityRun goes through `runSteps`, so `--resume`, tracing and gates need
  * nothing new — the loop is composition, not a second driver.
  */
 export const runReviseLoop = (

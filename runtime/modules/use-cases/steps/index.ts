@@ -86,7 +86,7 @@ export const requiredAgents = (steps: readonly TStep[]): readonly string[] => [
 ]
 
 /**
- * Resolve names to steps, numbering repeats so their phase names stay unique.
+ * Resolve names to steps, numbering repeats so their activityRun names stay unique.
  *
  * A repeated step is legitimate — `build, verify, build, verify` is a fix loop
  * written out longhand — and the second occurrence becomes `build_2`, the same

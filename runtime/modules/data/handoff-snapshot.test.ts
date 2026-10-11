@@ -92,8 +92,8 @@ test(
     'it should read as empty rather than throwing',
   ].join(', '),
   () => {
-    // given — the first phase of a run can start before anything has been
-    // written, and observation must never be what fails a phase
+    // given — the first activityRun of a run can start before anything has been
+    // written, and observation must never be what fails an activity run
     const missing = join(scratch(), 'not-created-yet')
 
     // when
@@ -108,7 +108,7 @@ test(
 test(
   [
     'given data/handoff-snapshot::readAll',
-    'when copies are taken before a phase runs',
+    'when copies are taken before an activity run runs',
     'it should hold the bytes needed to undo damage git cannot',
   ].join(', '),
   () => {

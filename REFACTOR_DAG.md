@@ -18,8 +18,8 @@ Adopt the following terminology throughout the domain model, orchestration logic
 
 | Concept              | Definition                                                                       | Responsibility                                                               |
 | -------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **Lifecycle**        | The defined progression of an objective from inception through completion.       | Establishes phases, objectives, and progression semantics.                   |
-| **Stage**            | A logical phase within a lifecycle containing one or more activities.            | Groups related work under a shared objective.                                |
+| **Lifecycle**        | The defined progression of an objective from inception through completion.       | Establishes activity runs, objectives, and progression semantics.            |
+| **Stage**            | A logical activity run within a lifecycle containing one or more activities.     | Groups related work under a shared objective.                                |
 | **Activity**         | A discrete, independently executable unit of work within a stage.                | Performs work and produces results or artifacts.                             |
 | **Gate**             | The conditions that must be satisfied before lifecycle progression is permitted. | Evaluates evidence and controls progression.                                 |
 | **Workflow**         | The executable arrangement of activities, dependencies, and gates.               | Coordinates execution, concurrency, and dependencies.                        |
@@ -57,26 +57,20 @@ Do not introduce Attempt as a formal domain concept unless the existing implemen
 
 Preserve existing Run identifiers, persistence structures, and external contracts wherever possible.
 
-### The word `phase` is already taken
+### The vocabulary is now the implementation's
 
-The implementation calls one Activity's execution inside a Run a **phase**. It is not only a variable name: there is a `phases` table keyed by `phase_id`, every traced event carries a `phase_id`, and two of the event types are `phase_start` and `phase_end`. The visualizer, the reporter, the resume path and the gates all read those.
+This section used to warn that the implementation had no word for a Stage and used `phase` for what this document calls an Activity Run. Both are resolved.
 
-In this vocabulary that thing is an **Activity Run**. The collision runs the other way too: `Stage` here means a grouping of Activities ending in a Gate, and the implementation has no word for it because it has no such concept.
+| This document | The implementation                       |
+| ------------- | ---------------------------------------- |
+| Activity      | agent, registry entry                    |
+| Activity Run  | `activity_runs`, `activity_run_id`       |
+| Stage         | `TStage`, `strategy: serial\|concurrent` |
+| Workflow Run  | run, `run_id`                            |
 
-| This document | The implementation today |
-| ------------- | ------------------------ |
-| Activity      | agent, registry entry    |
-| Activity Run  | **phase**                |
-| Stage         | *nothing*                |
-| Workflow Run  | run, `run_id`            |
+The trace migrated with the code: an `activity_runs` table, an `activity_run_id` on every event row, and `activity_run_start` / `activity_run_end` event types. It was done before release, when no database held a run anybody needed, which is the only moment it is cheap.
 
-Two consequences for the work.
-
-Adopting the vocabulary in the trace is a **schema migration**, not a rename: a `phases` table, a column on every event row, and two event-type string literals that existing databases already contain. Renaming the code without migrating the data produces a reader that cannot read traces it wrote last week.
-
-Until that happens, `phase` and `Stage` mean different things in different files, and prose that uses either word without saying which is ambiguous. Anything written before the migration should say "Activity Run" and name `phase` as the implementation's spelling, rather than reaching for whichever word the surrounding file uses.
-
-Whether the migration is worth its cost is a decision this refactor has to make rather than inherit. Leaving `phase` in the persistence layer and using the agreed vocabulary only in new code is a defensible answer — it is cheap, and it is honest as long as the mapping above is written down. What is not defensible is using both words for the same concept and leaving a reader to work out which.
+The argument for deferring it was compatibility, and compatibility was the thing that did not yet exist. Carrying two words for one concept would have cost more every week — and had already produced a single trace payload containing `stage` meaning an Activity beside `stage` meaning a Stage.
 
 ## 2. Existing Architecture and Intended Transformation
 
@@ -511,7 +505,7 @@ Apply these principles throughout the refactoring:
 
 The existing serial lifecycle implementation is transformed into a DAG-based orchestration architecture.
 
-The system continues to model an objective progressing through a Lifecycle, with Stages defining meaningful phases, Activities performing work, Gates evaluating acceptance criteria, and Context Envelopes preserving knowledge between Runs.
+The system continues to model an objective progressing through a Lifecycle, with Stages defining meaningful activity runs, Activities performing work, Gates evaluating acceptance criteria, and Context Envelopes preserving knowledge between Runs.
 
 The Workflow engine coordinates the resulting DAG, executing independent work concurrently while respecting dependencies, resource constraints, and lifecycle progression rules.
 

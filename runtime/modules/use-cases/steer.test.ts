@@ -1,20 +1,20 @@
 import { expect, test } from 'bun:test'
-import type { TPhaseState } from '../typedefs/run-state'
+import type { TActivityRunState } from '../typedefs/run-state'
 import {
-  phasesToSupersede,
+  activityRunsToSupersede,
   steeringBlock,
   steeringEntry,
   stepsToReplay,
 } from './steer'
 
-const phase = (
+const activityRun = (
   seq: number,
   name: string,
   status: string,
-): TPhaseState =>
+): TActivityRunState =>
   ({
     seq,
-    phase_id: `run_${String(seq).padStart(2, '0')}_${name}`,
+    activity_run_id: `run_${String(seq).padStart(2, '0')}_${name}`,
     name,
     kind: 'agent',
     owner: name,
@@ -26,13 +26,13 @@ const phase = (
     ended_at: undefined,
     gates: [],
     logs: [],
-  }) as TPhaseState
+  }) as TActivityRunState
 
-const RUN: readonly TPhaseState[] = [
-  phase(1, 'scout', 'success'),
-  phase(2, 'conceptualize', 'success'),
-  phase(3, 'design', 'success'),
-  phase(4, 'plan', 'success'),
+const RUN: readonly TActivityRunState[] = [
+  activityRun(1, 'scout', 'success'),
+  activityRun(2, 'conceptualize', 'success'),
+  activityRun(3, 'design', 'success'),
+  activityRun(4, 'plan', 'success'),
 ]
 
 test(
@@ -57,7 +57,7 @@ test(
 
 test(
   [
-    'given use-cases/steer::phasesToSupersede',
+    'given use-cases/steer::activityRunsToSupersede',
     'when steps have run more than once already',
     'it should supersede only the attempt that was standing',
   ].join(', '),
@@ -66,15 +66,15 @@ test(
     // earlier one is history. Resume reads the LATEST per name, so marking
     // an old attempt would change nothing and marking both would rewrite
     // what the abandoned path recorded.
-    const retried: readonly TPhaseState[] = [
-      phase(1, 'scout', 'success'),
-      phase(2, 'design', 'success'),
-      phase(3, 'design', 'success'),
-      phase(4, 'plan', 'fail'),
+    const retried: readonly TActivityRunState[] = [
+      activityRun(1, 'scout', 'success'),
+      activityRun(2, 'design', 'success'),
+      activityRun(3, 'design', 'success'),
+      activityRun(4, 'plan', 'fail'),
     ]
 
     // when
-    const actual = phasesToSupersede(retried, 'design')
+    const actual = activityRunsToSupersede(retried, 'design')
 
     // then — the second design only; plan did not succeed, so resume would
     // re-run it regardless

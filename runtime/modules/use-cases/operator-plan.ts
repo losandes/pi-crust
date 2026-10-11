@@ -10,8 +10,8 @@
  *
  * The plan is read back from the TRACE, never from a variable. A resumed run
  * must execute the chain the operator chose the first time, not a chain it
- * would choose today — the phases already in the trace belong to the first
- * one, and resume skips completed phases BY NAME. Two chains in one trace is
+ * would choose today — the activity runs already in the trace belong to the first
+ * one, and resume skips completed activityRuns BY NAME. Two chains in one trace is
  * corruption wearing the appearance of flexibility.
  *
  * Nothing here decides whether the chain may run. That is the trust dial's
@@ -29,7 +29,7 @@ import type { TStepContext } from '../typedefs/step'
 import { isStepName } from '../typedefs/step'
 
 /**
- * The chain an operator phase chose, or nothing when this run had no operator.
+ * The chain an operator activityRun chose, or nothing when this run had no operator.
  *
  * Filtered to real step names a second time, after the gate already checked
  * them. Not redundancy for its own sake: the gate runs against the agent's

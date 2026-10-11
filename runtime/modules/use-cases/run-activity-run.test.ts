@@ -11,13 +11,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { crustConfigSchema } from '../typedefs/config'
-import { phaseParams } from '../typedefs/phase'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import { createRun } from './create-run'
-import { finish, runPhase } from './run-phase'
+import { finish, runActivityRun } from './run-activity-run'
 
 const scratchRun = (): Readonly<{ run: TRun; dbPath: string }> => {
-  const dir = mkdtempSync(join(tmpdir(), 'crust-run-phase-test-'))
+  const dir = mkdtempSync(join(tmpdir(), 'crust-run-activityRun-test-'))
   const dbPath = join(dir, 'crust.db')
   const cfg = crustConfigSchema.parse({
     defaults: { data_dir: join(dir, 'data') },
@@ -44,18 +44,18 @@ const rowsOf = <TRow>(dbPath: string, sql: string): readonly TRow[] => {
 
 test(
   [
-    'given use-cases/run-phase::runPhase',
-    'when a phase body completes cleanly',
+    'given use-cases/run-activity-run::runActivityRun',
+    'when an activity run body completes cleanly',
     'it should record success and return the body result',
   ].join(', '),
   async () => {
     // given
     const { run, dbPath } = scratchRun()
-    const phase = runPhase(run)
+    const activityRun = runActivityRun(run)
 
     // when
-    const actual = await phase(
-      phaseParams({
+    const actual = await activityRun(
+      activityRunParams({
         name: 'request',
         kind: 'engineer',
         owner: 'tester',
@@ -72,7 +72,7 @@ test(
     expect(
       rowsOf<{ name: string; status: string; description: string }>(
         dbPath,
-        'SELECT name, status, description FROM phases',
+        'SELECT name, status, description FROM activity_runs',
       ),
     ).toEqual([
       {
@@ -87,16 +87,16 @@ test(
 
 test(
   [
-    'given use-cases/run-phase::runPhase',
-    'when a phase body throws',
+    'given use-cases/run-activity-run::runActivityRun',
+    'when an activity run body throws',
     'it should record the failure, finalize the session, and rethrow',
   ].join(', '),
   async () => {
     // given
     const { run, dbPath } = scratchRun()
-    const phase = runPhase(run)
-    await phase(
-      phaseParams({
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
         name: 'request',
         kind: 'engineer',
         owner: 'tester',
@@ -106,8 +106,8 @@ test(
     )
 
     // when
-    const thrown = await phase(
-      phaseParams({
+    const thrown = await activityRun(
+      activityRunParams({
         name: 'quality',
         kind: 'code',
         owner: 'quality',
@@ -126,7 +126,7 @@ test(
     expect(
       rowsOf<{ name: string; status: string }>(
         dbPath,
-        'SELECT name, status FROM phases ORDER BY seq',
+        'SELECT name, status FROM activity_runs ORDER BY seq',
       ),
     ).toEqual([
       { name: 'request', status: 'success' },
@@ -138,25 +138,25 @@ test(
     expect(
       rowsOf<{ type: string }>(
         dbPath,
-        "SELECT type FROM events WHERE type IN ('error','phase_end') ORDER BY rowid",
+        "SELECT type FROM events WHERE type IN ('error','activity_run_end') ORDER BY rowid",
       ).map((row) => row.type),
-    ).toEqual(['phase_end', 'error', 'phase_end'])
+    ).toEqual(['activity_run_end', 'error', 'activity_run_end'])
     run.tracer.close()
   },
 )
 
 test(
   [
-    'given use-cases/run-phase::finish',
-    'when every phase passed but the run was not accepted',
+    'given use-cases/run-activity-run::finish',
+    'when every activity run passed but the run was not accepted',
     'it should exit 1, record not_accepted, and mark the session failed',
   ].join(', '),
   async () => {
     // given
     const { run, dbPath } = scratchRun()
-    const phase = runPhase(run)
-    await phase(
-      phaseParams({
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
         name: 'test_1',
         kind: 'code',
         owner: 'quality',
@@ -188,16 +188,16 @@ test(
 
 test(
   [
-    'given use-cases/run-phase::finish',
-    'when every phase passed and the run was accepted',
+    'given use-cases/run-activity-run::finish',
+    'when every activity run passed and the run was accepted',
     'it should exit 0 and mark the session successful',
   ].join(', '),
   async () => {
     // given
     const { run, dbPath } = scratchRun()
-    const phase = runPhase(run)
-    await phase(
-      phaseParams({
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
         name: 'test_1',
         kind: 'code',
         owner: 'quality',
@@ -220,8 +220,8 @@ test(
 
 test(
   [
-    'given use-cases/run-phase::finish',
-    'when the run opened no phases at all',
+    'given use-cases/run-activity-run::finish',
+    'when the run opened no activityRuns at all',
     'it should refuse to call that a success',
   ].join(', '),
   () => {
@@ -239,7 +239,7 @@ test(
 
 test(
   [
-    'given use-cases/run-phase::runPhase',
+    'given use-cases/run-activity-run::runActivityRun',
     'when one step overwrites a document an earlier step wrote',
     'it should refuse the write, and restore the original if it lands anyway',
   ].join(', '),
@@ -253,7 +253,7 @@ test(
     const { run, dbPath } = scratchRun()
     const design = join(run.contextHandoffDir, 'design.md')
 
-    await runPhase(run)(phaseParams({
+    await runActivityRun(run)(activityRunParams({
         name: 'design',
         kind: 'agent',
         owner: 'technical-architect',
@@ -263,8 +263,8 @@ test(
     })
 
     // when — a later step tries the ordinary way, then forces it
-    const refused = await runPhase(run)(
-      phaseParams({
+    const refused = await runActivityRun(run)(
+      activityRunParams({
         name: 'build',
         kind: 'agent',
         owner: 'builder',
@@ -304,7 +304,7 @@ test(
 
 test(
   [
-    'given use-cases/run-phase::runPhase',
+    'given use-cases/run-activity-run::runActivityRun',
     'when the step that wrote a document runs a second time',
     'it should be allowed to replace its own output',
   ].join(', '),
@@ -318,13 +318,13 @@ test(
     }
 
     // when
-    await runPhase(run)(phaseParams({
+    await runActivityRun(run)(activityRunParams({
         name: 'design',
         kind: 'agent',
         owner: 'technical-architect',
         description: 'Give the architecture a physical shape',
       }), write('first'))
-    await runPhase(run)(phaseParams({
+    await runActivityRun(run)(activityRunParams({
         name: 'design',
         kind: 'agent',
         owner: 'technical-architect',
@@ -338,8 +338,8 @@ test(
 
 test(
   [
-    'given use-cases/run-phase::runPhase',
-    'when a phase fails after writing a document',
+    'given use-cases/run-activity-run::runActivityRun',
+    'when an activity run fails after writing a document',
     'it should still record and protect what it wrote',
   ].join(', '),
   async () => {
@@ -350,7 +350,7 @@ test(
 
     // when
     await expect(
-      runPhase(run)(phaseParams({
+      runActivityRun(run)(activityRunParams({
         name: 'diagnose',
         kind: 'agent',
         owner: 'diagnostician',

@@ -6,7 +6,7 @@
  * named in this file, because crust is stamped into repositories whose checkers
  * it cannot know.
  *
- * A failing check does NOT fail the phase. The runner did its job; the code is
+ * A failing check does NOT fail the activityRun. The runner did its job; the code is
  * what failed. The verdict travels on as `accepted: false` and as an envelope
  * the next agent can read, which is how a fix loop gets its spec.
  *
@@ -19,9 +19,9 @@ import { changedFiles, untrackedFiles } from '../../data/git'
 import type { TRangeSelection } from '../../typedefs/changes'
 import type { TVerifyOutput } from '../../typedefs/envelope'
 import { buildOutput, narrowEnvelope } from '../../typedefs/envelope'
-import { phaseParams } from '../../typedefs/phase'
+import { activityRunParams } from '../../typedefs/activity-run'
 import type { TStep, TStepContext, TStepOptions } from '../../typedefs/step'
-import { stepPhaseName } from '../../typedefs/step'
+import { stepActivityRunName } from '../../typedefs/step'
 import { recordStepResult, replayStepResult } from '../resume'
 import { runVerification, verificationEnvelope } from '../run-checks'
 import { requireSelected, selectRange } from '../select-range'
@@ -60,11 +60,11 @@ const replayedEnvelope = (
 })
 
 export const verifyStep = (options: TStepOptions): TStep => {
-  const phaseName = stepPhaseName('verify', options.instance)
+  const activityRunName = stepActivityRunName('verify', options.instance)
   return {
     name: 'verify',
-    params: phaseParams({
-      name: phaseName,
+    params: activityRunParams({
+      name: activityRunName,
       kind: 'code',
       owner: 'checks',
       description:
@@ -86,7 +86,7 @@ export const verifyStep = (options: TStepOptions): TStep => {
         artifacts: result.artifacts.join(', '),
       })
       // The verdict, filed under its own event name so replay reads what the
-      // suite decided and never what the phase's status implies.
+      // suite decided and never what the activity-run's status implies.
       recordStepResult(ctx.run, handle, {
         passed: result.passed,
         failures: [...result.failures],
@@ -102,10 +102,10 @@ export const verifyStep = (options: TStepOptions): TStep => {
     },
 
     replay: (ctx) => {
-      const payload = replayStepResult(ctx.run, phaseName)
+      const payload = replayStepResult(ctx.run, activityRunName)
       if (payload === undefined) {
         throw new Error(
-          `cannot resume phase '${phaseName}': this session recorded no ` +
+          `cannot resume activityRun '${activityRunName}': this session recorded no ` +
             'verification verdict. Drop --resume so the checks run again.',
         )
       }

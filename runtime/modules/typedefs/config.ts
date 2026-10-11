@@ -123,8 +123,8 @@ export const routingSkillSchema = z.object({
   /** agents that receive it; empty = every agent */
   agents: z.array(z.string()).default([]),
   when: z.array(z.string()).default([]),
-  /** phase names that receive it; empty = every phase. `revise_2` matches `revise`. */
-  phases: z.array(z.string()).default([]),
+  /** Activity names that receive it; empty = every Activity. `revise_2` matches `revise`. */
+  activity_runs: z.array(z.string()).default([]),
 })
 export type TRoutingSkill = Readonly<z.infer<typeof routingSkillSchema>>
 

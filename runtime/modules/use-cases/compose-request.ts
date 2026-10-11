@@ -141,7 +141,7 @@ export type TRunRequest = Readonly<{
    *
    * Mutually exclusive with `steps` by construction: when this is set the
    * steps are not known yet, because working them out is the run's first
-   * phase.
+   * activityRun.
    */
   operator: string
   steps: readonly string[]
@@ -244,7 +244,7 @@ export const shellLine = (argv: readonly string[]): string =>
  * Steps a menu can offer, in the order the lifecycle runs them.
  *
  * Operators are steps as far as the runner is concerned — that is how an
- * operator's phase executes at all — but they are not steps as far as a
+ * operator's activityRun executes at all — but they are not steps as far as a
  * PERSON choosing is concerned, so they are offered separately and never in
  * this list. Leaving `operator` here let it be ticked alongside `plan`,
  * which is two answers to one question.

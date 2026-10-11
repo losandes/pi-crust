@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path'
 import { ensureDir, fileExists, readText, writeText } from '../data/files'
 import { repoRoot } from '../data/git'
 import type { TPiCrustConfig } from '../typedefs/config'
-import type { TPhase } from '../typedefs/phase'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TAgentMapEntry, TRun } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
 import { TRUST_DEFAULT } from '../typedefs/trust'
@@ -20,7 +20,7 @@ export type TCreateRunParams = Readonly<{
   runId: string
   tracer: TTracer
   engineer: string
-  /** phase names already successful in this session; empty unless resuming */
+  /** activityRun names already successful in this session; empty unless resuming */
   resume?: ReadonlySet<string>
   /** echo agent narration to the terminal (`--stream`); off unless watched */
   stream?: boolean
@@ -34,11 +34,11 @@ export const createRun = (params: TCreateRunParams): TRun => {
   const contextHandoffDir = ensureDir(join(sessionDir, 'context_handoff'))
   const agentMapPath = join(sessionDir, 'agent_map.json')
 
-  let phases: readonly TPhase[] = []
+  let activityRuns: readonly TActivityRun[] = []
   let tokens = 0
   let cost = 0
   // A joined run continues the sequence rather than restarting at 1.
-  let seq = tracer.maxPhaseSeq(runId)
+  let seq = tracer.maxActivityRunSeq(runId)
   let agentMap: Record<string, TAgentMapEntry> = fileExists(agentMapPath)
     ? (JSON.parse(readText(agentMapPath)) as Record<string, TAgentMapEntry>)
     : {}
@@ -56,20 +56,20 @@ export const createRun = (params: TCreateRunParams): TRun => {
     contextHandoffDir,
     resume: params.resume ?? new Set<string>(),
 
-    phases: () => phases,
+    activityRuns: () => activityRuns,
 
-    recordPhase: (phase) => {
-      phases = [...phases, phase]
+    recordActivityRun: (activityRun) => {
+      activityRuns = [...activityRuns, activityRun]
     },
 
-    updatePhase: (phaseId, patch) => {
-      const existing = phases.find((phase) => phase.phase_id === phaseId)
+    updateActivityRun: (activityRunId, patch) => {
+      const existing = activityRuns.find((activityRun) => activityRun.activity_run_id === activityRunId)
       if (existing === undefined) {
-        throw new Error(`no such phase on this run: ${phaseId}`)
+        throw new Error(`no such activityRun on this run: ${activityRunId}`)
       }
-      const updated: TPhase = { ...existing, ...patch }
-      phases = phases.map((phase) =>
-        phase.phase_id === phaseId ? updated : phase,
+      const updated: TActivityRun = { ...existing, ...patch }
+      activityRuns = activityRuns.map((activityRun) =>
+        activityRun.activity_run_id === activityRunId ? updated : activityRun,
       )
       return updated
     },

@@ -31,7 +31,7 @@ export const App = () => {
               <a
                 href={hrefFor(route.runId, undefined, route.workspace)}
                 className={
-                  route.phaseId === undefined ? styles.current : undefined
+                  route.activityRunId === undefined ? styles.current : undefined
                 }
               >
                 {route.workspace === undefined
@@ -40,10 +40,10 @@ export const App = () => {
               </a>
             </>
           )}
-          {route.runId !== undefined && route.phaseId !== undefined && (
+          {route.runId !== undefined && route.activityRunId !== undefined && (
             <>
               <span className={styles.sep}>›</span>
-              <span className={styles.current}>{route.phaseId}</span>
+              <span className={styles.current}>{route.activityRunId}</span>
             </>
           )}
         </nav>
@@ -61,7 +61,7 @@ export const App = () => {
           <SessionTrace
             key={`${route.workspace ?? ''}:${route.runId}`}
             runId={route.runId}
-            phaseId={route.phaseId}
+            activityRunId={route.activityRunId}
             workspace={route.workspace}
           />
         )}

@@ -2,12 +2,12 @@
  * Waterfall geometry — where every block sits, and why.
  *
  * Lifted out of the component because none of it needs a DOM: it is arithmetic
- * over phases and a time range, and arithmetic that decides what a reader
+ * over activityRuns and a time range, and arithmetic that decides what a reader
  * believes about a run deserves tests. Inside an SFC it had neither.
  */
 
 import { ts } from './format'
-import type { Phase } from './types'
+import type { ActivityRun } from './types'
 
 export type TRange = Readonly<{ t0: number; t1: number; span: number }>
 
@@ -15,7 +15,7 @@ export type TGeometry = Readonly<{ left: number; width: number }>
 
 /**
  * The engineer's request opens the run and owns the start of the timeline: it
- * gets an exclusive leading zone, and every later phase maps into the rest, so
+ * gets an exclusive leading zone, and every later activityRun maps into the rest, so
  * nothing can render on top of it.
  */
 export const REQ_ZONE_PCT = 16
@@ -24,19 +24,19 @@ export const REQ_ZONE_PCT = 16
 export const MIN_BLOCK_PCT = 3.5
 
 export const timeRange = (
-  phases: readonly Phase[],
+  activityRuns: readonly ActivityRun[],
   sessionStart: string | null | undefined,
   sessionEnd: string | null | undefined,
   running: boolean,
   nowMs: number,
 ): TRange => {
-  const starts = [ts(sessionStart), ...phases.map((p) => ts(p.started_at))].filter(
+  const starts = [ts(sessionStart), ...activityRuns.map((p) => ts(p.started_at))].filter(
     Number.isFinite,
   )
   const ends = [
     ts(sessionEnd),
-    ...phases.map((p) => ts(p.started_at)),
-    ...phases.map((p) => ts(p.ended_at)),
+    ...activityRuns.map((p) => ts(p.started_at)),
+    ...activityRuns.map((p) => ts(p.ended_at)),
   ].filter(Number.isFinite)
 
   const t0 = starts.length > 0 ? Math.min(...starts) : nowMs
@@ -48,17 +48,17 @@ export const timeRange = (
 /**
  * Where the post-request timeline begins.
  *
- * The earliest non-engineer phase start, NOT the request phase's end: a later
+ * The earliest non-engineer activityRun start, NOT the request activity-run's end: a later
  * lifecycle joining the session pushes the request row's ended_at forward, which
- * would otherwise throw every already-finished phase behind the origin.
+ * would otherwise throw every already-finished activityRun behind the origin.
  */
 export const originMs = (
-  phases: readonly Phase[],
-  request: Phase | undefined,
+  activityRuns: readonly ActivityRun[],
+  request: ActivityRun | undefined,
   range: TRange,
 ): number => {
   if (request === undefined) return range.t0
-  const starts = phases
+  const starts = activityRuns
     .filter((p) => p.kind !== 'engineer')
     .map((p) => ts(p.started_at))
     .filter(Number.isFinite)
@@ -68,30 +68,30 @@ export const originMs = (
 }
 
 /**
- * Adjusted layout for every timed phase, in track-%.
+ * Adjusted layout for every timed activityRun, in track-%.
  *
- * Phases are sequential by doctrine and the render must say so: when a
- * near-zero phase (a git commit) is widened to a readable floor, every later
+ * Activity Runs are sequential by doctrine and the render must say so: when a
+ * near-zero activityRun (a git commit) is widened to a readable floor, every later
  * block shifts right by the same amount instead of being overlapped, and the
  * whole layout is normalised back into the track. Blocks may squeeze a hair;
  * they never stack.
  */
 export const blockLayout = (
-  phases: readonly Phase[],
+  activityRuns: readonly ActivityRun[],
   options: Readonly<{
     zonePct: number
     originMs: number
     spanMs: number
-    requestPhaseId: string | undefined
+    requestActivityRunId: string | undefined
     nowMs: number
   }>,
 ): Readonly<Record<string, TGeometry>> => {
   const available = 100 - options.zonePct - 0.4 // hair of right margin
 
-  const timed = phases
+  const timed = activityRuns
     .filter(
       (p) =>
-        p.phase_id !== options.requestPhaseId &&
+        p.activity_run_id !== options.requestActivityRunId &&
         Number.isFinite(ts(p.started_at)),
     )
     .map((p) => {
@@ -103,7 +103,7 @@ export const blockLayout = (
           ? options.nowMs
           : start
       return {
-        id: p.phase_id,
+        id: p.activity_run_id,
         start,
         left: ((start - options.originMs) / options.spanMs) * available,
         width: ((Math.max(end, start) - start) / options.spanMs) * available,
@@ -169,16 +169,16 @@ export const contextFill = (context: TLaneContext): string =>
  * about the duplicate and is free to drop either of them.
  */
 export const toolTickPositions = (
-  phase: Phase,
+  activityRun: ActivityRun,
   marks: readonly { id: string; t: number; ok: boolean }[],
   nowMs: number,
 ): readonly { id: string; x: number; ok: boolean }[] => {
-  const start = ts(phase.started_at)
+  const start = ts(activityRun.started_at)
   if (!Number.isFinite(start)) return []
-  const ended = ts(phase.ended_at)
+  const ended = ts(activityRun.ended_at)
   const end = Number.isFinite(ended)
     ? ended
-    : phase.status === 'running'
+    : activityRun.status === 'running'
       ? nowMs
       : start
   const width = Math.max(end - start, 1)

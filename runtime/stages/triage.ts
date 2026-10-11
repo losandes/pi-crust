@@ -5,7 +5,7 @@
  * Usage:
  *     bun .pi-crust/stages/triage.ts "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
  *
- * Phases: engineer(request) -> triage. Nothing follows, by construction.
+ * Activity Runs: engineer(request) -> triage. Nothing follows, by construction.
  *
  * The operator chooses a chain and the run executes it. This chooses the
  * same chain and prints the command, which is a different thing to want

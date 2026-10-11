@@ -24,7 +24,7 @@ export type TCliArgs = Readonly<{
    * and every script and habit that uses it must keep working.
    */
   base: string | undefined
-  /** skip phases already recorded successful for this run_id */
+  /** skip activityRuns already recorded successful for this run_id */
   resume: boolean
   /** `compose.ts` only: the ordered step list, comma-separated */
   steps: string | undefined

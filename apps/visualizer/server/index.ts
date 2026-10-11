@@ -173,7 +173,7 @@ function intQuery(req: Request, key: string, fallback: number): number {
  * Every file in a run's handoff directory, with the heading it opens with.
  *
  * The heading is what gives a card a title a human recognises — "Design —
- * Playback stats, Phase 1" rather than `design.md`. Read from the first
+ * Playback stats, ActivityRun 1" rather than `design.md`. Read from the first
  * kilobyte rather than the whole file, because a listing of ten documents
  * should not read half a megabyte to draw ten lines of text.
  */
@@ -333,7 +333,7 @@ const server = Bun.serve({
      */
 
     // Say something to an agent that is working right now. The message lands
-    // in the run's inbox and the running phase delivers it to pi as a steer,
+    // in the run's inbox and the running activityRun delivers it to pi as a steer,
     // a follow-up, or an abort.
     "/api/sessions/:run_id/messages": {
       POST: safely(async (req) => {

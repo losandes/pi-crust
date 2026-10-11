@@ -18,7 +18,7 @@ import {
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TGateReport } from '../typedefs/gate'
 import { reportPassed, violationsOf } from '../typedefs/gate'
-import type { TPhase } from '../typedefs/phase'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TConsole } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
 
@@ -26,9 +26,9 @@ const thousands = (value: number): string => value.toLocaleString('en-US')
 
 /** Bound to one run's tracer. Reachable as `run.console` everywhere. */
 export const createConsole = (tracer: TTracer, runId: string): TConsole => {
-  let phaseId = '' // current lane — log events attach to it
-  let phaseName = ''
-  let results: readonly string[] = [] // phase statuses, for the summary
+  let activityRunId = '' // current lane — log events attach to it
+  let activityRunName = ''
+  let results: readonly string[] = [] // activityRun statuses, for the summary
   let finished = false // the summary panel prints once
 
   // ── the one helper: print AND trace, always together ──────────────────────
@@ -36,9 +36,9 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
     writeLine(renderable ?? line)
     tracer.event({
       run_id: runId,
-      phase_id: phaseId,
+      activity_run_id: activityRunId,
       type: 'log',
-      name: phaseName || 'console',
+      name: activityRunName || 'console',
       payload: { message: plain(line), level },
     })
   }
@@ -60,16 +60,16 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
       const status = ok ? paint('✓ success', 'green') : paint('✗ fail', 'red')
       const rows = [
         `${paint('status', 'dim')}   ${status}`,
-        `${paint('phases', 'dim')}   ${passed}/${results.length} passed`,
+        `${paint('activity runs', 'dim')}   ${passed}/${results.length} passed`,
         `${paint('tokens', 'dim')}   ${thousands(tokens)}`,
         `${paint('cost', 'dim')}     $${cost.toFixed(4)}`,
         `${paint('run_id', 'dim')}   ${runId}`,
         `${paint('db', 'dim')}       ${dbPath}`,
-        `${paint('next', 'dim')}     ${paint(`just crust phases ${runId}`, 'bold')}`,
+        `${paint('next', 'dim')}     ${paint(`just crust activityRuns ${runId}`, 'bold')}`,
       ]
       const plainLine =
         `session ${runId} ${ok ? 'success' : 'fail'} · ` +
-        `${passed}/${results.length} phases · ${thousands(tokens)} tokens · ` +
+        `${passed}/${results.length} activityRuns · ${thousands(tokens)} tokens · ` +
         `$${cost.toFixed(4)}`
       emit(
         plainLine,
@@ -78,12 +78,12 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
       )
     },
 
-    phaseStarted: (phase: TPhase) => {
-      phaseId = phase.phase_id
-      phaseName = phase.params.name
-      const p = phase.params
+    activityRunStarted: (activityRun: TActivityRun) => {
+      activityRunId = activityRun.activity_run_id
+      activityRunName = activityRun.params.name
+      const p = activityRun.params
       const color = KIND_COLOR[p.kind] ?? 'bold'
-      const seq = String(phase.seq).padStart(2, '0')
+      const seq = String(activityRun.seq).padStart(2, '0')
       emit(
         `${paint(`▶ ${seq} ${p.name}`, 'bold', color)}` +
           `  ${paint(p.kind, color)} ${paint(`· ${p.owner}`, 'dim')}` +
@@ -91,20 +91,20 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
       )
     },
 
-    phaseEnded: (phase: TPhase, seconds) => {
-      const ok = phase.status === 'success'
-      results = [...results, phase.status]
+    activityRunEnded: (activityRun: TActivityRun, seconds) => {
+      const ok = activityRun.status === 'success'
+      results = [...results, activityRun.status]
       const mark = ok ? paint('✓', 'green') : paint('✗', 'red')
       emit(
-        `  ${mark} ${phase.params.name} ${paint(`${seconds.toFixed(1)}s`, 'dim')}` +
-          (ok || !phase.error ? '' : `  ${paint(clip(phase.error), 'red')}`),
+        `  ${mark} ${activityRun.params.name} ${paint(`${seconds.toFixed(1)}s`, 'dim')}` +
+          (ok || !activityRun.error ? '' : `  ${paint(clip(activityRun.error), 'red')}`),
         ok ? 'info' : 'error',
       )
-      phaseId = ''
-      phaseName = ''
+      activityRunId = ''
+      activityRunName = ''
     },
 
-    /** Free-form detail inside the current phase — what `ph.log()` recorded. */
+    /** Free-form detail inside the current activityRun — what `ph.log()` recorded. */
     note: (message) => {
       emit(`  ${paint(`· ${clip(message)}`, 'dim')}`)
     },

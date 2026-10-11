@@ -81,7 +81,7 @@ test(
       { type: 'message_end' },
     ])
 
-    // then — tracing every delta would write thousands of rows per phase
+    // then — tracing every delta would write thousands of rows per activityRun
     expect(emitted).toHaveLength(1)
     expect(emitted[0]?.text).toBe('I will read the config first.')
     expect(emitted[0]?.turn).toBe(1)

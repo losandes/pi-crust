@@ -5,13 +5,13 @@ import type {
   Envelope,
   EventRow,
   GateResult,
-  Phase,
+  ActivityRun,
   Session,
   SessionUsage,
 } from './types'
 
 /**
- * Envelopes and gates only gain rows around phase and agent boundaries, so
+ * Envelopes and gates only gain rows around activityRun and agent boundaries, so
  * they are refetched on those events rather than twice a second.
  */
 const SIDE_TABLE_TYPES = new Set([
@@ -19,13 +19,13 @@ const SIDE_TABLE_TYPES = new Set([
   'gate_fail',
   'handoff',
   'agent_end',
-  'phase_end',
+  'activity_run_end',
   'error',
 ])
 
 export type TTrace = Readonly<{
   session: Session | undefined
-  phases: readonly Phase[]
+  activityRuns: readonly ActivityRun[]
   agents: readonly AgentSession[]
   usage: SessionUsage
   events: readonly EventRow[]
@@ -49,7 +49,7 @@ const EMPTY_USAGE: SessionUsage = { read: 0, written: 0 }
 export const useTrace = (runId: string, workspace?: string): TTrace => {
   const [trace, setTrace] = useState<TTrace>({
     session: undefined,
-    phases: [],
+    activityRuns: [],
     agents: [],
     usage: EMPTY_USAGE,
     events: [],
@@ -72,7 +72,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
    *
    * On a LIVE run that healed itself — new events kept arriving past the
    * cursor. On a FINISHED one it did not: the trace stayed empty forever, so
-   * the narration pane said "nothing recorded" about a phase with 23 rows in
+   * the narration pane said "nothing recorded" about a activityRun with 23 rows in
    * the database.
    */
   const poll = useCallback((runIdForPoll: string, workspaceForPoll?: string) => {
@@ -119,7 +119,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
       state.loaded = true
       setTrace((previous) => ({
         session: detail.session,
-        phases: detail.phases.toSorted((a, b) => (a.seq ?? 0) - (b.seq ?? 0)),
+        activityRuns: detail.activityRuns.toSorted((a, b) => (a.seq ?? 0) - (b.seq ?? 0)),
         agents: detail.agents,
         usage: detail.usage,
         events: fresh.length > 0 ? [...previous.events, ...fresh] : previous.events,

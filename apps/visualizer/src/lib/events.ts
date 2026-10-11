@@ -2,7 +2,7 @@ import type { AgentStartPayload, EventRow, ToolCallPayload } from './types'
 import { agentRole, paletteColor } from './palette'
 
 // ── Event dot colors ─────────────────────────────────────────────────────────
-// One color per event type, shared by the session-card timelines and the phase
+// One color per event type, shared by the session-card timelines and the activityRun
 // detail list. gate_fail reads as an error signal on purpose.
 
 export const EVENT_DOT_COLORS: Record<string, string> = {

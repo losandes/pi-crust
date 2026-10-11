@@ -6,14 +6,14 @@ argument-hint: "[install | create workflow | run workflow | update config | ...]
 
 # pi-crust: AI Software Factory
 
-Reusable combination of **agents plus code**: deterministic TypeScript workflow scripts own sequencing, retries, and acceptance; coding agents (Pi in v1) work inside bounded phases; typed JSON envelopes carry context between them; everything streams into SQLite for the polled visualizer. Agent proposes, code disposes.
+Reusable combination of **agents plus code**: deterministic TypeScript workflow scripts own sequencing, retries, and acceptance; coding agents (Pi in v1) work inside bounded activity runs; typed JSON envelopes carry context between them; everything streams into SQLite for the polled visualizer. Agent proposes, code disposes.
 
 ## Use this skill when
 
 - The engineer says `/skill:pi-crust install`, or asks to set the factory up in a repository
 - A stage or a lifecycle needs creating, changing, or running — anything under `<pi-crust>/runtime/stages/` or `<pi-crust>/runtime/lifecycles/`
 - The agent roster needs tuning: a model, a thinking level, a tool list, a `writes` boundary
-- A run needs watching or explaining — which phase failed, what a gate rejected, what it cost
+- A run needs watching or explaining — which activity run failed, what a gate rejected, what it cost
 - Someone asks what `.pi-crust/` is, or how to drive it
 
 ## Do not use this skill for
@@ -28,7 +28,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 Three steps. Then stop.
 
 1. Read [cookbooks/crust_overview.md](cookbooks/crust_overview.md) — the system map.
-2. `ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts` and read each file's `Phases:` docstring line.
+2. `ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts` and read each file's `Activity Runs:` docstring line.
 3. Print what is available as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
 
 The two directories are not the same kind of thing, and the table should not pretend otherwise:
@@ -66,7 +66,7 @@ You run the system, observe the system, and help the user interact with it. **Yo
 - Never implement, plan, or test in an agent's place — launch the workflow and watch it.
 - Never edit files inside `.pi-crust/data/sessions/` — that is the run record.
 - Observe by querying `.pi-crust/data/crust.db` (WAL — reads never block writers) **when observing is the task**. This is a capability, not a startup step: query it to follow a run you launched or one the engineer asked about, never to volunteer a status report nobody requested.
-- Report phase status plainly: name, owner, status, error if any.
+- Report activity run status plainly: name, owner, status, error if any.
 
 ## Request routing (lazy-load the cookbook, then follow it)
 
@@ -124,22 +124,22 @@ Run `verify-install.sh` after installing and after any change to the template. T
 1. **Validate before running** — every workflow declares `REQUIRED_AGENTS` and calls `validateAgents()` first; a missing or misnamed agent fails before anything spawns.
 2. **Typed outputs only** — every agent call pairs with a concrete envelope spec in `<pi-crust>/runtime/modules/typedefs/envelope.ts`; parse failures re-prompt the same session (context intact), never restart. **The output contract is a synced triad**: (a) the schema in `typedefs/envelope.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `outputType:` at every call site. These are ONE contract — change any one, update all three in the same edit (grep the spec name to find every call site).
 3. **Gates validate claims, not guesses** — `gate.check(envelope, run) -> TGateReport`; failures return to the same session as corrections.
-4. **Four-param rule** — any function with more than 4 parameters takes one concrete type instead (`TAgentCall`, `TPhaseParams` are the pattern).
+4. **Four-param rule** — any function with more than 4 parameters takes one concrete type instead (`TAgentCall`, `TActivityRunParams` are the pattern).
 5. **One agent, one prompt, one purpose** — identity lives in `system.md`; task shape (user prompt + output type) lives at the call site.
 6. **Workflow scripts stay thin** — all low-level logic lives in `<pi-crust>/runtime/modules/`, split `typedefs/` (shapes), `data/` (the outside world), `use-cases/` (policy).
-7. **Every phase earns a description** — one sentence on what it does and why, never a restatement of its name. It is the only intent the trace, the console, and the UI ever show; `commit_plan: "Commit the plan"` is rejected at construction, blank is too.
-8. **A known command is code, not an agent** — if you can write the invocation down (`bun test`, `pnpm lint`), it belongs in a `kind: 'code'` phase via `<pi-crust>/runtime/modules/use-cases/run-checks.ts`. Agents are for the parts that need reading and deciding; failures come back to the builder as an envelope either way.
-9. **`tools:` is a capability list, `writes:` is the boundary** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. `writes:` per agent and `protected_files` in defaults are enforced in `<pi-crust>/runtime/modules/use-cases/enforce-permissions.ts` after every agent call: unauthorized changes are rolled back and the phase dies. The session runtime under `data_dir` is always writable — a read-only agent is read-only with respect to the REPO, never mute.
-10. **Every workflow ends in `finish(run)`** — phases passing is not the same as the run being accepted. A test phase that ran a red suite succeeded at its job. Pass `accepted:` so the exit code, the session status, and the banner are decided together and cannot disagree.
+7. **Every activity run earns a description** — one sentence on what it does and why, never a restatement of its name. It is the only intent the trace, the console, and the UI ever show; `commit_plan: "Commit the plan"` is rejected at construction, blank is too.
+8. **A known command is code, not an agent** — if you can write the invocation down (`bun test`, `pnpm lint`), it belongs in a `kind: 'code'` activity run via `<pi-crust>/runtime/modules/use-cases/run-checks.ts`. Agents are for the parts that need reading and deciding; failures come back to the builder as an envelope either way.
+9. **`tools:` is a capability list, `writes:` is the boundary** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. `writes:` per agent and `protected_files` in defaults are enforced in `<pi-crust>/runtime/modules/use-cases/enforce-permissions.ts` after every agent call: unauthorized changes are rolled back and the activity run dies. The session runtime under `data_dir` is always writable — a read-only agent is read-only with respect to the REPO, never mute.
+10. **Every workflow ends in `finish(run)`** — activity runs passing is not the same as the run being accepted. A test activity run that ran a red suite succeeded at its job. Pass `accepted:` so the exit code, the session status, and the banner are decided together and cannot disagree.
 11. **Skills and checks are config-routed, never hardcoded** — a skill path or a checker command may appear in `routing:` in `crust.config.yaml` and nowhere else. No prompt and no module may name one: the factory is stamped into repositories whose conventions and toolchain it cannot know, and a hardcoded path there is a path that does not exist. Both are selected by the paths a change actually touched.
 12. **A verification nobody declared did not pass** — when paths changed and no `routing.checks` rule matched them, `verify` FAILS and says so. Zero checks passing is not the same claim as zero checks failing.
-14. **The harness settles a dispute, neither agent** — a chain ending in `review` or `code-review` feeds its blocking findings back to the builder as a `revise` phase, bounded at two rounds. The builder may answer a finding with evidence instead of a fix, under three rules the harness applies: a finding a `routing.checks` entry decides may not be disputed at all; a dispute must carry a `path:line` or a command and its exit status, or `disputes_supported` rejects it as the refusal it is; and a finding raised twice with no new evidence on either side ends the loop and lands in `context_handoff/disputes.md` for the developer. The repeat count is the harness's, read from a persisted ledger — an agent that decides when the argument is over has decided its own case.
+14. **The harness settles a dispute, neither agent** — a chain ending in `review` or `code-review` feeds its blocking findings back to the builder as a `revise` activity run, bounded at two rounds. The builder may answer a finding with evidence instead of a fix, under three rules the harness applies: a finding a `routing.checks` entry decides may not be disputed at all; a dispute must carry a `path:line` or a command and its exit status, or `disputes_supported` rejects it as the refusal it is; and a finding raised twice with no new evidence on either side ends the loop and lands in `context_handoff/disputes.md` for the developer. The repeat count is the harness's, read from a persisted ledger — an agent that decides when the argument is over has decided its own case.
 
-13. **Resume is a flag, not a workflow** — `--resume` with `--run-id` skips the phases already recorded successful for that session. It reads the same `readRunState` the reporter reads, so `bun .pi-crust/report.ts` and the resumed run can never disagree about what is done.
+13. **Resume is a flag, not a workflow** — `--resume` with `--run-id` skips the activity runs already recorded successful for that session. It reads the same `readRunState` the reporter reads, so `bun .pi-crust/report.ts` and the resumed run can never disagree about what is done.
 
 ## Where a run stopped
 
-`bun .pi-crust/report.ts [<run-id>] [--json]` answers it: phases and their status, the gate that failed with its violations, the cost, the first phase not yet successful, and the exact command that picks the run back up. `--json` emits `TRunState` for an agent to parse — the shape is specified in [references/observability.md](references/observability.md). Exit codes: `0` succeeded, `1` failed or incomplete, `2` no such session.
+`bun .pi-crust/report.ts [<run-id>] [--json]` answers it: activity runs and their status, the gate that failed with its violations, the cost, the first activity run not yet successful, and the exact command that picks the run back up. `--json` emits `TRunState` for an agent to parse — the shape is specified in [references/observability.md](references/observability.md). Exit codes: `0` succeeded, `1` failed or incomplete, `2` no such session.
 
 ## v1 scope
 

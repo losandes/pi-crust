@@ -7,7 +7,7 @@
  *
  * A step's conversation outlives the step: pi keeps it as a session and a
  * later process rejoins it by id, so the agent answers with everything it
- * knew rather than re-deriving it. Neither mode opens a phase — a consult is
+ * knew rather than re-deriving it. Neither mode opens an activity run — a consult is
  * something that happened TO a step, not a step of its own.
  *
  * `ask` has no writing tools. `amend` may rewrite the documents that step
@@ -41,15 +41,15 @@ const USAGE =
   'usage: bun .pi-crust/consult.ts <ask|amend> <run-id> <step> "question"\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 
-/** The latest phase of this run with that step name, and who owned it. */
-const phaseOf = (
+/** The latest activityRun of this run with that step name, and who owned it. */
+const activityRunOf = (
   db: Database,
   runId: string,
   step: string,
-): Readonly<{ phase_id: string; owner: string }> | undefined =>
+): Readonly<{ activity_run_id: string; owner: string }> | undefined =>
   db
-    .query<{ phase_id: string; owner: string }, [string, string]>(
-      `SELECT phase_id, owner FROM phases
+    .query<{ activity_run_id: string; owner: string }, [string, string]>(
+      `SELECT activity_run_id, owner FROM activity_runs
         WHERE run_id = ? AND name = ? AND owner IS NOT NULL
         ORDER BY seq DESC, rowid DESC LIMIT 1`,
     )
@@ -68,18 +68,18 @@ const sessionOf = (
     .get(runId, agent) ?? undefined
 
 /**
- * The documents that phase was OBSERVED to create.
+ * The documents that activityRun was OBSERVED to create.
  *
  * Observed rather than reported, because this decides what an amend may
  * overwrite: a claim is the agent's word, and ownership has to rest on what
  * actually happened.
  */
-const ownedBy = (db: Database, phaseId: string): readonly string[] =>
+const ownedBy = (db: Database, activityRunId: string): readonly string[] =>
   db
     .query<{ payload_json: string | null }, [string]>(
-      "SELECT payload_json FROM events WHERE phase_id = ? AND type = 'artifacts'",
+      "SELECT payload_json FROM events WHERE activity_run_id = ? AND type = 'artifacts'",
     )
-    .all(phaseId)
+    .all(activityRunId)
     .flatMap((row) => {
       try {
         const created = (JSON.parse(row.payload_json ?? '{}') as {
@@ -137,28 +137,28 @@ const main = async (): Promise<number> => {
   const dataDir = resolve(dirname(dirname(dbPath)), 'data')
 
   const db = new Database(dbPath, { readonly: true })
-  const phase = phaseOf(db, runId, step)
-  if (phase === undefined) {
+  const activityRun = activityRunOf(db, runId, step)
+  if (activityRun === undefined) {
     say(`no step "${step}" in run ${runId}`)
     db.close()
     return 1
   }
-  const session = sessionOf(db, runId, phase.owner)
+  const session = sessionOf(db, runId, activityRun.owner)
   if (session === undefined) {
-    say(`no recorded session for ${phase.owner} in run ${runId}`)
+    say(`no recorded session for ${activityRun.owner} in run ${runId}`)
     db.close()
     return 1
   }
-  const own = ownedBy(db, phase.phase_id)
+  const own = ownedBy(db, activityRun.activity_run_id)
   db.close()
 
   const handoffDir = resolve(dataDir, 'sessions', runId, 'context_handoff')
   const request: TConsultRequest = {
     runId,
-    phaseId: phase.phase_id,
-    agent: phase.owner,
+    activityRunId: activityRun.activity_run_id,
+    agent: activityRun.owner,
     sessionId: session.session_id,
-    sessionDir: sessionDirFor(dataDir, runId, phase.owner),
+    sessionDir: sessionDirFor(dataDir, runId, activityRun.owner),
     handoffDir,
     mode: mode as TConsultMode,
     // What the person asked, verbatim. The preamble that tells the agent
@@ -173,7 +173,7 @@ const main = async (): Promise<number> => {
   ).split('/')
   const argv = consultArgv(request, { provider, modelId }, process.env.PI_PATH ?? 'pi')
 
-  say(`${mode} → ${phase.owner} (${step}) in run ${runId}`)
+  say(`${mode} → ${activityRun.owner} (${step}) in run ${runId}`)
   const outcome = await runConsult(
     request,
     (line) => invoke(line, process.cwd()),
@@ -185,13 +185,13 @@ const main = async (): Promise<number> => {
     return 1
   }
 
-  // Recorded against the phase it asked about, so the thread is found where
+  // Recorded against the activityRun it asked about, so the thread is found where
   // the question made sense rather than at the end of the run.
   const tracer = createTracer(dbPath, resolve(dataDir, 'sessions', runId, 'events.jsonl'))
   const event = consultEvent(request, outcome)
   tracer.event({
     run_id: runId,
-    phase_id: phase.phase_id,
+    activity_run_id: activityRun.activity_run_id,
     type: 'consult',
     name: event.name,
     payload: event.payload,

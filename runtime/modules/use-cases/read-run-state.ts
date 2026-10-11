@@ -2,21 +2,21 @@
  * Where did this run get to? One function, two callers.
  *
  * The reporter prints what this returns and `--resume` skips what it says is
- * done, so the two cannot disagree about a phase's fate — there is one answer
+ * done, so the two cannot disagree about an activity run's fate — there is one answer
  * and both read it.
  *
  * Two rules decide correctness:
  *
- *   1. The LATEST record per phase name wins. A joined session can run `build`
+ *   1. The LATEST record per activityRun name wins. A joined session can run `build`
  *      twice; if the second one failed, `build` is not complete.
- *   2. `resume_from` is undefined only when every phase succeeded. Nothing to
+ *   2. `resume_from` is undefined only when every activity run succeeded. Nothing to
  *      resume is a different answer from "start at the beginning".
  */
 
 import type {
   TTraceEventRow,
   TTraceGateRow,
-  TTracePhaseRow,
+  TTraceActivityRunRow,
   TTraceRows,
 } from '../data/trace-reader'
 import { readTrace } from '../data/trace-reader'
@@ -24,8 +24,8 @@ import type { TGateCheck } from '../typedefs/gate'
 import type {
   TEnvelopeRecord,
   TGateOutcome,
-  TPhaseLog,
-  TPhaseState,
+  TActivityRunLog,
+  TActivityRunState,
   TRunState,
 } from '../typedefs/run-state'
 import { safeParseSettlement, settledOr } from '../typedefs/settlement'
@@ -47,9 +47,9 @@ const asArray = <TItem>(json: string | null): readonly TItem[] => {
   return Array.isArray(parsed) ? (parsed as TItem[]) : []
 }
 
-const gateOutcome = (row: TTraceGateRow, phaseName: string): TGateOutcome => ({
+const gateOutcome = (row: TTraceGateRow, activityRunName: string): TGateOutcome => ({
   gate: row.gate,
-  phase: phaseName,
+  activityRun: activityRunName,
   attempt: row.attempt,
   passed: row.passed === 1,
   violations: asArray<string>(row.violations_json),
@@ -58,18 +58,18 @@ const gateOutcome = (row: TTraceGateRow, phaseName: string): TGateOutcome => ({
 
 const logsFor = (
   events: readonly TTraceEventRow[],
-  phaseId: string,
-): readonly TPhaseLog[] =>
+  activityRunId: string,
+): readonly TActivityRunLog[] =>
   events
-    .filter((event) => event.phase_id === phaseId && event.type === 'log')
+    .filter((event) => event.activity_run_id === activityRunId && event.type === 'log')
     .map((event) => ({
       name: event.name,
       payload: asObject(event.payload_json),
     }))
 
-const phaseState = (row: TTracePhaseRow, rows: TTraceRows): TPhaseState => ({
+const activityRunState = (row: TTraceActivityRunRow, rows: TTraceRows): TActivityRunState => ({
   seq: row.seq,
-  phase_id: row.phase_id,
+  activity_run_id: row.activity_run_id,
   name: row.name,
   kind: row.kind,
   owner: row.owner,
@@ -80,28 +80,28 @@ const phaseState = (row: TTracePhaseRow, rows: TTraceRows): TPhaseState => ({
   started_at: row.started_at ?? undefined,
   ended_at: row.ended_at ?? undefined,
   gates: rows.gates
-    .filter((gate) => gate.phase_id === row.phase_id)
+    .filter((gate) => gate.activity_run_id === row.activity_run_id)
     .map((gate) => gateOutcome(gate, row.name)),
-  logs: logsFor(rows.events, row.phase_id),
+  logs: logsFor(rows.events, row.activity_run_id),
 })
 
-/** The latest record per phase NAME — a re-run phase overrides its predecessor. */
+/** The latest record per activityRun NAME — a re-run activityRun overrides its predecessor. */
 export const latestByName = (
-  phases: readonly TPhaseState[],
-): readonly TPhaseState[] =>
-  phases.filter(
-    (phase) =>
-      !phases.some(
-        (other) => other.name === phase.name && other.seq > phase.seq,
+  activityRuns: readonly TActivityRunState[],
+): readonly TActivityRunState[] =>
+  activityRuns.filter(
+    (activityRun) =>
+      !activityRuns.some(
+        (other) => other.name === activityRun.name && other.seq > activityRun.seq,
       ),
   )
 
 const envelopeRecords = (
   rows: TTraceRows,
-  phaseName: (phaseId: string | null) => string,
+  activityRunName: (activityRunId: string | null) => string,
 ): readonly TEnvelopeRecord[] =>
   rows.envelopes.map((row) => ({
-    phase: phaseName(row.phase_id),
+    activityRun: activityRunName(row.activity_run_id),
     agent: row.agent,
     output_type: row.output_type,
     valid: row.valid === 1,
@@ -117,14 +117,14 @@ export const readRunState = (
   if (rows === undefined) {
     return undefined
   }
-  const phases = rows.phases.map((row) => phaseState(row, rows))
-  const latest = latestByName(phases)
+  const activityRuns = rows.activityRuns.map((row) => activityRunState(row, rows))
+  const latest = latestByName(activityRuns)
   const completed = latest
-    .filter((phase) => phase.status === 'success')
-    .map((phase) => phase.name)
-  const unfinished = latest.filter((phase) => phase.status !== 'success')
+    .filter((activityRun) => activityRun.status === 'success')
+    .map((activityRun) => activityRun.name)
+  const unfinished = latest.filter((activityRun) => activityRun.status !== 'success')
   const names = new Map(
-    rows.phases.map((row) => [row.phase_id, row.name] as const),
+    rows.activityRuns.map((row) => [row.activity_run_id, row.name] as const),
   )
   return {
     run_id: rows.session.run_id,
@@ -136,34 +136,34 @@ export const readRunState = (
     ended_at: rows.session.ended_at ?? undefined,
     tokens: rows.session.total_tokens ?? 0,
     cost: rows.session.total_cost ?? 0,
-    phases,
+    activityRuns,
     completed,
-    // A phase that is RUNNING is not a phase to resume from: acting on that
+    // A activityRun that is RUNNING is not an activity run to resume from: acting on that
     // line would start a second agent against a live session, both writing
     // the same trace. Only a stopped run has somewhere to be picked up.
-    resume_from: unfinished.find((phase) => phase.status !== 'running')?.name,
-    failed_gates: phases
-      .flatMap((phase) => phase.gates)
+    resume_from: unfinished.find((activityRun) => activityRun.status !== 'running')?.name,
+    failed_gates: activityRuns
+      .flatMap((activityRun) => activityRun.gates)
       .filter((gate) => !gate.passed)
       .toReversed(),
-    envelopes: envelopeRecords(rows, (phaseId) =>
-      phaseId === null ? '' : (names.get(phaseId) ?? ''),
+    envelopes: envelopeRecords(rows, (activityRunId) =>
+      activityRunId === null ? '' : (names.get(activityRunId) ?? ''),
     ),
   }
 }
 
 /**
- * The payload a code phase filed under `eventName` — how a code step replays.
+ * The payload a code activityRun filed under `eventName` — how a code step replays.
  *
- * A code phase's verdict is NOT its phase status: a verify phase that ran the
+ * A code activity-run's verdict is NOT its activityRun status: a verify activityRun that ran the
  * suite did its job even when the suite came back red. Replay therefore reads
- * what the phase recorded, never what its status implies.
+ * what the activityRun recorded, never what its status implies.
  */
 export const latestLogPayload = (
   state: TRunState,
-  phaseName: string,
+  activityRunName: string,
   eventName: string,
 ): TEventPayload | undefined =>
-  latestByName(state.phases)
-    .find((candidate) => candidate.name === phaseName)
+  latestByName(state.activityRuns)
+    .find((candidate) => candidate.name === activityRunName)
     ?.logs.findLast((log) => log.name === eventName)?.payload

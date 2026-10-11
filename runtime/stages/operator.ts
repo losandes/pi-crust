@@ -5,7 +5,7 @@
  * Usage:
  *     bun .pi-crust/stages/operator.ts "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]
  *
- * Phases: engineer(request) -> operator -> whatever the operator planned
+ * Activity Runs: engineer(request) -> operator -> whatever the operator planned
  *
  * There is no `--execute` flag, because the trust dial already answers that
  * question and two controls for one intention is the mistake this factory

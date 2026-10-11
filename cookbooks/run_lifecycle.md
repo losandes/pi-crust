@@ -8,7 +8,7 @@ Run a workflow and report on it. **You run and observe — you never step into t
 
 ## The orchestrator's posture
 
-The workflow is the worker. Your job is to launch it, watch the trace, and tell the engineer what happened. Do not read the agent's target files and "help", do not fix the code an agent was supposed to fix, do not edit an envelope. If a run fails, report the failing phase and its violations — the fix is a config, prompt, or workflow change, made deliberately, and then a re-run.
+The workflow is the worker. Your job is to launch it, watch the trace, and tell the engineer what happened. Do not read the agent's target files and "help", do not fix the code an agent was supposed to fix, do not edit an envelope. If a run fails, report the failing activity run and its violations — the fix is a config, prompt, or workflow change, made deliberately, and then a re-run.
 
 ## Launch
 
@@ -109,7 +109,7 @@ Still prefer a composed chain when the work is real: a lone `build` has nothing 
 
 ## Where did it stop, and how do I pick it up
 
-This is the normal recovery path. Do not re-run a chain from the top because one phase failed: the earlier phases cost money, and their envelopes are on disk.
+This is the normal recovery path. Do not re-run a chain from the top because one activity run failed: the earlier activity runs cost money, and their envelopes are on disk.
 
 ```bash
 just crust report                      # the most recent run
@@ -117,7 +117,7 @@ just crust report a1b2c3d4             # one run by id
 just crust report-json a1b2c3d4        # TRunState, for you to parse
 ```
 
-The report names every phase and its status, the gate that failed with its violations, the cost, the first phase not yet successful, and the exact command that resumes it:
+The report names every activity run and its status, the gate that failed with its violations, the cost, the first activity run not yet successful, and the exact command that resumes it:
 
 ```text
 resume from: build
@@ -126,12 +126,12 @@ resume from: build
 
 Exit codes: `0` the run succeeded, `1` it failed or is incomplete, `2` no such session.
 
-`--resume` works on every workflow. It skips the phases already recorded successful for that session, replaying each one's recorded result instead of re-running it, and starts at the first that is not. Resume and the report read the same function, so they cannot disagree about what is already done.
+`--resume` works on every workflow. It skips the activity runs already recorded successful for that session, replaying each one's recorded result instead of re-running it, and starts at the first that is not. Resume and the report read the same function, so they cannot disagree about what is already done.
 
 Two things to know before reaching for it:
 
 - It needs `--run-id`. Resuming an unnamed session is resuming nothing, and it says so rather than quietly starting a new run.
-- A session whose every phase succeeded has nothing to resume, and says that too. Drop `--run-id` to start fresh.
+- A session whose every activity run succeeded has nothing to resume, and says that too. Drop `--run-id` to start fresh.
 
 ## Observe
 
@@ -140,13 +140,13 @@ The trace db is `.pi-crust/data/crust.db`. It is WAL, so reads never block the r
 ```bash
 # where the run stands
 sqlite3 .pi-crust/data/crust.db \
-  "select seq, name, kind, owner, status, attempt from phases where run_id='a1b2c3d4' order by seq;"
+  "select seq, name, kind, owner, status, attempt from activity runs where run_id='a1b2c3d4' order by seq;"
 
 # the live tail — cursor on rowid, same query the visualizer polls
 sqlite3 .pi-crust/data/crust.db \
   "select rowid, type, name, started_at from events where run_id='a1b2c3d4' and rowid > 0 order by rowid limit 50;"
 
-# why a phase failed
+# why a activity run failed
 sqlite3 .pi-crust/data/crust.db \
   "select attempt, gate, passed, checks_json from gate_results where run_id='a1b2c3d4';"
 
@@ -173,17 +173,17 @@ Files are the raw record if you need more than the db shows: `.pi-crust/data/ses
 A hung coding agent produces no events at all, so the trace goes quiet rather than red. Read it in this order:
 
 ```bash
-just crust phases <run_id>     # which phase is still `running`
-just crust procs <run_id>      # what that phase is actually running, with pids
+just crust activity runs <run_id>     # which activity run is still `running`
+just crust procs <run_id>      # what that activity run is actually running, with pids
 just crust kill <run_id>       # stop it — children first, then the workflow
 ```
 
-`processes` rows with `ended_at IS NULL` are the live ones. If `procs` shows a pi child but the phase has produced no `tool_call` events and its `raw_output.jsonl` is empty, the agent never got started properly — check the model resolves and that nothing is blocking the subprocess, rather than waiting it out. `just crust kill` verifies each pid still matches the command that was recorded before signalling, because pids get recycled.
+`processes` rows with `ended_at IS NULL` are the live ones. If `procs` shows a pi child but the activity run has produced no `tool_call` events and its `raw_output.jsonl` is empty, the agent never got started properly — check the model resolves and that nothing is blocking the subprocess, rather than waiting it out. `just crust kill` verifies each pid still matches the command that was recorded before signalling, because pids get recycled.
 
 A killed run marks itself `fail` and closes its process rows, so the trace never claims work is in flight that is already dead.
 
 ## Report
 
-Tell the engineer, in order: which chain and which roster you launched (name the config whenever it was not the default), which phase is running now (or which failed), phase statuses in sequence, and for a failure the gate violations or the error verbatim. Remember **every phase defaults to `fail`** — a phase showing `fail` may simply never have completed; `queued` means it never started. Don't dress up a partial run as a success.
+Tell the engineer, in order: which chain and which roster you launched (name the config whenever it was not the default), which activity run is running now (or which failed), activity run statuses in sequence, and for a failure the gate violations or the error verbatim. Remember **every activity run defaults to `fail`** — a activity run showing `fail` may simply never have completed; `queued` means it never started. Don't dress up a partial run as a success.
 
-For a visual live view, the visualizer app in the skill (`just crust observe`, or tmux sessions viz-api :4600 + viz-ui :4601) polls this same db — sessions as cards, runs as swim lanes, phases and tool calls drill-in. The sqlite queries above remain the headless equivalent.
+For a visual live view, the visualizer app in the skill (`just crust observe`, or tmux sessions viz-api :4600 + viz-ui :4601) polls this same db — sessions as cards, runs as swim lanes, activity runs and tool calls drill-in. The sqlite queries above remain the headless equivalent.

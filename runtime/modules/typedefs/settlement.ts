@@ -51,8 +51,8 @@ export const isOk = <TData, TError>(
 /**
  * Wrap a throwing call once, at the edge, so the layers above it never catch.
  *
- * This is the only `try` in `modules/`, apart from the phase boundary in
- * `use-cases/run-phase.ts` which exists to turn a throw into a recorded
+ * This is the only `try` in `modules/`, apart from the activityRun boundary in
+ * `use-cases/run-activityRun.ts` which exists to turn a throw into a recorded
  * failure. Everything else settles.
  */
 export const safeParseSettlement = <TData>(

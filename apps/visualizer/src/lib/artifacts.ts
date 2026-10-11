@@ -45,8 +45,8 @@ export type TArtifact = Readonly<{
    */
   title: string
   source: TArtifactSource
-  /** The phase that produced it, when known. */
-  phaseId: string | undefined
+  /** The activityRun that produced it, when known. */
+  activityRunId: string | undefined
   /** The agent that produced it, when known. */
   agent: string | undefined
   /** The agent's account of what this document concludes. Empty when unknown. */
@@ -94,29 +94,29 @@ const strings = (value: unknown): readonly string[] =>
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 /**
- * What each phase was observed to write, newest observation per phase.
+ * What each activityRun was observed to write, newest observation per activityRun.
  *
- * Only `created` counts as a phase's output. A `modified` entry means the
- * phase changed a document another phase owns, which is a different claim
+ * Only `created` counts as a activity-run's output. A `modified` entry means the
+ * activityRun changed a document another activityRun owns, which is a different claim
  * entirely and belongs in the violation report rather than in a list of
  * outputs.
  */
-export const observedByPhase = (
+export const observedByActivityRun = (
   events: readonly EventRow[],
 ): ReadonlyMap<string, readonly string[]> => {
-  const byPhase = new Map<string, readonly string[]>()
+  const byActivityRun = new Map<string, readonly string[]>()
   for (const event of events) {
-    if (event.type !== 'artifacts' || event.phase_id === null) continue
+    if (event.type !== 'artifacts' || event.activity_run_id === null) continue
     try {
       const payload = JSON.parse(event.payload_json ?? '{}') as {
         created?: unknown
       }
-      byPhase.set(event.phase_id, strings(payload.created))
+      byActivityRun.set(event.activity_run_id, strings(payload.created))
     } catch (cause) {
       void cause
     }
   }
-  return byPhase
+  return byActivityRun
 }
 
 /**
@@ -158,7 +158,7 @@ export const runArtifacts = (params: {
         title: onDisk?.get(path)?.title ?? '',
         source:
           onDisk === undefined || onDisk.has(path) ? 'reported' : 'missing',
-        phaseId: envelope.phase_id ?? undefined,
+        activityRunId: envelope.activity_run_id ?? undefined,
         agent: envelope.agent ?? undefined,
         summary: text(payload.summary),
         notes: text(payload.notes_for_next_agent),
@@ -169,7 +169,7 @@ export const runArtifacts = (params: {
   // Then whatever is on disk that nobody claimed. Over-reporting here is
   // deliberate: a document a step forgot to report is still a document
   // somebody would otherwise have to go hunting for.
-  const observed = observedByPhase(params.events)
+  const observed = observedByActivityRun(params.events)
   for (const file of params.present ?? []) {
     const owner = [...observed.entries()].find(([, created]) =>
       created.includes(nameOf(file.path)),
@@ -179,7 +179,7 @@ export const runArtifacts = (params: {
       name: nameOf(file.path),
       title: file.title,
       source: SYSTEM_FILES.test(nameOf(file.path)) ? 'system' : 'observed',
-      phaseId: owner?.[0],
+      activityRunId: owner?.[0],
       agent: undefined,
       summary: '',
       notes: '',
@@ -189,21 +189,21 @@ export const runArtifacts = (params: {
   return found
 }
 
-/** The same list, narrowed to one phase — what this step produced. */
-export const phaseArtifacts = (
+/** The same list, narrowed to one activityRun — what this step produced. */
+export const activityRunArtifacts = (
   all: readonly TArtifact[],
-  phaseId: string,
-): readonly TArtifact[] => all.filter((entry) => entry.phaseId === phaseId)
+  activityRunId: string,
+): readonly TArtifact[] => all.filter((entry) => entry.activityRunId === activityRunId)
 
 /**
- * A phase that changed or removed a document belonging to another phase.
+ * A activityRun that changed or removed a document belonging to another activityRun.
  *
  * Nothing forbids this today, which is why it is worth showing: the handoff
  * directory is granted to every agent wholesale, and being gitignored it is
  * invisible to the permission check that would otherwise catch it.
  */
 export type TArtifactViolation = Readonly<{
-  phaseId: string
+  activityRunId: string
   modified: readonly string[]
   deleted: readonly string[]
 }>
@@ -213,7 +213,7 @@ export const artifactViolations = (
 ): readonly TArtifactViolation[] => {
   const found: TArtifactViolation[] = []
   for (const event of events) {
-    if (event.type !== 'artifacts' || event.phase_id === null) continue
+    if (event.type !== 'artifacts' || event.activity_run_id === null) continue
     try {
       const payload = JSON.parse(event.payload_json ?? '{}') as {
         modified?: unknown
@@ -222,7 +222,7 @@ export const artifactViolations = (
       const modified = strings(payload.modified)
       const deleted = strings(payload.deleted)
       if (modified.length + deleted.length === 0) continue
-      found.push({ phaseId: event.phase_id, modified, deleted })
+      found.push({ activityRunId: event.activity_run_id, modified, deleted })
     } catch (cause) {
       void cause
     }

@@ -189,7 +189,7 @@ export const startSteer = (
  * Detached, like resuming. A consult rejoins a conversation that may be a
  * hundred thousand tokens and takes a minute to answer, while an HTTP
  * handler has milliseconds. The answer is not returned here: the CLI records
- * it against the phase, and the UI is already polling events, so it arrives
+ * it against the activityRun, and the UI is already polling events, so it arrives
  * the way everything else a run produces arrives.
  *
  * The run's own tree is the cwd, because a step's question is usually about

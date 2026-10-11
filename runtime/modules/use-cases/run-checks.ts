@@ -50,7 +50,7 @@ export const quoteArgv = (argv: readonly string[]): string =>
     .join(' ')
 
 const checkDir = (run: TRun, name: string): string => {
-  const seq = run.phases().at(-1)?.seq ?? 0
+  const seq = run.activityRuns().at(-1)?.seq ?? 0
   return ensureDir(
     join(
       run.contextHandoffDir,
@@ -64,7 +64,7 @@ export const runCheck = (
   spec: TQualityCheckSpec,
   run: TRun,
 ): TQualityCheckResult => {
-  const phase = run.phases().at(-1)
+  const activityRun = run.activityRuns().at(-1)
   const outputArtifact = join(checkDir(run, spec.name), 'command.log')
   const command = quoteArgv(spec.argv)
   const [binary, ...args] = spec.argv
@@ -103,7 +103,7 @@ export const runCheck = (
   const passed = returncode === 0
   run.tracer.event({
     run_id: run.runId,
-    phase_id: phase?.phase_id ?? '',
+    activity_run_id: activityRun?.activity_run_id ?? '',
     type: 'tool_call',
     name: `quality:${spec.name}`,
     payload: {

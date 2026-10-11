@@ -27,7 +27,7 @@ import { appendSteering } from './modules/data/steering'
 import { readRunState } from './modules/use-cases/read-run-state'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import {
-  phasesToSupersede,
+  activityRunsToSupersede,
   steeringEntry,
   stepsToReplay,
   type TSteerTarget,
@@ -89,12 +89,12 @@ const main = async (): Promise<number> => {
     return 1
   }
 
-  const replaying = stepsToReplay(state.phases, step)
+  const replaying = stepsToReplay(state.activityRuns, step)
   if (replaying.length === 0) {
     say(`no step "${step}" in run ${runId}`)
     return 1
   }
-  const superseding = phasesToSupersede(state.phases, step)
+  const superseding = activityRunsToSupersede(state.activityRuns, step)
 
   const handoffDir = resolve(
     cfg.defaults.data_dir,
@@ -105,15 +105,15 @@ const main = async (): Promise<number> => {
   const path = appendSteering(handoffDir, steeringEntry(step, note, nowIso()))
 
   /*
-   * Marking the standing phases superseded is what makes the replay happen:
-   * resume skips a step whose latest phase succeeded, so this is exactly the
+   * Marking the standing activityRuns superseded is what makes the replay happen:
+   * resume skips a step whose latest activityRun succeeded, so this is exactly the
    * set that would otherwise be skipped. The rows stay — what the abandoned
    * path decided is still worth reading — they simply stop counting as done.
    */
   const db = new Database(dbPath)
   db.run('PRAGMA busy_timeout=5000;')
-  for (const phaseId of superseding) {
-    db.run("UPDATE phases SET status='superseded' WHERE phase_id=?", [phaseId])
+  for (const activityRunId of superseding) {
+    db.run("UPDATE activity_runs SET status='superseded' WHERE activity_run_id=?", [activityRunId])
   }
   db.run(
     "INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)" +

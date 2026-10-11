@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { crustConfigSchema } from '../typedefs/config'
-import { phaseParams } from '../typedefs/phase'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import type { TStep, TStepContext } from '../typedefs/step'
 import type { TUnit } from '../typedefs/unit'
@@ -47,7 +47,7 @@ const timedStep = (
 ): TStep =>
   ({
     name,
-    params: phaseParams({
+    params: activityRunParams({
       name,
       kind: 'code',
       owner: 'quality',

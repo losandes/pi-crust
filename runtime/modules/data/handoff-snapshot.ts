@@ -8,8 +8,8 @@
  * wrote rather than an agent.
  *
  * Observation closes that. Snapshot the handoff directory either side of a
- * phase and the difference is evidence: this phase created this file, that
- * one changed a file another phase owns.
+ * activityRun and the difference is evidence: this activityRun created this file, that
+ * one changed a file another activityRun owns.
  *
  * Content-addressed rather than a directory listing, because the case worth
  * catching is the one a listing cannot see. A step that rewrites `design.md`
@@ -26,9 +26,9 @@ import { ensureParentDir, fileExists } from './files'
 /** Relative path within the handoff directory, to the hash of its contents. */
 export type THandoffSnapshot = ReadonlyMap<string, string>
 
-/** What one phase did to the handoff directory while it ran. */
+/** What one activityRun did to the handoff directory while it ran. */
 export type THandoffChange = Readonly<{
-  /** Files that did not exist before this phase. Its own output. */
+  /** Files that did not exist before this activityRun. Its own output. */
   created: readonly string[]
   /** Files that existed and now hold different bytes. Someone else's output. */
   modified: readonly string[]
@@ -53,7 +53,7 @@ const sha = (path: string): string =>
  * whole subtree as nothing at all.
  *
  * An unreadable entry is skipped rather than thrown: this is observation, and
- * failing a phase because a file vanished between the listing and the read
+ * failing an activity run because a file vanished between the listing and the read
  * would turn a diagnostic into an outage.
  */
 export const snapshotHandoff = (dir: string): THandoffSnapshot => {
@@ -62,7 +62,7 @@ export const snapshotHandoff = (dir: string): THandoffSnapshot => {
   const walk = (current: string): void => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const full = join(current, entry.name)
-      // biome-ignore lint/plugin: observation must not fail the phase it watches
+      // biome-ignore lint/plugin: observation must not fail the activityRun it watches
       try {
         if (entry.isDirectory()) walk(full)
         else if (entry.isFile()) found.set(relative(dir, full), sha(full))
@@ -92,14 +92,14 @@ export const diffHandoff = (
   deleted: [...before.keys()].filter((path) => !after.has(path)).toSorted(),
 })
 
-/** Whether anything happened at all, so an idle phase records nothing. */
+/** Whether anything happened at all, so an idle activityRun records nothing. */
 export const changed = (change: THandoffChange): boolean =>
   change.created.length + change.modified.length + change.deleted.length > 0
 
 /**
  * Copies of what exists now, so damage can be undone.
  *
- * Taken before a phase runs, because git cannot help here: the session
+ * Taken before an activity run runs, because git cannot help here: the session
  * directory is ignored, which is exactly why an agent is allowed to write in
  * it and exactly why nothing would notice when it writes over someone else's
  * work.

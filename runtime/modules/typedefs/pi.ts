@@ -65,7 +65,7 @@ export const emptyUsage: TUsageBreakdown = {
   total_cost: 0,
 }
 
-/** Add another call's usage — a phase that retries spends more than once. */
+/** Add another call's usage — an activity run that retries spends more than once. */
 export const mergeUsage = (
   left: TUsageBreakdown,
   right: TUsageBreakdown,

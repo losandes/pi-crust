@@ -40,7 +40,7 @@ const request = (
   dirs: Readonly<{ dir: string; sessions: string }>,
 ): TConsultRequest => ({
   runId: 'c35f2c7d',
-  phaseId: 'c35f2c7d_05_design',
+  activityRunId: 'c35f2c7d_05_design',
   agent: 'technical-architect',
   sessionId: 'crust-c35f2c7d-technical-architect-9650',
   sessionDir: dirs.sessions,
@@ -197,7 +197,7 @@ test(
     'it should name its mode in both the instruction and the trace',
   ].join(', '),
   () => {
-    // given — the thread hangs off the phase that was asked about, so a
+    // given — the thread hangs off the activityRun that was asked about, so a
     // reader finds the answer where the question made sense
     const dirs = handoff()
     const asked = request('ask', dirs)

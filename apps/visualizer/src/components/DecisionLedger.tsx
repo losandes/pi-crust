@@ -11,7 +11,7 @@
  * told. Assumptions come last: they are the softest claim a step makes and
  * the least likely to need a response today.
  */
-import type { TPhaseLedger, TQuestionOutcome } from '../lib/ledger'
+import type { TActivityRunLedger, TQuestionOutcome } from '../lib/ledger'
 import styles from './DecisionLedger.module.css'
 
 const OUTCOME_LABEL: Readonly<Record<TQuestionOutcome, string>> = {
@@ -22,7 +22,7 @@ const OUTCOME_LABEL: Readonly<Record<TQuestionOutcome, string>> = {
 
 export const DecisionLedger = ({
   ledger,
-}: Readonly<{ ledger: TPhaseLedger }>) => {
+}: Readonly<{ ledger: TActivityRunLedger }>) => {
   if (ledger.total === 0) {
     return (
       <div className={styles.empty}>

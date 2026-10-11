@@ -19,7 +19,7 @@ test(
     // then
     expect(actual).toEqual({
       runId: 'c35f2c7d',
-      phaseId: 'c35f2c7d_03_design',
+      activityRunId: 'c35f2c7d_03_design',
       workspace: undefined,
     })
   },
@@ -29,10 +29,10 @@ test(
   [
     'given lib/router::parseHash',
     'when the link names a workspace',
-    'it should read both, and keep the phase in the second segment',
+    'it should read both, and keep the activityRun in the second segment',
   ].join(', '),
   () => {
-    // given — a colon rather than another slash, so the phase id does not
+    // given — a colon rather than another slash, so the activityRun id does not
     // slide along depending on whether a workspace precedes it
     const link = '#/feature-a:c35f2c7d/c35f2c7d_03_design'
 
@@ -42,7 +42,7 @@ test(
     // then
     expect(actual).toEqual({
       runId: 'c35f2c7d',
-      phaseId: 'c35f2c7d_03_design',
+      activityRunId: 'c35f2c7d_03_design',
       workspace: 'feature-a',
     })
   },
@@ -90,7 +90,7 @@ test(
   () => {
     // given — labels are slugified server-side, but nothing stops a hand
     // typed link, and a half-escaped one routes somewhere unintended
-    const href = hrefFor('run/one', 'phase one', 'tree:two')
+    const href = hrefFor('run/one', 'activityRun one', 'tree:two')
 
     // when
     const actual = parseHash(href)
@@ -99,7 +99,7 @@ test(
     expect(actual).toEqual({
       workspace: 'tree',
       runId: 'two:run/one',
-      phaseId: 'phase one',
+      activityRunId: 'activityRun one',
     })
   },
 )
