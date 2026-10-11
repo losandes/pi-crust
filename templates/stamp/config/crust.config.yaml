@@ -6,7 +6,7 @@ defaults:
   # with one your credentials actually reach: `pi --list-models` is the
   # authority, and config validation refuses a model that is not there rather
   # than failing later inside an agent.
-  model: anthropic/claude-sonnet-5   # provider/id — a bare pattern is ambiguous across providers
+  model: anthropic/claude-sonnet-5 # provider/id — a bare pattern is ambiguous across providers
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -14,9 +14,9 @@ defaults:
   # whose harness_engineering extension registers a tool MUST name that tool in its own
   # tools list — otherwise the extension loads and its tool is silently filtered out.
   tools:
-    - read                         # read file contents
     - bash                         # execute bash commands
     - edit                         # find/replace edits
+    - read                         # read file contents
     - write                        # create/overwrite files
   # Off-limits to every agent that does not name them in its own `writes`.
   # `tools` alone cannot protect these: bash runs `git checkout`, and write
@@ -31,7 +31,7 @@ defaults:
   # read-only with respect to the repo, not mute.
   protected_files:
     - .pi-crust/config/
-  data_dir: .pi-crust/data             # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
+  data_dir: .pi-crust/data         # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
 
 # ── steps: what `just crust please` offers, and in what order ───────────────
 # Neither key changes what CAN run. A lifecycle, an operator, or an explicit
@@ -40,7 +40,7 @@ defaults:
 # crust.config.local.yaml.
 
 observability:
-  db: .pi-crust/data/crust.db           # tracer writes here directly; the UI polls it
+  db: .pi-crust/data/crust.db      # tracer writes here directly; the UI polls it
   poll_ms: 500                     # visualizer live-poll cadence
 
 # What agents LOAD and what `verify` RUNS, both selected by the paths a change
