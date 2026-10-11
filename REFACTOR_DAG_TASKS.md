@@ -80,22 +80,34 @@ A write that lands outside every declared path during a concurrent Stage still c
 
 ## Tasks
 
-| #   | Task                                    | Done when                                                                                                                                  |
-| --- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Stage strategy in the schema            | `strategy` parses, defaults to serial, and an unknown value is rejected                                                                    |
-| 2   | Re-cut the shipped lifecycles           | Every `concurrent` Stage holds Activities that are genuinely independent; serial order is unchanged from today                             |
-| 3   | `writes` redesign                       | `'*'` parses, omission is an error, the shipped registry states `context_handoff/`, and existing behaviour is unchanged for explicit lists |
-| 4   | Disjointness validation                 | A concurrent Stage with overlapping declared paths is refused at load, naming both Activities                                              |
-| 5   | Path attribution in enforce-permissions | A breach is detected without reference to when the Activity ran; the existing `git checkout` reversion case still fails                    |
-| 6   | The Stage survives loading              | The executor receives Stages, not a flat list; a serial plan reproduces today's trace exactly                                              |
-| 7   | The scheduler                           | Independent Activities run concurrently; dependent ones wait; a fully serial lifecycle is byte-identical in trace to today                 |
-| 8   | Context composition                     | An Activity with several upstream results receives all of them with provenance; conflicting findings are reported, not merged              |
-| 9   | Gates at both levels                    | The four rows of the gate table each have a test                                                                                           |
-| 10  | Run states                              | Blocked, skipped and cancelled are distinguishable in the trace from failed                                                                |
-| 11  | Trace vocabulary                        | Decide whether `phase` migrates to Activity Run; if yes, with a data migration — see REFACTOR_DAG.md                                       |
-| 12  | Documentation                           | No document describes the serial engine as current                                                                                         |
+All twelve are delivered. What each one actually does, and what proves it:
 
-Order matters: 1–2 make the configuration honest, 3–5 make concurrent writes safe, 6–8 build the executor, 9–10 complete the semantics.
+| #   | Task                          | Evidence                                                                    |
+| --- | ----------------------------- | --------------------------------------------------------------------------- |
+| 1   | Stage strategy in the schema  | `strategy` parses, defaults to serial, an unknown value throws              |
+| 2   | Re-cut the shipped lifecycles | `accept` is the only concurrent Stage; serial order is unchanged            |
+| 3   | `writes` redesign             | required, `'*'` for anywhere, `{handoff}` for the run's directory           |
+| 4   | Disjointness validation       | a concurrent Stage with overlapping paths is refused at load, naming both   |
+| 5   | Path attribution              | a sibling's declared path is the sibling's, not this Activity's breach      |
+| 6   | The Stage survives loading    | the engine receives Stages; `--steps` becomes the one serial Stage it meant |
+| 7   | The scheduler                 | observed interleaving for concurrent, observed sequence for serial          |
+| 8   | Context composition           | `upstream` carries every result with its Activity; disagreement is reported |
+| 9   | Gates at both levels          | all four rows of the gate table have a behavioural test                     |
+| 10  | Run states                    | `blocked` and `cancelled` events name what the run did not reach            |
+| 11  | Trace vocabulary              | decided: **no migration** — see below                                       |
+| 12  | Documentation                 | config reference, observability, and both lifecycle cookbooks rewritten     |
+
+### Why `phase` stays
+
+`phase` already means Activity Run. There is a `phases` table, a `phase_id` on every event, `phase_start` and `phase_end` event types, and **24 non-test files** read it. Adopting the DAG's word would be a schema migration against databases that already hold runs, for a vocabulary improvement with no behavioural consequence.
+
+The cost lands on existing traces, which are the one artifact nobody can regenerate. Left alone deliberately, not overlooked.
+
+### What a Stage still does not do
+
+Stages are a chain. Two Stages cannot run at the same time as each other, so parallel branches of unequal length — a one-Activity branch running alongside a two-Activity branch — cannot be expressed. Concurrency lives strictly inside a Stage.
+
+Re-introducing `depends_on` is the way to lift that, and it stays compatible with every file written in the meantime because "omitted means the previous Stage" would remain true of all of them. Nothing has needed it yet.
 
 ## Known leftovers, not blocking
 

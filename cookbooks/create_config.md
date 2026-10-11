@@ -29,7 +29,7 @@ observability:
   poll_ms: 500                     # visualizer live-poll cadence
 
 activities:
-  - name: planner                  # workflow scripts name agents, never models
+  - name: planner                  # activities name agents, never models
     coding_agent: pi
     model: google/gemini-3.6-flash
     thinking: high

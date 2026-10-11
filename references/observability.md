@@ -131,7 +131,7 @@ agent_sessions (                   -- the queryable mirror of agent_map.json
 
 **Derived, never stored:** phase durations (`ended_at − started_at`), session phase-progress (query `phases` by `run_id`), lane layout (`kind` + `owner`).
 
-Phase status invariants: `queued` only for manifest-declared phases not yet entered (dashed in the UI); `running` on enter; only a clean exit writes `success` — agent phases additionally need the envelope parsed and gates green; everything else resolves to `fail`.
+Phase status invariants: `queued` only for manifest-declared phases not yet entered (dashed in the UI); `running` on enter; only a clean exit writes `success` — agent phases additionally need the envelope parsed and gates green; everything else resolves to `fail`. `blocked` and `cancelled` are not phase rows: nothing started, so there is nothing to open a row for. They arrive as `activities_blocked` and `activities_cancelled` events naming what the run did not reach and why — blocked when a person is holding it and the work is still owed, cancelled when it is not coming. Without them a halted run leaves everything downstream with no record at all, which reads the same as a lifecycle that never had those Activities.
 
 ## WAL pragmas
 

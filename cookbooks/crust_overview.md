@@ -145,8 +145,8 @@ Load one cookbook per request — this overview is the only one you read up fron
 | ---------------------------------------------- | ------------------------------------------------------------- |
 | Turn a request into the prompt a workflow gets | `how_to_prompt_for_the_eng.md` — **read before every launch** |
 | Set the system up in a repo                    | `install.md`                                                  |
-| Write a new workflow script                    | `create_lifecycle.md`                                         |
-| Change an existing workflow chain              | `update_lifecycle.md`                                         |
+| Add a lifecycle                                | `create_lifecycle.md`                                         |
+| Change a lifecycle's stages or concurrency     | `update_lifecycle.md`                                         |
 | Generate `crust.config.yaml`                   | `create_config.md`                                            |
 | Add or retune an agent                         | `update_config.md`                                            |
 | Add low-level logic or a gate                  | `update_modules.md`                                           |

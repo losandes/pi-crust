@@ -61,8 +61,9 @@ Same idea, same scope. What changed is that "popularity" became a sort order, th
 **If they did not, read what this repo actually has and choose from that.**
 
 ```bash
-ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts                       # the menu
-head -20 <pi-crust>/runtime/lifecycles/<name>.ts            # every workflow opens with its `Phases:` line — the chain in one line
+cat .pi-crust/config/crust.lifecycles.yaml                 # the lifecycles this repo offers
+cat .pi-crust/config/crust.activities.yaml                 # the activities they are built from
+just crust please                                          # the same menu, interactively
 ```
 
 Chains are the engineer's to add, rename, and rewire, so **the files on disk are the only authority**. Never launch from memory or from a name you saw in a doc; read the docstrings, then match by shape:
@@ -80,7 +81,7 @@ Chains are the engineer's to add, rename, and rewire, so **the files on disk are
 
 **The more complex the ask, the more complete the chain.** Complexity means: more than one file, a behaviour you cannot describe in one sentence, anything touching data or an interface others call, or any request where you had to guess. When two chains both fit, take the longer one — a phase you did not need costs cents, while a change nobody planned, verified, reviewed, or wrote up costs an afternoon.
 
-If nothing on disk fits the shape you need, say so and offer to compose one (`create_lifecycle.md`) rather than forcing the work into a chain that skips the phase it needed.
+If nothing on disk fits the shape you need, say so and offer to compose one ([create_lifecycle.md](create_lifecycle.md)) rather than forcing the work into a chain that skips the phase it needed.
 
 ## Workflow
 

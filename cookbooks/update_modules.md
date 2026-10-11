@@ -4,7 +4,7 @@ Extend `<pi-crust>/runtime/modules/` with new low-level logic.
 
 ## The rule
 
-**ALL low-level logic lives in `modules/`; workflow scripts stay thin.** A `stages/*.ts` or `lifecycles/*.ts` file declares agents, sequences phases, and returns an exit code. Anything else — subprocess handling, parsing, retry mechanics, git plumbing, reusable predicates — goes in a module.
+**ALL low-level logic lives in `modules/`; the entry points stay thin.** A Lifecycle is YAML and runs no code of its own; the Composer resolves it into steps and the driver runs them. An entry point parses arguments and returns an exit code. Anything else — subprocess handling, parsing, retry mechanics, git plumbing, reusable predicates — goes in a module.
 
 Modules are layered, and the layer decides the file. The rule that settles every placement: **if it reads the clock, the filesystem, the environment, a subprocess, a database, or a random number, it is `data/`.** Types and schemas are `typedefs/`. Everything else — policy, orchestration, decisions — is `use-cases/`.
 
@@ -120,7 +120,7 @@ Rules that keep gates honest:
 - **Check every item, even after one fails.** Don't early-return on the first problem; the agent fixes more per correction round when it sees every failure at once, and the trace shows the full picture.
 - **Don't gate the ungateable.** Plan quality and code taste are a reviewer agent's job or a human's.
 
-Reusable gates live in `modules/use-cases/gates/` and are re-exported from its `index.ts`; genuine one-offs can be defined inline at the workflow call site and passed in `gates: [...]`.
+Reusable gates live in `modules/use-cases/gates/` and are re-exported from its `index.ts`; genuine one-offs can be defined inline at the workflow call site and passed in `gates: [...]` where the step is constructed.
 
 ## Conventions these modules follow
 
@@ -131,4 +131,4 @@ Reusable gates live in `modules/use-cases/gates/` and are re-exported from its `
 
 ## Before you finish
 
-Run the smoke workflow — `bun <pi-crust>/runtime/stages/prompt.ts "ping"` — since every module change rides the same path a real run does. `bun test` in `.pi-crust/` covers the modules the skill ships with tests for.
+Run the smoke chain — `just crust prompt "ping"` — since every module change rides the same path a real run does. `bun test` in `.pi-crust/` covers the modules the skill ships with tests for.

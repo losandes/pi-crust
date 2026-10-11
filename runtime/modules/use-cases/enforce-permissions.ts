@@ -282,7 +282,7 @@ export const enforcePermissions = (
   const theirs = (path: string): boolean =>
     siblings.some((one) => permitted(path, one, run.cfg, resolveFor(one)))
   const breaches = touched.filter(
-    (path) => !permitted(path, agent, run.cfg, writes) && !theirs(path),
+    (path) => !(permitted(path, agent, run.cfg, writes) || theirs(path)),
   )
   if (breaches.length === 0) {
     return touched

@@ -12,13 +12,13 @@ The workflow is the worker. Your job is to launch it, watch the trace, and tell 
 
 ## Launch
 
-Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts` and the `Phases:` line in each docstring to see what this repo has; the names below are shape, not a menu.
+Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `.pi-crust/config/crust.lifecycles.yaml` for the chains this repo offers and `crust.activities.yaml` for the work they are built from; the names below are shape, not a menu.
 
 ```bash
 bun <pi-crust>/runtime/lifecycles/sdlc.ts "add a /health endpoint"
 bun <pi-crust>/runtime/lifecycles/compose.ts requests/health.md
-bun <pi-crust>/runtime/stages/build.ts "implement the plan" --run-id a1b2c3d4
-bun <pi-crust>/runtime/stages/scout.ts "where is auth handled" --config path/to/other.config.yaml
+just crust build "implement the plan" --run-id a1b2c3d4
+just crust scout "where is auth handled" --config path/to/other.config.yaml
 ```
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `run_id` is printed on startup — capture it, everything else keys off it.

@@ -60,16 +60,16 @@ activities:
 
 ### `agents[]`
 
-| Field                                                               | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                                                              | yes      | The identifier workflow scripts use. **workflows name agents, never models.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `purpose`                                                           | yes      | One sentence: what this agent is for. Should match its `system.md` Purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `prompt_engineering.system`                                         | yes      | Path to the system prompt — who the agent is, its single purpose, its output contract.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `prompt_engineering.user`                                           | yes      | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`.                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `color`                                                             | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                  |
-| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `writes`                                                            | no       | What this agent may modify **in the repo**, enforced after every call. Omitted = unrestricted (still barred from `protected_files`). `[]` = no repo writes at all. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **The session runtime under `data_dir` is always writable** — `writes: []` means read-only with respect to the repo, not unable to write its own report. |
+| Field                                                               | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                              | yes      | The identifier workflow scripts use. **workflows name agents, never models.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `purpose`                                                           | yes      | One sentence: what this agent is for. Should match its `system.md` Purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `prompt_engineering.system`                                         | yes      | Path to the system prompt — who the agent is, its single purpose, its output contract.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `prompt_engineering.user`                                           | yes      | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `color`                                                             | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                                                                          |
+| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `writes`                                                            | **yes**  | What this agent may modify **in the repo**, and where its own document goes. Enforced after every call. `['*']` = unrestricted (still barred from `protected_files`). `[]` = modifies nothing. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, `{handoff}` expands to this run's context_handoff directory, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **Required** — omitting it used to mean *unrestricted*, so the widest permission was the one granted by saying nothing. |
 
 Output types are deliberately absent: config defines who an agent *is*; the workflow call site defines how it's *used*. One agent serves many calls — same system prompt, different user prompt + output type per call.
 
@@ -142,9 +142,10 @@ defaults:
   protected_files: [<pi-crust>/runtime/modules/, .pi-crust/config/, <pi-crust>/runtime/stages/, <pi-crust>/runtime/lifecycles/]
 
 activities:
-  - name: builder      # no `writes` key -> unrestricted, minus protected_files
+  - name: builder
+    writes: ['*']      # unrestricted, minus protected_files — said out loud
   - name: scout
-    writes: []         # no repo writes; its findings still land in context_handoff/
+    writes: ["{handoff}/scout_findings.md"]   # its findings, and nothing else
   - name: planner
     writes: [specs/]
   - name: documenter
@@ -175,6 +176,44 @@ This fails quietly. The extension still loads, the run still succeeds, and the t
 ```
 
 Rule: **every entry in `harness_engineering` that registers a tool must have that tool name added to the agent's `tools` list.** Adding an extension is therefore a two-line change, never one. The alternative is dropping the `tools` key *and* leaving `defaults.tools` unset so the agent resolves to `None` (all tools) — but with a roster-wide `defaults.tools` in place, that escape hatch is closed; naming the tool is the only path.
+
+## Where an Activity's document goes
+
+An Activity that produces a document names it in `writes`, with `{handoff}` standing for this run's context_handoff directory:
+
+```yaml
+  - name: reviewer
+    writes: ["{handoff}/review.md"]
+```
+
+The prompt renders `{{output_document}}` rather than a filename, so the path the agent is told to write and the path it is permitted to write are one declaration instead of two that can disagree. Sending an Activity's output somewhere else is then a configuration change:
+
+```yaml
+  - name: reviewer
+    writes: [specs/review.md]
+```
+
+It is also what makes concurrency checkable. A Stage may only claim `strategy: concurrent` when its Activities' declared paths are disjoint, and that is a question about these lists — see the Lifecycles reference. An Activity declaring `['*']` overlaps everything and can never share a concurrent Stage.
+
+Under concurrency this list is also how a write is attributed. Permission used to be enforced by diffing the working tree across the window an Activity ran in, which blames each of two concurrent Activities for the other's work. A path a sibling declared is that sibling's.
+
+## Stopping the run for a person
+
+`--approve-after` takes Activity names, and Stage names prefixed with `stage:`:
+
+```bash
+just crust sdlc "..." --approve-after plan,stage:accept
+```
+
+| Named          | Stage strategy | The run pauses                              |
+| -------------- | -------------- | ------------------------------------------- |
+| an Activity    | serial         | as soon as that Activity completes          |
+| an Activity    | concurrent     | after every Activity in the Stage completes |
+| `stage:<name>` | either         | after every Activity in the Stage completes |
+
+An Activity gate inside a concurrent Stage cannot stop its siblings — they are already running, and an agent killed mid-write leaves the tree in a state nobody declared. The gate is recorded when the Activity finishes and enforced at the Stage boundary, naming the Activity that raised it.
+
+The prefix exists because Activities and Stages share a namespace. A bare `accept` would be ambiguous the first time somebody names a Stage after an Activity it contains.
 
 ## Harness engineering
 

@@ -96,7 +96,7 @@ Then name the agent in a workflow's `REQUIRED_AGENTS` and call it.
 
 ## Rules that do not bend
 
-- workflow scripts name **agents**, never models. Swapping a model is a config edit and touches no Python.
+- a Lifecycle names **Activities**, and the registry binds each to an agent; nothing outside the config names a model. Swapping a model is a config edit and touches no code.
 - One agent, one prompt, one purpose. If an entry needs two purposes, it is two agents.
 - Output types never appear in config — they live at the call site, paired with the user prompt.
 

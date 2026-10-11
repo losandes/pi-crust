@@ -26,7 +26,7 @@ The installer records where it ran from in `.pi-crust/data/pi-crust-home`, which
 | `prompt-engineering/README.md`           | how to add or override a prompt                              | yes               |
 | `prompt-engineering/example/`            | the shape of a prompt                                        | no — illustrative |
 | `data/`                                  | this developer's runs, and where pi-crust is on this machine | no — never shared |
-| `.env.pi-crust.example`                   | the variables a roster may need, at the repository root      | yes               |
+| `.env.pi-crust.example`                  | the variables a roster may need, at the repository root      | yes               |
 | `justfile`                               | gains a `crust` recipe; created if the repository has none   | yes               |
 
 **No code is stamped.** The runtime — modules, the Activity runner, the Planners, the shipped prompts, the pi extensions, the recipes — lives in the pi-crust package. That is what makes an update safe: it can replace every file it owns without touching a file you wrote, because none of them are the same file.
