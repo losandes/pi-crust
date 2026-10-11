@@ -21,7 +21,7 @@
 activities:
   # 1.2 Identify. Outcome and success criteria, never implementation — the
   # criteria it writes are what `review` rules against and what a human checks
-  # at launch, so a vague one here is a vague verdict three stages later.
+  # at launch, so a vague one here is a vague verdict three activities later.
   - name: analyst
     color: blue
     purpose: Turn a problem into an outcome with criteria anyone could check.
@@ -133,7 +133,7 @@ activities:
 
   # Writing a test and running one are different jobs, so they are different
   # steps. `test` is an AGENT because deciding what would prove a change
-  # correct is judgement. `verify` is a kind="code" phase because running the
+  # correct is judgement. `verify` is a kind="code" activity run because running the
   # suite is a known command, and an agent rediscovering it pays a context
   # window to learn what a subprocess already knows. See SKILL.md hard rule 8.
   - name: tester

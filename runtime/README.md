@@ -67,13 +67,13 @@ A chain whose last step is `review` or `code-review` ends in a bounded revise lo
 `verify`, `review` and `code-review` also take `--base <ref|range>`, so committed work can be judged:
 
 ```bash
-bun <pi-crust>/runtime/stages/verify.ts "pre-PR sweep" --base main...HEAD
+just crust verify "pre-PR sweep" --base main...HEAD
 ```
 
 The raw form, which every recipe wraps:
 
 ```bash
-bun <pi-crust>/runtime/stages/prompt.ts --agent scout "say hello"
+just crust prompt --agent scout "say hello"
 bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
 ```
 

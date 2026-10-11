@@ -196,9 +196,9 @@ report-json *ARGS:
 sessions:
     @sqlite3 {{db}} "select run_id, status, substr(request,1,50), total_tokens, round(total_cost,4) from sessions order by started_at desc limit 10;"
 
-# phase status in sequence: just crust phases <run_id>
-phases RUN_ID:
-    @sqlite3 {{db}} "select seq, name, kind, owner, status, attempt from phases where run_id='{{RUN_ID}}' order by seq;"
+# activity run status in sequence: just crust activity-runs <run_id>
+activity-runs RUN_ID:
+    @sqlite3 {{db}} "select seq, name, kind, owner, status, attempt from activity_runs where run_id='{{RUN_ID}}' order by seq;"
 
 # the live event tail: just crust tail <run_id>
 tail RUN_ID:

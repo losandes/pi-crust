@@ -87,7 +87,7 @@ Respond with ONLY valid JSON matching `OperatorPlanOutput` — no prose before o
 
 An empty `steps` is a failure, not an abstention. If you genuinely believe no step should run, say why in `unresolved` — but a chain of nothing cannot produce an outcome, and the gate will reject it.
 
-`depends_on` and `inputs` are recorded for a dependency graph that does not exist yet. The runner today executes `steps` in order, so your ordering is what happens; the dependency fields are how the graph will later be built from what you meant rather than inferred from a sequence.
+`depends_on` and `inputs` record what you meant. A chain you choose runs as one serial sequence — your ordering is what happens — while a configured Lifecycle can declare a Stage whose Activities run concurrently. Recording the dependencies is what would let a chain you chose do the same, instead of independence being guessed from a list.
 
 The six context fields are REQUIRED on every report, and `[]` is a legitimate answer to any of the five lists — but it is an answer, not a default. Say what you established and how you know; say what you chose and why; say what you believed without checking and what would disprove it. `consequential: true` on an unresolved question means a later stage would have to invent the answer rather than guess it — it marks what a person should read afterwards, and at most trust levels it does not by itself stop the run.
 

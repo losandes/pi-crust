@@ -25,10 +25,12 @@ defaults:
   # lives in the pi-crust package and is not reachable from this repository
   # at all — which is why only config/ needs naming here now.
   #
-  # `writes:` per agent says what it may change IN THE REPO. It never restricts
-  # the session runtime under data_dir — context_handoff/, envelopes, prompts,
-  # raw output. Every agent can always write its own report; `writes: []` means
-  # read-only with respect to the repo, not mute.
+  # `writes:` per agent says what it may change IN THE REPO, and where its own
+  # document goes — `{handoff}/review.md`. It is required: omitting it used to
+  # mean "anywhere", so the widest permission was the one granted by silence.
+  # `['*']` is how you say anywhere now. It never restricts the session runtime
+  # under data_dir — envelopes, prompts, raw output — so an agent can always
+  # record its own work.
   protected_files:
     - .pi-crust/config/
   data_dir: .pi-crust/data         # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
@@ -70,7 +72,7 @@ routing:
   #
   #   - name: respond-to-pr-comments    # how to ANSWER a review, not what to
   #     agents: [builder]               # change — so no `when:` at all
-  #     phases: [revise]                # omit to give it to every phase;
+  #     activity_runs: [revise]         # omit to give it to every activity run;
   #     path: .claude/skills/respond-to-pr-comments   # `revise_2` matches too
   #
   # checks:

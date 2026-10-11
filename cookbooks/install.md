@@ -74,7 +74,7 @@ Three capabilities are not configurable and cannot be removed: **Triage** recomm
 
 ```bash
 just crust demo                                                    # both, end to end
-bun <pi-crust>/runtime/stages/prompt.ts "reply with a one-line summary of this repo"   # the raw form
+bun <pi-crust>/runtime/lifecycles/compose.ts "reply with a one-line summary of this repo" --steps prompt   # the raw form
 ```
 
 Green means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `.pi-crust/data/crust.db`. Verify the trace exists before trusting anything larger:

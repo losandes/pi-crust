@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activitiesFileSchema } from '../typedefs/activity'
@@ -97,5 +97,62 @@ lifecycles:
 
     // then
     expect(actual).toHaveLength(1)
+  },
+)
+
+test(
+  [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    'when the shipped local example is laid over the shipped lifecycles',
+    'it should load, because an example nobody runs is an example that drifts',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-example-'))
+    const base = join(dir, 'crust.lifecycles.yaml')
+    copyFileSync(join(STAMP, 'crust.lifecycles.yaml'), base)
+    copyFileSync(
+      join(STAMP, 'crust.lifecycles.local.example.yaml'),
+      join(dir, 'crust.lifecycles.local.yaml'),
+    )
+
+    // when
+    const actual = loadLifecycles(base, shippedAgents())
+
+    // then
+    expect(actual.map((one) => one.name)).toEqual([
+      'sdlc',
+      'bugfix',
+      'de-risk',
+      'quick',
+      'survey',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    'when the local example claims two researchers may run concurrently',
+    'it should hold, because their declared documents do not overlap',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-example-'))
+    const base = join(dir, 'crust.lifecycles.yaml')
+    writeFileSync(base, 'lifecycles: []')
+    copyFileSync(
+      join(STAMP, 'crust.lifecycles.local.example.yaml'),
+      join(dir, 'crust.lifecycles.local.yaml'),
+    )
+
+    // when
+    const actual = loadLifecycles(base, shippedAgents())
+    const survey = actual.find((one) => one.name === 'survey')
+
+    // then
+    expect(survey?.stages.find((one) => one.name === 'research')?.strategy).toBe(
+      'concurrent',
+    )
   },
 )

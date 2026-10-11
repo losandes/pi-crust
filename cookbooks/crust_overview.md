@@ -115,7 +115,7 @@ Agents have exactly two output channels: reference files written into `context_h
 ## Running a workflow
 
 ```bash
-bun <pi-crust>/runtime/stages/plan.ts "add a /health endpoint"
+just crust plan "add a /health endpoint"
 bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
 just crust plan "add a /health endpoint"
 ```

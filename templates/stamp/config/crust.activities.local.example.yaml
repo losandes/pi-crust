@@ -75,4 +75,4 @@ activities:
     prompt_engineering:
       system: prompt-engineering/spike/system.md
       user: prompt-engineering/spike/user.md
-    writes: []
+    writes: ["{handoff}/spike.md"]   # the one document it leaves behind
