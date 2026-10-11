@@ -64,20 +64,33 @@ const collisions = (
   members: readonly TNamedWrites[],
 ): readonly TLifecycleFault[] =>
   members.flatMap((left, at) =>
-    members.slice(at + 1).flatMap((right) =>
-      left.writes.flatMap((lp) =>
-        right.writes
-          .filter((rp) => patternsOverlap(lp, rp))
-          .map((rp) => ({
-            lifecycle,
-            message:
-              `stage '${stage}' runs '${left.activity}' and ` +
-              `'${right.activity}' concurrently, but both may write ` +
-              `${lp === rp ? lp : `${lp} and ${rp}`} — one would be ` +
-              'overwriting the other, and neither could be held responsible',
-          })),
-      ),
-    ),
+    members.slice(at + 1).flatMap((right) => {
+      /*
+       * One fault per pair, not per colliding pattern. An Activity that may
+       * write anywhere collides with every line the other declared, and
+       * reporting each of them buries the one fact the developer needs:
+       * these two cannot share a stage. The first collision is named as the
+       * evidence.
+       */
+      const hit = left.writes.flatMap((lp) =>
+        right.writes.filter((rp) => patternsOverlap(lp, rp)).map((rp) => [lp, rp]),
+      )[0]
+      if (hit === undefined) {
+        return []
+      }
+      const [lp, rp] = hit
+
+      return [
+        {
+          lifecycle,
+          message:
+            `stage '${stage}' runs '${left.activity}' and ` +
+            `'${right.activity}' concurrently, but both may write ` +
+            `${lp === rp ? lp : `${lp} and ${rp}`} — one would be ` +
+            'overwriting the other, and neither could be held responsible',
+        },
+      ]
+    }),
   )
 
 /**
