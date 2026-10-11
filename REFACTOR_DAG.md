@@ -57,6 +57,27 @@ Do not introduce Attempt as a formal domain concept unless the existing implemen
 
 Preserve existing Run identifiers, persistence structures, and external contracts wherever possible.
 
+### The word `phase` is already taken
+
+The implementation calls one Activity's execution inside a Run a **phase**. It is not only a variable name: there is a `phases` table keyed by `phase_id`, every traced event carries a `phase_id`, and two of the event types are `phase_start` and `phase_end`. The visualizer, the reporter, the resume path and the gates all read those.
+
+In this vocabulary that thing is an **Activity Run**. The collision runs the other way too: `Stage` here means a grouping of Activities ending in a Gate, and the implementation has no word for it because it has no such concept.
+
+| This document | The implementation today |
+| ------------- | ------------------------ |
+| Activity      | agent, registry entry    |
+| Activity Run  | **phase**                |
+| Stage         | *nothing*                |
+| Workflow Run  | run, `run_id`            |
+
+Two consequences for the work.
+
+Adopting the vocabulary in the trace is a **schema migration**, not a rename: a `phases` table, a column on every event row, and two event-type string literals that existing databases already contain. Renaming the code without migrating the data produces a reader that cannot read traces it wrote last week.
+
+Until that happens, `phase` and `Stage` mean different things in different files, and prose that uses either word without saying which is ambiguous. Anything written before the migration should say "Activity Run" and name `phase` as the implementation's spelling, rather than reaching for whichever word the surrounding file uses.
+
+Whether the migration is worth its cost is a decision this refactor has to make rather than inherit. Leaving `phase` in the persistence layer and using the agreed vocabulary only in new code is a defensible answer — it is cheap, and it is honest as long as the mapping above is written down. What is not defensible is using both words for the same concept and leaving a reader to work out which.
+
 ## 2. Existing Architecture and Intended Transformation
 
 ### Current Model
