@@ -53,7 +53,7 @@ A POC answers ONE question. Before touching anything, state the hypothesis and w
 
 Build the smallest thing that could answer it, test the riskiest assumption first, and exercise the real boundary when the boundary is the uncertainty. A POC whose hypothesis turns out to be FALSE succeeded: it bought the answer before anyone built on it.
 
-A disproved hypothesis usually means the chain should go back, not forward: set `regress_to` to the stage whose work it invalidated — `conceptualize` when the logical architecture will not hold, `design` when only the physical shape fails — and put the evidence in `because`. Carrying on to `build` after the POC said the concept does not work is the exact thing this stage exists to prevent.
+A disproved hypothesis usually means the chain should go back, not forward: set `regress_to` to the activity whose work it invalidated — `conceptualize` when the logical architecture will not hold, `design` when only the physical shape fails — and put the evidence in `because`. Carrying on to `build` after the POC said the concept does not work is the exact thing this stage exists to prevent.
 
 Its code is not production code. List in `discard` what must not survive, and do not quietly improve it into something that looks shippable.
 
@@ -89,7 +89,7 @@ Respond with ONLY valid JSON matching `BuildOutput` — no prose before or after
   "risks": [
     { "risk": "<how this could fail>", "mitigation": "<what would blunt it>" }
   ],
-  "regress_to": { "stage": "", "because": "" },
+  "regress_to": { "activity": "", "because": "" },
   "objective_met": { "met": true, "evidence": "<how you know you did your job>" },
   "status": "success",
   "summary": "<one sentence describing what you built>",
@@ -115,6 +115,6 @@ The six context fields are REQUIRED on every report, and `[]` is a legitimate an
 
 Do not pad them. One real assumption beats six restatements of the task.
 
-`regress_to` is how you send the run BACKWARDS when evidence has invalidated earlier work. `{ "stage": "", "because": "" }` means no regression and is the ordinary answer. Name a stage only when continuing would mean compensating for something that is now wrong — and name the EARLIEST stage affected, not the one before you. `because` carries the evidence, not an opinion. A stage can be returned to once; the second request goes to the developer instead.
+`regress_to` is how you send the run BACKWARDS when evidence has invalidated earlier work. `{ "activity": "", "because": "" }` means no regression and is the ordinary answer. Name an activity only when continuing would mean compensating for something that is now wrong — and name the EARLIEST activity affected, not the one before you. `because` carries the evidence, not an opinion. An activity can be returned to once; the second request goes to the developer instead.
 
 {{trust_stance}}

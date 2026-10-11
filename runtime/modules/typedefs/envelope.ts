@@ -183,7 +183,7 @@ export type TObjective = Readonly<z.infer<typeof objectiveSchema>>
 /**
  * A stage asking to go BACK, because evidence invalidated earlier work.
  *
- * `stage: ''` means no regression, and is the ordinary answer. Anything else
+ * `activity: ''` means no regression, and is the ordinary answer. Anything else
  * names the earliest stage whose output is now wrong — not the one that is
  * merely inconvenient, and not the stage before this one by reflex.
  *
@@ -194,7 +194,7 @@ export type TObjective = Readonly<z.infer<typeof objectiveSchema>>
  */
 export const regressionSchema = z.object({
   /** '' for none, else the stage to return to */
-  stage: z.string(),
+  activity: z.string(),
   /** the evidence that invalidated it — not an opinion about it */
   because: z.string(),
 })
@@ -221,7 +221,7 @@ export const regressionOf = (
   if (parsed === undefined || !parsed.success) {
     return undefined
   }
-  return parsed.data.regress_to.stage === ''
+  return parsed.data.regress_to.activity === ''
     ? undefined
     : parsed.data.regress_to
 }

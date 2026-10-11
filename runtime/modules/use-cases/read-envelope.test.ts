@@ -41,7 +41,7 @@ test(
         unresolved: [],
         risks: [],
         objective_met: { met: true, evidence: 'bun test exit 0' },
-        regress_to: { stage: '', because: '' },
+        regress_to: { activity: '', because: '' },
       }),
     )
 

@@ -19,7 +19,7 @@ const review = {
   unresolved: [],
   risks: [],
   objective_met: { met: true, evidence: 'checked' },
-  regress_to: { stage: '', because: '' },
+  regress_to: { activity: '', because: '' },
   approved: false,
   findings: [{ requirement: 'a thing', met: false, evidence: 'src/x.ts:1' }],
   blocking: ['a thing'],
@@ -36,7 +36,7 @@ const build = {
   unresolved: [],
   risks: [],
   objective_met: { met: true, evidence: 'checked' },
-  regress_to: { stage: '', because: '' },
+  regress_to: { activity: '', because: '' },
   changed_files: ['src/x.ts'],
   commit_message: 'do the thing',
   disputes: [],
@@ -137,7 +137,7 @@ test(
       unresolved: [],
       risks: [],
       objective_met: { met: true, evidence: 'tests pass' },
-      regress_to: { stage: '', because: '' },
+      regress_to: { activity: '', because: '' },
     }
 
     // when
@@ -169,7 +169,7 @@ test(
       unresolved: [],
       risks: [],
       objective_met: { met: true, evidence: 'bun test exit 0' },
-      regress_to: { stage: '', because: '' },
+      regress_to: { activity: '', because: '' },
     }
 
     // when

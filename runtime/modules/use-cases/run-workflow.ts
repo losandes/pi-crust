@@ -97,7 +97,7 @@ const runPlannedChain = async (
   if (trust < TRUST_PROVISIONAL && !run.resume.has('operator')) {
     const reason: TGateReason = {
       kind: 'plan',
-      stage: 'operator',
+      activity: 'operator',
       steps: planned,
     }
     const path = writeDecisionRequest(
@@ -114,7 +114,7 @@ const runPlannedChain = async (
       phase_id: '',
       type: 'log',
       name: 'human_gate_open',
-      payload: { stage: 'operator', kind: 'plan', request: path, steps: planned },
+      payload: { activity: 'operator', kind: 'plan', request: path, steps: planned },
     })
     return undefined
   }
@@ -283,7 +283,7 @@ export const runWorkflow = async (
         `${decided.length} question(s) this run answered for itself (trust ${trust}):`,
         '',
         ...decided.flatMap((entry) => [
-          `  ${entry.stage}: ${entry.question}`,
+          `  ${entry.activity}: ${entry.question}`,
           `      → ${entry.answer}`,
         ]),
       ])

@@ -33,9 +33,16 @@ import { TRUST_PROVISIONAL, stanceFor } from '../typedefs/trust'
 export const DECISION_FILENAME = 'decision-request.md'
 export const ANSWER_FILENAME = 'decision-answer.md'
 
-/** Why a run stopped for a person. */
+/**
+ * Why a run stopped for a person.
+ *
+ * `activity`, not `stage`. The field has always held the name of one
+ * Activity, and it was called `stage` back when a Stage was not a thing the
+ * engine had. It is now, which made one word mean two levels of the model —
+ * including, briefly, in a single trace payload carrying both.
+ */
 export type TGateReason =
-  | Readonly<{ kind: 'requested'; stage: string }>
+  | Readonly<{ kind: 'requested'; activity: string }>
   /**
    * A question the chain may not answer for itself at this trust level.
    *
@@ -43,8 +50,8 @@ export type TGateReason =
    * consequential, at medium it is a question with no defensible answer or
    * one whose action reaches beyond this run, and at high it never fires.
    */
-  | Readonly<{ kind: 'escalated'; stage: string; questions: readonly string[] }>
-  | Readonly<{ kind: 'deadlocked'; stage: string; detail: string }>
+  | Readonly<{ kind: 'escalated'; activity: string; questions: readonly string[] }>
+  | Readonly<{ kind: 'deadlocked'; activity: string; detail: string }>
   /**
    * An agent chose the chain and is about to run it.
    *
@@ -53,7 +60,7 @@ export type TGateReason =
    * put to you is narrower — here is the work I propose to do on your behalf
    * and on your budget, shall I.
    */
-  | Readonly<{ kind: 'plan'; stage: string; steps: readonly string[] }>
+  | Readonly<{ kind: 'plan'; activity: string; steps: readonly string[] }>
 
 export const parseApproveAfter = (flag: string | undefined): readonly string[] =>
   (flag ?? '')
@@ -146,7 +153,7 @@ export const selfAnswered = (
  * gives for you.
  */
 export const gateReason = (params: {
-  readonly stage: string
+  readonly activity: string
   readonly envelope: TEnvelopeBase | undefined
   readonly approveAfter: readonly string[]
   /** false on the final stage of the chain — nobody downstream can invent anything */
@@ -156,10 +163,10 @@ export const gateReason = (params: {
 }): TGateReason | undefined => {
   const questions = blockingQuestions(params.envelope, params.trust)
   if (questions.length > 0 && params.hasSuccessor) {
-    return { kind: 'escalated', stage: params.stage, questions }
+    return { kind: 'escalated', activity: params.activity, questions }
   }
-  if (params.approveAfter.includes(params.stage)) {
-    return { kind: 'requested', stage: params.stage }
+  if (params.approveAfter.includes(params.activity)) {
+    return { kind: 'requested', activity: params.activity }
   }
   return undefined
 }
@@ -236,7 +243,7 @@ export const renderDecisionRequest = (
   runId: string,
   resume: string,
 ): string => {
-  const head = `# Waiting for you\n\nRun \`${runId}\` stopped after \`${reason.stage}\`.\n\n`
+  const head = `# Waiting for you\n\nRun \`${runId}\` stopped after \`${reason.activity}\`.\n\n`
   const body =
     reason.kind === 'plan'
       ? '## The chain it chose\n\n' +
@@ -313,7 +320,7 @@ export const answerAsFact = (
 }
 
 export type TSelfAnswered = Readonly<{
-  stage: string
+  activity: string
   question: string
   answer: string
 }>
@@ -337,7 +344,7 @@ export const selfAnsweredIn = (
         ? []
         : [
             {
-              stage: entry.stage ?? '',
+              activity: entry.activity ?? '',
               question: entry.question,
               answer: entry.answer ?? '',
             },

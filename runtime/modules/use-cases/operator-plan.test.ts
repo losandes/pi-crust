@@ -15,7 +15,7 @@ const envelope = (steps: readonly unknown[]): TEnvelopeBase =>
     unresolved: [],
     risks: [],
     objective_met: { met: true, evidence: '' },
-    regress_to: { stage: '', because: '' },
+    regress_to: { activity: '', because: '' },
     steps,
   }) as unknown as TEnvelopeBase
 

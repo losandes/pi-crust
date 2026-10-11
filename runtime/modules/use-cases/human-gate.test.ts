@@ -40,7 +40,7 @@ const envelope = (
     })),
     risks: [],
     objective_met: { met: true, evidence: 'checked' },
-    regress_to: { stage: '', because: '' },
+    regress_to: { activity: '', because: '' },
   }) as unknown as TEnvelopeBase
 
 test(
@@ -51,11 +51,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const stage = 'plan'
+    const activity = 'plan'
 
     // when
     const actual = gateReason({
-      stage,
+      activity,
       envelope: envelope([{ question: 'what colour?', consequential: false }]),
       approveAfter: [],
       hasSuccessor: true,
@@ -75,11 +75,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const stage = 'design'
+    const activity = 'design'
 
     // when
     const actual = gateReason({
-      stage,
+      activity,
       envelope: envelope([]),
       approveAfter: ['identify', 'design'],
       hasSuccessor: true,
@@ -87,7 +87,7 @@ test(
     })
 
     // then — the named stage RAN; the chain stops before the next one
-    expect(actual).toEqual({ kind: 'requested', stage: 'design' })
+    expect(actual).toEqual({ kind: 'requested', activity: 'design' })
   },
 )
 
@@ -106,7 +106,7 @@ test(
 
     // when
     const actual = gateReason({
-      stage: 'identify',
+      activity: 'identify',
       envelope: envelope(unresolved),
       approveAfter: [],
       hasSuccessor: true,
@@ -116,7 +116,7 @@ test(
     // then — the Authority Rule: a decision nobody is entitled to make
     expect(actual).toEqual({
       kind: 'escalated',
-      stage: 'identify',
+      activity: 'identify',
       questions: ['how long is data retained?'],
     })
   },
@@ -173,7 +173,7 @@ test(
     // given
     const reason = {
       kind: 'escalated',
-      stage: 'identify',
+      activity: 'identify',
       questions: ['how long is data retained?'],
     } as const
 
@@ -202,11 +202,11 @@ test(
   () => {
     // given — the Authority Rule protects a LATER stage from inventing an
     // answer, and after the last stage there is no later stage
-    const stage = 'code-review'
+    const activity = 'code-review'
 
     // when
     const actual = gateReason({
-      stage,
+      activity,
       envelope: envelope([
         { question: 'should retention be 30 or 90 days?', consequential: true },
       ]),
@@ -230,11 +230,11 @@ test(
   () => {
     // given — you asked to see that output before anything continued, and
     // "nothing continued" is your answer to give, not the chain's
-    const stage = 'code-review'
+    const activity = 'code-review'
 
     // when
     const actual = gateReason({
-      stage,
+      activity,
       envelope: envelope([]),
       approveAfter: ['code-review'],
       hasSuccessor: false,
@@ -365,7 +365,7 @@ test(
 
     // when
     const actual = gateReason({
-      stage: 'design',
+      activity: 'design',
       envelope: reversible,
       approveAfter: [],
       hasSuccessor: true,
@@ -398,7 +398,7 @@ test(
 
     // when
     const actual = gateReason({
-      stage: 'design',
+      activity: 'design',
       envelope: beyond,
       approveAfter: [],
       hasSuccessor: true,
@@ -426,7 +426,7 @@ test(
 
     // when
     const actual = gateReason({
-      stage: 'design',
+      activity: 'design',
       envelope: unanswerable,
       approveAfter: [],
       hasSuccessor: true,
@@ -450,7 +450,7 @@ test(
 
     // when
     const actual = gateReason({
-      stage: 'plan',
+      activity: 'plan',
       envelope: clean,
       approveAfter: ['plan'],
       hasSuccessor: true,
@@ -534,7 +534,7 @@ test(
 
     // when
     const actual = gateReason({
-      stage: 'design',
+      activity: 'design',
       envelope: decided,
       approveAfter: [],
       hasSuccessor: true,

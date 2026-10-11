@@ -17,7 +17,7 @@ const context = {
   unresolved: [],
   risks: [],
   objective_met: { met: true, evidence: 'fixture' },
-  regress_to: { stage: '', because: '' },
+  regress_to: { activity: '', because: '' },
 }
 
 const review = (fields: Readonly<Record<string, unknown>>): TReviewOutput =>

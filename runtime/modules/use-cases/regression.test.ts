@@ -25,7 +25,7 @@ test(
   () => {
     // given
     const request = {
-      stage: 'conceptualize',
+      activity: 'conceptualize',
       because: 'the queue cannot preserve order across partitions; measured',
     }
 
@@ -64,7 +64,7 @@ test(
   ].join(', '),
   () => {
     // given a chain composed without `design`
-    const request = { stage: 'design', because: 'the schema is wrong' }
+    const request = { activity: 'design', because: 'the schema is wrong' }
 
     // when
     const actual = verdict({ request })
@@ -85,7 +85,7 @@ test(
   ].join(', '),
   () => {
     // given a poc (index 2) pointing at verify (index 4)
-    const request = { stage: 'verify', because: 'run the checks first' }
+    const request = { activity: 'verify', because: 'run the checks first' }
 
     // when
     const actual = verdict({ request })
@@ -106,7 +106,7 @@ test(
     const history: readonly TRegressionRecord[] = [
       { from: 'build', to: 'conceptualize', because: 'first time' },
     ]
-    const request = { stage: 'conceptualize', because: 'still wrong' }
+    const request = { activity: 'conceptualize', because: 'still wrong' }
 
     // when
     const actual = verdict({ request, history })

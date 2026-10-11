@@ -63,12 +63,12 @@ export const regressionVerdict = (params: {
   if (request === undefined) {
     return { kind: 'none' }
   }
-  const index = names.indexOf(request.stage)
+  const index = names.indexOf(request.activity)
   if (index === -1) {
     return {
       kind: 'refused',
       reason:
-        `asked to return to '${request.stage}', which this chain does not ` +
+        `asked to return to '${request.activity}', which this chain does not ` +
         `run (it runs ${names.join(' -> ')}). Compose a chain that includes ` +
         'it, or carry the finding forward as an unresolved question.',
     }
@@ -77,21 +77,21 @@ export const regressionVerdict = (params: {
     return {
       kind: 'refused',
       reason:
-        `asked to return to '${request.stage}', which is not EARLIER in the ` +
+        `asked to return to '${request.activity}', which is not EARLIER in the ` +
         'chain. Regression goes backwards; a later stage is just the next ' +
         'step.',
     }
   }
-  if (timesReturnedTo(history, request.stage) >= maxReturnsPerStage) {
+  if (timesReturnedTo(history, request.activity) >= maxReturnsPerStage) {
     return {
       kind: 'exhausted',
       reason:
-        `'${request.stage}' has already been returned to once, and is being ` +
+        `'${request.activity}' has already been returned to once, and is being ` +
         `asked for again: ${request.because}. Two laps over the same stage ` +
         'is a disagreement no agent is going to settle on its own.',
     }
   }
-  return { kind: 'regress', to: request.stage, index }
+  return { kind: 'regress', to: request.activity, index }
 }
 
 /** One line for the trace and the console, in a reader's words. */

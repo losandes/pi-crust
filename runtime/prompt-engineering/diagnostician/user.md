@@ -68,7 +68,7 @@ Respond with ONLY valid JSON matching `DiagnosisOutput` — no prose before or a
   "risks": [
     { "risk": "<how this could fail>", "mitigation": "<what would blunt it>" }
   ],
-  "regress_to": { "stage": "", "because": "" },
+  "regress_to": { "activity": "", "because": "" },
   "objective_met": { "met": true, "evidence": "<how you know you did your job>" },
   "status": "success",
   "summary": "<one sentence: what is happening and why — or that it could not be reproduced>",
@@ -96,6 +96,6 @@ A failing test is worth more than everything else you write, because it is the o
 
 `reproduced: false` with `status: "success"` is a complete, valuable report. `confidence` is not a formality: a cause you did not confirm must say `likely` or `unproven`, because the builder downstream cannot tell the difference from the prose and will treat whatever you wrote as an instruction.
 
-`regress_to` is how you send the run BACKWARDS when evidence has invalidated earlier work. `{ "stage": "", "because": "" }` means no regression and is the ordinary answer. Name a stage only when continuing would mean compensating for something that is now wrong — and name the EARLIEST stage affected, not the one before you. `because` carries the evidence, not an opinion. A stage can be returned to once; the second request goes to the developer instead.
+`regress_to` is how you send the run BACKWARDS when evidence has invalidated earlier work. `{ "activity": "", "because": "" }` means no regression and is the ordinary answer. Name an activity only when continuing would mean compensating for something that is now wrong — and name the EARLIEST activity affected, not the one before you. `because` carries the evidence, not an opinion. An activity can be returned to once; the second request goes to the developer instead.
 
 {{trust_stance}}

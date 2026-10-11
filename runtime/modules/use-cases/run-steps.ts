@@ -302,7 +302,7 @@ export const runUnits = (
       ? []
       : ran.flatMap((one) => {
           const reason = gateReason({
-            stage: one.step.name,
+            activity: one.step.name,
             envelope: one.result.previous,
             approveAfter: stageGated
               ? [...gatedActivities, one.step.name]
@@ -329,17 +329,17 @@ export const runUnits = (
       )
       run.console.note(
         gate.kind === 'escalated'
-          ? `waiting for you: '${gate.stage}' escalated ${gate.questions.length} ` +
+          ? `waiting for you: '${gate.activity}' escalated ${gate.questions.length} ` +
               `question(s) it may not settle at this trust level — ${path}`
-          : `waiting for you: approval requested after '${gate.stage}' — ${path}`,
+          : `waiting for you: approval requested after '${gate.activity}' — ${path}`,
       )
       run.tracer.event({
         run_id: run.runId,
-        phase_id: handleIdOf(run, gate.stage),
+        phase_id: handleIdOf(run, gate.activity),
         type: 'log',
         name: 'human_gate_open',
         payload: {
-          stage: gate.stage,
+          stage: gate.activity,
           unit: unit.stage,
           kind: gate.kind,
           request: path,
@@ -349,7 +349,7 @@ export const runUnits = (
         run,
         units.slice(index + 1),
         'blocked',
-        `waiting for a person after '${gate.stage}'`,
+        `waiting for a person after '${gate.activity}'`,
       )
       onWaiting({ reason: gate, path })
       return next
@@ -375,7 +375,7 @@ export const runUnits = (
           phase_id: handleIdOf(run, one.step.name),
           type: 'log',
           name: 'self_answered',
-          payload: { stage: one.step.name, ...decided, trust },
+          payload: { activity: one.step.name, ...decided, trust },
         })
       }
     }
@@ -397,7 +397,7 @@ export const runUnits = (
         phase_id: handleIdOf(run, step.name),
         type: 'log',
         name: 'open_questions',
-        payload: { stage: step.name, questions: trailing },
+        payload: { activity: step.name, questions: trailing },
       })
     }
 
