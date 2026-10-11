@@ -34,6 +34,7 @@ lifecycles:
     description: Plan it, build it, and check it still compiles.
     stages:
       - name: deliver
+        strategy: serial
         activities: [plan, build, verify]
 
   # Independence, said out loud. Both researchers only read the repository and

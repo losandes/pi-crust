@@ -35,8 +35,10 @@ lifecycles:
       something other than its own opinion to rule against.
     stages:
       - name: discover
+        strategy: serial
         activities: [identify, conceptualize]
       - name: deliver
+        strategy: serial
         activities: [plan, design, test, build, verify]
       - name: accept
         strategy: concurrent
@@ -49,8 +51,10 @@ lifecycles:
       message.
     stages:
       - name: diagnose
+        strategy: serial
         activities: [diagnose]
       - name: deliver
+        strategy: serial
         activities: [plan, test, build, verify]
       - name: accept
         strategy: concurrent
@@ -63,6 +67,8 @@ lifecycles:
       built on an assumption.
     stages:
       - name: discover
+        strategy: serial
         activities: [identify, conceptualize]
       - name: prove
+        strategy: serial
         activities: [plan, design, poc]
