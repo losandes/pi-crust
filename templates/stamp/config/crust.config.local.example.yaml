@@ -37,7 +37,11 @@ defaults:
   model: anthropic/claude-opus-5
   thinking: high
 
-# Where the trace goes, and how fast the UI follows it. Useful when two
-# checkouts of the same repository would otherwise write to one database.
+# Everything crust.observe.yaml sets, overridable key by key. Useful when two
+# checkouts of the same repository would otherwise write to one database, or
+# fight over a port.
 observability:
   poll_ms: 250
+  # ports:
+  #   backend: 5600
+  #   frontend: 5601

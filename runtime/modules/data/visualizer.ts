@@ -12,10 +12,14 @@
  * is not there, which is a cost worth one HTTP call rather than two.
  */
 
+import { DEFAULT_BE_PORT, DEFAULT_FE_PORT } from '../typedefs/config'
 import type { TEnv } from './env-overrides'
 
-export const DEFAULT_BE_PORT = 4600
-export const DEFAULT_FE_PORT = 4601
+/*
+ * Defined with the schema that reads them out of `crust.observe.yaml`, and
+ * re-exported here because this is where callers have always found them.
+ */
+export { DEFAULT_BE_PORT, DEFAULT_FE_PORT }
 
 /** How long a run is willing to wait to find out. Milliseconds. */
 export const PROBE_TIMEOUT_MS = 300
@@ -27,11 +31,22 @@ const portFrom = (value: string | undefined, fallback: number): number => {
     : fallback
 }
 
-export const backendPort = (env: TEnv = process.env): number =>
-  portFrom(env.CRUST_BE_PORT, DEFAULT_BE_PORT)
+/*
+ * The variable wins over the configured port, which wins over the default.
+ *
+ * `crust.observe.yaml` is the team's answer and is reviewed; CRUST_BE_PORT is
+ * one developer's clash with something else on their machine, which is a
+ * worse thing to commit than to export.
+ */
+export const backendPort = (
+  env: TEnv = process.env,
+  configured: number = DEFAULT_BE_PORT,
+): number => portFrom(env.CRUST_BE_PORT, configured)
 
-export const frontendPort = (env: TEnv = process.env): number =>
-  portFrom(env.CRUST_FE_PORT, DEFAULT_FE_PORT)
+export const frontendPort = (
+  env: TEnv = process.env,
+  configured: number = DEFAULT_FE_PORT,
+): number => portFrom(env.CRUST_FE_PORT, configured)
 
 /**
  * The deep link to one run, on the route the trace view already reads.
@@ -39,8 +54,12 @@ export const frontendPort = (env: TEnv = process.env): number =>
  * Hash routing, so the UI resolves it client-side and no server route has to
  * exist for it.
  */
-export const runLink = (runId: string, env: TEnv = process.env): string =>
-  `http://localhost:${frontendPort(env)}/#/${encodeURIComponent(runId)}`
+export const runLink = (
+  runId: string,
+  env: TEnv = process.env,
+  configured: number = DEFAULT_FE_PORT,
+): string =>
+  `http://localhost:${frontendPort(env, configured)}/#/${encodeURIComponent(runId)}`
 
 /**
  * Is the observability API answering?
@@ -64,6 +83,7 @@ export type TFetch = (
 export const visualizerIsUp = async (
   env: TEnv = process.env,
   fetcher: TFetch = fetch,
+  configured: number = DEFAULT_BE_PORT,
 ): Promise<boolean> => {
   /*
    * Every failure is the same answer. Refused, timed out, answering something
@@ -74,7 +94,7 @@ export const visualizerIsUp = async (
   // biome-ignore lint/plugin: this layer owns the boundary
   try {
     const response = await fetcher(
-      `http://localhost:${backendPort(env)}/api/health`,
+      `http://localhost:${backendPort(env, configured)}/api/health`,
       { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
     )
     if (!response.ok) return false

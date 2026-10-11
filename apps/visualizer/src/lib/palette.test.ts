@@ -3,10 +3,30 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { AGENT_ROLES, agentRole, isAgentRole, paletteColor } from './palette'
 
-const TOKENS = readFileSync(
+/*
+ * Two files, because high contrast is no longer one of the app's own
+ * palettes: it is stamped into a repository as `config/high-contrast.css` and
+ * registered in `crust.observe.yaml`, so that the theme a team is most likely
+ * to adjust is one they can open. The contrast floors below are the reason it
+ * is still read here: a shipped example that fails them would teach the
+ * wrong thing to everyone who copies it.
+ */
+const TOKENS = [
   join(import.meta.dir, '..', 'theme', 'tokens.css'),
-  'utf8',
-)
+  join(
+    import.meta.dir,
+    '..',
+    '..',
+    '..',
+    '..',
+    'templates',
+    'stamp',
+    'config',
+    'high-contrast.css',
+  ),
+]
+  .map((path) => readFileSync(path, 'utf8'))
+  .join('\n')
 
 const THEMES = ['dark', 'light', 'high-contrast'] as const
 

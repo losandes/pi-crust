@@ -15,7 +15,7 @@ const shipped = () =>
           'templates',
           'stamp',
           'config',
-          'crust.themes.yaml',
+          'crust.observe.yaml',
         ),
         'utf8',
       ),
@@ -50,7 +50,7 @@ test(
     // given
     const given = themesFileSchema.parse(
       Bun.YAML.parse(`
-default: auto
+default_theme: auto
 themes:
   - name: auto
     builtin: true
@@ -116,7 +116,7 @@ test(
   () => {
     // given
     const given = themesFileSchema.parse(
-      Bun.YAML.parse('default: nope\nthemes:\n  - name: dark\n    builtin: true\n'),
+      Bun.YAML.parse('default_theme: nope\nthemes:\n  - name: dark\n    builtin: true\n'),
     )
 
     // when

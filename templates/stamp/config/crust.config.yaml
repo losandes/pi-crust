@@ -41,9 +41,8 @@ defaults:
 # sequence of a hand-picked chain. Both are overridable per developer in
 # crust.config.local.yaml.
 
-observability:
-  db: .pi-crust/data/crust.db      # tracer writes here directly; the UI polls it
-  poll_ms: 500                     # visualizer live-poll cadence
+# Watching a run — the trace database, the UI's ports, and the themes it
+# offers — lives in crust.observe.yaml beside this file.
 
 # What agents LOAD and what `verify` RUNS, both selected by the paths a change
 # actually touched. This section is the ONLY place a skill path or a checker

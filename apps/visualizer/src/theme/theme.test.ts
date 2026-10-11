@@ -85,7 +85,7 @@ test(
     'it should honour it, because a repository may have registered it',
   ].join(', '),
   () => {
-    // given — a theme the observed repository defines in crust.themes.yaml.
+    // given — a theme the observed repository defines in crust.observe.yaml.
     // The set of themes is open, so this module cannot tell a team's theme
     // from a typo, and refusing both would make a registered theme
     // unselectable after a reload.

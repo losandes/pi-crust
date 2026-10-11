@@ -15,10 +15,6 @@ defaults:
   tools: [read, bash, edit, write, grep, find, ls]
   data_dir: .pi-crust/data
 
-observability:
-  db: .pi-crust/data/crust.db
-  poll_ms: 500
-
 activities:
   - name: planner
     coding_agent: pi
@@ -53,10 +49,33 @@ activities:
 
 ### `observability`
 
-| Field     | Type | Meaning                                                                                                        |
-| --------- | ---- | -------------------------------------------------------------------------------------------------------------- |
-| `db`      | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`. |
-| `poll_ms` | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                  |
+This block is no longer in `crust.config.yaml`. It lives in **`.pi-crust/config/crust.observe.yaml`**, beside it, which also carries the registered themes — everything about watching a run is in one file, and the roster file is about agents. `load-config.ts` reads it and merges it onto the loaded config under the key it always had, so every caller still reads `cfg.observability.db`, and a `crust.config.local.yaml` that sets `observability.poll_ms` still wins over it.
+
+```yaml
+# crust.observe.yaml
+db: .pi-crust/data/crust.db
+poll_ms: 500
+ports:
+  backend: 4600
+  frontend: 4601
+default_theme: auto
+themes:
+  - name: dark
+    label: Dark
+    builtin: true
+  - name: high-contrast
+    label: High contrast
+    stylesheet: config/high-contrast.css
+```
+
+| Field            | Type | Meaning                                                                                                                         |
+| ---------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `db`             | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`.                  |
+| `poll_ms`        | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                                   |
+| `ports.backend`  | int  | The API `observe` boots, the UI proxies to, and every run probes before printing a link. `CRUST_BE_PORT` wins. Default `4600`.  |
+| `ports.frontend` | int  | The web app `observe` boots, and the host of the link a run prints. `CRUST_FE_PORT` wins. Default `4601`.                       |
+| `default_theme`  | name | Which registered theme the trace UI starts on. `auto` follows the system. Default `auto`.                                       |
+| `themes[]`       | list | Every theme the picker offers — see the observability reference. A theme is `builtin: true`, or names a `stylesheet:` relative to `.pi-crust/`. |
 
 ### `agents[]`
 

@@ -15,6 +15,8 @@ export const DEFAULT_MODEL = 'google/gemini-3.6-flash'
 export const DEFAULT_DATA_DIR = '.pi-crust/data'
 export const DEFAULT_DB = '.pi-crust/data/crust.db'
 export const DEFAULT_CONFIG_PATH = '.pi-crust/config/crust.config.yaml'
+export const DEFAULT_BE_PORT = 4600
+export const DEFAULT_FE_PORT = 4601
 
 export const promptEngineeringSchema = z.object({
   /** path to system.md */
@@ -97,9 +99,33 @@ export const configDefaultsSchema = z.object({
 })
 export type TConfigDefaults = Readonly<z.infer<typeof configDefaultsSchema>>
 
+/**
+ * The two servers `observe` boots, and the ports a run assumes when it prints
+ * a link to itself.
+ *
+ * They were environment variables only, which made moving a port a thing
+ * every developer rediscovered and nobody could commit. CRUST_BE_PORT and
+ * CRUST_FE_PORT still win over these, because a one-off clash is exactly
+ * what a variable is for.
+ */
+export const observabilityPortsSchema = z.object({
+  backend: z.number().int().default(DEFAULT_BE_PORT),
+  frontend: z.number().int().default(DEFAULT_FE_PORT),
+})
+export type TObservabilityPorts = Readonly<
+  z.infer<typeof observabilityPortsSchema>
+>
+
+/**
+ * Everything about watching a run, read from `crust.observe.yaml` beside the
+ * config rather than from a block inside it — see `load-config`. It stays a
+ * key on the loaded config so that every caller still reads
+ * `cfg.observability.db`.
+ */
 export const observabilityConfigSchema = z.object({
   db: z.string().default(DEFAULT_DB),
   poll_ms: z.number().int().default(500),
+  ports: observabilityPortsSchema.prefault({}),
 })
 export type TObservabilityConfig = Readonly<
   z.infer<typeof observabilityConfigSchema>

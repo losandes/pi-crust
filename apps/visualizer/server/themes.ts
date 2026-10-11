@@ -1,8 +1,8 @@
 /**
  * The themes a workspace registers, read from its stamp.
  *
- * `crust.themes.yaml` lists every theme the picker offers, including the ones
- * that ship — which is what lets a team remove one. The server reads it
+ * The `themes` list in `crust.observe.yaml` names every theme the picker
+ * offers, including the ones that ship — which is what lets a team remove one. The server reads it
  * because the file belongs to the repository being observed, not to this app,
  * and the app is pointed at a different repository on every run.
  *
@@ -40,7 +40,6 @@ export const BUILTIN_THEMES: readonly TRegisteredTheme[] = [
   { name: 'auto', label: 'Match the system', builtin: true, css: '' },
   { name: 'light', label: 'Light', builtin: true, css: '' },
   { name: 'dark', label: 'Dark', builtin: true, css: '' },
-  { name: 'high-contrast', label: 'High contrast', builtin: true, css: '' },
 ]
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -99,7 +98,7 @@ const toTheme = (
  */
 export const workspaceThemes = (workspaceRoot: string): TWorkspaceThemes => {
   const stampDir = join(workspaceRoot, '.pi-crust')
-  const path = join(stampDir, 'config', 'crust.themes.yaml')
+  const path = join(stampDir, 'config', 'crust.observe.yaml')
   if (!existsSync(path)) {
     return { default: 'auto', themes: BUILTIN_THEMES, problem: '' }
   }
@@ -112,7 +111,7 @@ export const workspaceThemes = (workspaceRoot: string): TWorkspaceThemes => {
       .filter((theme) => theme.name !== '')
 
     return {
-      default: asString(parsed.default, 'auto'),
+      default: asString(parsed.default_theme, 'auto'),
       themes: themes.length === 0 ? BUILTIN_THEMES : themes,
       problem: '',
     }

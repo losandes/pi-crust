@@ -18,10 +18,11 @@ The installer records where it ran from in `.pi-crust/data/pi-crust-home`, which
 
 | Stamped                                  | What it is                                                   | Tracked?          |
 | ---------------------------------------- | ------------------------------------------------------------ | ----------------- |
-| `config/crust.config.yaml`               | defaults and observability                                   | yes               |
+| `config/crust.config.yaml`               | defaults and routing                                         | yes               |
 | `config/crust.activities.yaml`           | every Activity this repository offers                        | yes               |
 | `config/crust.lifecycles.yaml`           | every Lifecycle, as Stages and dependencies                  | yes               |
-| `config/crust.themes.yaml`               | every theme the trace UI offers                              | yes               |
+| `config/crust.observe.yaml`              | the trace db, the UI's ports, every theme it offers          | yes               |
+| `config/high-contrast.css`               | a worked theme, registered in `crust.observe.yaml`           | yes               |
 | `config/crust.config.local.example.yaml` | what a personal override may say                             | yes               |
 | `prompt-engineering/README.md`           | how to add or override a prompt                              | yes               |
 | `prompt-engineering/example/`            | the shape of a prompt                                        | no — illustrative |
@@ -45,7 +46,8 @@ Nothing here needs a `.gitignore` edit. Every directory that receives your work 
 | Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner |
 | Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                        |
 | Override a prompt                 | Write `.pi-crust/prompt-engineering/<activity>/system.md`. It wins; nothing else changes   |
-| Add a theme                       | Register it in `config/crust.themes.yaml` and put the `.css` beside it                     |
+| Add a theme                       | Register it in `config/crust.observe.yaml` and put the `.css` beside it, as `high-contrast.css` does |
+| Move the trace UI's ports         | `ports:` in `config/crust.observe.yaml`; `CRUST_BE_PORT` / `CRUST_FE_PORT` win, for one shell |
 | Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                          |
 
 A local layer may set any key and may add an Activity or Lifecycle the team file does not have. It is not restricted, because whoever writes it can equally write the committed file.

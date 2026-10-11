@@ -13,9 +13,10 @@
 /**
  * The themes that ship. A repository may register others, and may remove
  * these — so this is what the app knows, never what it offers. The offered
- * list comes from `crust.themes.yaml` through `/api/themes`.
+ * list comes from the `themes` in `crust.observe.yaml`, through
+ * `/api/themes`.
  */
-export const THEMES = ['auto', 'light', 'dark', 'high-contrast'] as const
+export const THEMES = ['auto', 'light', 'dark'] as const
 
 /**
  * A theme name, which is any string a repository registered.
@@ -46,6 +47,11 @@ export const isTheme = (value: unknown): value is TTheme =>
  * Contrast is matched before colour because it is the stronger signal: someone
  * who has turned on increased contrast is telling you something about
  * legibility, where a light/dark preference is mostly about taste.
+ *
+ * `high-contrast` is a theme a repository registers rather than one the app
+ * ships — the stamp ships it as `config/high-contrast.css`. A repository that
+ * deleted it resolves to a name with no rules, which falls through to the
+ * base palette, the same as any other removed theme.
  */
 export const systemTheme = (
   matchMedia: (query: string) => { matches: boolean },

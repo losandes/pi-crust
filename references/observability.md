@@ -6,7 +6,7 @@ The event schema, the seven SQLite tables, and the polling contract — the one 
 
 **Files are the raw record** (`raw_output.jsonl` streams, `envelope.json`, `agent_map.json`); **SQLite (`crust.db`) is the queryable mirror** the UI reads. `trace-db.ts` writes both. Losing the db loses nothing that can't be rebuilt from files.
 
-Location comes from `observability.db` in `crust.config.yaml`, default `.pi-crust/data/crust.db` — inside the **target** repo, gitignored.
+Location comes from `db` in `crust.observe.yaml`, default `.pi-crust/data/crust.db` — inside the **target** repo, gitignored.
 
 ## Event schema
 
@@ -149,7 +149,7 @@ WAL allows readers during writes. Writers are the tracers of running workflow pr
 
 **The UI never receives pushes.** No ingest endpoint, no WebSocket, no backfill or dedup logic.
 
-Live view polls on a rowid cursor every `observability.poll_ms` (default 500):
+Live view polls on a rowid cursor every `poll_ms` in `crust.observe.yaml` (default 500):
 
 ```sql
 SELECT ... FROM events WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT 500;
@@ -163,7 +163,7 @@ Keep the highest `rowid` returned as the next cursor. History is **the same quer
 bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] [--config <path>]
 ```
 
-No `run-id` means the most recent session. `--db` wins over the config's `observability.db`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
+No `run-id` means the most recent session. `--db` wins over the config's `observability.db`, which is read from `crust.observe.yaml`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
 
 Exit codes, because an agent will branch on them:
 
@@ -264,10 +264,12 @@ In the UI, a run's tree is a chip on its card and a filter above the list, both 
 
 ## Ports
 
+The ports are a committed answer with an environment escape hatch. `ports.backend` and `ports.frontend` in `.pi-crust/config/crust.observe.yaml` are what `observe` boots on and what a run assumes when it prints a link; the variables below win over the file, for a clash that is not worth committing.
+
 | Variable           | Default                        | What it moves                                            |
 | ------------------ | ------------------------------ | -------------------------------------------------------- |
-| `CRUST_BE_PORT`    | 4600                           | the API the UI and every run talk to                     |
-| `CRUST_FE_PORT`    | 4601                           | the web app                                              |
+| `CRUST_BE_PORT`    | `ports.backend` (4600)         | the API the UI and every run talk to                     |
+| `CRUST_FE_PORT`    | `ports.frontend` (4601)        | the web app                                              |
 | `CRUST_WORKSPACES` | —                              | trees to watch, comma-separated, instead of the registry |
 | `CRUST_REGISTRY`   | `~/.pi-crust/workspaces.jsonl` | where registration is recorded                           |
 
@@ -322,7 +324,7 @@ Two things govern it. `steps_valid` rejects a plan naming a step that does not e
 
 They go straight after the recipe with no `--` separator. `just crust observe -- --host` does not work — the flag never reaches vite, which reports "use --host to expose" — which is the opposite of the habit most tools teach, so it is worth remembering once.
 
-The arguments reach the web app only. The API behind it is configured by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
+The arguments reach the web app only. The API behind it is configured by `ports:` in `crust.observe.yaml`, or by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
 
 ## Archiving a run, and the token that lets you
 

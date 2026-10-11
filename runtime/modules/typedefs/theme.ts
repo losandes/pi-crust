@@ -1,10 +1,11 @@
 /**
  * Themes, as registrations rather than as built-ins.
  *
- * `crust.themes.yaml` lists every theme the visualizer offers, including the
- * ones that ship. Listing the defaults is what lets a team remove one: delete
- * the entry and it is gone from the picker. A file of additions could only
- * ever add to a fixed set, which is the shape this refactor exists to undo.
+ * The `themes` list in `crust.observe.yaml` names every theme the visualizer
+ * offers, including the ones that ship. Listing the defaults is what lets a
+ * team remove one: delete the entry and it is gone from the picker. A file of
+ * additions could only ever add to a fixed set, which is the shape this
+ * refactor exists to undo.
  *
  * A theme is a name, a label, and where its styles come from. `builtin`
  * names a stylesheet in the pi-crust package; `stylesheet` names one in the
@@ -22,7 +23,7 @@
 
 import { z } from 'zod'
 
-export const DEFAULT_THEMES_PATH = '.pi-crust/config/crust.themes.yaml'
+export const DEFAULT_OBSERVE_PATH = '.pi-crust/config/crust.observe.yaml'
 
 export const themeSchema = z
   .object({
@@ -46,9 +47,20 @@ export const themeSchema = z
   }))
 export type TTheme = Readonly<z.infer<typeof themeSchema>>
 
+/**
+ * The theme half of `crust.observe.yaml`. The rest of that file — `db`,
+ * `poll_ms`, `ports` — is ignored here rather than refused: it belongs to the
+ * same file and to a different schema.
+ */
 export const themesFileSchema = z.object({
-  /** Which theme a repository starts on. `auto` follows the system. */
-  default: z.string().default('auto'),
+  /**
+   * Which theme a repository starts on. `auto` follows the system.
+   *
+   * Spelled `default_theme` rather than `default`, because the file it now
+   * lives in also carries a database path and two ports, and a bare
+   * `default:` beside them says nothing about what it is the default of.
+   */
+  default_theme: z.string().default('auto'),
   themes: z.array(themeSchema).default([]),
 })
 export type TThemesFile = Readonly<z.infer<typeof themesFileSchema>>
@@ -67,10 +79,10 @@ export const themeFaults = (file: TThemesFile): readonly string[] => {
         'stylesheet in this repository',
     )
   const missingDefault =
-    file.default === 'auto' || names.includes(file.default)
+    file.default_theme === 'auto' || names.includes(file.default_theme)
       ? []
       : [
-          `default theme '${file.default}' is not registered — ` +
+          `default theme '${file.default_theme}' is not registered — ` +
             `this repository offers ${names.join(', ')}`,
         ]
 

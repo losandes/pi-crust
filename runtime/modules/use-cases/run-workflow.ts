@@ -198,8 +198,11 @@ export const runWorkflow = async (
      * assumed: a link to a port nothing is listening on teaches a reader to
      * ignore the next hint too.
      */
-    if (await visualizerIsUp()) {
-      run.console.instructions([`watch: ${runLink(run.runId)}`])
+    const ports = cfg.observability.ports
+    if (await visualizerIsUp(process.env, fetch, ports.backend)) {
+      run.console.instructions([
+        `watch: ${runLink(run.runId, process.env, ports.frontend)}`,
+      ])
     }
 
     const baseline = pinBaseline(names)

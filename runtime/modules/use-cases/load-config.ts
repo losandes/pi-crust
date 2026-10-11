@@ -104,15 +104,57 @@ const activitiesBeside = (configPath: string): readonly unknown[] => {
     : base
 }
 
+/**
+ * Observability lives in its own file too, beside the config.
+ *
+ * It was an `observability:` block in `crust.config.yaml`, which is otherwise
+ * the agent roster. Watching a run is one concern — the trace database, the
+ * UI's ports, the themes it offers — and it now has one file, `crust.observe.yaml`.
+ *
+ * Merged into the document under the key it always had, so every caller
+ * still reads `cfg.observability.db`, and so a `crust.config.local.yaml`
+ * that overrides `observability.poll_ms` keeps reaching it: the local layer
+ * is applied AFTER this, to the assembled document.
+ *
+ * A tree with no such file is an older stamp, and the schema's own defaults
+ * are what it had anyway.
+ */
+const observabilityBeside = (configPath: string): TRawRecord => {
+  const path = join(dirname(configPath), 'crust.observe.yaml')
+
+  return fileExists(path)
+    ? asRecord(Bun.YAML.parse(readText(path)))
+    : {}
+}
+
+/** The observe file's keys, minus the themes the visualizer reads itself. */
+const observabilitySettings = (configPath: string): TRawRecord => {
+  const { themes: _themes, default_theme: _default, ...settings } =
+    observabilityBeside(configPath)
+
+  return settings
+}
+
 export const loadConfigWithNotes = (
   path: string = DEFAULT_CONFIG_PATH,
 ): TLoadedConfig => {
   const document = Bun.YAML.parse(readText(path))
   const activities = activitiesBeside(path)
-  const base =
+  const observability = observabilitySettings(path)
+  const withAgents =
     activities.length === 0
       ? document
       : { ...(document as object), agents: activities }
+  const base =
+    Object.keys(observability).length === 0
+      ? withAgents
+      : {
+          ...asRecord(withAgents),
+          observability: {
+            ...asRecord(asRecord(withAgents).observability),
+            ...observability,
+          },
+        }
   const localPath = localConfigPath(path)
   if (!fileExists(localPath)) {
     return { config: resolveConfig(base), localPath: '', warnings: [] }

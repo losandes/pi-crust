@@ -12,7 +12,7 @@ const workspace = (
   const config = join(root, '.pi-crust', 'config')
   mkdirSync(config, { recursive: true })
   if (yaml !== undefined) {
-    writeFileSync(join(config, 'crust.themes.yaml'), yaml)
+    writeFileSync(join(config, 'crust.observe.yaml'), yaml)
   }
   for (const [name, css] of Object.entries(stylesheets)) {
     writeFileSync(join(config, name), css)

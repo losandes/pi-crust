@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test'
-import { parseConfig, resolveAgent } from './load-config'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { loadConfig, parseConfig, resolveAgent } from './load-config'
 
 const ROSTER = `
 defaults:
@@ -142,5 +145,93 @@ agents:
 
     // then
     expect(actual).toThrow()
+  },
+)
+
+/** A stamp on disk, because this is the one thing that is about files. */
+const stamped = (files: Readonly<Record<string, string>>): string => {
+  const config = join(mkdtempSync(join(tmpdir(), 'crust-config-')), 'config')
+  mkdirSync(config, { recursive: true })
+  for (const [name, text] of Object.entries(files)) {
+    writeFileSync(join(config, name), text)
+  }
+
+  return join(config, 'crust.config.yaml')
+}
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when observability lives in crust.observe.yaml beside the roster',
+    'it should be read from there, under the key every caller already uses',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'agents: []\n',
+      'crust.observe.yaml':
+        'db: .pi-crust/data/other.db\npoll_ms: 100\n' +
+        'ports:\n  backend: 5600\n  frontend: 5601\n' +
+        "themes:\n  - name: dark\n    builtin: true\n",
+    })
+
+    // when
+    const actual = loadConfig(path)
+
+    // then
+    expect(actual.observability.db).toEqual('.pi-crust/data/other.db')
+    expect(actual.observability.poll_ms).toBe(100)
+    expect(actual.observability.ports).toEqual({
+      backend: 5600,
+      frontend: 5601,
+    })
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a local layer overrides one port of the observe file',
+    'it should win there and leave the rest of the file standing',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'agents: []\n',
+      'crust.observe.yaml':
+        'poll_ms: 500\nports:\n  backend: 4600\n  frontend: 4601\n',
+      'crust.config.local.yaml':
+        'observability:\n  poll_ms: 250\n  ports:\n    frontend: 4701\n',
+    })
+
+    // when
+    const actual = loadConfig(path)
+
+    // then
+    expect(actual.observability.poll_ms).toBe(250)
+    expect(actual.observability.ports.frontend).toBe(4701)
+    expect(actual.observability.ports.backend).toBe(4600)
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a tree has no crust.observe.yaml, as an older stamp does not',
+    'it should keep the defaults rather than fail to load the roster',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({ 'crust.config.yaml': 'agents: []\n' })
+
+    // when
+    const actual = loadConfig(path)
+
+    // then
+    expect(actual.observability.db).toEqual('.pi-crust/data/crust.db')
+    expect(actual.observability.ports).toEqual({
+      backend: 4600,
+      frontend: 4601,
+    })
   },
 )

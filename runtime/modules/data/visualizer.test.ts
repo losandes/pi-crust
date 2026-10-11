@@ -142,3 +142,57 @@ test(
     expect(actual).toBe(false)
   },
 )
+
+test(
+  [
+    'given data/visualizer::backendPort',
+    'when crust.observe.yaml names a port and nothing is exported',
+    'it should use the committed answer rather than the shipped default',
+  ].join(', '),
+  () => {
+    // given
+    const env = {}
+
+    // when
+    const actual = backendPort(env, 5600)
+
+    // then
+    expect(actual).toBe(5600)
+  },
+)
+
+test(
+  [
+    'given data/visualizer::frontendPort',
+    'when the variable and the config disagree',
+    'it should take the variable, which is the one-off a shell is for',
+  ].join(', '),
+  () => {
+    // given
+    const env = { CRUST_FE_PORT: '4701' }
+
+    // when
+    const actual = frontendPort(env, 5601)
+
+    // then
+    expect(actual).toBe(4701)
+  },
+)
+
+test(
+  [
+    'given data/visualizer::runLink',
+    'when a repository moved the web app off the default port',
+    'it should point the reader at the port the UI is actually on',
+  ].join(', '),
+  () => {
+    // given
+    const env = {}
+
+    // when
+    const actual = runLink('run_1', env, 5601)
+
+    // then
+    expect(actual).toBe('http://localhost:5601/#/run_1')
+  },
+)

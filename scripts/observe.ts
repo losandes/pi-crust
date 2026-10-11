@@ -5,8 +5,11 @@
  * Usage:
  *     bun <pi-crust>/scripts/observe.ts [vite flags...]
  *
- * Reads CRUST_DB (the trace to serve), CRUST_BE_PORT and CRUST_FE_PORT. Every
- * remaining argument is passed to vite untouched.
+ * Reads CRUST_DB (the trace to serve), and the ports from the stamped
+ * `crust.observe.yaml` that sits beside it.
+ *
+ * CRUST_BE_PORT and CRUST_FE_PORT still win over the file. Every remaining
+ * argument is passed to vite untouched.
  *
  * This exists so that nothing in a stamped tree has to know where pi-crust is
  * installed. The recipe that used to `cd` into a path under `.claude/skills/`
@@ -18,8 +21,50 @@
  */
 
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+
+const DEFAULT_PORTS = { backend: 4600, frontend: 4601 } as const
+
+/**
+ * The ports the observed repository committed, if it committed any.
+ *
+ * Looked for beside the trace database first, since the stamp puts the
+ * config one directory up from the data, and then in the working directory,
+ * for a `CRUST_DB` pointed at a database somewhere else entirely. A tree
+ * with neither is an older stamp, and the defaults are what it had anyway.
+ *
+ * Anything unreadable or malformed reads as "no answer", and the defaults
+ * stand. Booting a UI is not worth failing over a file somebody half-edited.
+ */
+export const configuredPorts = (
+  db: string,
+): Readonly<{ backend: number; frontend: number }> => {
+  const path = [
+    join(dirname(dirname(resolve(db))), 'config', 'crust.observe.yaml'),
+    resolve('.pi-crust/config/crust.observe.yaml'),
+  ].find((candidate) => existsSync(candidate))
+  if (path === undefined) {
+    return DEFAULT_PORTS
+  }
+  // biome-ignore lint/plugin/no-intermediate-try-catch: this is the boundary the rule names — the file belongs to the observed repository and may be anything
+  try {
+    const parsed = Bun.YAML.parse(readFileSync(path, 'utf8')) as {
+      ports?: { backend?: unknown; frontend?: unknown }
+    }
+    const port = (value: unknown, fallback: number): number =>
+      Number.isInteger(value) && (value as number) > 0
+        ? (value as number)
+        : fallback
+
+    return {
+      backend: port(parsed?.ports?.backend, DEFAULT_PORTS.backend),
+      frontend: port(parsed?.ports?.frontend, DEFAULT_PORTS.frontend),
+    }
+  } catch {
+    return DEFAULT_PORTS
+  }
+}
 
 /** The web app that ships beside this script, wherever this script is. */
 export const visualizerDir = (): string =>
@@ -62,8 +107,9 @@ const main = (): number => {
   }
 
   const db = process.env.CRUST_DB ?? resolve('.pi-crust/data/crust.db')
-  const bePort = process.env.CRUST_BE_PORT ?? '4600'
-  const fePort = process.env.CRUST_FE_PORT ?? '4601'
+  const ports = configuredPorts(db)
+  const bePort = process.env.CRUST_BE_PORT ?? String(ports.backend)
+  const fePort = process.env.CRUST_FE_PORT ?? String(ports.frontend)
 
   const installed = spawnSync('bun', ['install'], { cwd: app, encoding: 'utf8' })
   if (installed.status !== 0) {

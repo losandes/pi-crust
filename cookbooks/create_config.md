@@ -24,9 +24,8 @@ defaults:
   harness_engineering: []          # pi extension names
   data_dir: .pi-crust/data          # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
 
-observability:
-  db: .pi-crust/data/crust.db        # tracer writes here; the UI polls it
-  poll_ms: 500                     # visualizer live-poll cadence
+# Watching a run — the trace database, the UI's ports, the themes it offers —
+# is crust.observe.yaml, beside this file. See references/config.md.
 
 activities:
   - name: planner                  # activities name agents, never models

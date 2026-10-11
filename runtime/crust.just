@@ -16,9 +16,11 @@ set positional-arguments
 # Every recipe passes this through, so `CRUST_CONFIG=other.yaml just crust sdlc "..."`
 # swaps the whole roster for one run.
 #
-# The observability UI takes two more: CRUST_BE_PORT (the API, default 4600)
-# and CRUST_FE_PORT (the web app, default 4601). Both are read by `observe` and by
-# every run, which prints a link to itself when the API answers.
+# The observability UI takes two more: CRUST_BE_PORT (the API) and
+# CRUST_FE_PORT (the web app). Both are read by `observe` and by every run,
+# which prints a link to itself when the API answers. Unset, the ports come
+# from `ports:` in .pi-crust/config/crust.observe.yaml (4600 and 4601), which
+# is where to move them for good rather than for one shell.
 # Where pi-crust itself is installed. The runtime ships with the package
 # rather than with the stamp, so every recipe resolves it rather than
 # assuming a path. The installer writes it down; CRUST_HOME overrides.
@@ -280,7 +282,7 @@ update:
 # installer writes down where it was and this recipe reads that back. Set
 # CRUST_HOME to override it, which is also the repair when pi-crust moves.
 
-# boot the trace UI, http://localhost:4601 (api on :4600)
+# boot the trace UI on the ports crust.observe.yaml names (4601, api on 4600)
 observe *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -290,7 +292,12 @@ observe *ARGS:
       echo "  re-run its installer from this directory, or set CRUST_HOME to the package." >&2
       exit 2
     fi
-    CRUST_DB="{{justfile_directory()}}/{{db}}" \
-    CRUST_BE_PORT="${CRUST_BE_PORT:-4600}" \
-    CRUST_FE_PORT="${CRUST_FE_PORT:-4601}" \
+    # No port defaults here: observe.ts reads crust.observe.yaml, and a
+    # default spelled in this recipe would override the file every time.
+    # CRUST_BE_PORT and CRUST_FE_PORT are inherited when they are set, which
+    # is how a one-off clash is still answered from the shell.
+    # $PWD, not justfile_directory(): these recipes live in the pi-crust
+    # package, so the justfile's own directory is the package's, and the
+    # trace database belongs to the repository `just` is being run against.
+    CRUST_DB="$PWD/{{db}}" \
     exec bun "$home/scripts/observe.ts" "$@"
