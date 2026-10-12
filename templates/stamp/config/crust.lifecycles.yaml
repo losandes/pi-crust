@@ -39,7 +39,7 @@ lifecycles:
         activities: [identify, conceptualize]
       - name: deliver
         strategy: serial
-        activities: [plan, design, test, build, verify]
+        activities: [plan, design, test, build]
       - name: accept
         strategy: concurrent
         activities: [review, code-review]
@@ -55,7 +55,7 @@ lifecycles:
         activities: [diagnose]
       - name: deliver
         strategy: serial
-        activities: [plan, test, build, verify]
+        activities: [plan, test, build]
       - name: accept
         strategy: concurrent
         activities: [review, code-review]
@@ -68,7 +68,7 @@ lifecycles:
     stages:
       - name: discover
         strategy: serial
-        activities: [identify, conceptualize]
+        activities: [identify]
       - name: prove
         strategy: serial
-        activities: [plan, design, poc]
+        activities: [plan, build]
