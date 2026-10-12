@@ -57,6 +57,36 @@ lifecycles:
         strategy: concurrent
         activities: [review, code-review]
 
+  - name: discover
+    description: >-
+      The product lifecycle: identify, conceptualize, plan.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, conceptualize, plan]
+
+  - name: deliver-tdd
+    description: >-
+      The engineering lifecycle: test-first, build, and review.
+    stages:
+      - name: deliver
+        strategy: serial
+        activities: [test-tdd, build]
+      - name: accept
+        strategy: concurrent
+        activities: [review, code-review]
+
+  - name: deliver
+    description: >-
+      The engineering lifecycle: build, test, and review.
+    stages:
+      - name: deliver
+        strategy: serial
+        activities: [build, test]
+      - name: accept
+        strategy: concurrent
+        activities: [review, code-review]
+
   - name: bugfix
     description: >-
       Fix a reported bug, start to finish. Reproduction comes first and gates the
