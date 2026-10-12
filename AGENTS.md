@@ -54,7 +54,13 @@ probe="$(mktemp -d)" && (cd "$probe" && bun "$OLDPWD/scripts/install.ts" && "$OL
 
 `verify-install` reports `drift=0` when the installed tree is the one this repository ships. Anything else means the template and the stamp disagree, which is the failure that check exists to catch.
 
-Lint is not wired up. The package scripts name Biome and oxlint, but neither configuration file is in this repository — they were left behind in the repository pi-crust grew in. Do not report lint as passing until a configuration lands here.
+Lint is wired up — `biome.json` at the root, with the convention plugins in `.biome/`:
+
+```sh
+bunx @biomejs/biome lint --max-diagnostics=500 .
+```
+
+It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [specs/REFACTOR-LINT-GREEN-PLAN.md](specs/REFACTOR-LINT-GREEN-PLAN.md). Do not report lint as passing on a narrowed path: the claim is only ever settled by the whole-repository run above, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
 
 ## Contributing
 
