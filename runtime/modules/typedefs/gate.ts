@@ -50,10 +50,10 @@ export const reportPassed = (report: TGateReport): boolean =>
  * the db stores it and a minified or wrapped function has no useful name.
  *
  * The signature widened when the repository's checks became a gate. Every
- * other gate is a pure predicate over an envelope and ignores the rest;
- * `checks` runs commands, and a command needs to know which repository and
- * which paths it is being run about. One signature, because two kinds of
- * gate would mean two registries and two places to declare one.
+ * other gate ignores the rest; `checks` runs commands, and a command needs
+ * to know which repository and which paths it is being run about. One
+ * signature, because two kinds of gate would mean two registries and two
+ * places to declare one.
  */
 export type TGate = Readonly<{
   name: string
@@ -65,10 +65,20 @@ export type TGate = Readonly<{
   /**
    * Whether this gate may only be judged once nothing else is writing.
    *
-   * A pure predicate over an envelope can be evaluated the moment the
-   * envelope exists. A gate that reads the working tree cannot: inside a
-   * concurrent Stage a sibling may still be writing to it, so this one waits
-   * for the Stage boundary.
+   * The distinction is NOT "touches the filesystem". Four gates do and are
+   * still safe mid-Stage: `artifactsExist`, `filesNonEmpty`, `jsonParses`
+   * and `diffMatchesClaims` stat and read only the paths the envelope itself
+   * named, so they are predicates over an envelope AND the files it declares.
+   * A sibling cannot be writing those, because a concurrent Stage is refused
+   * at load unless its Activities' declared paths are disjoint.
+   *
+   * The line is whether the gate's SCOPE comes from the envelope or from the
+   * tree. `checks` derives its paths by scanning what changed, so a sibling
+   * mid-write changes the question it is answering; it waits for the Stage
+   * boundary.
+   *
+   * That safety is bought by the disjointness check, not by these gates being
+   * pure. Relax disjointness and all four need this flag.
    */
   readsTree?: boolean
 }>

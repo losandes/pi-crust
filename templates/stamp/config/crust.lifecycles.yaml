@@ -67,7 +67,7 @@ lifecycles:
         activities: [diagnose]
       - name: deliver
         strategy: serial
-        activities: [plan, test, build]
+        activities: [plan, test-tdd, build]
       - name: accept
         strategy: concurrent
         activities: [review, code-review]

@@ -34,7 +34,7 @@ This refactor changes where the Activity registry lives. It does not change what
 
 1.2.3 A Planner MUST NOT be nameable by a Lifecycle. This follows from 1.1.1: a Lifecycle names Activities, and a Planner is not one.
 
-1.2.4 The Composer is the third Planner, has no agent, and so has no entry.
+1.2.4 The Composer is the third Planner. It has no agent, so it MUST have no entry in either key.
 
 ### 1.3 `checks` is a gate
 
@@ -54,7 +54,7 @@ This refactor changes where the Activity registry lives. It does not change what
 
 1.4.1 `attempts` MUST replace `retries`, `MAX_REVISE_ROUNDS` and `MAX_RETURNS_PER_STAGE`. All three constants MUST be deleted.
 
-1.4.2 `attempts` counts **Activity Runs of one instance within one Workflow Run**, including the first. Every autonomous re-execution — a gate failure, a revision, a regression — spends from the same budget.
+1.4.2 `attempts` MUST count **Activity Runs of one instance within one Workflow Run**, including the first. Every autonomous re-execution — a gate failure, a revision, a regression — spends from the same budget.
 
 1.4.3 The budget MUST be per instance, not per Activity. A Lifecycle naming `test` twice gives `test` and `test_2` two each.
 

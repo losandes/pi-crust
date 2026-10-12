@@ -38,12 +38,21 @@
 #
 # Personal deviations go in crust.activities.local.yaml, which is gitignored.
 # A local layer may set any key and may add an Activity this file lacks.
+#
+# Available Gates:
+# - artifactsExist        ensures required artifacts are present
+# - filesNonEmpty         ensures every declared artifact is larger than 0B
+# - jsonParses            ensures every declared artifact ending .json parses as JSON
+# - diffMatchesClaims     ensures the changes match the claims made in the plan (e.g. no other files modified)
+# - checks                runs this repository's own commands from routing.checks
+# - reproductionSupported ensures a diagnosis's reproduced, steps and confidence are mutually consistent
+# - verdictConsistent     ensures the review verdict is consistent with the repository's conventions
 
 activities:
   # Implements the selected plan, and lands it.
   - name: build
     output: buildOutput
-    gates: [diffMatchesClaims, checks]   # its own claim, then this repository's commands
+    gates: [diffMatchesClaims, checks]
     attempts: 2                          # a re-run of this is a whole build; see SKILL.md
     commit: true                         # lands its own change once both gates pass
     color: green
