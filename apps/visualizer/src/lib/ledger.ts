@@ -1,16 +1,16 @@
 /**
- * What a step decided, assumed, and could not settle — per activityRun.
+ * What a activity decided, assumed, and could not settle — per activityRun.
  *
  * This is the half of the trust change the terminal already had and the
  * screen did not. A chain that decides its own questions instead of stopping
  * is only safe if every one of those decisions is impossible to miss
  * afterwards; otherwise raising the dial just means nobody finds out.
  *
- * Nothing new is recorded to build it. The envelope a step wrote already
+ * Nothing new is recorded to build it. The envelope a activity wrote already
  * carries `decisions`, `assumptions` and `unresolved`, and the run already
  * emits `self_answered`, `open_questions` and `human_gate_open` events as it
  * goes. This module joins the two, because each answers a different half of
- * the question: the envelope says WHAT the step held, and the events say what
+ * the question: the envelope says WHAT the activity held, and the events say what
  * the run then DID about it.
  *
  * Deriving the outcome from events rather than recomputing it from the trust
@@ -22,9 +22,9 @@
 
 import type { Envelope, Event as EventRow } from '../../shared/types'
 
-/** What became of a question the step could not answer from evidence. */
+/** What became of a question the activity could not answer from evidence. */
 export type TQuestionOutcome =
-  /** the step answered it itself, because the dial allowed it */
+  /** the activity answered it itself, because the dial allowed it */
   | 'decided'
   /** it stopped the run and came to a person */
   | 'escalated'
@@ -43,9 +43,9 @@ export type TLedgerAssumption = Readonly<{
 
 export type TLedgerQuestion = Readonly<{
   question: string
-  /** what the step would do, or did, unasked — '' when it had no answer */
+  /** what the activity would do, or did, unasked — '' when it had no answer */
   provisional_answer: string
-  /** would a later step have had to invent this */
+  /** would a later activity have had to invent this */
   consequential: boolean
   /** would acting reach outside what discarding this run would undo */
   beyond_this_run: boolean
@@ -98,9 +98,9 @@ const asRecord = (value: unknown): Record<string, unknown> =>
  * The envelope a activityRun produced, preferring the one that validated.
  *
  * A activityRun that had its JSON corrected writes one row per correction, and
- * an invalid one is a record of that loop rather than of what the step held.
+ * an invalid one is a record of that loop rather than of what the activity held.
  * The latest valid wins; if none validated, the latest row is still better
- * than nothing, because a reader asking "what did this step decide" is
+ * than nothing, because a reader asking "what did this activity decide" is
  * better served by a rejected answer than by a blank panel.
  *
  * Rows arrive in insertion order, so the last of them is the latest. There
@@ -117,7 +117,7 @@ const envelopeFor = (
   return pool.at(-1)
 }
 
-/** Questions this activity-run's run-time events say were answered by the step itself. */
+/** Questions this activity-run's run-time events say were answered by the activity itself. */
 const decidedQuestions = (events: readonly EventRow[]): ReadonlySet<string> =>
   new Set(
     events
@@ -218,7 +218,7 @@ export const activityRunLedger = (
  * How many of a activity-run's entries are the kind that stop a reader.
  *
  * A tab badge wants one number, and "everything in the ledger" is the wrong
- * one — a step with nine assumptions and no open questions is not asking for
+ * one — a activity with nine assumptions and no open questions is not asking for
  * anything. What counts is what a person still has to act on.
  */
 export const needsYou = (ledger: TActivityRunLedger): number =>

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { activitiesFileSchema } from '../typedefs/activity'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TPiCrustConfig } from '../typedefs/config'
-import { activityOrder } from '../typedefs/lifecycle'
+import { activityOrder, lifecyclesFileSchema } from '../typedefs/lifecycle'
 import { loadLifecycles } from './load-lifecycles'
 
 /*
@@ -27,6 +27,20 @@ const lifecyclesAt = (yaml: string): string => {
 
   return path
 }
+
+/**
+ * The Lifecycle names a file declares, read from the file.
+ *
+ * Spelled out as a literal, this assertion rotted the day four Lifecycles
+ * were added: the suite went red over a list, which says nothing about
+ * whether the claims those Lifecycles make are sound. What is being checked
+ * is that `loadLifecycles` ACCEPTS the shipped file and keeps its order, so
+ * the expectation is derived from the file rather than transcribed from it.
+ */
+const declaredIn = (path: string): readonly string[] =>
+  lifecyclesFileSchema
+    .parse(Bun.YAML.parse(readFileSync(path, 'utf8')))
+    .lifecycles.map((one) => one.name)
 
 const shippedConfig = (): TPiCrustConfig => {
   const registry = activitiesFileSchema.parse(
@@ -54,12 +68,8 @@ test(
     const actual = loadLifecycles(given, shippedConfig())
 
     // then
-    expect(actual.map((one) => one.name)).toEqual([
-      'tdd',
-      'sdlc',
-      'bugfix',
-      'de-risk',
-    ])
+    expect(actual.map((one) => one.name)).toEqual([...declaredIn(given)])
+    expect(actual.length).toBeGreaterThan(0)
   },
 )
 
@@ -131,14 +141,13 @@ test(
     // when
     const actual = loadLifecycles(base, shippedConfig())
 
-    // then
+    // then — the team's file holds its order, and the example's additions
+    // follow it rather than splicing into the middle
     expect(actual.map((one) => one.name)).toEqual([
-      'tdd',
-      'sdlc',
-      'bugfix',
-      'de-risk',
-      'quick',
-      'survey',
+      ...declaredIn(base),
+      ...declaredIn(join(dir, 'crust.lifecycles.local.yaml')).filter(
+        (name) => !declaredIn(base).includes(name),
+      ),
     ])
   },
 )

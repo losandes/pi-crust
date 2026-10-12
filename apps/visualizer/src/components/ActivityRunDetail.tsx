@@ -18,6 +18,7 @@ import { eventLabel, parseAgentStart, parseToolCall } from '../lib/events'
 import { fmtClock, payloadOk, ts } from '../lib/format'
 import { highlightJson, highlightJsonText } from '../lib/highlight'
 import { modelIcon, modelName } from '../lib/models'
+import { byStart, startedAfter } from '../lib/order'
 import {
   checksLabel,
   eventDurationMs,
@@ -33,7 +34,8 @@ import { activityRunArtifacts, runArtifacts } from '../lib/artifacts'
 import type { Envelope, EventRow, GateResult, ActivityRun } from '../lib/types'
 import { useHandoff } from '../lib/use-handoff'
 import { usePrompts } from '../lib/use-prompts'
-import { consultsFor, consultsOf } from '../lib/consult'
+import { consultsFor, consultsOf, stillPending } from '../lib/consult'
+import type { TPendingConsult } from '../lib/consult'
 import { ArtifactList } from './ArtifactList'
 import { DecisionLedger } from './DecisionLedger'
 import { DetailSection } from './DetailSection'
@@ -84,15 +86,15 @@ const useOpenSet = <TKey extends string | number>(resetKey: string) => {
 }
 
 /**
- * The three things a reader wants from a step, one at a time.
+ * The three things a reader wants from a activity, one at a time.
  *
  * They used to be two columns side by side, which meant the configuration
- * that produced a step — prompts, gates, cost — competed for width with what
- * the step actually said. Tabs rather than a longer page because these are
+ * that produced a activity — prompts, gates, cost — competed for width with what
+ * the activity actually said. Tabs rather than a longer page because these are
  * different questions, not different parts of one answer: "what was it told",
  * "what did it say", "what did it do".
  *
- * Chat opens first. Someone who clicked a step wants to know what it thought,
+ * Chat opens first. Someone who clicked a activity wants to know what it thought,
  * and the configuration is what you go looking for afterwards.
  */
 type TTab = 'chat' | 'highlights' | 'context' | 'events'
@@ -167,9 +169,9 @@ export const ActivityRunDetail = ({
   const prompts = usePrompts(activityRun, workspace)
 
   /*
-   * The documents this step produced, from the envelope it reported and the
+   * The documents this activity produced, from the envelope it reported and the
    * directory it wrote into. Listed in both tabs from one source, so the two
-   * cannot disagree about what a step produced.
+   * cannot disagree about what a activity produced.
    */
   const handoff = useHandoff(runId, workspace, events)
   const artifacts = useMemo(
@@ -183,10 +185,16 @@ export const ActivityRunDetail = ({
   const [viewing, setViewing] = useState<TArtifact | undefined>(undefined)
 
   /*
-   * What a steer from this step would re-run: this step and everything
-   * after it, by the sequence the run actually took rather than the order
-   * the config declares — a run that regressed once is described by its
-   * trace, not by its configuration.
+   * What a steer from this Activity Run would re-run: this one and everything
+   * that did not already finish before it started — by the run's own clock
+   * rather than by the order the config declares, because a run that
+   * regressed once is described by its trace, not by its configuration.
+   *
+   * By time, not by `seq`. `seq` is insert order, so for a concurrent Stage
+   * it would include one member and exclude the other at random; an Activity
+   * that was still running when this one started is re-run with it, which is
+   * also what the engine does — a concurrent Stage is one Unit and replays
+   * whole.
    */
   const replaying = useMemo(() => {
     const target = activityRuns.filter((entry) => entry.name === activityRun.name).at(-1)
@@ -194,25 +202,36 @@ export const ActivityRunDetail = ({
     return [
       ...new Set(
         activityRuns
-          .filter((entry) => (entry.seq ?? 0) >= (target.seq ?? 0))
+          .filter((entry) => !startedAfter(target, entry))
+          .toSorted(byStart)
           .map((entry) => entry.name ?? ''),
       ),
     ].filter((name) => name !== '')
   }, [activityRuns, activityRun.name])
 
   /*
-   * Questions put to this step after it finished. They hang off the activityRun
+   * Questions put to this activity after it finished. They hang off the activityRun
    * rather than the run, so a reader finds an answer where the question
    * made sense.
    */
+  /*
+   * What has been sent to this activity and not yet answered.
+   *
+   * Held here rather than in the controls because the conversation is what
+   * has to show it, and cleared by the trace rather than by a timer: the
+   * consult event arrives carrying the same question, and that is the only
+   * evidence that the reply actually landed.
+   */
+  const [pending, setPending] = useState<TPendingConsult | undefined>(undefined)
+
   const consults = useMemo(
     () => consultsFor(consultsOf(events), activityRun.activity_run_id),
     [events, activityRun.activity_run_id],
   )
 
   /*
-   * Keyed to the activityRun, so selecting a different step opens on chat again
-   * rather than leaving you on whichever tab the last step was showing.
+   * Keyed to the activityRun, so selecting a different activity opens on chat again
+   * rather than leaving you on whichever tab the last activity was showing.
    */
   const [tab, setTab] = useState<{ activityRun: string; name: TTab }>({
     activityRun: activityRun.activity_run_id,
@@ -272,7 +291,7 @@ export const ActivityRunDetail = ({
         onClose={() => setViewing(undefined)}
       />
 
-      <div className={styles.tabs} role="tablist" aria-label="step detail">
+      <div className={styles.tabs} role="tablist" aria-label="activity detail">
         <button
           type="button"
           role="tab"
@@ -294,9 +313,9 @@ export const ActivityRunDetail = ({
           <Scale size={16} strokeWidth={2} /> highlights
           {/*
             The badge counts what is still ASKED of a reader, not everything
-            the step recorded. A step with nine assumptions and nothing open
+            the activity recorded. A activity with nine assumptions and nothing open
             is not asking for anything, and a badge that counts settled
-            decisions cries wolf on every step. It moved here with the thing
+            decisions cries wolf on every activity. It moved here with the thing
             it counts: a badge on a tab that no longer holds them points at
             nothing.
           */}
@@ -342,13 +361,14 @@ export const ActivityRunDetail = ({
                     envelope={activityRunOutputs.at(-1)}
                     activityRunStatus={activityRun.status ?? ''}
                     consults={consults}
+                    pending={stillPending(pending, consults)}
                     runId={runId}
                     runStatus={runStatus}
                   />
                 </div>
               ) : (
                 <div className={`${styles.colBody} faint`}>
-                  this step ran code, not an agent
+                  this activity ran code, not an agent
                 </div>
               )}
             </div>
@@ -358,6 +378,7 @@ export const ActivityRunDetail = ({
             status={runStatus}
             workspace={workspace}
             consultStep={activityRun.kind === 'agent' ? (activityRun.name ?? '') : undefined}
+            onConsultSent={(mode, question) => setPending({ mode, question })}
             replaying={replaying}
           />
         </div>

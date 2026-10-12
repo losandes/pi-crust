@@ -28,7 +28,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Plan the work described in `prompt`.
 
-1. Write the full plan to `{{output_document}}` — this is the copy the builder reads.
+1. Write the full plan to `{{output_document}}` — this is the copy the builder reads. Use the structure in your system prompt: Objective, numbered Requirements, Target state once, Out of scope, Work with what proves each change, Rationale last. The builder executes it; a sentence it cannot act on is noise competing with one it can.
 2. Copy that file into the repo under `specs/`:
    - **List `specs/` before you pick the name.** A session that plans more than once reuses its `<run_id>`, so the obvious name may already be taken.
    - Base name: `specs/<run_id>_<slug>.md`, where `<run_id>` is the session directory name inside `context_handoff_dir` (`.../sessions/<run_id>/context_handoff`) and `<slug>` is two to four kebab-case words naming the work.

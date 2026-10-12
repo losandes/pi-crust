@@ -22,7 +22,7 @@ export type ActivityRunStatus =
   | "running"
   | "success"
   | "fail"
-  /** Succeeded once, then replaced by a later run of the same step. */
+  /** Succeeded once, then replaced by a later run of the same Activity. */
   | "superseded";
 
 /** activityRuns.kind — decides which lane a block renders in. */
@@ -40,7 +40,7 @@ export type EventType =
   | "handoff"
   /** What a activityRun was OBSERVED to write, as opposed to what it reported. */
   | "artifacts"
-  /** A question put to a finished step, and its answer. */
+  /** A question put to a finished Activity Run, and its answer. */
   | "consult"
   | "gate_pass"
   | "gate_fail"

@@ -2,7 +2,7 @@
  * Choosing what happens to the path you are steering away from.
  *
  * Three buttons and no default, deliberately. Overwrite discards the work
- * the steered steps already produced; branch keeps both as two runs. A
+ * the steered activities already produced; branch keeps both as two runs. A
  * primary button on that choice would make the destructive one the habit,
  * so neither is primary and both are typed out in full.
  *
@@ -15,7 +15,7 @@ import styles from './SteerDialog.module.css'
 
 export const SteerDialog = ({
   open,
-  step,
+  activity,
   replaying,
   note,
   branchReady,
@@ -23,8 +23,8 @@ export const SteerDialog = ({
   onCancel,
 }: Readonly<{
   open: boolean
-  step: string
-  /** Every step this will re-run, in the order the run actually took. */
+  activity: string
+  /** Every activity this will re-run, in the order the run actually took. */
   replaying: readonly string[]
   note: string
   /** False until branching is built; the button says so rather than lying. */
@@ -51,14 +51,14 @@ export const SteerDialog = ({
         onCancel()
       }}
     >
-      <h2 className={styles.title}>Send this run back to {step}</h2>
+      <h2 className={styles.title}>Send this run back to {activity}</h2>
 
       <p className={styles.body}>
         {/*
-          Naming every step that will re-run, because "steer from here" hides
-          the cost: the steps are a chain and all of them run again.
+          Naming every activity that will re-run, because "steer from here" hides
+          the cost: the activities are a chain and all of them run again.
         */}
-        {replaying.length} step{replaying.length === 1 ? '' : 's'} will run
+        {replaying.length} activity{replaying.length === 1 ? '' : 's'} will run
         again, in this order: <strong>{replaying.join(' → ')}</strong>.
       </p>
 
@@ -77,7 +77,7 @@ export const SteerDialog = ({
         >
           overwrite
           <span className={styles.hint}>
-            these steps rewrite their own documents; what they produced before
+            these activities rewrite their own documents; what they produced before
             is not kept
           </span>
         </button>
@@ -90,7 +90,7 @@ export const SteerDialog = ({
           branch
           <span className={styles.hint}>
             {branchReady
-              ? 'a new run, seeded from this one up to this step; both outcomes stay readable'
+              ? 'a new run, seeded from this one up to this activity; both outcomes stay readable'
               : 'not built yet — it would need a new run seeded from this one'}
           </span>
         </button>

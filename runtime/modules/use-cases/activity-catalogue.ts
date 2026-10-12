@@ -17,7 +17,7 @@
 import type { TActivityConfig } from '../typedefs/activity'
 
 /** One line per Activity: the name a plan must use, and what it does. */
-export const stepCatalogue = (
+export const activityCatalogue = (
   activities: readonly TActivityConfig[],
 ): string =>
   activities

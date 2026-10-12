@@ -7,7 +7,7 @@
  * are configuration now, so there is one factory, and adding an Activity is
  * an edit to `crust.activities.yaml` rather than a pull request here.
  *
- * Gates are NOT run from inside this. They are carried on the step and
+ * Gates are NOT run from inside this. They are carried on the activity and
  * judged by the driver, because the driver is what knows whether a sibling
  * is still writing to the tree and whether there is budget left to run the
  * Activity again.
@@ -26,8 +26,8 @@ import {
 } from '../../typedefs/changes'
 import { envelopeAccepted, envelopeJudges } from '../../typedefs/envelope'
 import { activityRunParams } from '../../typedefs/activity-run'
-import type { TStep, TStepContext, TStepOptions } from '../../typedefs/step'
-import { stepActivityRunName } from '../../typedefs/step'
+import type { TActivity, TActivityContext, TActivityOptions } from '../../typedefs/runnable-activity'
+import { activityRunName } from '../../typedefs/runnable-activity'
 import type { TResolvedActivity } from '../activity-registry'
 import { captureChanges, changesAsEnvelope } from '../capture-changes'
 import { callAgent } from '../execute-agent'
@@ -40,8 +40,8 @@ export const DOCUMENT_NOTES =
   'Read diff_path in full before writing. Document only what the diff shows, ' +
   'then copy the write-up into app_docs/ as your task describes.'
 
-/** What the previous step says it changed — what a reviewer should route on. */
-const claimedPaths = (ctx: TStepContext): readonly string[] | undefined => {
+/** What the previous activity says it changed — what a reviewer should route on. */
+const claimedPaths = (ctx: TActivityContext): readonly string[] | undefined => {
   const claimed = narrowEnvelope(buildOutput, ctx.previous)?.changed_files
 
   return claimed !== undefined && claimed.length > 0 ? claimed : undefined
@@ -55,7 +55,7 @@ const claimedPaths = (ctx: TStepContext): readonly string[] | undefined => {
  * or range the developer named instead.
  */
 const judgedPaths = (
-  ctx: TStepContext,
+  ctx: TActivityContext,
   base: string,
 ): readonly string[] | undefined =>
   base === '' ? claimedPaths(ctx) : selectedPaths(base)
@@ -69,7 +69,7 @@ const judgedPaths = (
  * was built, and an activity run saying so costs nothing where an agent
  * discovering it costs a context window.
  */
-const capturedChanges = (ctx: TStepContext, base: string) => {
+const capturedChanges = (ctx: TActivityContext, base: string) => {
   const captured = captureChanges(
     ctx.run,
     changeCapture({ base: ctx.baseline || base || 'main' }),
@@ -84,12 +84,12 @@ const capturedChanges = (ctx: TStepContext, base: string) => {
   return captured
 }
 
-export const activityStep = (
+export const agentActivity = (
   activity: TResolvedActivity,
-  options: TStepOptions,
-): TStep => {
+  options: TActivityOptions,
+): TActivity => {
   const { config, spec, gates } = activity
-  const instance = stepActivityRunName(config.name, options.instance)
+  const instance = activityRunName(config.name, options.instance)
   const accepted = (envelope: ReturnType<typeof Object>) =>
     envelopeAccepted(spec, envelope as never)
 
@@ -159,7 +159,7 @@ export const activityStep = (
         throw new Error(
           `cannot resume activityRun '${instance}': ${settled.error.message}. ` +
             'Either drop --resume so it runs again, or run that activity on ' +
-            `its own: just crust compose --steps ${config.name} --run-id ` +
+            `its own: just crust compose --activities ${config.name} --run-id ` +
             `${ctx.run.runId} "<the original request>"`,
         )
       }

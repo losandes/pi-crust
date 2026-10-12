@@ -84,7 +84,7 @@ test(
 test(
   [
     'given typedefs/envelope::narrowEnvelope',
-    'when two steps share an envelope shape',
+    'when two activities share an envelope shape',
     'it should not be asked to tell them apart',
   ].join(', '),
   () => {
@@ -94,8 +94,8 @@ test(
     // when
     const actual = narrowEnvelope(reviewOutput, envelope)
 
-    // then — it parses for either, which is why TStepContext.previousStep
-    // records WHICH step produced it. Required fields fix the cross-kind
+    // then — it parses for either, which is why TActivityContext.previousStep
+    // records WHICH activity produced it. Required fields fix the cross-kind
     // confusion; they cannot fix the same-kind one.
     expect(actual?.approved).toBe(false)
   },

@@ -1,5 +1,5 @@
 /**
- * The Planners, as steps. A closed set, deliberately.
+ * The Planners, as activities. A closed set, deliberately.
  *
  * Triage and the Operator answer the same question — what should happen —
  * and differ in what becomes of the answer: the Operator's chain is executed
@@ -19,15 +19,15 @@
 import { DEFAULT_ATTEMPTS } from '../../typedefs/activity'
 import type { TPlannerConfig } from '../../typedefs/activity'
 import { operatorPlanOutput } from '../../typedefs/envelope'
-import type { TStep, TStepOptions } from '../../typedefs/step'
+import type { TActivity, TActivityOptions } from '../../typedefs/runnable-activity'
 import { stepsValid } from '../gates'
-import { activityStep } from './activity-step'
+import { agentActivity } from './agent-activity'
 
-export const plannerStep = (
+export const plannerActivity = (
   planner: TPlannerConfig,
-  options: TStepOptions,
-): TStep =>
-  activityStep(
+  options: TActivityOptions,
+): TActivity =>
+  agentActivity(
     {
       config: {
         ...planner,

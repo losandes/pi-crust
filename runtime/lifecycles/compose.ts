@@ -4,8 +4,8 @@
  * pi-crust Compose — execute a Lifecycle, named or spelled out.
  *
  * Usage:
- *     bun .pi-crust/lifecycles/compose.ts "<prompt>" --lifecycle sdlc [--run-id a1b2c3d4] [--resume]
- *     bun .pi-crust/lifecycles/compose.ts "<prompt>" --steps plan,test,build [--run-id a1b2c3d4] [--resume]
+ *     just crust run "<prompt>" --lifecycle sdlc [--run-id a1b2c3d4] [--resume]
+ *     just crust run "<prompt>" --activities plan,test,build [--run-id a1b2c3d4] [--resume]
  *
  * The Composer does not decide what is appropriate for an objective — Triage
  * and the Operator do that. It validates the plan it is handed and runs it.
@@ -16,19 +16,20 @@
  * nothing here: an unknown name is refused at load with the list of what was
  * available, which is the job the compiler used to do.
  *
- * `--lifecycle` names one from `crust.lifecycles.yaml`, whose Stages and
- * dependencies decide the order. `--steps` spells the Activities out at the
- * call site. Naming both is a usage error rather than a precedence rule
- * nobody can remember.
+ * `--lifecycle` names one from `crust.lifecycles.yaml`, whose Stages decide
+ * the order. `--activities` spells the chain out at the call site, Stage by
+ * Stage: `,` ends a Stage and `+` joins Activities that run at the same time.
+ * Naming both is a usage error rather than a precedence rule nobody can
+ * remember.
  *
- * Activity Runs: engineer(request) -> one per named step, in the order given
+ * Activity Runs: engineer(request) -> one per named activity, in the order given
  *
  * This is the escape hatch that stops the workflows directory growing a file
  * per permutation. A chain worth repeating earns its own script — a two-line
- * one, listing the same step names — but a chain you want once lives here.
+ * one, listing the same activity names — but a chain you want once lives here.
  *
- * Repeats are allowed and meaningful: `--steps build,review,build,review` is
- * a fix loop written out longhand, and the second occurrence becomes
+ * Repeats are allowed and meaningful: `--activities build,review,build,review`
+ * is a fix loop written out longhand, and the second occurrence becomes
  * `build_2` — which is also the instance its attempt budget is kept against.
  *
  * One bounded loop comes for free: a chain whose LAST Activity is `review` or
@@ -40,91 +41,54 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../modules/typedefs/settlement'
-import { isPlannerName, PLANNER_NAMES } from '../modules/typedefs/activity'
 import type { TPiCrustConfig } from '../modules/typedefs/config'
 import type { TStage } from '../modules/typedefs/lifecycle'
 import { loadConfigWithNotes } from '../modules/use-cases/load-config'
 import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
-import { asSingleStage } from '../modules/use-cases/plan-units'
+import { parseActivities } from '../modules/use-cases/parse-activities'
 import { loadLifecycles } from '../modules/use-cases/load-lifecycles'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
+import { RUN_RECIPE } from '../modules/use-cases/recipe-line'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
 import { runWorkflow } from '../modules/use-cases/run-workflow'
 
 /**
- * The Activities a `--steps` list names, checked against the registry.
+ * A bad chain is a USAGE error (exit 2), not a failed run (exit 1).
  *
- * Checked HERE against what this repository offers, rather than against a
- * union in the package: a team that removed an Activity must be told it is
- * gone, and a team that added one must be able to name it.
- *
- * A Planner is refused rather than resolved. A Lifecycle names Activities,
- * and a Planner is not one — it is the thing that CHOOSES them, and running
- * it from inside a chain would be a chain choosing itself.
- */
-export const parseSteps = (
-  steps: string | undefined,
-  offered: readonly string[],
-): readonly string[] => {
-  const names = (steps ?? '')
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean)
-  if (names.length === 0) {
-    throw new Error(
-      '--steps is required: a comma-separated, ordered list. ' +
-        `This repository offers ${offered.join(', ')}`,
-    )
-  }
-  const planners = names.filter(isPlannerName)
-  if (planners.length > 0) {
-    throw new Error(
-      `${planners.join(', ')} cannot be named in a chain — ` +
-        `${PLANNER_NAMES.join(' and ')} CHOOSE a chain rather than being ` +
-        'part of one. Run `just crust operator "…"` or ' +
-        '`just crust triage "…"` instead.',
-    )
-  }
-  const unknown = names.filter((name) => !offered.includes(name))
-  if (unknown.length > 0) {
-    throw new Error(
-      `unknown activity(s): ${unknown.join(', ')} — this repository offers ` +
-        `${offered.join(', ')}`,
-    )
-  }
-  return names
-}
-
-/**
- * A bad step list is a USAGE error (exit 2), not a failed run (exit 1).
- *
- * It is settled here rather than thrown, because `runCli` turns any throw from
- * a handler into exit 1 — and something will branch on the difference between
- * "you asked for a step that does not exist" and "the run failed".
+ * It is settled in `main` rather than thrown, because `runCli` turns any throw
+ * from a handler into exit 1 — and something will branch on the difference
+ * between "you asked for an Activity that does not exist" and "the run
+ * failed".
  */
 /**
  * The plan to run, from whichever way the caller said it.
  *
  * Stages, not a flat list. A Lifecycle keeps the arrangement it declared, and
- * `--steps a,b,c` becomes the one serial Stage it has always meant — so both
- * spellings reach the engine as the same kind of thing, and the engine never
- * has to ask which way it was asked for.
+ * `--activities a,b,c` becomes the one serial Stage it has always meant, and
+ * `a,b+c` becomes two — so both spellings reach the engine as the same kind
+ * of thing, and the engine never has to ask which way it was asked for.
  */
 export const plannedActivities = (
   args: TWorkflowArgs,
   cfg: TPiCrustConfig,
   lifecyclesPath?: string,
 ): readonly TStage[] => {
-  if (args.lifecycle !== undefined && args.steps !== undefined) {
+  if (args.lifecycle !== undefined && args.activities !== undefined) {
     throw new Error(
-      'name a lifecycle or list the steps, not both — ' +
-        `got --lifecycle ${args.lifecycle} and --steps ${args.steps}`,
+      'name a lifecycle or list the activities, not both — ' +
+        `got --lifecycle ${args.lifecycle} and --activities ${args.activities}`,
     )
   }
-  const offered = cfg.activities.map((one) => one.name)
+  if (args.lifecycle === undefined && args.activities === undefined) {
+    throw new Error(
+      'name what to run: --lifecycle <name> for a configured Lifecycle, or ' +
+        '--activities a,b,c for a chain of your own (a+b runs two at once). ' +
+        '`just crust list` prints both.',
+    )
+  }
   if (args.lifecycle === undefined) {
-    return asSingleStage(parseSteps(args.steps, offered))
+    return parseActivities(args.activities, cfg.activities)
   }
   const lifecycles = loadLifecycles(lifecyclesPath, cfg)
   const found = lifecycleNamed(lifecycles, args.lifecycle)
@@ -162,7 +126,7 @@ export const main = (args: TWorkflowArgs): Promise<number> => {
 }
 
 if (import.meta.main) {
-  await runCli('.pi-crust/lifecycles/compose.ts', (args) =>
+  await runCli(RUN_RECIPE, (args) =>
     main(workflowArgs(args, resolvePrompt(args.prompt))),
   )
 }

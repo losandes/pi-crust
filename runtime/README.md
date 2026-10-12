@@ -33,7 +33,7 @@ The skill carries cookbooks for each of those and will load only the one your re
 ├── report.ts         where did a run stop, and what picks it back up
 ├── config/
 │   └── crust.config.yaml    the agent roster — one agent, one prompt, one purpose
-├── stages/           one per step — each runnable on its own
+├── stages/           the Planners: operator and triage
 ├── lifecycles/       compositions of stages: sdlc, bugfix, compose
 ├── modules/
 │   ├── typedefs/     types and zod schemas only
@@ -50,8 +50,8 @@ The skill carries cookbooks for each of those and will load only the one your re
 
 ```bash
 just crust demo                                  # two cheap read-only runs, end to end
-just crust plan "add a /health endpoint"         # one step, by name
-just crust sdlc "add a /health endpoint"         # identify → … → build → review → code-review
+just crust run "add a /health endpoint" --activities plan      # one Activity
+just crust run "add a /health endpoint" --lifecycle sdlc      # identify → … → code-review
 just crust report                                # where the last run got to
 just crust sessions                              # what just happened
 ```
@@ -59,7 +59,7 @@ just crust sessions                              # what just happened
 Every Activity `config/crust.activities.yaml` registers runs on its own, and `compose` runs any ordered subset of them:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps test,build,code-review
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,code-review
 ```
 
 The list is that file's, not this package's: add an entry and it is runnable, delete one and the capability is gone. A name nothing registers is refused before anything spawns, with the list of what was available.
@@ -69,7 +69,7 @@ A chain whose last Activity is `review` or `code-review` ends in a bounded revis
 `review` and `code-review` take `--scope <ref|range>`, so committed work can be judged, and the repository's own checks run on their own with no Lifecycle at all:
 
 ```bash
-just crust code-review "the /health work" --scope main...HEAD
+just crust run "the /health work" --activities code-review --scope main...HEAD
 just crust verify                                # routing.checks, for what you changed
 ```
 

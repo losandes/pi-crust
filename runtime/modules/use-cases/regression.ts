@@ -87,7 +87,7 @@ export const regressionVerdict = (params: {
       reason:
         `asked to return to '${request.activity}', which is not EARLIER in the ` +
         'chain. Regression goes backwards; a later stage is just the next ' +
-        'step.',
+        'activity.',
     }
   }
   if (attemptsLeft <= 0) {

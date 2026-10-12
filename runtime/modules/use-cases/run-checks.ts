@@ -158,25 +158,49 @@ export const runCheck = (
 export const failureOf = (check: TQualityCheckResult): string =>
   `${check.name}: \`${check.command}\` exited ${check.returncode}\n${check.outputTail}`.trimEnd()
 
+/** Said in one place, because the gate and `just crust verify` both say it. */
+export const NOTHING_DECLARED =
+  'no checks are declared: routing.checks in crust.config.yaml is empty, so ' +
+  'there is nothing to run. Declare a rule there to have changes verified.'
+
+export const NOTHING_MATCHED = (paths: number): string =>
+  `${paths} path(s) changed but no routing.checks matched them — add a rule ` +
+  'to routing.checks in crust.config.yaml, or narrow the change. Nothing ' +
+  'was verified.'
+
 /**
  * The checks the CHANGED PATHS select — the deterministic half of verification.
  *
- * Three outcomes, and the middle one is the reason this function exists:
+ * Four outcomes, and the two middle ones are the reason this function exists:
  *
- *   | changed paths | matched checks | verdict                               |
- *   |---------------|----------------|---------------------------------------|
- *   | none          | —              | passed: nothing changed, none apply   |
- *   | some          | 0              | FAILED: nothing was actually verified |
- *   | some          | N              | the real verdict                      |
+ *   | routing.checks | changed paths | matched | verdict                      |
+ *   |----------------|---------------|---------|------------------------------|
+ *   | empty          | —             | —       | passed: nothing was promised |
+ *   | declared       | none          | —       | passed: nothing changed      |
+ *   | declared       | some          | 0       | FAILED: nothing was verified |
+ *   | declared       | some          | N       | the real verdict             |
  *
- * A repository that forgot to declare `routing.checks` would otherwise get a
- * green verify forever. Zero checks passing is not the same claim as zero
- * checks failing, and only one of them is evidence.
+ * The first row is a correction. An empty registry used to fail every
+ * `checks` gate, which made the SHIPPED configuration unrunnable: `checks:
+ * []` is what an install stamps, the config file that holds it is in
+ * `protected_files`, and so a build agent met a gate it could not pass and
+ * could not fix. A factory whose first run cannot go green teaches nobody
+ * anything about verification.
+ *
+ * Declaring nothing and declaring a rule that does not match are different
+ * claims. Nothing declared is a repository that has not opted in; a rule that
+ * matched nothing is a repository that opted in and left this change
+ * uncovered, and only the second is evidence of a gap. Zero checks passing is
+ * still not the same claim as zero checks failing — which is why the third
+ * row is unchanged.
  */
 export const runVerification = (
   run: TRun,
   changedPaths: readonly string[],
 ): TQualityResult => {
+  if (run.cfg.routing.checks.length === 0) {
+    return { passed: true, checks: [], failures: [], artifacts: [] }
+  }
   if (changedPaths.length === 0) {
     return { passed: true, checks: [], failures: [], artifacts: [] }
   }
@@ -185,11 +209,7 @@ export const runVerification = (
     return {
       passed: false,
       checks: [],
-      failures: [
-        `${changedPaths.length} path(s) changed but no routing.checks ` +
-          'matched them — add a rule to routing.checks in crust.config.yaml, ' +
-          'or narrow the change. Nothing was verified.',
-      ],
+      failures: [NOTHING_MATCHED(changedPaths.length)],
       artifacts: [],
     }
   }

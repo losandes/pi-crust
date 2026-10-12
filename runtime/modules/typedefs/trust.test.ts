@@ -11,7 +11,7 @@ import {
 test(
   [
     'given typedefs/trust::parseTrustLevel',
-    'when a level between the steps is given',
+    'when a level between the activities is given',
     'it should round to the nearest ten',
   ].join(', '),
   () => {

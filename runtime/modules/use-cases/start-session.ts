@@ -68,7 +68,7 @@ const completedActivityRuns = (
   if (runId === undefined || runId === '') {
     throw new Error(
       '--resume needs --run-id: name the session to pick up. ' +
-        'Run `bun .pi-crust/report.ts` to see the most recent one.',
+        'Run `just crust report` to see the most recent one.',
     )
   }
   const state = readRunState(cfg.observability.db, runId)

@@ -140,7 +140,7 @@ export const stagePlan = (
  *
  * This discards the Stage boundary and the strategy with it, so it answers
  * "which Activities" and never "in what arrangement". It is what the menu
- * shows a person and what `--steps` expands to; the engine takes
+ * shows a person and what `--activities` expands to; the engine takes
  * `stagePlan()` instead, because flattening is the thing it must stop doing.
  */
 export const activityOrder = (

@@ -6,7 +6,7 @@
  */
 
 import { isFile } from '../data/files'
-import { resolvePromptPath } from '../data/prompt-files'
+import { resolvePromptPath, resolveReference } from '../data/prompt-files'
 import { resolveModel } from '../data/pi-agent'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
@@ -41,11 +41,26 @@ const problemsForAgent = (
         ],
   )
 
+  /*
+   * An extension that cannot be opened kills the agent AFTER the session is
+   * minted and the spend has started — pi exits 1 with "Extension path does
+   * not exist", several paid Activity Runs into a chain. The same check the
+   * prompts get costs nothing and moves it to before the run.
+   */
+  const extensions = agent.harness_engineering.flatMap((ref) =>
+    isFile(resolveReference(ref))
+      ? []
+      : [
+          `agent '${name}': harness extension not found: ${ref} ` +
+            `(looked in ${resolveReference(ref)})`,
+        ],
+  )
+
   const model = safeParseSettlement(() => resolveModel(agent.model))
   const modelProblems =
     model.status === 'ok' ? [] : [`agent '${name}': ${model.error.message}`]
 
-  return [...codingAgent, ...prompts, ...modelProblems]
+  return [...codingAgent, ...prompts, ...extensions, ...modelProblems]
 }
 
 const problemsFor = (cfg: TPiCrustConfig, name: string): readonly string[] => {

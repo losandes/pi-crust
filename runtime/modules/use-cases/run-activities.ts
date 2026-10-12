@@ -2,15 +2,15 @@
  * The driver: fold a context through an ordered list of Work Units.
  *
  * A Unit is one Activity, or a whole concurrent Stage. The fold does not
- * branch on which: it runs the Unit's steps, composes whatever they produced
+ * branch on which: it runs the Unit's activities, composes whatever they produced
  * into the context, and then gates. Everything that distinguishes serial from
  * concurrent was decided when the Units were built.
  *
- * Every step goes through `skipIfDone`, so `--resume` works on every workflow
+ * Every activity goes through `skipIfDone`, so `--resume` works on every workflow
  * built this way without any workflow knowing resume exists.
  *
  * It does NOT call `finish`. The workflow does, because a workflow may have an
- * acceptance criterion of its own on top of the steps' — and `finish` must be
+ * acceptance criterion of its own on top of the activities' — and `finish` must be
  * called exactly once, by whoever owns the run.
  */
 
@@ -21,7 +21,7 @@ import { violationsOf } from '../typedefs/gate'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TActivityRun } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
-import type { TStep, TStepContext, TUpstream } from '../typedefs/step'
+import type { TActivity, TActivityContext, TUpstream } from '../typedefs/runnable-activity'
 import type { TUnit } from '../typedefs/unit'
 import { activityGates, wantsStageGate } from '../typedefs/unit'
 import type { TAttemptLedger } from './attempts'
@@ -86,7 +86,7 @@ export const recordRequest = (
 export type TWaiting = Readonly<{ reason: TGateReason; path: string }>
 
 /** One Activity's result, named, so a composed context keeps its provenance. */
-type TRan = Readonly<{ step: TStep; result: Awaited<ReturnType<TStep['execute']>> }>
+type TRan = Readonly<{ activity: TActivity; result: Awaited<ReturnType<TActivity['execute']>> }>
 
 /**
  * Run every Activity in a Unit, concurrently when the Stage claimed it.
@@ -114,8 +114,8 @@ type TRan = Readonly<{ step: TStep; result: Awaited<ReturnType<TStep['execute']>
 const runStep = (
   run: TRun,
   unit: TUnit,
-  ctx: TStepContext,
-  step: TStep,
+  ctx: TActivityContext,
+  activity: TActivity,
   ledger: TAttemptLedger,
   params: Readonly<{ cause: string; feedback: readonly string[] }>,
 ): Promise<TRan> => {
@@ -124,12 +124,12 @@ const runStep = (
    * enforcement uses it to attribute a write by the path it landed on rather
    * than by the window it landed in.
    */
-  const given: TStepContext = {
+  const given: TActivityContext = {
     ...ctx,
     cohort:
       unit.strategy === 'concurrent'
-        ? unit.steps
-            .filter((other) => other.name !== step.name)
+        ? unit.activities
+            .filter((other) => other.name !== activity.name)
             .map((other) => other.name)
         : [],
     feedback: params.feedback,
@@ -137,36 +137,36 @@ const runStep = (
 
   return skipIfDone(
     run,
-    step.params,
+    activity.params,
     (handle) => {
-      ledger.spend(step.instance, params.cause)
+      ledger.spend(activity.instance, params.cause)
 
-      return step.execute(given, handle)
+      return activity.execute(given, handle)
     },
-    () => step.replay(given),
-  ).then((result) => ({ step, result }))
+    () => activity.replay(given),
+  ).then((result) => ({ activity, result }))
 }
 
 const runUnit = async (
   run: TRun,
   unit: TUnit,
-  ctx: TStepContext,
+  ctx: TActivityContext,
   ledger: TAttemptLedger,
 ): Promise<readonly TRan[]> => {
-  const one = (step: TStep): Promise<TRan> =>
-    runStep(run, unit, ctx, step, ledger, {
+  const one = (activity: TActivity): Promise<TRan> =>
+    runStep(run, unit, ctx, activity, ledger, {
       cause: FIRST_ATTEMPT,
       feedback: [],
     })
 
   if (unit.strategy !== 'concurrent') {
-    return await unit.steps.reduce<Promise<readonly TRan[]>>(
-      async (sofar, step) => [...(await sofar), await one(step)],
+    return await unit.activities.reduce<Promise<readonly TRan[]>>(
+      async (sofar, activity) => [...(await sofar), await one(activity)],
       Promise.resolve([]),
     )
   }
 
-  const settled = await Promise.allSettled(unit.steps.map(one))
+  const settled = await Promise.allSettled(unit.activities.map(one))
   const failures = settled.flatMap((outcome) =>
     outcome.status === 'rejected' ? [outcome.reason] : [],
   )
@@ -175,7 +175,7 @@ const runUnit = async (
   )
   if (failures.length > 0) {
     throw new Error(
-      `stage '${unit.stage}' lost ${failures.length} of ${unit.steps.length} ` +
+      `stage '${unit.stage}' lost ${failures.length} of ${unit.activities.length} ` +
         `activities; ${done.length} completed first and are in the trace:\n` +
         failures.map((reason) => `  - ${errorMessage(reason)}`).join('\n'),
     )
@@ -197,15 +197,15 @@ const claimedPaths = (envelope: TEnvelopeBase): readonly string[] =>
  */
 const judgeGates = (
   run: TRun,
-  step: TStep,
+  activity: TActivity,
   envelope: TEnvelopeBase,
 ): readonly string[] => {
-  const activityRun = activityRunFor(run, step.instance)
+  const activityRun = activityRunFor(run, activity.instance)
   if (activityRun === undefined) {
     return []
   }
 
-  return step.gates.flatMap((gate) => {
+  return activity.gates.flatMap((gate) => {
     const report = gate.check(envelope, run, claimedPaths(envelope))
     const found = violationsOf(report)
     run.tracer.gateRow(activityRun, gate.name, report)
@@ -237,30 +237,30 @@ const judgeGates = (
 const settleGates = (
   run: TRun,
   unit: TUnit,
-  ctx: TStepContext,
+  ctx: TActivityContext,
   ran: readonly TRan[],
   ledger: TAttemptLedger,
 ): Promise<readonly TRan[]> => {
   const settleOne = async (entry: TRan): Promise<TRan> => {
     const envelope = entry.result.previous
-    if (envelope === undefined || entry.step.gates.length === 0) {
+    if (envelope === undefined || entry.activity.gates.length === 0) {
       return entry
     }
-    const violations = judgeGates(run, entry.step, envelope)
+    const violations = judgeGates(run, entry.activity, envelope)
     if (violations.length === 0) {
-      if (entry.step.commit) {
+      if (entry.activity.commit) {
         commitActivity(
           run,
-          entry.step.instance,
-          handleIdOf(run, entry.step.instance),
+          entry.activity.instance,
+          handleIdOf(run, entry.activity.instance),
           envelope,
         )
       }
 
       return entry
     }
-    const standing = activityRunFor(run, entry.step.instance)
-    if (ledger.remaining(entry.step.instance, entry.step.attempts) === 0) {
+    const standing = activityRunFor(run, entry.activity.instance)
+    if (ledger.remaining(entry.activity.instance, entry.activity.attempts) === 0) {
       // The row said success because the Activity ran; its work is what did
       // not hold, and a trace that leaves it green is a trace that disagrees
       // with the reason the run stopped.
@@ -270,9 +270,9 @@ const settleGates = (
         )
       }
       throw new Error(
-        `${entry.step.instance} failed its gates and has no attempts left:\n- ` +
+        `${entry.activity.instance} failed its gates and has no attempts left:\n- ` +
           `${violations.join('\n- ')}\n\n` +
-          ledger.report(entry.step.instance, entry.step.attempts),
+          ledger.report(entry.activity.instance, entry.activity.attempts),
       )
     }
     if (standing !== undefined) {
@@ -283,13 +283,13 @@ const settleGates = (
       )
     }
     run.console.note(
-      `${entry.step.instance}: ${violations.length} gate violation(s) — ` +
+      `${entry.activity.instance}: ${violations.length} gate violation(s) — ` +
         'running it again ' +
-        `(attempt ${ledger.spent(entry.step.instance) + 1} of ${entry.step.attempts})`,
+        `(attempt ${ledger.spent(entry.activity.instance) + 1} of ${entry.activity.attempts})`,
     )
 
     return settleOne(
-      await runStep(run, unit, ctx, entry.step, ledger, {
+      await runStep(run, unit, ctx, entry.activity, ledger, {
         cause: gateCause(violations),
         feedback: violations,
       }),
@@ -320,7 +320,7 @@ const recordUnreached = (
   status: 'blocked' | 'cancelled',
   because: string,
 ): void => {
-  const names = remaining.flatMap((unit) => unit.steps.map((step) => step.name))
+  const names = remaining.flatMap((unit) => unit.activities.map((activity) => activity.name))
   if (names.length === 0) {
     return
   }
@@ -352,7 +352,7 @@ const noteDisagreement = (
     return
   }
   const split = ran
-    .map((one) => `${one.step.name} ${one.result.accepted ? 'accepted' : 'rejected'}`)
+    .map((one) => `${one.activity.name} ${one.result.accepted ? 'accepted' : 'rejected'}`)
     .join(', ')
   run.console.note(`'${unit.stage}' disagreed with itself: ${split}`)
   run.tracer.event({
@@ -375,35 +375,35 @@ const noteDisagreement = (
 export type TRunUnitsParams = Readonly<{
   run: TRun
   units: readonly TUnit[]
-  start: TStepContext
+  start: TActivityContext
   approveAfter?: readonly string[]
   onWaiting?: (waiting: TWaiting) => void
   trust?: number
   ledger?: TAttemptLedger
 }>
 
-export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
+export const runUnits = (params: TRunUnitsParams): Promise<TActivityContext> => {
   const { run, units, start } = params
   const approveAfter = params.approveAfter ?? []
   const onWaiting = params.onWaiting ?? (() => undefined)
   const trust = params.trust ?? TRUST_DEFAULT
   const ledger = params.ledger ?? attemptLedger()
-  const names = units.flatMap((unit) => unit.steps.map((step) => step.name))
+  const names = units.flatMap((unit) => unit.activities.map((activity) => activity.name))
   const gatedActivities = activityGates(approveAfter)
 
   /** Where in `names` a Unit's first Activity sits, for the regression rules. */
   const startOf = (index: number): number =>
-    units.slice(0, index).reduce((sofar, unit) => sofar + unit.steps.length, 0)
+    units.slice(0, index).reduce((sofar, unit) => sofar + unit.activities.length, 0)
 
   /** The Unit that holds a named Activity, for a regression's destination. */
   const unitHolding = (name: string): number =>
-    units.findIndex((unit) => unit.steps.some((step) => step.name === name))
+    units.findIndex((unit) => unit.activities.some((activity) => activity.name === name))
 
   const fold = async (
-    ctx: TStepContext,
+    ctx: TActivityContext,
     index: number,
     history: readonly TRegressionRecord[],
-  ): Promise<TStepContext> => {
+  ): Promise<TActivityContext> => {
     const unit = units[index]
     if (unit === undefined) {
       return ctx
@@ -420,7 +420,7 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
     const upstream: readonly TUpstream[] = ran.flatMap((one) =>
       one.result.previous === undefined
         ? []
-        : [{ step: one.step.name, envelope: one.result.previous }],
+        : [{ activity: one.activity.name, envelope: one.result.previous }],
     )
     /*
      * The envelope a single-upstream consumer reads.
@@ -433,27 +433,27 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
      */
     const primary = ran[0]
     const last = ran.at(-1)
-    const next: TStepContext = {
+    const next: TActivityContext = {
       ...ctx,
       previous:
         unit.strategy === 'concurrent'
           ? primary?.result.previous
           : last?.result.previous,
       previousStep:
-        unit.strategy === 'concurrent' ? primary?.step.name : last?.step.name,
+        unit.strategy === 'concurrent' ? primary?.activity.name : last?.activity.name,
       upstream,
       cohort: [],
       outcomes: [
         ...ctx.outcomes,
         ...ran.map((one) => ({
-          step: one.step.name,
+          activity: one.activity.name,
           accepted: one.result.accepted,
         })),
       ],
     }
 
-    const step = (unit.strategy === 'concurrent' ? primary : last)?.step
-    if (step === undefined) {
+    const activity = (unit.strategy === 'concurrent' ? primary : last)?.activity
+    if (activity === undefined) {
       return fold(next, index + 1, history)
     }
     const result = (unit.strategy === 'concurrent' ? primary : last)?.result
@@ -468,7 +468,7 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
      * approve, resume, replay, gate, approve, forever. Observed exactly that
      * way on the first live test of resuming from a gate.
      */
-    const replayed = ran.every((one) => run.resume.has(one.step.name))
+    const replayed = ran.every((one) => run.resume.has(one.activity.name))
     /*
      * A stage gate is spelled `stage:<name>` and only fires on the Unit that
      * ends the Stage. In a serial Stage that is its last Activity, so
@@ -481,10 +481,10 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
       ? []
       : ran.flatMap((one) => {
           const reason = gateReason({
-            activity: one.step.name,
+            activity: one.activity.name,
             envelope: one.result.previous,
             approveAfter: stageGated
-              ? [...gatedActivities, one.step.name]
+              ? [...gatedActivities, one.activity.name]
               : gatedActivities,
             hasSuccessor: index + 1 < units.length,
             trust,
@@ -547,14 +547,14 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
     for (const one of ran) {
       for (const decided of selfAnswered(one.result.previous, trust)) {
         run.console.note(
-          `'${one.step.name}' answered its own question: ${decided.question} → ${decided.answer}`,
+          `'${one.activity.name}' answered its own question: ${decided.question} → ${decided.answer}`,
         )
         run.tracer.event({
           run_id: run.runId,
-          activity_run_id: handleIdOf(run, one.step.name),
+          activity_run_id: handleIdOf(run, one.activity.name),
           type: 'log',
           name: 'self_answered',
-          payload: { activity: one.step.name, ...decided, trust },
+          payload: { activity: one.activity.name, ...decided, trust },
         })
       }
     }
@@ -565,7 +565,7 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
         : blockingQuestions(result?.previous, trust)
     if (trailing.length > 0) {
       run.console.note(
-        `'${step.name}' finished the chain with ${trailing.length} open ` +
+        `'${activity.name}' finished the chain with ${trailing.length} open ` +
           'question(s) — nothing is blocked, but they are yours to answer:',
       )
       for (const question of trailing) {
@@ -573,10 +573,10 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
       }
       run.tracer.event({
         run_id: run.runId,
-        activity_run_id: handleIdOf(run, step.name),
+        activity_run_id: handleIdOf(run, activity.name),
         type: 'log',
         name: 'open_questions',
-        payload: { activity: step.name, questions: trailing },
+        payload: { activity: activity.name, questions: trailing },
       })
     }
 
@@ -587,8 +587,8 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
      * of the chain before anybody was asked.
      */
     const destination = units
-      .flatMap((one) => one.steps)
-      .find((step) => step.name === regressionOf(result?.previous)?.activity)
+      .flatMap((one) => one.activities)
+      .find((activity) => activity.name === regressionOf(result?.previous)?.activity)
     const verdict = regressionVerdict({
       request: regressionOf(result?.previous),
       names,
@@ -614,17 +614,17 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
         run_id: run.runId,
         type: 'log',
         name: `regression_${verdict.kind}`,
-        payload: { from: step.name, reason: verdict.reason },
+        payload: { from: activity.name, reason: verdict.reason },
       })
       return {
         ...next,
-        outcomes: [...next.outcomes, { step: step.name, accepted: false }],
+        outcomes: [...next.outcomes, { activity: activity.name, accepted: false }],
       }
     }
 
     if (verdict.kind === 'regress') {
       const record: TRegressionRecord = {
-        from: step.name,
+        from: activity.name,
         to: verdict.to,
         because: regressionOf(result?.previous)?.because ?? '',
       }
@@ -643,7 +643,7 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
       if (destination !== undefined) {
         ledger.spend(
           destination.instance,
-          regressionCause(step.name, record.because),
+          regressionCause(activity.name, record.because),
         )
       }
       // Re-running a stage means its earlier success no longer settles the
@@ -668,27 +668,27 @@ export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
  *
  * The revise loop is the honest example: it re-runs one Activity and then one
  * reviewer, which is a sequence by construction and has no Stage to belong
- * to. Expressed as one Unit per step, which is what serial means.
+ * to. Expressed as one Unit per activity, which is what serial means.
  */
-export const runSteps = (
+export const runActivities = (
   params: Readonly<{
     run: TRun
-    steps: readonly TStep[]
-    start: TStepContext
+    activities: readonly TActivity[]
+    start: TActivityContext
     approveAfter?: readonly string[]
     onWaiting?: (waiting: TWaiting) => void
     trust?: number
     ledger?: TAttemptLedger
   }>,
-): Promise<TStepContext> => {
-  const { steps, ...rest } = params
+): Promise<TActivityContext> => {
+  const { activities, ...rest } = params
 
   return runUnits({
     ...rest,
-    units: steps.map((step) => ({
-      stage: step.name,
+    units: activities.map((activity) => ({
+      stage: activity.name,
       strategy: 'serial' as const,
-      steps: [step],
+      activities: [activity],
       endsStage: true,
     })),
   })

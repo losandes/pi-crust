@@ -1,3 +1,4 @@
+import { byStart } from '../lib/order'
 import type { ActivityRun } from '../lib/types'
 import styles from './ActivityRunDots.module.css'
 
@@ -9,7 +10,9 @@ const GLYPHS: Readonly<Record<string, string>> = {
 }
 
 export const ActivityRunDots = ({ activityRuns }: { activityRuns: readonly ActivityRun[] }) => {
-  const ordered = activityRuns.toSorted((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
+  // By start, not by `seq`: two dots for a concurrent Stage must not claim
+  // an order the run did not have.
+  const ordered = activityRuns.toSorted(byStart)
 
   if (ordered.length === 0) return <span className="faint">{'\u2014'}</span>
 

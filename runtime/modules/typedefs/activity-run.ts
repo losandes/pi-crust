@@ -22,11 +22,11 @@ export const ACTIVITY_RUN_STATUSES = [
   'fail',
   'waiting',
   /*
-   * Was successful; has been replaced by a later run of the same step.
+   * Was successful; has been replaced by a later run of the same activity.
    *
-   * Not 'fail' — the step did its job and the record of what it decided is
+   * Not 'fail' — the activity did its job and the record of what it decided is
    * still worth reading. Resume keys off `success`, so this is also what
-   * makes a steered step run again instead of being skipped.
+   * makes a steered activity run again instead of being skipped.
    */
   'superseded',
   /*

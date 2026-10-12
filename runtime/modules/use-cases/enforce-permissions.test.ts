@@ -15,11 +15,7 @@ const configWith = (
 ): TPiCrustConfig =>
   crustConfigSchema.parse({
     defaults: {
-      protected_files: [
-        '.pi-crust/modules/',
-        '.pi-crust/config/',
-        '.pi-crust/stages/*.ts',
-      ],
+      protected_files: ['.pi-crust/config/', 'tools/release/*.ts'],
       data_dir: '.pi-crust/data',
     },
     agents: agents.map((agent) => ({
@@ -44,14 +40,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const pattern = '.pi-crust/stages/*.ts'
+    const pattern = 'tools/release/*.ts'
 
     // when
-    const withinSegment = matchesPattern('.pi-crust/stages/plan.ts', pattern)
-    const acrossSlash = matchesPattern(
-      '.pi-crust/stages/nested/plan.ts',
-      pattern,
-    )
+    const withinSegment = matchesPattern('tools/release/cut.ts', pattern)
+    const acrossSlash = matchesPattern('tools/release/nested/cut.ts', pattern)
 
     // then
     expect(withinSegment).toEqual(true)
@@ -149,7 +142,7 @@ test(
 
     // when
     const protectedPath = permitted(
-      '.pi-crust/modules/use-cases/run-checks.ts',
+      '.pi-crust/config/crust.config.yaml',
       agentNamed(cfg, 'builder'),
       cfg,
     )
@@ -174,18 +167,18 @@ test(
   () => {
     // given
     const cfg = configWith([
-      { name: 'maintainer', writes: ['.pi-crust/modules/'] },
+      { name: 'maintainer', writes: ['.pi-crust/config/'] },
       { name: 'builder', writes: ['*'] },
     ])
 
     // when
     const unlocked = permitted(
-      '.pi-crust/modules/data/git.ts',
+      '.pi-crust/config/crust.config.yaml',
       agentNamed(cfg, 'maintainer'),
       cfg,
     )
     const stillBarred = permitted(
-      '.pi-crust/modules/data/git.ts',
+      '.pi-crust/config/crust.config.yaml',
       agentNamed(cfg, 'builder'),
       cfg,
     )

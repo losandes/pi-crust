@@ -1,9 +1,9 @@
 /**
  * The bounded revise loop: a chain that ends in a review answers it.
  *
- * Any chain whose last step is `review` or `code-review` feeds the blocking
+ * Any chain whose last activity is `review` or `code-review` feeds the blocking
  * findings back to the builder as a `revise` activityRun, re-reviews, and stops —
- * approved, deadlocked, or out of rounds. It is the step library's loop now,
+ * approved, deadlocked, or out of rounds. It is the activity library's loop now,
  * not one workflow's hand-written control flow.
  *
  * Bounded by the `revise` instance's own attempt budget, which is the
@@ -37,8 +37,8 @@ import type { TPiCrustConfig } from '../typedefs/config'
 import type { TReviewOutput } from '../typedefs/envelope'
 import { buildOutput, narrowEnvelope, reviewOutput } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
-import type { TStep, TStepContext, TStepOptions } from '../typedefs/step'
-import { acceptedExcluding, allAccepted, DEFAULT_STEP_OPTIONS } from '../typedefs/step'
+import type { TActivity, TActivityContext, TActivityOptions } from '../typedefs/runnable-activity'
+import { acceptedExcluding, allAccepted, DEFAULT_ACTIVITY_OPTIONS } from '../typedefs/runnable-activity'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger, reviseCause } from './attempts'
 import type { TRoundRecord } from './dispute-ledger'
@@ -50,13 +50,13 @@ import {
   writeLedger,
 } from './dispute-ledger'
 import { disputesSupported } from './gates'
-import { runSteps } from './run-steps'
-import { activityStep, resolveSteps } from './steps'
+import { runActivities } from './run-activities'
+import { agentActivity, runnableActivities } from './activities'
 
 /** The Activity Run name every round of the loop runs under. */
 export const REVISE = 'revise'
 
-/** Steps that end in a verdict the loop can answer. */
+/** Activities that end in a verdict the loop can answer. */
 export const REVIEW_STEPS = ['review', 'code-review'] as const
 
 
@@ -67,13 +67,13 @@ export type TLoopOutcome =
   | 'exhausted'
 
 export type TReviseLoopResult = Readonly<{
-  ctx: TStepContext
+  ctx: TActivityContext
   outcome: TLoopOutcome
   accepted: boolean
   reason: string
 }>
 
-/** The review step a chain ends in, or '' when it does not end in one. */
+/** The review activity a chain ends in, or '' when it does not end in one. */
 export const trailingReview = (names: readonly string[]): string => {
   const last = names.at(-1) ?? ''
   return (REVIEW_STEPS as readonly string[]).includes(last) ? last : ''
@@ -118,18 +118,18 @@ export const loopAgents = (
 }
 
 /**
- * The reviser, as a step named `revise`.
+ * The reviser, as a activity named `revise`.
  *
  * Its own output type and prompts, plus `disputesSupported`, which is what
  * stops "I disagree" being an answer. Every round runs under the same
  * Activity Run name, so every round comes out of one budget rather than
  * minting a fresh one by calling itself `revise_2`.
  */
-export const reviseStep = (
+export const reviseActivity = (
   reviser: TActivityConfig,
-  options: Readonly<Partial<TStepOptions>>,
-): TStep => {
-  const step = activityStep(
+  options: Readonly<Partial<TActivityOptions>>,
+): TActivity => {
+  const activity = agentActivity(
     {
       config: {
         ...reviser,
@@ -141,10 +141,10 @@ export const reviseStep = (
       spec: buildOutput,
       gates: [disputesSupported],
     },
-    { ...DEFAULT_STEP_OPTIONS, ...options, instance: 1 },
+    { ...DEFAULT_ACTIVITY_OPTIONS, ...options, instance: 1 },
   )
 
-  return { ...step, name: REVISE, instance: REVISE, params: { ...step.params, name: REVISE } }
+  return { ...activity, name: REVISE, instance: REVISE, params: { ...activity.params, name: REVISE } }
 }
 
 /** What `finish` is told, per outcome. The developer's next move is in it. */
@@ -171,14 +171,14 @@ export const outcomeReason = (
  * The verdict a context carries, or a refusal to invent one.
  *
  * A loop that reaches here without a review envelope has been composed wrong
- * (`--steps build,review` is what earns it), and guessing an empty verdict
+ * (`--activities build,review` is what earns it), and guessing an empty verdict
  * would send the builder to revise against nothing.
  */
-const reviewOf = (ctx: TStepContext): TReviewOutput => {
+const reviewOf = (ctx: TActivityContext): TReviewOutput => {
   const review = reviewFrom(ctx)
   if (review === undefined) {
     throw new Error(
-      'revise loop: the step before it produced no review envelope \u2014 ' +
+      'revise loop: the activity before it produced no review envelope \u2014 ' +
         'the loop only applies to a chain ending in review or code-review',
     )
   }
@@ -186,37 +186,37 @@ const reviewOf = (ctx: TStepContext): TReviewOutput => {
 }
 
 /**
- * The review a context carries, or undefined when the last step was not one.
+ * The review a context carries, or undefined when the last activity was not one.
  *
- * The step name is the discriminator, not the payload: `reviewOutputSchema`
+ * The activity name is the discriminator, not the payload: `reviewOutputSchema`
  * accepts a build envelope and fills `approved: false` from its default, so
  * sniffing the shape would read "not approved" off work that was never judged.
  */
-const reviewFrom = (ctx: TStepContext): TReviewOutput | undefined =>
+const reviewFrom = (ctx: TActivityContext): TReviewOutput | undefined =>
   (REVIEW_STEPS as readonly string[]).includes(ctx.previousStep ?? '')
     ? narrowEnvelope(reviewOutput, ctx.previous)
     : undefined
 
-const approvedOf = (ctx: TStepContext): boolean =>
+const approvedOf = (ctx: TActivityContext): boolean =>
   reviewFrom(ctx)?.approved === true
 
 type TLoopState = Readonly<{
-  ctx: TStepContext
+  ctx: TActivityContext
   rounds: readonly TRoundRecord[]
 }>
 
 /**
  * Run the loop. Returns what the workflow should settle the run with.
  *
- * Every activityRun goes through `runSteps`, so `--resume`, tracing and gates need
+ * Every activityRun goes through `runActivities`, so `--resume`, tracing and gates need
  * nothing new — the loop is composition, not a second driver.
  */
 export const runReviseLoop = (
   run: TRun,
   params: Readonly<{
     names: readonly string[]
-    options: Readonly<Partial<TStepOptions>>
-    ctx: TStepContext
+    options: Readonly<Partial<TActivityOptions>>
+    ctx: TActivityContext
     fallbackReason: string
     /** the run's one budget; the loop spends from it like everything else */
     ledger?: TAttemptLedger
@@ -312,9 +312,9 @@ export const runReviseLoop = (
     // runs: it is the question the loop exists to re-ask, and leaving it in
     // would make a later approval unable to turn the run green. Everything
     // before it — a failed `verify`, say — stays, and stays decisive.
-    const revised = await runSteps({
+    const revised = await runActivities({
       run,
-      steps: [reviseStep(reviser, params.options)],
+      activities: [reviseActivity(reviser, params.options)],
       start: {
         ...state.ctx,
         /*
@@ -327,9 +327,9 @@ export const runReviseLoop = (
       ledger,
     })
     const revise = narrowEnvelope(buildOutput, revised.previous)
-    const reviewed = await runSteps({
+    const reviewed = await runActivities({
       run,
-      steps: resolveSteps([reviewName], run.cfg, {
+      activities: runnableActivities([reviewName], run.cfg, {
         ...params.options,
         instance: reviewsSoFar + attempt,
       }),

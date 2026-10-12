@@ -6,7 +6,7 @@ Run a structured SDLC of autonomous, specialist AI agents in your repo. Watch it
 
 Four problems, and none of them is "write better code than a developer working with an agent directly".
 
-**An agent follows a process differently every time.** You agree on plan, build, test, review — and then it is followed approximately. A step gets skipped because the change looked small; a suite is reported passing from a run three edits ago. Nothing stops it, because the process lives in prose that a model interprets.
+**An agent follows a process differently every time.** You agree on plan, build, test, review — and then it is followed approximately. An Activity gets skipped because the change looked small; a suite is reported passing from a run three edits ago. Nothing stops it, because the process lives in prose that a model interprets.
 
 **A claim and a fact are indistinguishable in prose.** "All 97 files are correct" reads the same whether anything was checked. This is the failure that costs the most and shows the least.
 
@@ -22,7 +22,7 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 
 ## How
 
-**The sequence is a data structure, not an instruction.** A workflow is a list of step names folded by a function. A model cannot skip a stage, because the model is not doing the sequencing. Deterministic code runs the sequence, and calls specialist agents when it's their turn.
+**The sequence is a data structure, not an instruction.** A workflow is a list of Activity names folded by a function. A model cannot skip a stage, because the model is not doing the sequencing. Deterministic code runs the sequence, and calls specialist agents when it's their turn.
 
 **Every claim is addressable.** Agents return typed envelopes, not prose, and the harness verifies them before accepting. A path claimed as changed must exist. An approval that ships blocking items is refused. A verification that matched no checks fails. An agent that doesn't finish it's work is re-prompted rather than credited.
 
@@ -30,7 +30,7 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 
 **Authority is placed where it can be enforced.** `writes:` per agent and `protected_files` in the config are checked against the filesystem after every call; unauthorised changes are rolled back and the run is discontinued. The reviewer agent is not allowed to fix what it was asked only to judge. pi-crust is not allowed to edit itself.
 
-**State is external.** The trace database and the handoff directory outlive the session, so "where did this stop and why" is answered from data, by you or by an agent, hours later. It is resumable. You can branch from a step into a new session to steer into an alternate set of deliverables or steps.
+**State is external.** The trace database and the handoff directory outlive the session, so "where did this stop and why" is answered from data, by you or by an agent, hours later. It is resumable. You can branch from an Activity Run into a new session to steer into an alternate set of deliverables.
 
 ## What
 
@@ -81,12 +81,13 @@ These run in a repository pi-crust has been stamped into: `bun <pi-crust>/script
 just crust please                          # answer questions, get the command
 # your own models/colours: cp .pi-crust/config/crust.config.local.example.yaml \
 #                             .pi-crust/config/crust.config.local.yaml
-just crust sdlc "<what you want>"          # the whole lifecycle, nine agent calls
-just crust bugfix "<...>"                  # a reported bug, from symptom to fix
-just crust de-risk "<...>"                 # prove the risky part before building it
-just crust compose "<...>" --steps plan,test,build
-just crust operator "<...>"                # it chooses the steps, then runs them
-just crust code-review "<...>" --scope apps/gateway
+just crust list                            # every Lifecycle and Activity this repo offers
+just crust run "<...>" --lifecycle sdlc    # the whole lifecycle, nine agent calls
+just crust run "<...>" --lifecycle bugfix  # a reported bug, from symptom to fix
+just crust run "<...>" --activities plan,test,build
+just crust run "<...>" --activities plan,build,review+code-review   # + runs at once
+just crust operator "<...>"                # it chooses the chain, then runs it
+just crust run "<...>" --activities code-review --scope apps/gateway
 just crust report <run-id>                 # where it got to, and what finishes it
 ```
 
@@ -98,9 +99,9 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 
 **Gate the decisions that are expensive to get wrong.** `--approve-after` is opt-in and the run exits rather than blocking, so a gate costs you nothing until you answer it. Two escalations happen without being asked for: a consequential unresolved question, and a second regression to the same stage.
 
-**Read the plan before the build runs.** `just crust plan` then `just crust compose --run-id <id> --steps build` is cheaper than discovering a bad plan at review.
+**Read the plan before the build runs.** `just crust run "<...>" --activities plan` then `just crust run "<...>" --run-id <id> --activities build` is cheaper than discovering a bad plan at review.
 
 **Declare your checks.** `routing.checks` is where the `checks` gate gets its commands, and a path that matches no rule fails rather than passing quietly. The convention checkers belong here: a violation caught by a command costs nothing, and the same violation caught by a reviewer costs a build-sized call.
 
-**Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each step.
+**Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each Activity.
 

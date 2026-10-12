@@ -164,7 +164,7 @@ test(
     'it should REPLACE the default rather than append to it',
   ].join(' '),
   () => {
-    // given — option 0 is a lifecycle and is preselected, cursor on a step
+    // given — option 0 is a lifecycle and is preselected, cursor on a activity
     const state = { ...initialMenu([0], 4), cursor: 4 }
 
     // when
@@ -264,7 +264,7 @@ test(
     'it should replace it, because both answer the whole question',
   ].join(' '),
   () => {
-    // given — 0..2 are lifecycles, 3 is an operator, 4+ are steps
+    // given — 0..2 are lifecycles, 3 is an operator, 4+ are activities
     const state = { ...initialMenu([0], 3), cursor: 3 }
 
     // when
@@ -278,7 +278,7 @@ test(
 test(
   [
     'given use-cases/menu::applyExclusiveKey',
-    'when an operator is held and a step is chosen',
+    'when an operator is held and a activity is chosen',
     'it should drop the operator rather than run both',
   ].join(' '),
   () => {
@@ -296,8 +296,8 @@ test(
 test(
   [
     'given use-cases/menu::applyExclusiveKey',
-    'when steps are held and an operator is chosen',
-    'it should clear them, because naming steps is what an operator replaces',
+    'when activities are held and an operator is chosen',
+    'it should clear them, because naming activities is what an operator replaces',
   ].join(' '),
   () => {
     // given

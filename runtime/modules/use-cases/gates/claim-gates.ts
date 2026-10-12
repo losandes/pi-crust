@@ -104,7 +104,7 @@ export const diffMatchesClaims: TGate = {
  *
  * Three claims that cost nothing to check and everything to get wrong:
  *
- *   - `reproduced: true` with no steps is a reproduction nobody else can run,
+ *   - `reproduced: true` with no activities is a reproduction nobody else can run,
  *     which is indistinguishable from one that never happened.
  *   - `confidence: "confirmed"` without a reproduction is the exact confusion
  *     this stage exists to stop — a cause reasoned about, labelled as found.
@@ -125,16 +125,16 @@ export const reproductionSupported: TGate = {
       unresolved?: readonly unknown[]
     }>
     const reproduced = claim.reproduced === true
-    const steps = claim.steps_to_reproduce ?? []
+    const activities = claim.steps_to_reproduce ?? []
     const unresolved = claim.unresolved ?? []
 
     const withSteps = addCheck(
       emptyReport,
       'steps_to_reproduce',
-      !reproduced || steps.length > 0,
+      !reproduced || activities.length > 0,
       reproduced
-        ? `${steps.length} step(s) recorded`
-        : 'not reproduced, so no steps are required',
+        ? `${activities.length} activity(s) recorded`
+        : 'not reproduced, so no activities are required',
     )
     const withConfidence = addCheck(
       withSteps,

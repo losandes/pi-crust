@@ -14,7 +14,7 @@
  * where an additions-only file could only ever add to a fixed set.
  *
  * The order of the array is the order interactive lists display. Nothing else
- * records a sequence, so nothing else can drift out of step with the
+ * records a sequence, so nothing else can drift out of activity with the
  * Activities that actually exist.
  */
 
@@ -204,7 +204,7 @@ export const plannerFaults = (
  * `- name: builder` with a model and nothing else has no prompts, which a
  * whole Activity must have. So the local file is read as records, merged,
  * and the RESULT is what gets validated. A mistake in a local layer still
- * fails, one step later, against the merged Activity it produced.
+ * fails, one activity later, against the merged Activity it produced.
  */
 export const activityPatchFileSchema = z.object({
   activities: z.array(z.record(z.string(), z.unknown())).default([]),

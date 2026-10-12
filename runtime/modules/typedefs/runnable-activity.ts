@@ -1,15 +1,15 @@
 /**
- * Steps: one named, independently runnable unit of a workflow.
+ * Activities: one named, independently runnable unit of a workflow.
  *
- * A workflow used to be a hand-written sequence of activity runs. A step is that same
+ * A workflow used to be a hand-written sequence of activity runs. A activity is that same
  * activityRun plus the two things composition needs — the agents it requires (so a
  * chain validates its whole roster before anything spawns) and how it is
  * REPLAYED (so `--resume` can skip it without inventing its result).
  *
- * Every step is runnable on its own (`bun .pi-crust/stages/<step>.ts`), and
+ * Every activity is runnable on its own (`just crust run "..." --activities <activity>`), and
  * `compose.ts` runs any ordered subset of them.
  *
- * A step's NAME is an Activity's name, and Activities are configuration:
+ * A activity's NAME is an Activity's name, and Activities are configuration:
  * there is no union of them here any more, and no registry in TypeScript for
  * a name to be checked against. "Is this a real Activity" is answered at
  * load, by the loader, against `crust.activities.yaml` / which is the price
@@ -21,20 +21,20 @@ import type { TGate } from './gate'
 import type { TActivityRunParams } from './activity-run'
 import type { TActivityRunHandle, TRun } from './run'
 
-/** What a step is handed. Folded forward by `runSteps`, never mutated. */
+/** What a activity is handed. Folded forward by `runActivities`, never mutated. */
 /** One upstream result, with the Activity that produced it. */
 export type TUpstream = Readonly<{
-  step: string
+  activity: string
   envelope: TEnvelopeBase
 }>
 
-export type TStepContext = Readonly<{
+export type TActivityContext = Readonly<{
   run: TRun
   prompt: string
-  /** the previous step's envelope — what an agent reads as previous_envelope */
+  /** the previous activity's envelope — what an agent reads as previous_envelope */
   previous: TEnvelopeBase | undefined
   /**
-   * Which step produced `previous`, and the ONLY reliable way to know what it
+   * Which activity produced `previous`, and the ONLY reliable way to know what it
    * is. Every envelope schema defaults its distinguishing fields, so a build
    * envelope parses cleanly as a review with `approved: false` — the shape
    * cannot answer "is this a verdict", and a consumer that asks it gets a
@@ -65,19 +65,19 @@ export type TStepContext = Readonly<{
   /** HEAD as it was before this run committed anything, for `document` */
   baseline: string
   /**
-   * What each step decided, in order — the record, not a running total.
+   * What each activity decided, in order — the record, not a running total.
    *
    * It was two booleans: `accepted`, and `priorAccepted` for "the same thing
-   * excluding the most recent step", which the revise loop needs because it
+   * excluding the most recent activity", which the revise loop needs because it
    * re-asks the question the last review already answered. Two fields with an
    * invariant between them is one more than the data requires, and the
-   * derived one was subtly wrong: it excluded the LAST step, so a chain
+   * derived one was subtly wrong: it excluded the LAST activity, so a chain
    * ending `review, code-review` kept the earlier review's rejection ANDed in
    * and could never come back green however well the loop went.
    *
    * Keeping the outcomes lets a caller exclude exactly what it is re-asking.
    */
-  outcomes: readonly TStepOutcome[]
+  outcomes: readonly TActivityOutcome[]
   /**
    * What a gate said about this Activity's LAST attempt, fed back to it.
    *
@@ -89,34 +89,34 @@ export type TStepContext = Readonly<{
   feedback: readonly string[]
 }>
 
-/** One step's verdict on its own criterion. */
-export type TStepOutcome = Readonly<{
-  step: string
+/** One activity's verdict on its own criterion. */
+export type TActivityOutcome = Readonly<{
+  activity: string
   accepted: boolean
 }>
 
-/** Every step held. An empty run is accepted; nothing has failed. */
-export const allAccepted = (outcomes: readonly TStepOutcome[]): boolean =>
+/** Every activity held. An empty run is accepted; nothing has failed. */
+export const allAccepted = (outcomes: readonly TActivityOutcome[]): boolean =>
   outcomes.every((outcome) => outcome.accepted)
 
 /**
- * Every step held EXCEPT the named ones.
+ * Every activity held EXCEPT the named ones.
  *
  * What the revise loop needs: the verdicts it is about to re-ask are set
  * aside, and everything else — a failed `checks` gate, say — stays decisive.
  */
 export const acceptedExcluding = (
-  outcomes: readonly TStepOutcome[],
+  outcomes: readonly TActivityOutcome[],
   excluded: readonly string[],
 ): boolean =>
   outcomes.every(
-    (outcome) => excluded.includes(outcome.step) || outcome.accepted,
+    (outcome) => excluded.includes(outcome.activity) || outcome.accepted,
   )
 
-export type TStepResult = Readonly<{
+export type TActivityResult = Readonly<{
   previous: TEnvelopeBase | undefined
   /**
-   * Did THIS step's own criterion hold?
+   * Did THIS activity's own criterion hold?
    *
    * Not the same question as "did the activityRun run". A review that ruled
    * against the work did its job: the Activity Run succeeds and `accepted`
@@ -125,18 +125,18 @@ export type TStepResult = Readonly<{
   accepted: boolean
 }>
 
-export type TStep = Readonly<{
+export type TActivity = Readonly<{
   /** the Activity, as a Lifecycle names it */
   name: string
   /** this occurrence of it: `build`, `build_2` — what a budget is kept per */
   instance: string
   params: TActivityRunParams
-  /** agent names this step needs, checked before anything spawns */
+  /** agent names this activity needs, checked before anything spawns */
   requires: readonly string[]
   /**
    * What this Activity's envelope must survive, as the registry declared it.
    *
-   * Carried on the step rather than applied inside the agent call, because
+   * Carried on the activity rather than applied inside the agent call, because
    * the driver is what decides WHEN a gate is judged: a gate that reads the
    * working tree waits for the Stage boundary, where a pure one does not.
    */
@@ -145,12 +145,12 @@ export type TStep = Readonly<{
   attempts: number
   /** commit this Activity's own change once its gates have passed */
   commit: boolean
-  execute: (ctx: TStepContext, handle: TActivityRunHandle) => Promise<TStepResult>
-  replay: (ctx: TStepContext) => Promise<TStepResult>
+  execute: (ctx: TActivityContext, handle: TActivityRunHandle) => Promise<TActivityResult>
+  replay: (ctx: TActivityContext) => Promise<TActivityResult>
 }>
 
-/** Per-call-site knobs. `instance` disambiguates a repeated step. */
-export type TStepOptions = Readonly<{
+/** Per-call-site knobs. `instance` disambiguates a repeated activity. */
+export type TActivityOptions = Readonly<{
   /** the ref or range a judging Activity rules on; '' is the working tree */
   base: string
   /** 1 for the first occurrence; 2+ suffixes the activityRun name (`build_2`) */
@@ -165,14 +165,14 @@ export type TStepOptions = Readonly<{
   committing: boolean
 }>
 
-export const DEFAULT_STEP_OPTIONS: TStepOptions = {
-  // '' and not 'main': a step must be able to tell "no --base was given" from
+export const DEFAULT_ACTIVITY_OPTIONS: TActivityOptions = {
+  // '' and not 'main': a activity must be able to tell "no --base was given" from
   // "--base main was given", and only `document` falls back to main.
   base: '',
   instance: 1,
   committing: true,
 }
 
-/** `build`, `build_2`, `build_3` … so a composed chain can repeat a step. */
-export const stepActivityRunName = (name: string, instance: number): string =>
+/** `build`, `build_2`, `build_3` … so a composed chain can repeat a activity. */
+export const activityRunName = (name: string, instance: number): string =>
   instance <= 1 ? name : `${name}_${instance}`

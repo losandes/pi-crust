@@ -93,6 +93,78 @@ export const workspaceRoot = (dbPath: string): string =>
 export const sessionDir = (dbPath: string, runId: string): string =>
   join(dirname(dbPath), "sessions", runId);
 
+/**
+ * Where the pi-crust runtime is, for the commands this server spawns.
+ *
+ * The runtime ships with the package and is NOT stamped into a repository:
+ * `.pi-crust/` holds `config/`, `data/` and `prompt-engineering/`, and an
+ * install removes anything else it finds there. So every entry point this
+ * server starts has to be resolved the way the recipes resolve it —
+ * `CRUST_HOME`, else the path the installer wrote into the stamp.
+ *
+ * This is the defect that made every write action in the UI do nothing:
+ * spawning `.pi-crust/steer.ts` succeeds in getting a pid, the child dies on
+ * a missing module, and the response says the instruction went through.
+ */
+export const crustRuntime = (
+  dbPath: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | undefined => {
+  const configured = (env.CRUST_HOME ?? "").trim();
+  const home =
+    configured === "" ? readHomeFile(workspaceRoot(dbPath)) : configured;
+  if (home === undefined) return undefined;
+  const runtime = join(home, "runtime");
+
+  return existsSync(join(runtime, "cli.ts")) ? runtime : undefined;
+};
+
+const readHomeFile = (root: string): string | undefined => {
+  const path = join(root, ".pi-crust", "data", "pi-crust-home");
+  if (!existsSync(path)) return undefined;
+  const recorded = readFileSync(path, "utf8").trim();
+
+  return recorded === "" ? undefined : recorded;
+};
+
+/**
+ * What to say when the runtime cannot be found, in the words the recipes use.
+ *
+ * Named here so steer, consult and start-a-run all refuse identically: the
+ * repair is the same one in every case, and three phrasings of it would read
+ * as three different problems.
+ */
+export const NO_RUNTIME =
+  "cannot find pi-crust: no CRUST_HOME, and no .pi-crust/data/pi-crust-home " +
+  "in this tree. Re-run its installer from the repository, or set CRUST_HOME " +
+  "to the package.";
+
+/**
+ * Why a run that was started has no session row.
+ *
+ * A run can be REFUSED before it opens a session: a concurrent Stage whose
+ * Activities declare overlapping `writes` is rejected at load, and so is an
+ * unknown Activity name. The process exits 2 having written the reason to the
+ * session's spawn log, and nothing in the trace records that it ever existed.
+ *
+ * Read from the log rather than inferred, because the reason is the whole
+ * value: "refused" tells a reader nothing they cannot see from the absence.
+ */
+export const startupFailure = (
+  dbPath: string,
+  runId: string,
+): string | undefined => {
+  const logs = ["spawn.log", "resume.log"]
+    .map((name) => join(sessionDir(dbPath, runId), name))
+    .filter((path) => existsSync(path));
+  const text = logs
+    .map((path) => readFileSync(path, "utf8").trim())
+    .filter((contents) => contents !== "")
+    .join("\n");
+
+  return text === "" ? undefined : text.split("\n").slice(-12).join("\n");
+};
+
 export type TInboxKind = "steer" | "follow_up" | "abort";
 
 const KINDS: readonly string[] = ["steer", "follow_up", "abort"];
@@ -150,7 +222,7 @@ export const recordDecision = (
 };
 
 /**
- * Send a run back to a step with new instructions.
+ * Send a run back to a activity with new instructions.
  *
  * Detached: the replay is the rest of the run, which may be an hour. The
  * target is passed through as the flag the CLI requires rather than a
@@ -160,16 +232,25 @@ export const recordDecision = (
 export const startSteer = (
   dbPath: string,
   runId: string,
-  step: string,
+  activity: string,
   target: "overwrite" | "branch",
   note: string,
-): Readonly<{ started: boolean; pid: number | undefined; log: string }> => {
+): Readonly<{
+  started: boolean;
+  pid: number | undefined;
+  log: string;
+  reason?: string;
+}> => {
+  const runtime = crustRuntime(dbPath);
+  if (runtime === undefined) {
+    return { started: false, pid: undefined, log: "", reason: NO_RUNTIME };
+  }
   const dir = sessionDir(dbPath, runId);
   mkdirSync(dir, { recursive: true });
   const log = join(dir, "steer.log");
   const child = spawn(
     "bun",
-    [join(".pi-crust", "steer.ts"), runId, step, `--${target}`, note],
+    [join(runtime, "steer.ts"), runId, activity, `--${target}`, note],
     {
       cwd: workspaceRoot(dbPath),
       detached: true,
@@ -180,11 +261,11 @@ export const startSteer = (
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
   child.unref();
-  return { started: true, pid: child.pid, log };
+  return { started: true, pid: child.pid, log, reason: "" };
 };
 
 /**
- * Put a question to a finished step, or ask it to amend its own document.
+ * Put a question to a finished activity, or ask it to amend its own document.
  *
  * Detached, like resuming. A consult rejoins a conversation that may be a
  * hundred thousand tokens and takes a minute to answer, while an HTTP
@@ -192,22 +273,31 @@ export const startSteer = (
  * it against the activityRun, and the UI is already polling events, so it arrives
  * the way everything else a run produces arrives.
  *
- * The run's own tree is the cwd, because a step's question is usually about
+ * The run's own tree is the cwd, because a activity's question is usually about
  * the repository it was reasoning over.
  */
 export const startConsult = (
   dbPath: string,
   runId: string,
-  step: string,
+  activity: string,
   mode: "ask" | "amend",
   question: string,
-): Readonly<{ started: boolean; pid: number | undefined; log: string }> => {
+): Readonly<{
+  started: boolean;
+  pid: number | undefined;
+  log: string;
+  reason?: string;
+}> => {
+  const runtime = crustRuntime(dbPath);
+  if (runtime === undefined) {
+    return { started: false, pid: undefined, log: "", reason: NO_RUNTIME };
+  }
   const dir = sessionDir(dbPath, runId);
   mkdirSync(dir, { recursive: true });
   const log = join(dir, "consult.log");
   const child = spawn(
     "bun",
-    [join(".pi-crust", "consult.ts"), mode, runId, step, question],
+    [join(runtime, "consult.ts"), mode, runId, activity, question],
     {
       cwd: workspaceRoot(dbPath),
       detached: true,
@@ -220,7 +310,7 @@ export const startConsult = (
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
   child.unref();
-  return { started: true, pid: child.pid, log };
+  return { started: true, pid: child.pid, log, reason: "" };
 };
 
 /**
@@ -285,7 +375,13 @@ export const resumeRun = (
 };
 
 /**
- * Start a lifecycle, detached, and hand back the run id it will use.
+ * Start a Lifecycle, detached, and hand back the run id it will use.
+ *
+ * Through the Composer, naming the Lifecycle: there has been no file per
+ * Lifecycle since the DAG landed, and there is no runtime in the stamp to
+ * hold one if there were. The Composer reads `crust.lifecycles.yaml` in the
+ * target tree, so a Lifecycle that repository added is startable from here
+ * with no change on this side.
  *
  * Detached and with its output to a file rather than to this process: a run
  * outlives the request that asked for it, and a server that held the pipe
@@ -297,7 +393,16 @@ export const startRun = (
   lifecycle: string,
   prompt: string,
   extraArgs: readonly string[],
-): Readonly<{ run_id: string; pid: number | undefined; log: string }> => {
+): Readonly<{
+  run_id: string;
+  pid: number | undefined;
+  log: string;
+  reason?: string;
+}> => {
+  const runtime = crustRuntime(dbPath);
+  if (runtime === undefined) {
+    return { run_id: "", pid: undefined, log: "", reason: NO_RUNTIME };
+  }
   const root = workspaceRoot(dbPath);
   const runId = Math.random().toString(16).slice(2, 10);
   const logDir = join(dirname(dbPath), "sessions", runId);
@@ -307,8 +412,10 @@ export const startRun = (
   const child = spawn(
     "bun",
     [
-      join(".pi-crust", "lifecycles", `${lifecycle}.ts`),
+      join(runtime, "lifecycles", "compose.ts"),
       prompt,
+      "--lifecycle",
+      lifecycle,
       "--run-id",
       runId,
       ...extraArgs,
@@ -323,5 +430,5 @@ export const startRun = (
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
   child.unref();
-  return { run_id: runId, pid: child.pid, log };
+  return { run_id: runId, pid: child.pid, log, reason: "" };
 };

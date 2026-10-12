@@ -1,8 +1,9 @@
-import { Check, KeyRound, Send, X } from 'lucide-react'
+import { Check, KeyRound, Play, Send, X } from 'lucide-react'
 import { useState } from 'react'
 import {
   sendConsult,
   sendDecision,
+  sendResume,
   sendMessage,
   sendSteer,
   type TWriteResult,
@@ -34,6 +35,7 @@ export const RunControls = ({
   status,
   workspace,
   consultStep,
+  onConsultSent,
   replaying = [],
   standalone = false,
 }: Readonly<{
@@ -42,22 +44,33 @@ export const RunControls = ({
   /** The tree holding this run, so a steer reaches the right agent's inbox. */
   workspace?: string
   /**
-   * The step whose conversation is on screen, when one is.
+   * The activity whose conversation is on screen, when one is.
    *
-   * A finished run has nobody listening AT THE RUN, but the step's own agent
+   * A finished run has nobody listening AT THE RUN, but the activity's own agent
    * still remembers everything — so this is where asking it belongs, in the
    * field that was otherwise disabled with an apology in it.
    */
   consultStep?: string
   /**
-   * The steps a steer from here would replay, in the order the run took.
+   * What was just sent to that activity, for the caller to show immediately.
+   *
+   * A consult rejoins a conversation of a hundred thousand tokens and takes
+   * minutes; the event carrying it is written once, at the END, with the
+   * question and the answer together. So between pressing the button and the
+   * reply landing there was nothing on screen at all — a banner saying it was
+   * sent, and a conversation that had not changed. A person cannot tell that
+   * apart from a message that went nowhere.
+   */
+  onConsultSent?: (mode: 'ask' | 'amend', question: string) => void
+  /**
+   * The activities a steer from here would replay, in the order the run took.
    *
    * Passed in rather than derived here, because only the caller has the
    * activityRuns — and the dialog names them, since "steer from here" otherwise
    * hides the cost that all of them run again.
    */
   replaying?: readonly string[]
-  /** true on the page with no step selected, where it owns its own gutter */
+  /** true on the page with no activity selected, where it owns its own gutter */
   standalone?: boolean
 }>) => {
   const [text, setText] = useState('')
@@ -72,11 +85,17 @@ export const RunControls = ({
   const waiting = status === 'waiting'
   const live = running || waiting
   /*
-   * A finished run has nobody listening at the RUN, but a step's own agent
+   * A finished run has nobody listening at the RUN, but a activity's own agent
    * still has the whole conversation. That is the one thing you can do here,
    * so it occupies the field that used to be disabled with an apology.
    */
   const canConsult = !live && (consultStep ?? '') !== ''
+  /*
+   * A failed run is the one that can be picked up. A successful one has
+   * nothing to resume — every Activity Run is already green, and resuming
+   * would re-launch a chain that would skip all of it.
+   */
+  const failed = status === 'fail'
 
   const settle = (result: TWriteResult, said: string): void => {
     setBusy(false)
@@ -90,9 +109,23 @@ export const RunControls = ({
     setProblem(result.problem)
   }
 
-  const act = (run: () => Promise<TWriteResult>, said: string): void => {
+  /*
+   * `onSent` fires only when the write was ACCEPTED, so a refused send leaves
+   * no trace of itself in the conversation. The conversation is what a reader
+   * trusts; a message in it that never reached an agent is worse than none.
+   */
+  const act = (
+    run: () => Promise<TWriteResult>,
+    said: string,
+    onSent?: () => void,
+  ): void => {
     setBusy(true)
-    void run().then((result) => settle(result, said))
+    void run().then((result) => {
+      settle(result, said)
+      if (result.ok) {
+        onSent?.()
+      }
+    })
   }
 
   const needsText = (what: string): boolean => {
@@ -113,7 +146,11 @@ export const RunControls = ({
           : waiting
             ? 'This run is waiting for you.'
             : canConsult
-              ? `This run has finished. ${consultStep} still remembers it.`
+              ? `This run has finished. ${consultStep} still remembers it.` +
+                (failed
+                  ? ' Asking or amending changes a document — it does not' +
+                    ' continue the run. Pick it up when what broke is fixed.'
+                  : '')
               : 'This run has finished.'}
       </header>
 
@@ -128,7 +165,7 @@ export const RunControls = ({
             : waiting
               ? 'Your answer. It enters the next stage as a fact attributed to you.'
               : canConsult
-                ? 'Ask this step a question, or tell it what to change.'
+                ? 'Ask this activity a question, or tell it what to change.'
                 : 'Nothing is listening.'
         }
         onChange={(event) => setText(event.target.value)}
@@ -166,7 +203,7 @@ export const RunControls = ({
             </button>
             {/*
               Destructive and irreversible mid-turn, so it is last, plain, and
-              it asks. Everything the current step has done in this turn goes
+              it asks. Everything the current activity has done in this turn goes
               with it, and a button that throws away twenty minutes of work on
               one click is a button somebody will eventually hit by accident.
             */}
@@ -240,6 +277,7 @@ export const RunControls = ({
                   () =>
                     sendConsult(runId, consultStep ?? '', 'ask', text, workspace),
                   'asked — the answer appears in the conversation when it replies',
+                  () => onConsultSent?.('ask', text),
                 )
               }
             >
@@ -249,20 +287,37 @@ export const RunControls = ({
               type="button"
               disabled={busy}
               className={styles.amend}
-              title="Lets this step rewrite ITS OWN documents. Every other step's stay read-only."
+              title="Lets this activity rewrite ITS OWN documents. Every other activity's stay read-only."
               onClick={() =>
                 needsText('amend') ||
                 act(
                   () =>
                     sendConsult(runId, consultStep ?? '', 'amend', text, workspace),
                   'amending — the result appears in the conversation when it replies',
+                  () => onConsultSent?.('amend', text),
                 )
               }
             >
-              amend this step's document
+              amend this activity's document
             </button>
+            {failed && (
+              <button
+                type="button"
+                disabled={busy}
+                className={styles.primary}
+                title="Re-launches the run exactly as it was started, skipping every Activity Run already recorded successful."
+                onClick={() =>
+                  act(
+                    () => sendResume(runId, workspace),
+                    'picked up where it stopped — nothing already green re-runs',
+                  )
+                }
+              >
+                <Play size={15} /> pick it up where it stopped
+              </button>
+            )}
             {/*
-              Steering is the heavy one: it re-runs this step and everything
+              Steering is the heavy one: it re-runs this activity and everything
               after it. It opens a dialog rather than acting, because the
               choice it needs — overwrite or branch — has no safe default.
             */}
@@ -270,7 +325,7 @@ export const RunControls = ({
               type="button"
               disabled={busy || replaying.length === 0}
               className={styles.danger}
-              title="Re-runs this step and every step after it with your instruction."
+              title="Re-runs this activity and every activity after it with your instruction."
               onClick={() => needsText('steer') || setSteering(true)}
             >
               steer from here…
@@ -311,7 +366,7 @@ export const RunControls = ({
 
       <SteerDialog
         open={steering}
-        step={consultStep ?? ''}
+        activity={consultStep ?? ''}
         replaying={replaying}
         note={text}
         /*
@@ -326,8 +381,8 @@ export const RunControls = ({
           act(
             () => sendSteer(runId, consultStep ?? '', target, text, workspace),
             target === 'overwrite'
-              ? 'steering sent — these steps are running again'
-              : 'branching — a new run is starting from this step',
+              ? 'steering sent — these activities are running again'
+              : 'branching — a new run is starting from this activity',
           )
         }}
       />
@@ -336,9 +391,9 @@ export const RunControls = ({
         open={confirmAbort}
         title="abort this run?"
         body={
-          'The step that is running loses the turn it is in — whatever it has ' +
+          'The activity that is running loses the turn it is in — whatever it has ' +
           'thought, read or written since its last recorded output goes with ' +
-          'it. Earlier steps keep their results, and the run can be started ' +
+          'it. Earlier activities keep their results, and the run can be started ' +
           'again from the beginning.'
         }
         confirmLabel="abort the run"

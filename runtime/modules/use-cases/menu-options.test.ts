@@ -54,7 +54,7 @@ test(
   [
     'given use-cases/menu-options::menuOptions',
     'when the menu lists the work',
-    'it should offer the Activity names, because its values become --steps',
+    'it should offer the Activity names, because its values become --activities',
   ].join(', '),
   () => {
     // given — an entry is named for the work, and the menu feeds the runner

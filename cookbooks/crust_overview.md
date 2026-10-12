@@ -26,7 +26,7 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 ├── checks.ts                    routing.checks on their own, with no Lifecycle
 ├── stages/                      the two Planners with an agent: operator, triage
 ├── lifecycles/
-│   └── compose.ts               --lifecycle <name>, or --steps a,b,c
+│   └── compose.ts               --lifecycle <name>, or --activities a,b+c
 ├── modules/                     ALL low-level logic — workflow scripts stay thin
 │   ├── typedefs/                types and zod schemas only
 │   │   ├── activity run.ts             TActivityRunParams, TActivityRun
@@ -44,12 +44,12 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 │       ├── activity-registry.ts  configuration → something runnable, by name
 │       ├── attempts.ts          the one ceiling: Activity Runs per instance, per run
 │       ├── deliver.ts           an Activity commits its own change, in its own words
-│       ├── steps/               one Activity made runnable, and the Planners
-│       ├── run-steps.ts         fold a context through an ordered step list
+│       ├── activities/          one Activity made runnable, and the Planners
+│       ├── run-activities.ts    fold a context through an ordered chain
 │       ├── revise-loop.ts       the bounded loop a chain ending in a review gets
 │       ├── dispute-ledger.ts    counts repeated findings, so neither agent does
 │       ├── select-range.ts      --scope: which change the reviews judge
-│       ├── run-workflow.ts      the body every step-based workflow shares
+│       ├── run-workflow.ts      the body every workflow shares
 │       ├── resume.ts            skipIfDone: run the activity run, or replay it
 │       ├── replay.ts            how a hand-written workflow's activity runs replay
 │       ├── read-run-state.ts    the ONE answer to "what is already done"
@@ -78,7 +78,7 @@ Every run is a sequence of **activity runs**, each one `await activity run(activ
 
 - **engineer** — the human lane; today the system-input activity run (who asked, and for what).
 - **agent** — `callAgent(run, ph, {...})`: prompt in → typed envelope out → gates verified.
-- **code** — deterministic steps that stand alone (git commit, quality blocks, change capture). Never buried inside an agent activity run.
+- **code** — deterministic Activities that stand alone (git commit, quality blocks, change capture). Never buried inside an agent activity run.
 
 **Success must be earned — every activity run defaults to `fail`.** A clean exit flips it to success; agent activity runs additionally require the envelope to parse and all gates to come back green. A throw keeps it failed, records an error event, and aborts the run. A failed gate is not a throw while the Activity has budget: it runs again, as its own Activity Run, against its `attempts`.
 
@@ -95,7 +95,7 @@ An **Activity** is a discrete unit of work and the agent that performs it — on
 | `attempts`           | Activity Runs of one instance this run may spend, the first included |
 | `commit`             | land its own change, in its envelope's words, once its gates pass  |
 
-There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` or a gate nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of step names.
+There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` or a gate nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names.
 
 Three things are NOT Activities, deliberately:
 
@@ -114,9 +114,9 @@ Agents have exactly two output channels: reference files written into `context_h
 ## Running a workflow
 
 ```bash
-just crust plan "add a /health endpoint"
-bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
-just crust plan "add a /health endpoint"
+just crust run "add a /health endpoint" --activities plan
+just crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
+just crust run "the /health work" --activities review+code-review
 ```
 
 The prompt is inline text or a file path. `--run-id` is optional on every workflow: given one, the run joins that session (same dirs, same `context_handoff/`, agents resume their existing context windows); omitted, a fresh id is minted and printed.

@@ -240,13 +240,13 @@ test(
 test(
   [
     'given use-cases/run-activity-run::runActivityRun',
-    'when one step overwrites a document an earlier step wrote',
+    'when one activity overwrites a document an earlier activity wrote',
     'it should refuse the write, and restore the original if it lands anyway',
   ].join(', '),
   async () => {
     // given — the failure this exists for. Every agent is granted the whole
     // session directory, and the directory is gitignored, so nothing forbade
-    // this and git could not undo it. The second step writes by brute force,
+    // this and git could not undo it. The second activity writes by brute force,
     // lifting the mode first, to stand in for the paths a lock cannot cover:
     // a shell redirect after a chmod, or an unlink, which the directory's
     // permission governs rather than the file's.
@@ -262,7 +262,7 @@ test(
       writeFileSync(design, 'the approved design')
     })
 
-    // when — a later step tries the ordinary way, then forces it
+    // when — a later activity tries the ordinary way, then forces it
     const refused = await runActivityRun(run)(
       activityRunParams({
         name: 'build',
@@ -286,7 +286,7 @@ test(
     expect(refused).toEqual('EACCES')
     // and what got through by force was put back
     expect(readFileSync(design, 'utf8')).toEqual('the approved design')
-    // and the run says so, naming the step that did it
+    // and the run says so, naming the activity that did it
     const events = rowsOf<{ name: string; payload_json: string }>(
       dbPath,
       "select name, payload_json from events where type='artifacts' order by rowid",
@@ -305,11 +305,11 @@ test(
 test(
   [
     'given use-cases/run-activity-run::runActivityRun',
-    'when the step that wrote a document runs a second time',
+    'when the activity that wrote a document runs a second time',
     'it should be allowed to replace its own output',
   ].join(', '),
   async () => {
-    // given — a retry, or a rejection sending the step back, legitimately
+    // given — a retry, or a rejection sending the activity back, legitimately
     // produces a new design. Locking that would break the ordinary path.
     const { run } = scratchRun()
     const design = join(run.contextHandoffDir, 'design.md')
@@ -343,7 +343,7 @@ test(
     'it should still record and protect what it wrote',
   ].join(', '),
   async () => {
-    // given — a failed step's document is often exactly the one a reader
+    // given — a failed activity's document is often exactly the one a reader
     // wants, so observation runs on the failure path too
     const { run, dbPath } = scratchRun()
     const diagnosis = join(run.contextHandoffDir, 'diagnosis.md')
@@ -357,9 +357,9 @@ test(
         description: 'Find the root cause',
       }), () => {
         writeFileSync(diagnosis, 'what went wrong')
-        throw new Error('the step then failed')
+        throw new Error('the activity then failed')
       }),
-    ).rejects.toThrow('the step then failed')
+    ).rejects.toThrow('the activity then failed')
 
     // then
     const events = rowsOf<{ name: string; payload_json: string }>(

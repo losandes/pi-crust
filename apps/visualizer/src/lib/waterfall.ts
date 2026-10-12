@@ -68,13 +68,38 @@ export const originMs = (
 }
 
 /**
- * Adjusted layout for every timed activityRun, in track-%.
+ * Layout for every timed activityRun, in track-%.
  *
- * Activity Runs are sequential by doctrine and the render must say so: when a
- * near-zero activityRun (a git commit) is widened to a readable floor, every later
- * block shifts right by the same amount instead of being overlapped, and the
- * whole layout is normalised back into the track. Blocks may squeeze a hair;
- * they never stack.
+ * Every block sits where its own clock puts it. That is the whole rule, and
+ * it is a correction: Activity Runs were sequential by doctrine, so a
+ * near-zero block widened to the readable floor used to push every LATER
+ * block right by the same amount, on the reasoning that two blocks must never
+ * stack.
+ *
+ * A concurrent Stage breaks that reasoning. Two Activities that genuinely ran
+ * at the same time would be shifted apart and read as one after the other —
+ * the render inventing a sequence the run did not have, which is the one
+ * thing a trace must never do. Lanes are per agent, so a concurrent pair is
+ * drawn on different rows and overlapping is how the reader SEES it.
+ *
+ * What survives is the floor: a block narrower than `MIN_BLOCK_PCT` is widened
+ * so it can be seen and clicked — but never past the start of the next block
+ * in its OWN lane.
+ *
+ * That clamp is the second correction. A 26s Activity Run inside a 29-minute
+ * run is 1.2% of the track, the floor is 3.5%, and the next Activity Run in
+ * the same lane began 0.0s after it ended — so the floor drew one card over a
+ * quarter of its successor. Touching says "adjacent" and is true; covering
+ * says "concurrent" and is not. On the same chart a genuinely concurrent
+ * pair sits at an identical offset, so a reader has no way to tell the
+ * artefact from the fact.
+ *
+ * The clamp is per LANE because the same lane is the one place overlap cannot
+ * be real: one agent does not run two Activity Runs at once. Two lanes
+ * overlapping is concurrency, and is left alone.
+ *
+ * The layout is still normalised back into the track when the floors push the
+ * last edge past it.
  */
 export const blockLayout = (
   activityRuns: readonly ActivityRun[],
@@ -105,26 +130,41 @@ export const blockLayout = (
       return {
         id: p.activity_run_id,
         start,
+        /*
+         * The lane this block is drawn in, which is what the clamp is about.
+         * `owner` for an agent; `kind` for the engineer and code rows, which
+         * have none — mirroring how the chart builds its lanes.
+         */
+        lane: p.owner ?? p.kind ?? '',
         left: ((start - options.originMs) / options.spanMs) * available,
         width: ((Math.max(end, start) - start) / options.spanMs) * available,
       }
     })
     .toSorted((a, b) => a.start - b.start)
 
-  let shift = 0
-  let previousEdge = 0
-  const rows: { id: string; left: number; width: number }[] = []
-  for (const block of timed) {
-    const pushed = block.left + shift
-    const left = pushed < previousEdge ? previousEdge : pushed
-    shift += left - pushed
-    const width = Math.max(block.width, MIN_BLOCK_PCT)
-    shift += width - block.width
-    previousEdge = left + width
-    rows.push({ id: block.id, left, width })
-  }
+  /** Where the next block in the same lane begins, for every block. */
+  const nextInLane = (block: (typeof timed)[number]): number | undefined =>
+    timed.find((other) => other.lane === block.lane && other.start > block.start)
+      ?.left
 
-  const scale = available / Math.max(previousEdge, available)
+  const rows = timed.map((block) => {
+    const next = nextInLane(block)
+    /*
+     * Widen toward the floor, and no further than the neighbour's start. A
+     * block always keeps its TRUE width — a clamp that cut one short would
+     * be the same lie in the other direction.
+     */
+    const room = next === undefined ? MIN_BLOCK_PCT : Math.max(next - block.left, 0)
+
+    return {
+      id: block.id,
+      left: block.left,
+      width: Math.max(block.width, Math.min(MIN_BLOCK_PCT, room)),
+    }
+  })
+  const edge = rows.reduce((furthest, row) => Math.max(furthest, row.left + row.width), 0)
+
+  const scale = available / Math.max(edge, available)
   return Object.fromEntries(
     rows.map((row) => [
       row.id,

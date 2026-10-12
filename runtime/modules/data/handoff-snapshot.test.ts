@@ -14,7 +14,7 @@ const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-handoff-'))
 test(
   [
     'given data/handoff-snapshot::diffHandoff',
-    'when a step rewrites a file to different content of the same length',
+    'when a activity rewrites a file to different content of the same length',
     'it should report it as modified',
   ].join(', '),
   () => {
@@ -40,12 +40,12 @@ test(
 test(
   [
     'given data/handoff-snapshot::diffHandoff',
-    'when a step creates, deletes and leaves files alone',
+    'when a activity creates, deletes and leaves files alone',
     'it should separate what it made from what it took',
   ].join(', '),
   () => {
-    // given — creation is a step's own output; deletion is damage to another
-    // step's, and the two must never be reported as the same thing
+    // given — creation is a activity's own output; deletion is damage to another
+    // activity's, and the two must never be reported as the same thing
     const dir = scratch()
     writeFileSync(join(dir, 'plan.md'), 'plan')
     writeFileSync(join(dir, 'scout_findings.md'), 'findings')

@@ -8,6 +8,7 @@
 import { configPathFromEnv } from '../data/env-overrides'
 import { DEFAULT_CONFIG_PATH } from '../typedefs/config'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
+import { RUN_RECIPE } from './recipe-line'
 
 export type TCliArgs = Readonly<{
   /** inline text or a path to a prompt file */
@@ -15,7 +16,7 @@ export type TCliArgs = Readonly<{
   config: string
   runId: string | undefined
   /**
-   * What the judging steps judge: a ref, a range, a directory, or a glob.
+   * What the judging activities judge: a ref, a range, a directory, or a glob.
    *
    * `--scope` is the name, because a directory is not a base of anything.
    * `--base` remains an alias: it meant a ref long before paths were allowed,
@@ -24,8 +25,14 @@ export type TCliArgs = Readonly<{
   base: string | undefined
   /** skip activityRuns already recorded successful for this run_id */
   resume: boolean
-  /** `compose.ts` only: the ordered step list, comma-separated */
-  steps: string | undefined
+  /**
+   * The Composer only: the chain, as Stages.
+   *
+   * `,` ends a Stage and `+` joins Activities into one concurrent Stage, so
+   * `plan,build,review+code-review` is three Stages, the last of which runs
+   * two Activities at once. See `parse-activities.ts` for the whole grammar.
+   */
+  activities: string | undefined
   /** `compose.ts` only: a Lifecycle by name, from crust.lifecycles.yaml */
   lifecycle: string | undefined
   /**
@@ -68,12 +75,26 @@ export type TCliArgs = Readonly<{
   trustLevel: string | undefined
 }>
 
+/**
+ * The flag that was replaced, refused by name.
+ *
+ * Not an alias: `--steps` could only ever mean one serial Stage, and a flag
+ * that silently kept working would keep a developer believing a concurrent
+ * group is what they asked for. Not silence either — an unknown flag would
+ * be swallowed as the prompt, and the run would start on the wrong thing.
+ * So: refused, naming its replacement, and the run does not start.
+ */
+const REMOVED_FLAG = '--steps'
+
+export const REMOVED_FLAG_MESSAGE =
+  '--steps was removed. Use --activities; a concurrent Stage is written a+b.'
+
 const FLAGS = [
   '--config',
   '--run-id',
   '--base',
   '--scope',
-  '--steps',
+  '--activities',
   '--lifecycle',
   '--approve-after',
   '--commit',
@@ -85,12 +106,13 @@ const FLAGS = [
 // failure reads as "a prompt is required" rather than as a parsing bug.
 const BOOLEAN_FLAGS = ['--resume', '--stream'] as const
 
-const usage = (script: string): string =>
-  `usage: bun ${script} "<prompt or path/to/prompt.md>" ` +
-  '[--config <path>] [--run-id <id>] [--commit false] ' +
-  '[--scope <ref|range|path|glob>] ' +
-  '[--steps plan,build,verify] [--approve-after identify,design] ' +
-  '[--resume]\n' +
+const usage = (recipe: string): string =>
+  `usage: just crust ${recipe} "<prompt or path/to/prompt.md>" ` +
+  '<--lifecycle sdlc | --activities plan,build,review+code-review>\n' +
+  '  `just crust list` prints the Lifecycles and Activities this repo offers.\n' +
+  '  optional: [--config <path>] [--run-id <id>] [--commit false] ' +
+  '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
+  '[--trust-level 50] [--stream] [--resume]\n' +
   'env: CRUST_CONFIG overrides the config path; --config still wins.'
 
 /**
@@ -115,9 +137,33 @@ export const commitFlag = (value: string | undefined): string | undefined => {
   return value
 }
 
+/**
+ * What to say about a flag this CLI does not have.
+ *
+ * The nearest known flag is offered when the typo is one edit away from one,
+ * because the overwhelmingly common case is a plural or a missing letter and
+ * naming the fix is cheaper than reading a list of nine.
+ */
+export const unknownFlag = (token: string, recipe: string): string => {
+  const given = token.split('=')[0] ?? token
+  const near = [...FLAGS, ...BOOLEAN_FLAGS].find(
+    (flag) =>
+      flag.startsWith(given) ||
+      given.startsWith(flag) ||
+      `${flag}s` === given ||
+      flag === `${given}s`,
+  )
+
+  return (
+    `unknown flag: ${given}` +
+    (near === undefined ? '' : ` — did you mean ${near}?`) +
+    `\n${usage(recipe)}`
+  )
+}
+
 export const parseCli = (
   argv: readonly string[],
-  script = '.pi-crust/stages/<name>.ts',
+  recipe = RUN_RECIPE,
 ): TCliArgs => {
   type TParsed = Readonly<{
     flags: ReadonlyMap<string, string>
@@ -137,10 +183,25 @@ export const parseCli = (
         booleans: new Set([...so_far.booleans, flag]),
       })
     }
+    if (token === REMOVED_FLAG || token.startsWith(`${REMOVED_FLAG}=`)) {
+      throw new Error(REMOVED_FLAG_MESSAGE)
+    }
     const matched = FLAGS.find(
       (flag) => token === flag || token.startsWith(`${flag}=`),
     )
     if (matched === undefined) {
+      /*
+       * A flag nobody recognises is refused rather than read as the prompt.
+       *
+       * It used to fall through to the positional list, where it was either
+       * swallowed whole or, worse, became the prompt: `--lifecycles sdlc`
+       * (one letter wrong) left `--lifecycle` unset and the run failed
+       * complaining that `--activities` was required, which is a true
+       * sentence about the wrong problem. A typo in a flag has to say so.
+       */
+      if (token.startsWith('--')) {
+        throw new Error(unknownFlag(token, recipe))
+      }
       return read(index + 1, {
         ...so_far,
         positional: [...so_far.positional, token],
@@ -151,7 +212,7 @@ export const parseCli = (
       : undefined
     const value = inline ?? argv[index + 1]
     if (value === undefined) {
-      throw new Error(`${matched} needs a value\n${usage(script)}`)
+      throw new Error(`${matched} needs a value\n${usage(recipe)}`)
     }
     return read(index + (inline === undefined ? 2 : 1), {
       ...so_far,
@@ -166,7 +227,7 @@ export const parseCli = (
 
   const prompt = positional[0]
   if (prompt === undefined || prompt === '') {
-    throw new Error(`a prompt is required\n${usage(script)}`)
+    throw new Error(`a prompt is required\n${usage(recipe)}`)
   }
 
   return {
@@ -175,7 +236,7 @@ export const parseCli = (
     runId: flags.get('--run-id'),
     base: flags.get('--scope') ?? flags.get('--base'),
     resume: booleans.has('--resume'),
-    steps: flags.get('--steps'),
+    activities: flags.get('--activities'),
     lifecycle: flags.get('--lifecycle'),
     approveAfter: flags.get('--approve-after'),
     commit: commitFlag(flags.get('--commit')),
@@ -188,7 +249,7 @@ export const parseCli = (
  * What every workflow's `main` takes: the CLI, with the prompt resolved.
  *
  * One object rather than four loose parameters — `prompt`, `config`, `runId`,
- * `base`, `resume` and `steps` is past the four-param rule, and a
+ * `base`, `resume` and `activities` is past the four-param rule, and a
  * positional list that long is where a caller silently passes `config` as
  * `runId`.
  */
@@ -207,11 +268,11 @@ export const workflowArgs = (
  * Nothing below it catches, so a failure anywhere in the run arrives here.
  */
 export const runCli = async (
-  script: string,
+  recipe: string,
   handler: (args: TCliArgs) => Promise<number>,
 ): Promise<never> => {
   const parsed = safeParseSettlement(() =>
-    parseCli(process.argv.slice(2), script),
+    parseCli(process.argv.slice(2), recipe),
   )
   if (parsed.status === 'error') {
     process.stderr.write(`${parsed.error.message}\n`)

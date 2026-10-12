@@ -2,7 +2,7 @@
  * Gates and agent calls — what a claim must survive before it is believed.
  */
 
-import type { TUpstream } from './step'
+import type { TUpstream } from './runnable-activity'
 import type { TEnvelopeBase, TEnvelopeSpec } from './envelope'
 import type { TRun } from './run'
 

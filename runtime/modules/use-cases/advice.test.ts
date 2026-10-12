@@ -33,7 +33,7 @@ test(
     'it should hand back the command that would run it',
   ].join(', '),
   () => {
-    // given — the agent does not write this line. It chose steps; the shape
+    // given — the agent does not write this line. It chose activities; the shape
     // of the invocation belongs to the code that knows what compose takes,
     // and an agent guessing at flags produces something that fails on paste.
     const chosen = state({ steps: ['scout', 'conceptualize', 'design'] })
@@ -43,7 +43,7 @@ test(
 
     // then
     expect(actual).toEqual(
-      'just crust compose "specs/stats.md" --steps scout,conceptualize,design',
+      'just crust run "specs/stats.md" --activities scout,conceptualize,design',
     )
   },
 )
@@ -66,7 +66,7 @@ test(
     const actual = adviceCommand(chosen, 'x')
 
     // then
-    expect(actual).toEqual('just crust compose "x" --steps scout,design')
+    expect(actual).toEqual('just crust run "x" --activities scout,design')
   },
 )
 
@@ -74,10 +74,10 @@ test(
   [
     'given use-cases/advice::adviceCommand',
     'when no usable chain was chosen',
-    'it should hand back nothing rather than an empty --steps',
+    'it should hand back nothing rather than an empty --activities',
   ].join(', '),
   () => {
-    // given — a command that would start a run with no steps is not a
+    // given — a command that would start a run with no activities is not a
     // smaller recommendation, it is a broken one
     const empty = state({ steps: [] })
     const invalid = state({ steps: ['scout'] }, 'triage', false)

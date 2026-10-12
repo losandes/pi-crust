@@ -4,7 +4,7 @@
  * A gated run completes the stage, writes down what a human has to decide,
  * records it, and EXITS. Nothing blocks. A process sitting on `readline` in an
  * unattended run is the 1Password failure in another costume: the work was
- * finished, the chain had one step left, and sixty seconds of silence killed
+ * finished, the chain had one activity left, and sixty seconds of silence killed
  * it because nobody was at the keyboard.
  *
  * The answer comes back out of band — `approve`, `reject`, `answer` — and the
@@ -28,6 +28,8 @@ import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TQuestion } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import { contextEnvelopeSchema } from '../typedefs/envelope'
+import { recipeArgv, shellLine } from './recipe-line'
+import { resumeArgv } from './resume-run'
 import { TRUST_PROVISIONAL, stanceFor } from '../typedefs/trust'
 
 export const DECISION_FILENAME = 'decision-request.md'
@@ -60,7 +62,7 @@ export type TGateReason =
    * put to you is narrower — here is the work I propose to do on your behalf
    * and on your budget, shall I.
    */
-  | Readonly<{ kind: 'plan'; activity: string; steps: readonly string[] }>
+  | Readonly<{ kind: 'plan'; activity: string; activities: readonly string[] }>
 
 export const parseApproveAfter = (flag: string | undefined): readonly string[] =>
   (flag ?? '')
@@ -180,45 +182,24 @@ export const gateReason = (params: {
  * invocation, so a developer who resumes without repeating it loses the gate
  * they asked for and only finds out by the chain sailing past it.
  *
- * The script path is normalised back to its `.pi-crust/...` form: argv carries an
- * absolute path, which is correct and unreadable, and a command printed to be
- * copied should look like the one that was typed.
+ * Printed as the recipe, not as the path argv carries. The path is absolute,
+ * which is correct and unreadable, and relative to nothing a stamped
+ * repository contains — the runtime ships with the package. A command printed
+ * to be copied has to be one that runs from where the developer is standing.
+ *
+ * The run's own resume flags are stripped and re-appended by `resumeArgv`
+ * rather than kept in place, so the second gate of an already-resumed run
+ * prints the same line as the first. Leaving them where they sat produced
+ * `--resume` before `--run-id` on one gate and after it on the next — the
+ * same command, read as two different ones by whoever is comparing them.
  */
 export const resumeInvocation = (
   argv: readonly string[],
   runId: string,
 ): string => {
-  const script = argv[1] ?? ''
-  const marker = script.lastIndexOf('/.pi-crust/')
-  const relative = marker === -1 ? script : script.slice(marker + 1)
-  const given = argv.slice(2)
-  /*
-   * The run's own resume flags are stripped and re-appended rather than kept
-   * in place, so the second gate of an already-resumed run prints the same
-   * line as the first. Leaving them where they sat produced `--resume` before
-   * `--run-id` on one gate and after it on the next — the same command, read
-   * as two different ones by whoever is comparing them.
-   */
-  /*
-   * Quoted the way a shell needs, because this line exists to be pasted. The
-   * prompt is one argv entry full of spaces and full stops; unquoted it
-   * becomes six arguments and the command fails in a way that looks like
-   * crust's fault.
-   */
-  const quoted = (arg: string): string =>
-    /^[\w./:=-]+$/.test(arg) ? arg : `"${arg.replaceAll('"', '\\"')}"`
-  const carried = given.filter((arg, index) => {
-    const previous = given[index - 1]
-    return arg !== '--run-id' && previous !== '--run-id' && arg !== '--resume'
-  })
-  return [
-    'bun',
-    relative,
-    ...carried.map(quoted),
-    '--run-id',
-    runId,
-    '--resume',
-  ].join(' ')
+  const resumed = ['bun', ...resumeArgv(argv, runId)]
+
+  return shellLine(recipeArgv(resumed) ?? resumed)
 }
 
 /** Every way out of a gate, with what each one costs you. */
@@ -247,9 +228,9 @@ export const renderDecisionRequest = (
   const body =
     reason.kind === 'plan'
       ? '## The chain it chose\n\n' +
-        reason.steps.map((step, index) => `${index + 1}. \`${step}\``).join('\n') +
+        reason.activities.map((activity, index) => `${index + 1}. \`${activity}\``).join('\n') +
         '\n\nNothing has run yet beyond the planning itself. Approving runs ' +
-        'exactly these steps, in this order; rejecting with a note sends the ' +
+        'exactly these activities, in this order; rejecting with a note sends the ' +
         'operator back to choose again, and your note is what it must honour ' +
         'the second time.\n\nRaise `--trust-level` to 50 or above and a chain ' +
         'like this one runs without stopping here.\n'

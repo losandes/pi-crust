@@ -8,7 +8,7 @@
  *
  * It lives in the handoff directory because that is where this run's shared
  * context already lives, and it is the one file there that belongs to the
- * developer rather than to a step.
+ * developer rather than to a activity.
  */
 
 import { join } from 'node:path'

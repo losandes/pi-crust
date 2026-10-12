@@ -145,7 +145,7 @@ test(
   [
     'given use-cases/intake::intakeRejection',
     'when there are violations',
-    'it should name the receiving step and send the fix upstream',
+    'it should name the receiving activity and send the fix upstream',
   ].join(', '),
   () => {
     // given

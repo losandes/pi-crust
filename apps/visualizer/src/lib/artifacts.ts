@@ -51,16 +51,16 @@ export type TArtifact = Readonly<{
   agent: string | undefined
   /** The agent's account of what this document concludes. Empty when unknown. */
   summary: string
-  /** What the next step is expected to take from it. Empty when unknown. */
+  /** What the next activity is expected to take from it. Empty when unknown. */
   notes: string
 }>
 
 /**
- * Files the run writes for its own machinery rather than as a step's output.
+ * Files the run writes for its own machinery rather than as a activity's output.
  *
  * Listed, because a reader should not have to know which files the interface
  * has special-cased — but quietly, because they are already rendered in the
- * gate pane and are not what anybody means by "what did this step produce".
+ * gate pane and are not what anybody means by "what did this activity produce".
  */
 const SYSTEM_FILES = /^(decision-request|decision-answer|answers-.*)\.md$/
 
@@ -167,7 +167,7 @@ export const runArtifacts = (params: {
   }
 
   // Then whatever is on disk that nobody claimed. Over-reporting here is
-  // deliberate: a document a step forgot to report is still a document
+  // deliberate: a document a activity forgot to report is still a document
   // somebody would otherwise have to go hunting for.
   const observed = observedByActivityRun(params.events)
   for (const file of params.present ?? []) {
@@ -189,7 +189,7 @@ export const runArtifacts = (params: {
   return found
 }
 
-/** The same list, narrowed to one activityRun — what this step produced. */
+/** The same list, narrowed to one activityRun — what this activity produced. */
 export const activityRunArtifacts = (
   all: readonly TArtifact[],
   activityRunId: string,

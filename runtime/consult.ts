@@ -1,17 +1,17 @@
 #!/usr/bin/env bun
 /**
- * Ask a finished step a question, or let it amend its own document.
+ * Ask a finished activity a question, or let it amend its own document.
  *
- *   bun .pi-crust/consult.ts ask   <run-id> <step> "question"
- *   bun .pi-crust/consult.ts amend <run-id> <step> "what to change"
+ *   just crust ask   <run-id> <activity> "question"
+ *   just crust amend <run-id> <activity> "what to change"
  *
- * A step's conversation outlives the step: pi keeps it as a session and a
+ * A activity's conversation outlives the activity: pi keeps it as a session and a
  * later process rejoins it by id, so the agent answers with everything it
  * knew rather than re-deriving it. Neither mode opens an activity run — a consult is
- * something that happened TO a step, not a step of its own.
+ * something that happened TO a activity, not a activity of its own.
  *
- * `ask` has no writing tools. `amend` may rewrite the documents that step
- * wrote and nothing else: every other step's are read-only, and anything
+ * `ask` has no writing tools. `amend` may rewrite the documents that activity
+ * wrote and nothing else: every other activity's are read-only, and anything
  * changed anyway is restored and reported.
  *
  * env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.
@@ -38,14 +38,14 @@ const say = (line: string): void => {
 }
 
 const USAGE =
-  'usage: bun .pi-crust/consult.ts <ask|amend> <run-id> <step> "question"\n' +
+  'usage: just crust <ask|amend> <run-id> <activity> "question"\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 
-/** The latest activityRun of this run with that step name, and who owned it. */
+/** The latest activityRun of this run with that activity name, and who owned it. */
 const activityRunOf = (
   db: Database,
   runId: string,
-  step: string,
+  activity: string,
 ): Readonly<{ activity_run_id: string; owner: string }> | undefined =>
   db
     .query<{ activity_run_id: string; owner: string }, [string, string]>(
@@ -53,7 +53,7 @@ const activityRunOf = (
         WHERE run_id = ? AND name = ? AND owner IS NOT NULL
         ORDER BY seq DESC, rowid DESC LIMIT 1`,
     )
-    .get(runId, step) ?? undefined
+    .get(runId, activity) ?? undefined
 
 /** The session that agent left behind, and the model it was speaking as. */
 const sessionOf = (
@@ -119,12 +119,12 @@ const invoke = async (
   })
 
 const main = async (): Promise<number> => {
-  const [mode, runId, step, ...rest] = process.argv.slice(2)
+  const [mode, runId, activity, ...rest] = process.argv.slice(2)
   const question = rest.join(' ').trim()
   if (
     (mode !== 'ask' && mode !== 'amend') ||
     runId === undefined ||
-    step === undefined ||
+    activity === undefined ||
     question === ''
   ) {
     say(USAGE)
@@ -137,9 +137,9 @@ const main = async (): Promise<number> => {
   const dataDir = resolve(dirname(dirname(dbPath)), 'data')
 
   const db = new Database(dbPath, { readonly: true })
-  const activityRun = activityRunOf(db, runId, step)
+  const activityRun = activityRunOf(db, runId, activity)
   if (activityRun === undefined) {
-    say(`no step "${step}" in run ${runId}`)
+    say(`no activity "${activity}" in run ${runId}`)
     db.close()
     return 1
   }
@@ -173,7 +173,7 @@ const main = async (): Promise<number> => {
   ).split('/')
   const argv = consultArgv(request, { provider, modelId }, process.env.PI_PATH ?? 'pi')
 
-  say(`${mode} → ${activityRun.owner} (${step}) in run ${runId}`)
+  say(`${mode} → ${activityRun.owner} (${activity}) in run ${runId}`)
   const outcome = await runConsult(
     request,
     (line) => invoke(line, process.cwd()),
@@ -204,12 +204,12 @@ const main = async (): Promise<number> => {
     say('')
     say(`amended: ${outcome.amended.join(', ')}`)
     say(
-      'steps after this one already ran against the previous version — the ' +
+      'activities after this one already ran against the previous version — the ' +
         'trace marks them, acting on it is your call.',
     )
   }
   if (outcome.restored.length > 0) {
-    say(`restored (belonged to another step): ${outcome.restored.join(', ')}`)
+    say(`restored (belonged to another activity): ${outcome.restored.join(', ')}`)
   }
   return 0
 }

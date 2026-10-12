@@ -5,7 +5,7 @@
  * their PATH, their toolchains, their globally installed packages. Under bun
  * that is simply `process.env` — bun runs the workflow directly, with no
  * ephemeral environment of its own interposed, and it loads `.env` itself so
- * there is no dotenv step either.
+ * there is no dotenv activity either.
  *
  * KEEP THIS FUNCTION even though it is currently a pass-through. The Python
  * factory this was ported from needed real surgery here: workflows launched

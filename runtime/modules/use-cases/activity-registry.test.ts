@@ -24,7 +24,7 @@ test(
   ].join(', '),
   () => {
     /*
-     * given — this refusal is what replaces the compiler's union of step
+     * given — this refusal is what replaces the compiler's union of activity
      * names. It has to be as loud as the compiler was, or moving the
      * registry into configuration is a straight loss.
      */

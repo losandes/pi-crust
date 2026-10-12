@@ -19,19 +19,21 @@ const anyRun = {
   },
 } as unknown as TRun
 
-const planOf = (steps: readonly unknown[]): TEnvelopeBase =>
+const planOf = (activities: readonly unknown[]): TEnvelopeBase =>
   ({
     status: 'success',
     summary: '',
     artifacts: [],
     notes_for_next_agent: '',
-    steps,
+    // `steps` is the operator envelope's published field name; the
+    // vocabulary around it is Activities, the wire key is not renamed.
+    steps: activities,
   }) as unknown as TEnvelopeBase
 
 test(
   [
     'given use-cases/gates::stepsValid',
-    'when every planned step is a real one',
+    'when every planned activity is a real one',
     'it should pass and record the chain it verified',
   ].join(' '),
   () => {
@@ -50,8 +52,8 @@ test(
 test(
   [
     'given use-cases/gates::stepsValid',
-    'when the operator invents a step name',
-    'it should refuse and list the steps that do exist',
+    'when the operator invents a activity name',
+    'it should refuse and list the activities that do exist',
   ].join(' '),
   () => {
     // given
@@ -90,7 +92,7 @@ test(
   [
     'given use-cases/gates::stepsValid',
     'when the plan is empty',
-    'it should refuse rather than let a run of no steps report success',
+    'it should refuse rather than let a run of no activities report success',
   ].join(' '),
   () => {
     // given
@@ -100,24 +102,24 @@ test(
     const report = stepsValid.check(envelope, anyRun, [])
 
     // then
-    expect(violationsOf(report)[0]).toContain('no steps planned')
+    expect(violationsOf(report)[0]).toContain('no activities planned')
   },
 )
 
 test(
   [
     'given use-cases/gates::stepsValid',
-    'when the steps field holds values that are not strings',
-    'it should discard them rather than coerce a number into a step name',
+    'when the activities field holds values that are not strings',
+    'it should discard them rather than coerce a number into a activity name',
   ].join(' '),
   () => {
     // given
-    const envelope = planOf([7, { step: 'build' }])
+    const envelope = planOf([7, { activity: 'build' }])
 
     // when
     const report = stepsValid.check(envelope, anyRun, [])
 
     // then
-    expect(violationsOf(report)[0]).toContain('no steps planned')
+    expect(violationsOf(report)[0]).toContain('no activities planned')
   },
 )

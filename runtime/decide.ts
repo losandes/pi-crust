@@ -3,9 +3,9 @@
  * pi-crust Decide — answer a run that is waiting for you.
  *
  * Usage:
- *     bun .pi-crust/decide.ts approve <run-id>
- *     bun .pi-crust/decide.ts reject  <run-id> --note "what to change"
- *     bun .pi-crust/decide.ts answer  <run-id> --file answers.md
+ *     just crust approve <run-id>
+ *     just crust reject  <run-id> --note "what to change"
+ *     just crust answer  <run-id> --file answers.md
  *
  * A gated run exits rather than blocking, so this is how the answer gets back
  * to it. It writes the answer into the session's handoff directory and tells
@@ -36,7 +36,7 @@ import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
 
 export const USAGE =
-  'usage: bun .pi-crust/decide.ts <approve|reject|answer> <run-id> ' +
+  'usage: just crust <approve|reject|answer> <run-id> ' +
   '[--note "..."] [--file <path>]\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 

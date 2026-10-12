@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
- * Send a run back to a step with new instructions.
+ * Send a run back to a activity with new instructions.
  *
- *   bun .pi-crust/steer.ts <run-id> <step> --overwrite "what to change"
- *   bun .pi-crust/steer.ts <run-id> <step> --branch    "what to change"
+ *   just crust steer <run-id> <activity> --overwrite "what to change"
+ *   just crust steer <run-id> <activity> --branch    "what to change"
  *
- * The target and every step after it run again, in the order the run
+ * The target and every activity after it run again, in the order the run
  * actually took, each reading the instruction. That is the point: a change
- * at the start of a chain is a change to all of it. To revise ONE step
+ * at the start of a chain is a change to all of it. To revise ONE activity
  * without disturbing what follows, use `amend` — that is a judgement you are
  * making about the change, and it should be made deliberately.
  *
@@ -29,7 +29,7 @@ import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import {
   activityRunsToSupersede,
   steeringEntry,
-  stepsToReplay,
+  activitiesToReplay,
   type TSteerTarget,
 } from './modules/use-cases/steer'
 import { loadConfig } from './modules/use-cases/load-config'
@@ -40,9 +40,9 @@ const say = (line: string): void => {
 }
 
 const USAGE = [
-  'usage: bun .pi-crust/steer.ts <run-id> <step> <--overwrite|--branch> "instruction"',
+  'usage: just crust steer <run-id> <activity> <--overwrite|--branch> "instruction"',
   '',
-  '  --overwrite  the steered steps rewrite their own documents; the path',
+  '  --overwrite  the steered activities rewrite their own documents; the path',
   '               you are steering away from is not kept',
   '  --branch     a new run, seeded from this one up to the branch point;',
   '               both outcomes stay readable side by side',
@@ -60,7 +60,7 @@ const targetOf = (argv: readonly string[]): TSteerTarget | undefined => {
 
 const main = async (): Promise<number> => {
   const argv = process.argv.slice(2)
-  const [runId, step] = argv.filter((arg) => !arg.startsWith('--'))
+  const [runId, activity] = argv.filter((arg) => !arg.startsWith('--'))
   const target = targetOf(argv)
   const note = argv
     .filter((arg) => !arg.startsWith('--'))
@@ -68,7 +68,7 @@ const main = async (): Promise<number> => {
     .join(' ')
     .trim()
 
-  if (runId === undefined || step === undefined || target === undefined || note === '') {
+  if (runId === undefined || activity === undefined || target === undefined || note === '') {
     say(USAGE)
     return 2
   }
@@ -89,12 +89,12 @@ const main = async (): Promise<number> => {
     return 1
   }
 
-  const replaying = stepsToReplay(state.activityRuns, step)
+  const replaying = activitiesToReplay(state.activityRuns, activity)
   if (replaying.length === 0) {
-    say(`no step "${step}" in run ${runId}`)
+    say(`no activity "${activity}" in run ${runId}`)
     return 1
   }
-  const superseding = activityRunsToSupersede(state.activityRuns, step)
+  const superseding = activityRunsToSupersede(state.activityRuns, activity)
 
   const handoffDir = resolve(
     cfg.defaults.data_dir,
@@ -102,11 +102,11 @@ const main = async (): Promise<number> => {
     runId,
     'context_handoff',
   )
-  const path = appendSteering(handoffDir, steeringEntry(step, note, nowIso()))
+  const path = appendSteering(handoffDir, steeringEntry(activity, note, nowIso()))
 
   /*
    * Marking the standing activityRuns superseded is what makes the replay happen:
-   * resume skips a step whose latest activityRun succeeded, so this is exactly the
+   * resume skips a activity whose latest activityRun succeeded, so this is exactly the
    * set that would otherwise be skipped. The rows stay — what the abandoned
    * path decided is still worth reading — they simply stop counting as done.
    */
@@ -122,10 +122,10 @@ const main = async (): Promise<number> => {
       `evt_steer_${Date.now()}`,
       runId,
       'steer',
-      `steer ${step}`,
+      `steer ${activity}`,
       JSON.stringify({
         target,
-        step,
+        activity,
         note,
         replaying,
         superseded: superseding,

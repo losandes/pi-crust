@@ -28,8 +28,8 @@ const handoff = (): Readonly<{ dir: string; sessions: string }> => {
   mkdirSync(dir, { recursive: true })
   mkdirSync(sessions, { recursive: true })
   writeFileSync(join(dir, 'design.md'), 'the design, as written')
-  writeFileSync(join(dir, 'plan.md'), "another step's plan")
-  // Both start locked, as they would after their own steps finished.
+  writeFileSync(join(dir, 'plan.md'), "another activity's plan")
+  // Both start locked, as they would after their own activities finished.
   chmodSync(join(dir, 'design.md'), 0o444)
   chmodSync(join(dir, 'plan.md'), 0o444)
   return { dir, sessions }
@@ -53,11 +53,11 @@ const request = (
 test(
   [
     'given use-cases/consult::runConsult',
-    'when an amend rewrites the document its own step wrote',
+    'when an amend rewrites the document its own activity wrote',
     'it should keep the change and lock it again',
   ].join(', '),
   async () => {
-    // given — the one overwrite that must be allowed: a step revising its
+    // given — the one overwrite that must be allowed: a activity revising its
     // own output, with the whole conversation still in its context
     const dirs = handoff()
 
@@ -79,7 +79,7 @@ test(
     expect(readFileSync(join(dirs.dir, 'design.md'), 'utf8')).toEqual(
       'the design, amended',
     )
-    // locked again: the next step has no more right to it than before
+    // locked again: the next activity has no more right to it than before
     expect(() => writeFileSync(join(dirs.dir, 'design.md'), 'x')).toThrow()
   },
 )
@@ -87,12 +87,12 @@ test(
 test(
   [
     'given use-cases/consult::runConsult',
-    "when a consult changes another step's document",
+    "when a consult changes another activity's document",
     'it should put it back and report what it restored',
   ].join(', '),
   async () => {
     // given — the guarantee the whole feature rests on: a question can never
-    // cost you work a different step did. The ordinary write is already
+    // cost you work a different activity did. The ordinary write is already
     // refused by the lock, so this forces it, standing in for the paths a
     // file mode cannot cover and proving the restore rather than the lock.
     const dirs = handoff()
@@ -119,7 +119,7 @@ test(
     expect(refused).toEqual('EACCES')
     expect(outcome.restored).toEqual(['plan.md'])
     expect(readFileSync(join(dirs.dir, 'plan.md'), 'utf8')).toEqual(
-      "another step's plan",
+      "another activity's plan",
     )
   },
 )

@@ -13,18 +13,19 @@
  */
 
 import { TRUST_DEFAULT } from '../typedefs/trust'
+import { RUN_RECIPE } from './recipe-line'
 
 /**
  * An agent that chooses the chain instead of being given one.
  *
- * A third kind of thing, beside lifecycles and steps. `operator` is the only
+ * A third kind of thing, beside lifecycles and activities. `operator` is the only
  * one today, and it is a list rather than a special case because the next one
  * is a different POLICY for choosing — cheapest-first, most-thorough,
- * bug-shaped — and those are siblings of this, not variants of a step.
+ * bug-shaped — and those are siblings of this, not variants of a activity.
  *
  * Like a lifecycle it answers the whole question: you cannot have an operator
  * AND a lifecycle, because both decide the chain, and you cannot have an
- * operator AND steps, because naming the steps is the thing an operator is
+ * operator AND activities, because naming the activities is the thing an operator is
  * for.
  */
 export type TOperator = Readonly<{ name: string; summary: string }>
@@ -91,12 +92,20 @@ export type TRunRequest = Readonly<{
   /**
    * The operator chosen, or '' when the chain was named rather than chosen.
    *
-   * Mutually exclusive with `steps` by construction: when this is set the
-   * steps are not known yet, because working them out is the run's first
-   * activityRun.
+   * Mutually exclusive with `activities` by construction: when this is set
+   * the chain is not known yet, because working it out is the run's first
+   * Activity Run.
    */
   operator: string
-  steps: readonly string[]
+  /**
+   * The chain, when it was picked by hand rather than named.
+   *
+   * Always serial. `please` asks for an order; "which of these may run at the
+   * same time" is a second question with a `writes` answer a developer cannot
+   * be expected to know, so the wizard never emits `+`. Concurrency reaches a
+   * run through the Lifecycle it chose, which carries its own Stages.
+   */
+  activities: readonly string[]
   prompt: string
   trustLevel: number
   /**
@@ -123,7 +132,8 @@ export type TResumeRequest = Readonly<{
  *
  * Three shapes, because there are three ways to say what should happen: a
  * Planner chooses it, a Lifecycle names it, or the Activities are listed.
- * A chosen Lifecycle is passed BY NAME rather than flattened into `--steps`,
+ * A chosen Lifecycle is passed BY NAME rather than flattened into
+ * `--activities`,
  * so the trace records `sdlc` rather than an anonymous chain that happens to
  * look like it, and a run stays searchable by the name the person had in
  * mind.
@@ -135,23 +145,22 @@ export type TResumeRequest = Readonly<{
 export const runArgv = (request: TRunRequest): readonly string[] => {
   const chosen = request.operator !== ''
   /*
-   * A planner run carries NO `--steps` and no `--lifecycle`, and not merely
+   * A planner run carries NO `--activities` and no `--lifecycle`, and not merely
    * because none were chosen: the two together are refused by the stage
    * itself, since one asks it to choose the chain and the other names it.
    */
-  const script = chosen
-    ? `.pi-crust/stages/${request.operator}.ts`
-    : '.pi-crust/lifecycles/compose.ts'
+  const recipe = chosen ? request.operator : RUN_RECIPE
 
   return [
-    'bun',
-    script,
+    'just',
+    'crust',
+    recipe,
     request.prompt,
     ...(chosen
       ? []
       : request.lifecycle !== ''
         ? ['--lifecycle', request.lifecycle]
-        : ['--steps', request.steps.join(',')]),
+        : ['--activities', request.activities.join(',')]),
     ...(request.trustLevel === TRUST_DEFAULT
       ? []
       : ['--trust-level', String(request.trustLevel)]),
@@ -163,68 +172,16 @@ export const runArgv = (request: TRunRequest): readonly string[] => {
   ]
 }
 
-/** The argv for answering a run that is waiting. */
+/**
+ * The argv for answering a run that is waiting.
+ *
+ * Approve, reject and answer are three recipes, one per verb, each taking the
+ * run id first, so the verb IS the recipe name.
+ */
 export const resumeArgvFor = (request: TResumeRequest): readonly string[] => [
-  'bun',
-  '.pi-crust/decide.ts',
+  'just',
+  'crust',
   request.verb,
   request.runId,
   ...(request.note === '' ? [] : ['--note', request.note]),
 ]
-
-/**
- * The command as a person would type it, for showing before it runs.
- *
- * Quoting is deliberately minimal: a quote around every argument is noise
- * that hides the one argument that genuinely needed quoting.
- */
-export const shellLine = (argv: readonly string[]): string =>
-  argv
-    .map((part) => (/^[\w.,/=:-]+$/.test(part) ? part : JSON.stringify(part)))
-    .join(' ')
-
-/**
- * The same command as a `just` recipe.
- *
- * This is the line to HAND somebody. `bun .pi-crust/lifecycles/sdlc.ts "…"`
- * is what runs, but it names an install path, so it breaks the moment the
- * directory moves and it teaches the wrong thing to whoever reads it over a
- * shoulder. `just crust sdlc "…"` is the documented interface, and it is
- * the one every README, cookbook and error message already prints.
- *
- * Anything with no recipe behind it falls back to the bun line rather than
- * inventing a recipe name — a command that does not exist is worse than a
- * long one that does.
- */
-export const justArgv = (argv: readonly string[]): readonly string[] => {
-  const [runner, script, ...rest] = argv
-  if (runner !== 'bun' || script === undefined) return argv
-
-  const recipe = recipeFor(script, rest)
-  return recipe === undefined ? argv : ['just', 'crust', ...recipe]
-}
-
-const LIFECYCLE_PATH = /^\.pi-crust\/lifecycles\/([\w-]+)\.ts$/
-const STAGE_PATH = /^\.pi-crust\/stages\/([\w-]+)\.ts$/
-
-const recipeFor = (
-  script: string,
-  rest: readonly string[],
-): readonly string[] | undefined => {
-  const lifecycle = LIFECYCLE_PATH.exec(script)?.[1]
-  if (lifecycle !== undefined) return [lifecycle, ...rest]
-
-  const stage = STAGE_PATH.exec(script)?.[1]
-  if (stage !== undefined) return [stage, ...rest]
-
-  /*
-   * `decide.ts approve <id>` is three recipes, one per verb, each taking the
-   * run id first — so the verb becomes the recipe name and drops out of the
-   * arguments.
-   */
-  if (script === '.pi-crust/decide.ts') {
-    const [verb, ...args] = rest
-    return verb === undefined ? undefined : [verb, ...args]
-  }
-  return undefined
-}

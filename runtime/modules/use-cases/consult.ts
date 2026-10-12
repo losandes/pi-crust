@@ -1,7 +1,7 @@
 /**
- * Asking a finished step a question, and letting it amend its own document.
+ * Asking a finished activity a question, and letting it amend its own document.
  *
- * A step's conversation is not thrown away when the step ends: pi keeps it as
+ * A activity's conversation is not thrown away when the activity ends: pi keeps it as
  * a session, and a later process can rejoin it by id. So "what did you mean
  * by this" costs one turn against an agent that still remembers everything,
  * instead of a re-run that derives the whole thing again from nothing.
@@ -11,11 +11,11 @@
  *
  *   ask    — read-only tools. Nothing can change.
  *   amend  — the write tools, and the lock lifted from the documents THIS
- *            step created. Everything another step wrote stays read-only,
+ *            activity created. Everything another activity wrote stays read-only,
  *            and anything that changes anyway is restored.
  *
- * Neither opens an activity run. A consult is something that happened TO a step, not
- * a step of its own: giving it an activity run row would put it in the waterfall,
+ * Neither opens an activity run. A consult is something that happened TO a activity, not
+ * a activity of its own: giving it an activity run row would put it in the waterfall,
  * change the run's shape, and make a question look like work the lifecycle
  * asked for.
  */
@@ -36,7 +36,7 @@ import {
   snapshotHandoff,
 } from '../data/handoff-snapshot'
 
-/** What a consult may do to the step's own documents. */
+/** What a consult may do to the activity's own documents. */
 export type TConsultMode = 'ask' | 'amend'
 
 /**
@@ -70,9 +70,9 @@ export type TConsultRequest = Readonly<{
 export type TConsultOutcome = Readonly<{
   answered: boolean
   answer: string
-  /** Documents of THIS step that the consult rewrote. */
+  /** Documents of THIS activity that the consult rewrote. */
   amended: readonly string[]
-  /** Documents of OTHER steps it touched, and we put back. */
+  /** Documents of OTHER activities it touched, and we put back. */
   restored: readonly string[]
   reason: string
 }>
@@ -135,8 +135,8 @@ export const preamble = (mode: TConsultMode): string =>
     : [
         'A person is asking you to amend work you already finished. You may',
         'rewrite the documents YOU wrote and nothing else — every other',
-        "step's documents are read-only and a write to one will be refused",
-        'and reverted. Make the change asked for and no more; the steps after',
+        "activity's documents are read-only and a write to one will be refused",
+        'and reverted. Make the change asked for and no more; the activities after',
         'you have already run against what you wrote, so a change beyond what',
         'was asked silently invalidates their work.',
       ].join(' ')
@@ -145,7 +145,7 @@ export const preamble = (mode: TConsultMode): string =>
  * Run one consult, bracketed by the same ownership rules an activity run gets.
  *
  * The bracket is the guarantee, and it is deliberately the SAME one: unlock
- * what this step owns, observe everything, re-lock, restore what belongs to
+ * what this activity owns, observe everything, re-lock, restore what belongs to
  * somebody else. A second implementation of "may I write this" is a second
  * chance to get it wrong.
  */
@@ -182,8 +182,8 @@ export const runConsult = async (
   const change = diffHandoff(before, snapshotHandoff(request.handoffDir))
   /*
    * What this consult legitimately produced: a new document, or a rewrite of
-   * one this step already owned. Locked again on the way out, so the next
-   * step has no more right to it than before.
+   * one this activity already owned. Locked again on the way out, so the next
+   * activity has no more right to it than before.
    */
   const mine =
     request.mode === 'amend'
@@ -194,7 +194,7 @@ export const runConsult = async (
       : []
   lockArtifacts(request.handoffDir, mine)
 
-  // Anything belonging to another step is damage whichever mode this was.
+  // Anything belonging to another activity is damage whichever mode this was.
   const damaged = [...change.modified, ...change.deleted].filter(
     (path) => isStepDocument(path) && !own.has(path),
   )

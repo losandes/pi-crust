@@ -1,10 +1,10 @@
 /**
- * One composed workflow, start to finish — the body every step script shares.
+ * One composed workflow, start to finish — the body every activity script shares.
  *
- * A workflow built from steps is its step list and nothing else, so the list is
+ * A workflow built from activities is its activity list and nothing else, so the list is
  * the only thing each script declares. Everything structural — validating the
  * roster before anything spawns, minting or resuming the session, pinning the
- * baseline, recording the ask, folding the steps, settling the run — happens
+ * baseline, recording the ask, folding the activities, settling the run — happens
  * here, once.
  *
  * Hand-written workflows still exist, and should: a conditional tail is real
@@ -12,13 +12,13 @@
  * and call `skipIfDone` per activityRun.
  *
  * One loop is no longer among them. A chain ending in `review` or `code-review`
- * gets the bounded revise loop here, so the generalisation is the step
+ * gets the bounded revise loop here, so the generalisation is the activity
  * library's rather than one workflow's.
  */
 
 import { runLink, visualizerIsUp } from '../data/visualizer'
 import { isRepo, rev, shortSha } from '../data/git'
-import type { TStepContext, TStepOptions } from '../typedefs/step'
+import type { TActivityContext, TActivityOptions } from '../typedefs/runnable-activity'
 import type { TAttemptLedger } from './attempts'
 import type { TPiCrustConfig } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
@@ -35,10 +35,10 @@ import type { TWorkflowArgs } from './parse-cli'
 import { loopAgents, runReviseLoop } from './revise-loop'
 import { selfAnsweredIn } from './human-gate'
 import { finish, finishWaiting } from './run-activity-run'
-import type { TWaiting } from './run-steps'
+import type { TWaiting } from './run-activities'
 import type { TStage } from '../typedefs/lifecycle'
 import { plannedNames, unitsFrom } from './plan-units'
-import { recordRequest, runSteps, runUnits } from './run-steps'
+import { recordRequest, runActivities, runUnits } from './run-activities'
 import { chainNote, plannedChain } from './operator-plan'
 import {
   describeTrust,
@@ -46,11 +46,11 @@ import {
   trustLevel,
 } from '../typedefs/trust'
 import { startSession } from './start-session'
-import { requiredAgents, resolveSteps } from './steps'
+import { requiredAgents, runnableActivities } from './activities'
 import { validateAgents } from './validate-agents'
 
 export const NOT_ACCEPTED =
-  'a step did not meet its own criterion — a check failed, or a review was ' +
+  'a activity did not meet its own criterion — a check failed, or a review was ' +
   'not approved. The activityRuns all ran; the work is what did not pass.'
 
 /**
@@ -81,7 +81,7 @@ const spentAlready = (
 /**
  * HEAD before this run commits anything, for the documenter's diff.
  *
- * Only pinned when a step needs it: a repository with no commit yet cannot
+ * Only pinned when a activity needs it: a repository with no commit yet cannot
  * resolve HEAD, and a chain that never documents should not fail on that.
  */
 const pinBaseline = (names: readonly string[]): string =>
@@ -90,22 +90,22 @@ const pinBaseline = (names: readonly string[]): string =>
 /**
  * Run the chain an operator planned, inside the run that planned it.
  *
- * Returns `undefined` when a planned step stopped for a person — the caller
+ * Returns `undefined` when a planned activity stopped for a person — the caller
  * settles the run as waiting, and a resume replays the operator activityRun from
  * the trace and picks the chain up where it stopped.
  */
 const runPlannedChain = async (
   run: TRun,
   planned: readonly string[],
-  options: Readonly<Partial<TStepOptions>>,
-  ctx: TStepContext,
+  options: Readonly<Partial<TActivityOptions>>,
+  ctx: TActivityContext,
   args: TWorkflowArgs,
   trust: number,
   ledger: TAttemptLedger,
-): Promise<TStepContext | undefined> => {
-  const steps = resolveSteps(planned, run.cfg, options)
+): Promise<TActivityContext | undefined> => {
+  const activities = runnableActivities(planned, run.cfg, options)
   validateAgents(run.cfg, [
-    ...new Set([...requiredAgents(steps), ...loopAgents(run.cfg, planned)]),
+    ...new Set([...requiredAgents(activities), ...loopAgents(run.cfg, planned)]),
   ])
   run.console.note(chainNote(planned))
 
@@ -128,7 +128,7 @@ const runPlannedChain = async (
     const reason: TGateReason = {
       kind: 'plan',
       activity: 'operator',
-      steps: planned,
+      activities: planned,
     }
     const path = writeDecisionRequest(
       run.contextHandoffDir,
@@ -144,15 +144,15 @@ const runPlannedChain = async (
       activity_run_id: '',
       type: 'log',
       name: 'human_gate_open',
-      payload: { activity: 'operator', kind: 'plan', request: path, steps: planned },
+      payload: { activity: 'operator', kind: 'plan', request: path, activities: planned },
     })
     return undefined
   }
 
   let stopped: TWaiting | undefined
-  const after = await runSteps({
+  const after = await runActivities({
     run,
-    steps,
+    activities,
     start: ctx,
     approveAfter: parseApproveAfter(args.approveAfter),
     onWaiting: (waiting) => {
@@ -171,15 +171,15 @@ export const runWorkflow = async (
   const names = plannedNames(plan)
   const loaded = loadConfigWithNotes(args.config)
   const cfg = loaded.config
-  const options: Readonly<Partial<TStepOptions>> = {
+  const options: Readonly<Partial<TActivityOptions>> = {
     ...(args.base === undefined ? {} : { base: args.base }),
     committing: args.commit !== 'false',
   }
-  const steps = resolveSteps(names, cfg, options)
+  const activities = runnableActivities(names, cfg, options)
   // The loop can spawn the reviser even when the named chain never does, so
   // its agent is validated here rather than discovered halfway through.
   validateAgents(cfg, [
-    ...new Set([...requiredAgents(steps), ...loopAgents(cfg, names)]),
+    ...new Set([...requiredAgents(activities), ...loopAgents(cfg, names)]),
   ])
   /*
    * One budget for the whole run, seeded from what this session already
@@ -248,11 +248,11 @@ export const runWorkflow = async (
       run,
       args.prompt,
       baseline === ''
-        ? { steps: names.join(' -> ') }
-        : { steps: names.join(' -> '), baseline: shortSha(baseline) },
+        ? { activities: names.join(' -> ') }
+        : { activities: names.join(' -> '), baseline: shortSha(baseline) },
     )
 
-    const start: TStepContext = {
+    const start: TActivityContext = {
       run,
       prompt: args.prompt,
       previous: undefined,
@@ -264,12 +264,12 @@ export const runWorkflow = async (
       feedback: [],
     }
     // `let` is deliberate and contained: the callback fires inside the fold,
-    // and threading an out-parameter through every step for one optional
+    // and threading an out-parameter through every activity for one optional
     // outcome would be worse than a single assignment nothing else can see.
     let waiting: TWaiting | undefined
     const ctx = await runUnits({
       run,
-      units: unitsFrom(plan, steps),
+      units: unitsFrom(plan, activities),
       start,
       approveAfter: parseApproveAfter(args.approveAfter),
       onWaiting: (stopped) => {
@@ -287,7 +287,7 @@ export const runWorkflow = async (
      *
      * It continues the same session rather than starting another, because the
      * plan and the work it caused belong in one trace — a reader asking "why
-     * these steps" must find the answer beside them, not in a sibling run.
+     * these activities" must find the answer beside them, not in a sibling run.
      *
      * Agents are revalidated before anything spawns, exactly as they are for a
      * named chain. The whole point of validating up front is that a chain never

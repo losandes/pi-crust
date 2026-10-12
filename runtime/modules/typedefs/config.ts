@@ -84,17 +84,14 @@ export const configDefaultsSchema = z.object({
   /** roster-wide allowlist; undefined = all tools usable */
   tools: z.array(z.string()).optional(),
   // Off-limits to every agent that has not named them in its own `writes`.
-  // The factory's own code is the default: an agent must not be able to edit
-  // the machinery that decides whether its work passed.
-  protected_files: z
-    .array(z.string())
-    .default([
-      '.pi-crust/modules/',
-      '.pi-crust/config/',
-      '.pi-crust/stages/',
-      '.pi-crust/lifecycles/',
-      '.pi-crust/package.json',
-    ]),
+  //
+  // `config/` alone, because that is all of the factory a repository still
+  // holds: the runtime ships with the package, outside the tree an agent can
+  // reach by a relative path at all. The earlier default also listed
+  // `modules/`, `stages/`, `lifecycles/` and `package.json`, which the
+  // installer now deletes on sight — a default defending paths that cannot
+  // exist reads as protection and provides none.
+  protected_files: z.array(z.string()).default(['.pi-crust/config/']),
   data_dir: z.string().default(DEFAULT_DATA_DIR),
 })
 export type TConfigDefaults = Readonly<z.infer<typeof configDefaultsSchema>>
@@ -135,7 +132,7 @@ export type TObservabilityConfig = Readonly<
 // Both are selected by the paths a change actually touched. crust is stamped
 // into other repositories, so neither a skill path nor a checker command may
 // appear in a prompt or a module — a repo that has no such skill simply
-// declares none here, and the step still runs.
+// declares none here, and the activity still runs.
 //
 // `when` globs use the same matcher as `writes` (use-cases/enforce-permissions):
 // `*` does NOT cross `/`, `**` does. `**/*.ts` is therefore required to reach a

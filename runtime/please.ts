@@ -16,7 +16,7 @@
  * build a command, not a replacement for knowing them — seeing the line you
  * just described is how the flags become memorable.
  *
- *     bun .pi-crust/please.ts
+ *     just crust please
  */
 
 import { Database } from 'bun:sqlite'
@@ -28,12 +28,11 @@ import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { TRUST_DEFAULT } from './modules/typedefs/trust'
 import {
-  justArgv,
   resumeArgvFor,
   runArgv,
-  shellLine,
   TRUST_CHOICES,
 } from './modules/use-cases/compose-request'
+import { shellLine } from './modules/use-cases/recipe-line'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   lifecyclesBeside,
@@ -143,12 +142,12 @@ const planResume = async (
 /*
  * Three kinds of answer, told apart by a prefix the person never sees.
  *
- * `@` a lifecycle, `!` an operator, bare a step. A prefix rather than three
+ * `@` a lifecycle, `!` an operator, bare a activity. A prefix rather than three
  * parallel menus because it is ONE question — "what should it do" — and the
- * answer may legitimately be a named chain, a chain chosen for you, or steps
+ * answer may legitimately be a named chain, a chain chosen for you, or activities
  * you picked yourself.
  */
-/** A new run: steps, prompt, trust, delivery, approval point. */
+/** A new run: activities, prompt, trust, delivery, approval point. */
 const planNewRun = async (): Promise<readonly string[] | undefined> => {
   /*
    * The config decides what the menu offers and what order a selection runs
@@ -166,7 +165,7 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
     /*
      * Lifecycles and operators are both exclusive, and exclusive with each
      * other: each answers the whole question. A lifecycle names the chain,
-     * an operator chooses it, and a list of steps IS one — so any two of
+     * an operator chooses it, and a list of activities IS one — so any two of
      * them together are two answers where one was asked for. Picking
      * `scout` while `sdlc` was still held once produced a run that did the
      * entire lifecycle and then scouted.
@@ -198,14 +197,14 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
         : chain.join(' → ')
     },
   })
-  const chosenSteps = chosen.values
-  if (chosenSteps === undefined) return undefined
-  if (chosenSteps.length === 0) {
+  const chosenActivities = chosen.values
+  if (chosenActivities === undefined) return undefined
+  if (chosenActivities.length === 0) {
     writeLine(paint('nothing chosen.', 'yellow'))
     return undefined
   }
 
-  const operator = chosenPlanner(chosenSteps)
+  const operator = chosenPlanner(chosenActivities)
   /*
    * Sorted into the configured order, not the order they were ticked.
    *
@@ -213,8 +212,8 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
    * inconsistent — `a` for all produced list order from the same screen.
    * Anyone who wants a different sequence says so with `r`, once.
    */
-  const defaultOrder = expandChoices(chosenSteps, lifecycles)
-  const steps =
+  const defaultOrder = expandChoices(chosenActivities, lifecycles)
+  const activities =
     chosen.reorder && operator === ''
       ? ((await askOrder('what order?', defaultOrder)) ?? defaultOrder)
       : defaultOrder
@@ -266,20 +265,24 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
   if (commit === undefined) return undefined
 
   /*
-   * Not asked when an operator is choosing: its steps do not exist yet, so a
+   * Not asked when an operator is choosing: its activities do not exist yet, so a
    * menu of them would be a menu of nothing. The operator's own chain gate
    * covers the same ground — below trust 50 it shows you the chain before
-   * running a step of it.
+   * running a activity of it.
    */
   const approveAfter =
     operator === ''
-      ? await askOne('stop and show you, after which step?', [
+      ? await askOne('stop and show you, after which activity?', [
           {
             value: '',
             label: 'nowhere extra',
             detail: 'the gates the lifecycle already defines still apply',
           },
-          ...steps.map((step) => ({ value: step, label: step, detail: '' })),
+          ...activities.map((activity) => ({
+            value: activity,
+            label: activity,
+            detail: '',
+          })),
         ])
       : ''
   if (approveAfter === undefined) return undefined
@@ -296,9 +299,9 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
      * is passed as the list it has become. Anything else would run an order
      * the person explicitly changed away from.
      */
-    lifecycle: chosen.reorder ? '' : chosenLifecycle(chosenSteps),
+    lifecycle: chosen.reorder ? '' : chosenLifecycle(chosenActivities),
     operator,
-    steps,
+    activities,
     prompt,
     trustLevel: Number(trust),
     commit: commit === 'yes',
@@ -328,12 +331,10 @@ export const main = async (): Promise<number> => {
    * the flags stop needing the wizard.
    */
   /*
-   * Shown as the `just` recipe, not as the bun line that runs underneath it.
-   * The bun path names an install directory and goes stale the moment that
-   * moves; `just crust …` is the interface every README and error message
-   * already prints, and it is the line worth learning.
+   * The recipe, which is the only form there is now: nothing composes a path
+   * into the stamp any more, because the runtime does not live there.
    */
-  const line = shellLine(justArgv(argv))
+  const line = shellLine(argv)
   writeLine(box('the command', [line], 'cyan'))
 
   /*

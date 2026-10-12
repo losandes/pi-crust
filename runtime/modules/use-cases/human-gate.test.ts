@@ -181,7 +181,7 @@ test(
     const actual = renderDecisionRequest(
       reason,
       'a1b2c3d4',
-      'bun .pi-crust/lifecycles/sdlc.ts spec.md --approve-after plan --run-id a1b2c3d4 --resume',
+      'just crust run spec.md --approve-after plan --run-id a1b2c3d4 --resume',
     )
 
     // then
@@ -258,7 +258,7 @@ test(
     // for and finds out by the chain sailing past it
     const argv = [
       'bun',
-      '/Users/andy/src/app/.pi-crust/lifecycles/sdlc.ts',
+      '/Users/andy/src/pi-crust/runtime/lifecycles/compose.ts',
       'specs/stats.md',
       '--approve-after',
       'plan',
@@ -269,7 +269,7 @@ test(
 
     // then
     expect(actual).toBe(
-      'bun .pi-crust/lifecycles/sdlc.ts specs/stats.md --approve-after plan ' +
+      'just crust run specs/stats.md --approve-after plan ' +
         '--run-id 9afffac5 --resume',
     )
   },
@@ -285,7 +285,7 @@ test(
     // given — the second gate of a run that was already picked up once
     const argv = [
       'bun',
-      '/Users/andy/src/app/.pi-crust/lifecycles/sdlc.ts',
+      '/Users/andy/src/pi-crust/runtime/lifecycles/compose.ts',
       'specs/stats.md',
       '--run-id',
       '9afffac5',
@@ -297,7 +297,7 @@ test(
 
     // then
     expect(actual).toBe(
-      'bun .pi-crust/lifecycles/sdlc.ts specs/stats.md --run-id 9afffac5 --resume',
+      'just crust run specs/stats.md --run-id 9afffac5 --resume',
     )
   },
 )
@@ -313,7 +313,7 @@ test(
     // and the command fails in a way that looks like crust's fault
     const argv = [
       'bun',
-      '/Users/andy/src/app/.pi-crust/stages/scout.ts',
+      '/Users/andy/src/pi-crust/runtime/stages/triage.ts',
       'name the top-level directories. change nothing.',
     ]
 
@@ -322,7 +322,7 @@ test(
 
     // then
     expect(actual).toBe(
-      'bun .pi-crust/stages/scout.ts "name the top-level directories. change ' +
+      'just crust triage "name the top-level directories. change ' +
         'nothing." --run-id ac3127d9 --resume',
     )
   },
@@ -336,7 +336,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const argv = ['bun', '/app/.pi-crust/stages/plan.ts', 'add a "health" endpoint']
+    const argv = ['bun', '/pkg/runtime/lifecycles/compose.ts', 'add a "health" endpoint']
 
     // when
     const actual = resumeInvocation(argv, 'a1')

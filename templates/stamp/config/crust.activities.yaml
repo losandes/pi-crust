@@ -377,13 +377,13 @@ activities:
 #
 # Planners carry no `output`, `gates`, `attempts` or `commit`: their work
 # configuration is the engine's, not a team's. Their envelope is the only one
-# the runner EXECUTES, which is why `steps_valid` gates them — an invented
+# the runner EXECUTES, which is why `stepsValid` gates them — an invented
 # Activity name is not a weak suggestion, it is a run that cannot start.
 
 planners:
   - name: operator
     color: amber
-    purpose: Choose the smallest chain of steps that can produce the outcome.
+    purpose: Choose the smallest chain of Activities that can produce the outcome.
     prompt_engineering:
       system: prompt-engineering/operator/system.md
       user: prompt-engineering/operator/user.md

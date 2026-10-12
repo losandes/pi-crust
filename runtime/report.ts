@@ -3,7 +3,7 @@
  * pi-crust Report — where did a run get to, and what do I run to finish it?
  *
  * Usage:
- *     bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] [--config <path>]
+ *     just crust report [<run-id>] [--json] [--db <path>] [--config <path>]
  *
  * `CRUST_DB` and `CRUST_CONFIG` stand in for the two path flags when they are
  * not passed, so the runtime honours the same variables the visualizer does.
@@ -27,7 +27,7 @@
  * can never disagree about which activityRuns are already done.
  */
 
-import { isPlannerName } from './modules/typedefs/activity'
+import { dirname, join } from 'node:path'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
@@ -39,6 +39,15 @@ import {
 } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
+import {
+  recipeArgv,
+  RUN_RECIPE,
+  shellLine,
+} from './modules/use-cases/recipe-line'
+import {
+  recordedInvocation,
+  resumeArgv,
+} from './modules/use-cases/resume-run'
 
 export type TReportArgs = Readonly<{
   runId: string | undefined
@@ -48,7 +57,7 @@ export type TReportArgs = Readonly<{
 }>
 
 export const USAGE =
-  'usage: bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] ' +
+  'usage: just crust report [<run-id>] [--json] [--db <path>] ' +
   '[--config <path>]\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 
@@ -127,22 +136,46 @@ const gateLines = (gate: TGateOutcome): readonly string[] => [
 /**
  * The command that picks this run back up, in the words the developer types.
  *
- * A single stage and a whole lifecycle live in different directories, so the
- * name decides the path: anything in the step registry is a stage, everything
- * else is a lifecycle. Guessing one directory would print a command that does
- * not exist, for exactly the runs a developer is already frustrated by.
+ * Read from what the run RECORDED, not reconstructed from the session row.
+ * The row holds the entry point's own name and nothing else, so a line built
+ * from it drops `--lifecycle sdlc`, `--approve-after plan` and every other
+ * flag the run was started with — and the resulting command either refuses
+ * for want of a chain or quietly runs a different one.
  */
-export const resumeCommand = (state: TRunState): string => {
-  const workflow = (state.lifecycle.split(' + ').at(-1) || 'sdlc').trim()
-  const folder = isPlannerName(workflow) ? 'stages' : 'lifecycles'
-  const request = state.request.replaceAll('"', '\\"').split('\n')[0] ?? ''
-  return (
-    `bun .pi-crust/${folder}/${workflow}.ts --run-id ${state.run_id} --resume ` +
-    `"${request}"`
-  )
+export const resumeCommand = (
+  state: TRunState,
+  invocation: readonly string[] | undefined,
+): string => {
+  // `resumeArgv` answers script-first; `recipeArgv` reads a full `bun <script>`
+  // line, which is the shape everything else records.
+  const resumed =
+    invocation === undefined
+      ? undefined
+      : recipeArgv(['bun', ...resumeArgv(invocation, state.run_id)])
+  if (resumed !== undefined) {
+    return shellLine(resumed)
+  }
+  const request = state.request.split('\n')[0] ?? ''
+
+  return shellLine([
+    'just',
+    'crust',
+    RUN_RECIPE,
+    request,
+    '--run-id',
+    state.run_id,
+    '--resume',
+  ])
 }
 
-export const renderReport = (state: TRunState): string => {
+/** Where this run wrote down how it was started, from the trace it is in. */
+export const sessionDirOf = (dbPath: string, runId: string): string =>
+  join(dirname(dbPath), 'sessions', runId)
+
+export const renderReport = (
+  state: TRunState,
+  invocation: readonly string[] | undefined = undefined,
+): string => {
   const header = [
     `${paint('run_id:', 'bold')} ${state.run_id}`,
     `${paint('workflow:', 'bold')} ${state.lifecycle || '(unknown)'}`,
@@ -163,7 +196,7 @@ export const renderReport = (state: TRunState): string => {
       ? [paint('every activity run succeeded — nothing to resume', 'green')]
       : [
           `${paint('resume from:', 'bold')} ${state.resume_from}`,
-          `  ${resumeCommand(state)}`,
+          `  ${resumeCommand(state, invocation)}`,
         ]
   return [
     box('run', header, state.resume_from === undefined ? 'green' : 'yellow'),
@@ -185,7 +218,14 @@ export const main = (argv: readonly string[]): number => {
     )
     return EXIT.USAGE
   }
-  writeLine(args.json ? JSON.stringify(state, null, 2) : renderReport(state))
+  writeLine(
+    args.json
+      ? JSON.stringify(state, null, 2)
+      : renderReport(
+          state,
+          recordedInvocation(sessionDirOf(dbPath, state.run_id))?.argv,
+        ),
+  )
   if (state.status === 'waiting') {
     return EXIT.WAITING
   }

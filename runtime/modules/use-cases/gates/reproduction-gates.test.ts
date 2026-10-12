@@ -52,7 +52,7 @@ test(
 test(
   [
     'given use-cases/gates::reproductionSupported',
-    'when a diagnosis claims a reproduction but records no steps',
+    'when a diagnosis claims a reproduction but records no activities',
     'it should refuse it',
   ].join(', '),
   () => {

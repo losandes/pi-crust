@@ -42,7 +42,7 @@ This should be rare. Most changes are invisible to a running run.
 Run these from the repository root before claiming anything works:
 
 ```sh
-(cd templates/pi-crust && bun test && bun x tsc --noEmit)
+(cd runtime && bun test && bun x tsc --noEmit)
 (cd apps/visualizer && bun test && bun x tsc --noEmit && bun x vite build)
 ```
 

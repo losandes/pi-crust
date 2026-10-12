@@ -55,7 +55,7 @@ const artifactEvent = (
 test(
   [
     'given lib/artifacts::runArtifacts',
-    'when a step reported a document that exists',
+    'when a activity reported a document that exists',
     'it should carry the agent, the summary and the heading as its title',
   ].join(', '),
   () => {
@@ -96,7 +96,7 @@ test(
 test(
   [
     'given lib/artifacts::runArtifacts',
-    'when a step claims a document that is not on disk',
+    'when a activity claims a document that is not on disk',
     'it should list it as missing rather than hide it',
   ].join(', '),
   () => {
@@ -158,7 +158,7 @@ test(
     'it should still be listed, and system files marked as such',
   ].join(', '),
   () => {
-    // given — over-reporting is deliberate: a document a step forgot to
+    // given — over-reporting is deliberate: a document a activity forgot to
     // report is still a document somebody would go hunting for. The run's
     // own machinery files are listed too, but marked, so a reader never has
     // to know which files the interface special-cases.
@@ -228,7 +228,7 @@ test(
   ].join(', '),
   () => {
     // given — an invalid envelope is a rejected report; the attempt that
-    // replaced it is the one that speaks for the step
+    // replaced it is the one that speaks for the activity
     const envelopes = [
       envelope('scout', `${RUN}_01_scout`, { artifacts: [`${DIR}/junk.md`] }, 0),
     ]
@@ -283,7 +283,7 @@ test(
   [
     'given lib/artifacts::relativeToSession and activityRunArtifacts',
     'when a path is absolute and a list spans several activity-run',
-    'it should shorten the path and narrow the list to one step',
+    'it should shorten the path and narrow the list to one activity',
   ].join(', '),
   () => {
     // given — the trace stores absolute paths, which are unreadable on a card

@@ -467,7 +467,7 @@ export const SessionTrace = ({
             Controls only while there is something to control. On a finished
             run this card said "there is nobody to talk to" above a disabled
             field — a whole card to say nothing can be done. What CAN be done
-            is asking a step, and that belongs on the step, where the
+            is asking a activity, and that belongs on the activity, where the
             conversation it continues is.
           */}
           {(session.status === 'running' || session.status === 'waiting') && (
@@ -480,7 +480,7 @@ export const SessionTrace = ({
           )}
           {/*
             The run's own context, under the conversation: what was asked,
-            and every document the run produced. A step has its context in a
+            and every document the run produced. A activity has its context in a
             tab because it has fifteen kinds; a run has two, so folding them
             would only cost a click.
           */}

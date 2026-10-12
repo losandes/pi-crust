@@ -1,20 +1,14 @@
 import { expect, test } from 'bun:test'
 import { TRUST_DEFAULT } from '../typedefs/trust'
-import {
-  OPERATORS,
-  justArgv,
-  resumeArgvFor,
-  runArgv,
-  shellLine,
-} from './compose-request'
+import { OPERATORS, resumeArgvFor, runArgv } from './compose-request'
 
-const SDLC_STEPS = ['plan', 'test', 'build', 'review']
+const SDLC_ACTIVITIES = ['plan', 'test', 'build', 'review']
 
 const request = (over: Partial<Parameters<typeof runArgv>[0]> = {}) =>
   runArgv({
     lifecycle: 'sdlc',
     operator: '',
-    steps: SDLC_STEPS,
+    activities: SDLC_ACTIVITIES,
     prompt: 'add a /health endpoint',
     // The default, named rather than spelled: this helper exists to produce
     // a request where nothing was chosen, and a literal here would start
@@ -41,8 +35,9 @@ test(
 
     // then
     expect(argv).toEqual([
-      'bun',
-      '.pi-crust/lifecycles/compose.ts',
+      'just',
+      'crust',
+      'run',
       'add a /health endpoint',
       '--lifecycle',
       'sdlc',
@@ -53,19 +48,19 @@ test(
 test(
   [
     'given use-cases/compose-request::runArgv',
-    'when the steps are an arbitrary subset',
-    'it should compose and pass --steps in the order chosen',
+    'when the activities are an arbitrary subset',
+    'it should pass --activities in the order chosen',
   ].join(' '),
   () => {
     // given
-    const steps = ['build', 'plan', 'test']
+    const activities = ['build', 'plan', 'test']
 
     // when — a hand-picked list is not a Lifecycle, named or otherwise
-    const argv = request({ steps, lifecycle: '' })
+    const argv = request({ activities, lifecycle: '' })
 
     // then
-    expect(argv).toContain('.pi-crust/lifecycles/compose.ts')
-    expect(argv[argv.indexOf('--steps') + 1]).toBe('build,plan,test')
+    expect(argv.slice(0, 3)).toEqual(['just', 'crust', 'run'])
+    expect(argv[argv.indexOf('--activities') + 1]).toBe('build,plan,test')
   },
 )
 
@@ -73,17 +68,17 @@ test(
   [
     'given use-cases/compose-request::runArgv',
     'when a named lifecycle is chosen',
-    'it should NOT pass --steps, so the run has one source of truth',
+    'it should NOT pass --activities, so the run has one source of truth',
   ].join(' '),
   () => {
     // given
-    const steps = SDLC_STEPS
+    const activities = SDLC_ACTIVITIES
 
     // when
-    const argv = request({ steps })
+    const argv = request({ activities })
 
     // then
-    expect(argv).not.toContain('--steps')
+    expect(argv).not.toContain('--activities')
   },
 )
 
@@ -127,7 +122,7 @@ test(
     const argv = resumeArgvFor(answer)
 
     // then
-    expect(argv).toEqual(['bun', '.pi-crust/decide.ts', 'approve', 'a1b2c3d4'])
+    expect(argv).toEqual(['just', 'crust', 'approve', 'a1b2c3d4'])
   },
 )
 
@@ -155,169 +150,25 @@ test(
 
 test(
   [
-    'given use-cases/compose-request::shellLine',
-    'when an argument contains spaces',
-    'it should quote only that one, so the quoting itself carries meaning',
-  ].join(' '),
-  () => {
-    // given
-    const argv = ['bun', '.pi-crust/lifecycles/sdlc.ts', 'add a /health endpoint']
-
-    // when
-    const line = shellLine(argv)
-
-    // then
-    expect(line).toBe(
-      'bun .pi-crust/lifecycles/sdlc.ts "add a /health endpoint"',
-    )
-  },
-)
-
-test(
-  [
-    'given use-cases/compose-request::justArgv',
-    'when the command runs a named lifecycle',
-    'it should become the recipe, which is the documented way to say it',
-  ].join(' '),
-  () => {
-    // given
-    const argv = [
-      'bun',
-      '.pi-crust/lifecycles/sdlc.ts',
-      'add a /health endpoint',
-      '--trust-level',
-      '50',
-    ]
-
-    // when
-    const recipe = justArgv(argv)
-
-    // then
-    expect(recipe).toEqual([
-      'just',
-      'crust',
-      'sdlc',
-      'add a /health endpoint',
-      '--trust-level',
-      '50',
-    ])
-  },
-)
-
-test(
-  [
-    'given use-cases/compose-request::justArgv',
-    'when the command runs a single stage',
-    'it should become that stage recipe',
-  ].join(' '),
-  () => {
-    // given
-    const argv = ['bun', '.pi-crust/stages/code-review.ts', 'the /health work']
-
-    // when
-    const recipe = justArgv(argv)
-
-    // then
-    expect(recipe).toEqual(['just', 'crust', 'code-review', 'the /health work'])
-  },
-)
-
-test(
-  [
-    'given use-cases/compose-request::justArgv',
-    'when the command answers a gate',
-    'it should use the verb as the recipe, because there is one per verb',
-  ].join(' '),
-  () => {
-    // given
-    const argv = [
-      'bun',
-      '.pi-crust/decide.ts',
-      'answer',
-      'a1b2c3d4',
-      '--note',
-      'the l4-proxy owns it',
-    ]
-
-    // when
-    const recipe = justArgv(argv)
-
-    // then
-    expect(recipe).toEqual([
-      'just',
-      'crust',
-      'answer',
-      'a1b2c3d4',
-      '--note',
-      'the l4-proxy owns it',
-    ])
-  },
-)
-
-test(
-  [
-    'given use-cases/compose-request::justArgv',
-    'when nothing in the recipes matches the script',
-    'it should hand back the runnable line rather than invent a recipe',
-  ].join(' '),
-  () => {
-    // given
-    const argv = ['bun', '.pi-crust/some-new-entry.ts', 'x']
-
-    // when
-    const recipe = justArgv(argv)
-
-    // then
-    expect(recipe).toEqual(argv)
-  },
-)
-
-test(
-  [
-    'given use-cases/compose-request::justArgv',
-    'when a composed chain carries its steps',
-    'it should keep every flag in place after the recipe name',
-  ].join(' '),
-  () => {
-    // given
-    const argv = [
-      'bun',
-      '.pi-crust/lifecycles/compose.ts',
-      'fix the redirect',
-      '--steps',
-      'build,plan',
-    ]
-
-    // when
-    const line = justArgv(argv).join(' ')
-
-    // then
-    expect(line).toBe(
-      'just crust compose fix the redirect --steps build,plan',
-    )
-  },
-)
-
-test(
-  [
     'given use-cases/compose-request::runArgv',
     'when an operator was chosen instead of a chain',
-    'it should run the operator and pass NO steps, which it would refuse',
+    'it should run the operator and pass NO chain, which it would refuse',
   ].join(' '),
   () => {
     // given
-    const answers = { operator: 'operator', steps: [] }
+    const answers = { operator: 'operator', activities: [] }
 
     // when
     const argv = request(answers)
 
     // then
     expect(argv).toEqual([
-      'bun',
-      '.pi-crust/stages/operator.ts',
+      'just',
+      'crust',
+      'operator',
       'add a /health endpoint',
     ])
-    expect(argv).not.toContain('--steps')
+    expect(argv).not.toContain('--activities')
   },
 )
 

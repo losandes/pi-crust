@@ -28,7 +28,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 Three steps. Then stop.
 
 1. Read [cookbooks/crust_overview.md](cookbooks/crust_overview.md) — the system map.
-2. Read `.pi-crust/config/crust.lifecycles.yaml` and `.pi-crust/config/crust.activities.yaml` — the Lifecycles and the Activities this repository actually offers. They are configuration, so this file cannot tell you what they are.
+2. Run `just crust list`, or read `.pi-crust/config/crust.lifecycles.yaml` and `.pi-crust/config/crust.activities.yaml` — the Lifecycles and the Activities this repository actually offers. They are configuration, so this file cannot tell you what they are, and there is no recipe named after any of them.
 3. Print what is available as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
 
 The two directories are not the same kind of thing, and the table should not pretend otherwise:
@@ -40,7 +40,7 @@ The two directories are not the same kind of thing, and the table should not pre
 | sdlc | identify → conceptualize → plan → design → build → test → review → code-review | the work starts from a wish and its shape is not obvious |
 | bugfix | diagnose → plan → test → build → review → code-review | the work starts from a symptom somebody reported |
 | de-risk | identify → plan → build | the expensive question is whether the approach works at all |
-| compose | whatever `--steps` names | you know exactly which Activities you want |
+| run | whatever `--activities` names | you know exactly which Activities you want |
 
 | Activity | Purpose | Use when |
 |---|---|---|
@@ -50,7 +50,7 @@ The two directories are not the same kind of thing, and the table should not pre
 
 Take the rows from the two config files, never from this list: a team adds, removes and renames Activities without touching this package, so a table written here is a table that drifts.
 
-Every Activity runs on its own, and `compose --steps a,b,c` runs any ordered subset of them in any order, with repeats. Say so when you print the table: an engineer who wants only a code review should not be told to run a lifecycle, and one who wants an unusual order does not need a new file written for them.
+Every Activity runs on its own, and `run --activities a,b,c` runs any ordered subset of them in any order, with repeats; `a+b` runs two at once. Say so when you print the table: an engineer who wants only a code review should not be told to run a lifecycle, and one who wants an unusual order does not need a new file written for them.
 
 **Nothing else.** No trace-db queries, no reading the config or the workflow scripts' bodies, no repo inventory, no last-runs summary, no diagnosing an old failure, no "current state" dashboard. None of it was asked for, and it is not free:
 
@@ -88,7 +88,7 @@ Deep specs, when needed: [references/config.md](references/config.md) · [refere
 
 ## Lifecycle stages
 
-The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are that record's; the step names are what you type. They differ in one place, and the mapping is kept rather than renamed so a human running the same lifecycle recognises both.
+The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are that record's; the Activity names are what you type. They differ in one place, and the mapping is kept rather than renamed so a human running the same lifecycle recognises both.
 
 | Stage             | Activity                  | Reduces                                                   |
 | ----------------- | ------------------------- | --------------------------------------------------------- |

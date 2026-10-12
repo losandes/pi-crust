@@ -59,8 +59,8 @@ export const changedPaths = (
  * Translate a pattern, with `*` stopping at a path separator.
  *
  * A plain glob would let `*` cross `/`, which quietly widens every pattern:
- * `.pi-crust/stages/*.ts` would match `.pi-crust/data/sessions/x/y.ts` as well as the
- * workflow scripts it means. `**` is the way to say "cross directories".
+ * `.pi-crust/config/*.yaml` would match `.pi-crust/config/nested/x.yaml` as
+ * well as the files it means. `**` is the way to say "cross directories".
  */
 export const globToRegExp = (pattern: string): RegExp => {
   const translate = (index: number): readonly string[] => {

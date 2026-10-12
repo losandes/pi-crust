@@ -238,7 +238,7 @@ export const archiveSession = (
   })
 
 /**
- * Ask a finished step a question, or have it amend its own document.
+ * Ask a finished Activity Run a question, or have it amend its own document.
  *
  * Returns as soon as the consult STARTS. Rejoining a hundred-thousand-token
  * conversation takes a minute, and the answer arrives the way everything
@@ -246,32 +246,32 @@ export const archiveSession = (
  */
 export const sendConsult = (
   runId: string,
-  step: string,
+  activity: string,
   mode: 'ask' | 'amend',
   question: string,
   workspace?: string,
 ): Promise<TWriteResult> =>
   post(
-    `/api/sessions/${encodeURIComponent(runId)}/steps/${encodeURIComponent(step)}` +
+    `/api/sessions/${encodeURIComponent(runId)}/activities/${encodeURIComponent(activity)}` +
       `/consult${scope(workspace)}`,
     { mode, question },
   )
 
 /**
- * Send a run back to a step, replaying it and everything after it.
+ * Send a run back to an Activity Run, replaying it and everything after it.
  *
  * `target` is required by the caller, never defaulted here: overwrite
  * discards the path being steered away from and branch keeps both.
  */
 export const sendSteer = (
   runId: string,
-  step: string,
+  activity: string,
   target: 'overwrite' | 'branch',
   note: string,
   workspace?: string,
 ): Promise<TWriteResult> =>
   post(
-    `/api/sessions/${encodeURIComponent(runId)}/steps/${encodeURIComponent(step)}` +
+    `/api/sessions/${encodeURIComponent(runId)}/activities/${encodeURIComponent(activity)}` +
       `/steer${scope(workspace)}`,
     { target, note },
   )
@@ -288,3 +288,16 @@ export const sendDecision = (
     text,
     from: 'the web app',
   })
+
+/**
+ * Pick a finished run back up, exactly as it was launched.
+ *
+ * The server re-reads the invocation the run recorded, so every flag it
+ * started with survives — resuming without `--approve-after plan` would
+ * silently drop the gate the developer asked for.
+ */
+export const sendResume = (
+  runId: string,
+  workspace?: string,
+): Promise<TWriteResult> =>
+  post(`/api/sessions/${encodeURIComponent(runId)}/resume${scope(workspace)}`, {})

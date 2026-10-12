@@ -19,14 +19,14 @@
  */
 
 import type { TStageStrategy } from './lifecycle'
-import type { TStep } from './step'
+import type { TActivity } from './runnable-activity'
 
 export type TUnit = Readonly<{
   /** the Stage these Activities came from, for gates and for the trace */
   stage: string
   strategy: TStageStrategy
   /** one for a serial Activity; the whole Stage when it is concurrent */
-  steps: readonly TStep[]
+  activities: readonly TActivity[]
   /** whether this is the last Unit of its Stage, which is where a stage gate sits */
   endsStage: boolean
 }>

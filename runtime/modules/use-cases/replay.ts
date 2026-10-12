@@ -1,8 +1,8 @@
 /**
  * How a hand-written workflow's activityRuns are replayed under `--resume`.
  *
- * The step library answers this per step. The workflows with real control flow
- * — bounded fix loops, conditional tails — are not steps, so they say it at the
+ * The activity library answers this per activity. The workflows with real control flow
+ * — bounded fix loops, conditional tails — are not activities, so they say it at the
  * call site: `activityRun(params, body, replay)`. One extra argument, and the cost is
  * deliberate. A resume primitive that guessed how to rehydrate an activity run would
  * have to return `undefined as TResult` and launder a hole into every caller.
@@ -36,7 +36,7 @@ export const replayAgent =
     if (settled.status === 'error') {
       throw new Error(
         `cannot resume '${agentName}': ${settled.error.message}. Either drop ` +
-          '--resume so the activityRun runs again, or run that step on its own.',
+          '--resume so the activityRun runs again, or run that activity on its own.',
       )
     }
     return Promise.resolve(settled.data)

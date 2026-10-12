@@ -6,6 +6,13 @@
  * and `code-review` alone. What it actually does is decide whether an
  * Activity's work holds, which is what a gate is.
  *
+ * A repository that has declared no checks at all passes this gate, saying
+ * so. `checks: []` is what an install stamps and the file holding it is
+ * protected from the agents, so failing on it made the shipped configuration
+ * unrunnable by construction. Declaring a rule is the act of opting in; a
+ * declared rule that matches nothing still fails, because that is a gap
+ * rather than an abstention.
+ *
  * Declared per Activity rather than applied to all of them, because
  * automatic gating fails in both directions. After `test` the suite is red on
  * purpose — that is TDD order, not a defect. After `plan` the only change is
@@ -24,7 +31,7 @@ import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'
-import { runVerification } from '../run-checks'
+import { NOTHING_DECLARED, runVerification } from '../run-checks'
 
 /**
  * What the checks are run about: what the driver says changed, else the
@@ -52,6 +59,13 @@ export const checksReport = (
   run: TRun,
   paths: readonly string[],
 ): TGateReport => {
+  /*
+   * A repository that has declared nothing passes, and the gate SAYS it
+   * passed for want of anything to run. Silence would read as coverage.
+   */
+  if (run.cfg.routing.checks.length === 0) {
+    return addCheck(emptyReport, 'routing.checks', true, NOTHING_DECLARED)
+  }
   const result = runVerification(run, paths)
   if (result.checks.length === 0) {
     return result.failures.reduce<TGateReport>(

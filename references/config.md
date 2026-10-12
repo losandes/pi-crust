@@ -81,13 +81,13 @@ themes:
     stylesheet: config/high-contrast.css
 ```
 
-| Field            | Type | Meaning                                                                                                                         |
-| ---------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `db`             | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`.                  |
-| `poll_ms`        | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                                   |
-| `ports.backend`  | int  | The API `observe` boots, the UI proxies to, and every run probes before printing a link. `CRUST_BE_PORT` wins. Default `4600`.  |
-| `ports.frontend` | int  | The web app `observe` boots, and the host of the link a run prints. `CRUST_FE_PORT` wins. Default `4601`.                       |
-| `default_theme`  | name | Which registered theme the trace UI starts on. `auto` follows the system. Default `auto`.                                       |
+| Field            | Type | Meaning                                                                                                                                         |
+| ---------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db`             | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`.                                  |
+| `poll_ms`        | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                                                   |
+| `ports.backend`  | int  | The API `observe` boots, the UI proxies to, and every run probes before printing a link. `CRUST_BE_PORT` wins. Default `4600`.                  |
+| `ports.frontend` | int  | The web app `observe` boots, and the host of the link a run prints. `CRUST_FE_PORT` wins. Default `4601`.                                       |
+| `default_theme`  | name | Which registered theme the trace UI starts on. `auto` follows the system. Default `auto`.                                                       |
 | `themes[]`       | list | Every theme the picker offers — see the observability reference. A theme is `builtin: true`, or names a `stylesheet:` relative to `.pi-crust/`. |
 
 ### `agents[]`
@@ -107,13 +107,13 @@ themes:
 
 An Activity entry carries what the work IS as well as who performs it, because they are one thing: a Lifecycle names `plan`, and `plan` is the entry.
 
-| Field      | Required | Meaning                                                                                                                                                                                                 |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `output`   | no       | The envelope spec it answers, by published name. Default `genericOutput`. A name the package does not publish is refused at load, listing the ones it does.                                           |
-| `gates`    | no       | What its envelope must survive, by published name. `checks` runs this repository's `routing.checks` commands and is deliberately opt-in: after `test` the suite is red on purpose.                     |
-| `input`    | no       | `upstream` (the default) or `changes` — the run's own diff since its baseline, which is what the documenter reads.                                                                                     |
-| `attempts` | no       | Activity Runs of ONE instance this run may spend, the first included. Default 2. A gate failure, a revise round and a regression all come out of it. Declare 1 where re-execution is expensive.         |
-| `commit`   | no       | Land this Activity's own change, in its envelope's `commit_message`, once every gate on it has passed. `--commit false` takes it away for a run; nothing grants it.                                    |
+| Field      | Required | Meaning                                                                                                                                                                                         |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `output`   | no       | The envelope spec it answers, by published name. Default `genericOutput`. A name the package does not publish is refused at load, listing the ones it does.                                     |
+| `gates`    | no       | What its envelope must survive, by published name. `checks` runs this repository's `routing.checks` commands and is deliberately opt-in: after `test` the suite is red on purpose.              |
+| `input`    | no       | `upstream` (the default) or `changes` — the run's own diff since its baseline, which is what the documenter reads.                                                                              |
+| `attempts` | no       | Activity Runs of ONE instance this run may spend, the first included. Default 2. A gate failure, a revise round and a regression all come out of it. Declare 1 where re-execution is expensive. |
+| `commit`   | no       | Land this Activity's own change, in its envelope's `commit_message`, once every gate on it has passed. `--commit false` takes it away for a run; nothing grants it.                             |
 
 Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
 
@@ -246,7 +246,7 @@ Under concurrency this list is also how a write is attributed. Permission used t
 `--approve-after` takes Activity names, and Stage names prefixed with `stage:`:
 
 ```bash
-just crust sdlc "..." --approve-after plan,stage:accept
+just crust run "..." --lifecycle sdlc --approve-after plan,stage:accept
 ```
 
 | Named          | Stage strategy | The run pauses                              |
@@ -317,15 +317,18 @@ Without the rebase, a root-relative path handed to a command running in a subdir
 
 `when` uses the same matcher as `writes:`: **`*` does not cross `/`, `**` does.** So `when: ["*.ts"]` matches `server.ts` at the repository root and nothing nested — and because the result is "no rule matched", it reads as silence rather than as an error. Write `**/*.ts` unless you mean the root only.
 
-### Declaring nothing is not the same as passing
+### Declaring nothing is not the same as declaring a rule that misses
 
-A `checks` gate where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
+An empty `routing.checks` passes, saying it had nothing to run. A declared rule that matches nothing **fails**, and says which paths went unchecked.
 
-| Changed paths | Matched checks | Verdict                                                |
-| ------------- | -------------- | ------------------------------------------------------ |
-| none          | —              | passed: nothing changed, no checks apply               |
-| some          | 0              | **failed**: N path(s) changed but no rule matched them |
-| some          | N              | whatever the commands said                             |
+Those are different claims. Nothing declared is a repository that has not opted in to verification — and `checks: []` is what an install stamps, in a file `protected_files` keeps the agents out of, so failing on it made the shipped configuration unrunnable by construction. A rule that matched nothing is a repository that opted in and left this change uncovered, which is the "a rule reporting zero may be disabled rather than satisfied" failure worth catching.
+
+| routing.checks | Changed paths | Matched | Verdict                                                |
+| -------------- | ------------- | ------- | ------------------------------------------------------ |
+| empty          | —             | —       | passed: nothing was declared, so nothing was promised  |
+| declared       | none          | —       | passed: nothing changed, no checks apply               |
+| declared       | some          | 0       | **failed**: N path(s) changed but no rule matched them |
+| declared       | some          | N       | whatever the commands said                             |
 
 ### How a skill reaches the agent
 
@@ -386,11 +389,11 @@ An agent that names nothing takes a role by position, so adjacent lanes in a wat
 
 ## What the interactive menu offers, and in what order
 
-Everything registered in `crust.activities.yaml`, in the order that file declares them, with the Lifecycles from `crust.lifecycles.yaml` above them and the Operator between. Reorder the registry to reorder the menu; nothing else records a sequence, so nothing else can drift out of step with the Activities that exist.
+Everything registered in `crust.activities.yaml`, in the order that file declares them, with the Lifecycles from `crust.lifecycles.yaml` above them and the Operator between. Reorder the registry to reorder the menu; nothing else records a sequence, so nothing else can drift away from the Activities that exist.
 
 `hidden: true` on an Activity keeps it out of the menu, for people who drive the factory with Lifecycles or a Planner and never pick it by hand.
 
-Hidden is not disabled, and the distinction is deliberate. A Lifecycle, a Planner and an explicit `--steps` all still run a hidden Activity. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to.
+Hidden is not disabled, and the distinction is deliberate. A Lifecycle, a Planner and an explicit `--activities` all still run a hidden Activity. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to.
 
 Because the flag lives on the Activity, a local layer can hide one without changing what the team ships:
 
@@ -403,7 +406,7 @@ activities:
 
 The menu lists exactly what the registry registers. There is no second namespace of performers to bridge: an entry is named for the work, and the work IS the agent.
 
-There is no `steps` block. It held an `order` and a `hidden` list, and both are gone — presentation order is the registry's order, and hiding is a property of the Activity. Execution order comes from the Lifecycle, or from the list given to `--steps`.
+There is no `steps` block any more. It held an `order` and a `hidden` list, and both are gone — presentation order is the registry's order, and hiding is a property of the Activity. Execution order comes from the Lifecycle, or from the chain given to `--activities`.
 
 When a chain needs a different order for one run, press `r` at the menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the selected item.
 
@@ -419,7 +422,7 @@ high    nothing stops it unless you asked with --approve-after
 
 The axis is the run's blast radius, not the importance of the subject. Two things stop a medium run and only two: an empty `provisional_answer`, which means the stage had no answer it could defend and proceeding would be invention; and `beyond_this_run: true`, which means acting would reach outside what discarding the run's output would undo — a push, a deploy, a migration against real data, spend.
 
-It used to be irreversibility, and that was wrong in a way worth recording. An agent correctly calls a schema irreversible, so a run that was only writing a *document* about a schema stopped at nearly every step. Measured across every question the factory has written, 12 of 40 carried both flags, and they were questions like "which naming survives" and "is that year 2026 or 2025" — things a colleague decides, states, and is corrected on later.
+It used to be irreversibility, and that was wrong in a way worth recording. An agent correctly calls a schema irreversible, so a run that was only writing a *document* about a schema stopped at nearly every Activity. Measured across every question the factory has written, 12 of 40 carried both flags, and they were questions like "which naming survives" and "is that year 2026 or 2025" — things a colleague decides, states, and is corrected on later.
 
 Each level is now rendered into every agent's prompt as `{{trust_stance}}`. Before, no prompt mentioned the dial at all: it filtered the agent's classification after the fact, so raising it could not make an agent try harder to settle anything. A setting the worker cannot see is a report filter, not a setting.
 

@@ -3,6 +3,7 @@ import {
   consultsFor,
   consultsOf,
   staleAfterAmend,
+  stillPending,
   type TConsult,
 } from './consult'
 import type { EventRow, ActivityRun } from './types'
@@ -45,7 +46,7 @@ const activityRun = (seq: number, name: string, endedAt: string): ActivityRun =>
 test(
   [
     'given lib/consult::consultsOf',
-    'when a step has been asked a question',
+    'when a activity has been asked a question',
     'it should read the thread without the machinery around it',
   ].join(', '),
   () => {
@@ -83,8 +84,8 @@ test(
 test(
   [
     'given lib/consult::staleAfterAmend',
-    'when a step amends a document after later steps already ran',
-    'it should mark those later steps and leave the earlier ones alone',
+    'when a activity amends a document after later activities already ran',
+    'it should mark those later activities and leave the earlier ones alone',
   ].join(', '),
   () => {
     // given — the honest cost of amending: the plan was derived from the
@@ -120,7 +121,7 @@ test(
 test(
   [
     'given lib/consult::staleAfterAmend',
-    'when a step ran after the amendment',
+    'when a activity ran after the amendment',
     'it should not be marked, because it already saw the new text',
   ].join(', '),
   () => {
@@ -153,7 +154,7 @@ test(
   [
     'given lib/consult::staleAfterAmend and consultsFor',
     'when the consult only asked a question',
-    'it should mark nothing, and the thread belongs to its own step',
+    'it should mark nothing, and the thread belongs to its own activity',
   ].join(', '),
   () => {
     // given — an ask changes no document, so nothing downstream can be
@@ -179,5 +180,88 @@ test(
 
     // then
     expect(actual).toEqual([0, 1, 0])
+  },
+)
+
+test(
+  [
+    'given lib/consult::stillPending',
+    'when a message has been sent and nothing has answered it',
+    'it should stay on screen, because the event is written only at the end',
+  ].join(', '),
+  () => {
+    // given — a consult rejoins a conversation of a hundred thousand tokens
+    // and takes minutes; without this the pane is unchanged the whole time,
+    // which reads exactly like a message that went nowhere
+    const given = { mode: 'amend' as const, question: 'use toEqual, not toBe' }
+
+    // when
+    const actual = stillPending(given, [])
+
+    // then
+    expect(actual).toEqual(given)
+  },
+)
+
+test(
+  [
+    'given lib/consult::stillPending',
+    'when the reply has landed in the trace',
+    'it should clear, so the question is not shown twice',
+  ].join(', '),
+  () => {
+    // given — matched on the question, because the id does not exist until
+    // the event is written
+    const given = { mode: 'amend' as const, question: 'use toEqual, not toBe' }
+    const landed: readonly TConsult[] = [
+      {
+        activityRunId: `${RUN}_07_build`,
+        mode: 'amend',
+        agent: 'build',
+        question: 'use toEqual, not toBe',
+        answer: 'done',
+        answered: true,
+        amended: ['src/add.test.ts'],
+        restored: [],
+        at: '2026-10-12T20:27:20.780Z',
+      },
+    ]
+
+    // when
+    const actual = stillPending(given, landed)
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given lib/consult::stillPending',
+    'when a DIFFERENT consult lands first',
+    'it should keep waiting, rather than clear on somebody else\u2019s answer',
+  ].join(', '),
+  () => {
+    // given
+    const given = { mode: 'ask' as const, question: 'why a registry table?' }
+    const other: readonly TConsult[] = [
+      {
+        activityRunId: `${RUN}_07_build`,
+        mode: 'amend',
+        agent: 'build',
+        question: 'use toEqual, not toBe',
+        answer: 'done',
+        answered: true,
+        amended: [],
+        restored: [],
+        at: '2026-10-12T20:27:20.780Z',
+      },
+    ]
+
+    // when
+    const actual = stillPending(given, other)
+
+    // then
+    expect(actual).toEqual(given)
   },
 )

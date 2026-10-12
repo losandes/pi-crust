@@ -26,7 +26,7 @@ test(
     // it silently removes the gate the developer asked for
     const argv = [
       'bun',
-      '/app/.pi-crust/lifecycles/sdlc.ts',
+      '/pkg/runtime/lifecycles/compose.ts',
       'specs/stats.md',
       '--approve-after',
       'plan',
@@ -37,7 +37,7 @@ test(
 
     // then
     expect(actual).toEqual([
-      '/app/.pi-crust/lifecycles/sdlc.ts',
+      '/pkg/runtime/lifecycles/compose.ts',
       'specs/stats.md',
       '--approve-after',
       'plan',
@@ -58,7 +58,7 @@ test(
     // given — the second gate of a chain picked up once already
     const argv = [
       'bun',
-      '/app/.pi-crust/lifecycles/sdlc.ts',
+      '/pkg/runtime/lifecycles/compose.ts',
       'spec.md',
       '--run-id',
       '9afffac5',
@@ -70,7 +70,7 @@ test(
 
     // then — two commands that do the same thing should look the same
     expect(actual).toEqual([
-      '/app/.pi-crust/lifecycles/sdlc.ts',
+      '/pkg/runtime/lifecycles/compose.ts',
       'spec.md',
       '--run-id',
       '9afffac5',
@@ -89,7 +89,7 @@ test(
     // given — this is why argv is recorded as a list rather than reconstructed
     // from the space-joined command in the processes table
     const dir = sessionWith({
-      argv: ['bun', '/app/.pi-crust/stages/scout.ts', 'name the directories. change nothing.'],
+      argv: ['bun', '/pkg/runtime/stages/triage.ts', 'name the directories. change nothing.'],
       cwd: '/app',
     })
 

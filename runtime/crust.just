@@ -43,45 +43,37 @@ default:
 # start here: two cheap read-only runs, end to end
 demo:
     @echo "1/2  scout: read-only recon"
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --steps scout
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --activities scout
     @echo "\n2/2  identify: the outcome and how success is recognised"
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "state the outcome a newcomer to this repo would want from it, and how they would know they had it" --steps identify
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "state the outcome a newcomer to this repo would want from it, and how they would know they had it" --activities identify
     @echo "\nboth done. now run:  just crust sessions    (or: just crust observe)"
 
-# ── run a stage, or a whole lifecycle ───────────────────────────────────────
+# ── run something ───────────────────────────────────────────────────────────
+# There is no recipe per Activity or per Lifecycle. There used to be twenty,
+# hand-written, and they were a second copy of the registry in a file the
+# configuration cannot reach: four Lifecycles were added and these recipes
+# went on offering three. What can run is read from crust.activities.yaml and
+# crust.lifecycles.yaml at run time, by `run` and by `list`.
+#
 # Args pass straight through: "<prompt or path/to/prompt.md>" [--run-id X]
 
-# read-only recon: just crust scout "where is auth handled"
-scout *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps scout
+# what this repository offers, read from its own configuration: just crust list
+list *ARGS:
+    @bun "{{crust}}/catalogue.ts" --config {{config}} "$@"
 
-# 1.2 the outcome and how success is recognised: just crust identify "..."
-identify *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps identify
+# A Lifecycle by name:
+#     just crust run "add a /health endpoint" --lifecycle sdlc
+# or any chain, Stage by Stage — `,` ends a Stage, `+` runs Activities at once:
+#     just crust run "add a /health endpoint" --activities plan,build,review+code-review
+#     just crust run "where is auth handled" --activities scout
 
-# 1.2b reproduce it and name the cause: just crust diagnose "playback stops after track 3"
-diagnose *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps diagnose
+# run a Lifecycle, or any chain of Activities: just crust run "..." --lifecycle sdlc
+run *ARGS:
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@"
 
-# 1.3 what the solution must mean and do: just crust conceptualize "..."
-conceptualize *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps conceptualize
-
-# 2.2 how it physically exists here: just crust design "..."
-design *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps design
-
-# plan only: just crust plan "add a /health endpoint"
-plan *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps plan
-
-# write the tests that would prove it: just crust test "add a /health endpoint"
-test *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps test
-
-# implement only: just crust build "add a /health endpoint"
-build *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps build
+# Any run resumes: add --run-id <id> --resume to it, e.g.
+#     just crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume
+# `just crust report` prints that exact line for the run it describes.
 
 # Runs the commands routing.checks selects for what you changed, with no
 # Lifecycle, no agent and no session. The same checks run as the `checks`
@@ -90,70 +82,13 @@ build *ARGS:
 verify *ARGS:
     @bun "{{crust}}/checks.ts" --config {{config}} "$@"
 
-# is it what was asked for: just crust review "add a /health endpoint"
-review *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps review
+# ── let something else choose the chain ─────────────────────────────────────
 
-# does it match this repo's conventions: just crust code-review "the /health work"
-code-review *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps code-review
-
-# write it up from the diff: just crust document "the /health work"
-document *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps document
-
-# the whole lifecycle, identify through code-review: just crust sdlc "add a /health endpoint"
-sdlc *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle sdlc
-
-# prove the risky part before building it: just crust de-risk "move sessions to redis"
-de-risk *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle de-risk
-
-# a reported bug, start to finish: just crust bugfix "playback stops after track 3"
-bugfix *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle bugfix
-
-# any ordered subset: just crust compose "..." --steps plan,test,build
-compose *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@"
-
-# Any stage or lifecycle resumes: add --run-id <id> --resume to it, e.g.
-#     just crust sdlc "the original request" --run-id 9d67c31f --resume
-# `just crust report` prints that exact line for the run it describes.
-
-# ── research, design, and choosing the chain ────────────────────────────────
-# None of these is in a lifecycle. Run them when the question is theirs.
-
-# what is technically true: just crust technical-research "can we stream this"
-technical-research *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps technical-research
-
-# what users need: just crust ux-research "why do they abandon upload"
-ux-research *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps ux-research
-
-# the domain's own rules: just crust domain-research "what is an episode"
-domain-research *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps domain-research
-
-# how it could be attacked: just crust security-research "the webhook endpoint"
-security-research *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps security-research
-
-# what the data shows: just crust data-research "did p95 move after the change"
-data-research *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps data-research
-
-# an interface somebody can build: just crust ux-design "the retry screen"
-ux-design *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps ux-design
-
-# let it choose the steps: just crust operator "the webhook drops retries"
+# let it choose the chain and run it: just crust operator "the webhook drops retries"
 operator *ARGS:
     bun "{{crust}}/stages/operator.ts" --config {{config}} "$@"
 
-# Prints the compose command and the reasoning behind it; starts nothing.
+# Prints the run command and the reasoning behind it; starts nothing.
 # recommend a lifecycle instead of running it: just crust triage "..."
 triage *ARGS:
     bun "{{crust}}/stages/triage.ts" --config {{config}} "$@"
@@ -206,21 +141,21 @@ procs RUN_ID:
 prune AGE *ARGS:
     @bun "{{crust}}/prune.ts" --older-than {{AGE}} "$@"
 
-# ask a finished step a question — it still remembers the whole conversation.
-# just crust ask <run_id> <step> "why did you choose a registry table?"
-ask RUN_ID STEP *QUESTION:
-    @bun "{{crust}}/consult.ts" ask {{RUN_ID}} {{STEP}} "$@"
+# ask a finished activity a question — it still remembers the conversation.
+# just crust ask <run_id> <activity> "why did you choose a registry table?"
+ask RUN_ID ACTIVITY *QUESTION:
+    @bun "{{crust}}/consult.ts" ask {{RUN_ID}} {{ACTIVITY}} "$@"
 
-# send a run back to a step with new instructions: that step and every step
+# send a run back to an activity with new instructions: it and every activity
 # after it run again. --overwrite or --branch is REQUIRED; neither is default.
-# just crust steer <run_id> <step> --overwrite "use the registry, not the map"
-steer RUN_ID STEP *ARGS:
-    @bun "{{crust}}/steer.ts" {{RUN_ID}} {{STEP}} "$@"
+# just crust steer <run_id> <activity> --overwrite "use the registry, not the map"
+steer RUN_ID ACTIVITY *ARGS:
+    @bun "{{crust}}/steer.ts" {{RUN_ID}} {{ACTIVITY}} "$@"
 
-# have a finished step revise ITS OWN document. Every other step's stays
-# read-only. just crust amend <run_id> <step> "shorten the migration section"
-amend RUN_ID STEP *INSTRUCTION:
-    @bun "{{crust}}/consult.ts" amend {{RUN_ID}} {{STEP}} "$@"
+# have a finished activity revise ITS OWN document. Every other activity's
+# stays read-only. just crust amend <run_id> <activity> "shorten section 3"
+amend RUN_ID ACTIVITY *INSTRUCTION:
+    @bun "{{crust}}/consult.ts" amend {{RUN_ID}} {{ACTIVITY}} "$@"
 
 # the working trees this machine has run in — the observer watches them all
 trees:

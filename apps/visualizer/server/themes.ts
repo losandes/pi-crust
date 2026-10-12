@@ -12,7 +12,7 @@
  * no benefit: a theme is a short block of custom properties.
  *
  * Plain CSS, not SCSS. Nesting and variables buy nothing when a theme is a
- * list of channel triples, and compiling would put a build step between a
+ * list of channel triples, and compiling would put a build activity between a
  * developer editing a file and seeing the colour change.
  */
 

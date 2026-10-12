@@ -3,7 +3,7 @@
  *
  * `--deliver branch|patch|commit` is gone. All three performed one
  * `commitAll` at the END of the chain, so a large body of work arrived
- * squashed whichever was chosen — the limitation was the shape of the step,
+ * squashed whichever was chosen — the limitation was the shape of the activity,
  * not the mode. An Activity that declares `commit: true` commits its own
  * change the moment its gates have passed, so granularity follows the chain:
  * several writing Activities produce several commits, each in the words of

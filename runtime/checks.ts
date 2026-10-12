@@ -3,7 +3,7 @@
  * pi-crust Checks — run this repository's own commands, with no Lifecycle.
  *
  * Usage:
- *     bun .pi-crust/checks.ts [--scope <ref|range|path|glob>] [--config <path>]
+ *     just crust verify [--scope <ref|range|path|glob>] [--config <path>]
  *
  * The same commands the `checks` gate runs inside a run, run on their own.
  * `verify` used to be an Activity for this, which produced a verdict nothing
@@ -23,7 +23,11 @@ import { EXIT } from './modules/typedefs/run-state'
 import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import { matchingChecks } from './modules/use-cases/route-by-path'
-import { runCommand } from './modules/use-cases/run-checks'
+import {
+  NOTHING_DECLARED,
+  NOTHING_MATCHED,
+  runCommand,
+} from './modules/use-cases/run-checks'
 import { requireSelected, selectRange } from './modules/use-cases/select-range'
 import { join } from 'node:path'
 import { ensureDir } from './modules/data/files'
@@ -52,6 +56,11 @@ export const main = (argv: readonly string[]): number => {
   const scope = flagValue(argv, '--scope') ?? flagValue(argv, '--base') ?? ''
   const settled = safeParseSettlement(() => {
     const cfg = loadConfig(configPath)
+    if (cfg.routing.checks.length === 0) {
+      writeLine(paint(NOTHING_DECLARED, 'yellow'))
+
+      return EXIT.SUCCESS
+    }
     const paths = checkedPaths(scope)
     if (paths.length === 0) {
       writeLine(paint('nothing changed — no checks apply', 'dim'))
@@ -61,16 +70,11 @@ export const main = (argv: readonly string[]): number => {
     const specs = matchingChecks(cfg, paths)
     if (specs.length === 0) {
       /*
-       * Zero checks passing is not the same claim as zero checks failing,
-       * and only one of them is evidence. Same rule the gate applies.
+       * Rules exist and none of them covers this change. Zero checks passing
+       * is not the same claim as zero checks failing, and only one of them
+       * is evidence. Same rule the gate applies.
        */
-      writeLine(
-        paint(
-          `${paths.length} path(s) changed but no routing.checks matched ` +
-            'them — nothing was verified',
-          'red',
-        ),
-      )
+      writeLine(paint(NOTHING_MATCHED(paths.length), 'red'))
 
       return EXIT.FAILED
     }

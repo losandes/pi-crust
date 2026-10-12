@@ -72,11 +72,11 @@ test(
 test(
   [
     'given lib/ledger::activityRunLedger',
-    'when the run recorded that the step answered its own question',
+    'when the run recorded that the activity answered its own question',
     'it should mark that question decided, whatever its flags say',
   ].join(', '),
   () => {
-    // given — the event is what happened; the flags are only what the step
+    // given — the event is what happened; the flags are only what the activity
     // claimed before the dial was consulted
     const envelopes = [envelope({ payload: { unresolved: [question()] } })]
     const events = [
@@ -131,7 +131,7 @@ test(
     'it should mark them open, which is neither decided nor blocking',
   ].join(', '),
   () => {
-    // given — the last step has no successor to invent anything, so its
+    // given — the last activity has no successor to invent anything, so its
     // questions are a finding rather than a gate
     const envelopes = [envelope({ payload: { unresolved: [question()] } })]
     const events = [
@@ -155,7 +155,7 @@ test(
 test(
   [
     'given lib/ledger::activityRunLedger',
-    'when no event mentions a question and the step offered no answer',
+    'when no event mentions a question and the activity offered no answer',
     'it should treat it as open rather than as something already settled',
   ].join(', '),
   () => {
@@ -181,7 +181,7 @@ test(
   ].join(', '),
   () => {
     // given — an invalid attempt records the correction loop, not what the
-    // step held
+    // activity held
     const envelopes = [
       envelope({
         envelope_id: 'bad',
@@ -269,7 +269,7 @@ test(
     'it should count nothing, because nobody is being asked for anything',
   ].join(', '),
   () => {
-    // given — a badge that counts settled decisions cries wolf on every step
+    // given — a badge that counts settled decisions cries wolf on every activity
     const ledger = activityRunLedger(
       'p1',
       [

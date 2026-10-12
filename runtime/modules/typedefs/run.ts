@@ -63,14 +63,14 @@ export type TRun = Readonly<{
   /**
    * Echo agent narration to the terminal as it arrives (`--stream`).
    *
-   * On the run rather than on a step: it describes whether a human is watching
+   * On the run rather than on a activity: it describes whether a human is watching
    * this execution, which is true of the whole run or of none of it.
    */
   stream: boolean
   /**
    * How much this run's agents may decide for themselves, 0–100.
    *
-   * On the run rather than on a step: it describes the latitude granted to
+   * On the run rather than on a activity: it describes the latitude granted to
    * this execution, which is true of the whole chain or of none of it.
    */
   trust: number

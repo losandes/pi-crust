@@ -55,19 +55,19 @@ const openActivityRun = (run: TRun, params: TActivityRunParams): TActivityRun =>
 }
 
 /**
- * The event name carrying what a step was observed to write.
+ * The event name carrying what a activity was observed to write.
  *
- * Distinct from the step's own name because the trace is read back by name,
- * and a step emits log and activityRun events under that name too — asking for
+ * Distinct from the activity's own name because the trace is read back by name,
+ * and a activity emits log and activityRun events under that name too — asking for
  * "what did design write" has to mean exactly that.
  */
-export const artifactsEventName = (step: string): string =>
-  `${step} artifacts`
+export const artifactsEventName = (activity: string): string =>
+  `${activity} artifacts`
 
-/** The documents an earlier run of THIS step created, from the trace. */
-const createdBefore = (run: TRun, step: string): readonly string[] =>
+/** The documents an earlier run of THIS activity created, from the trace. */
+const createdBefore = (run: TRun, activity: string): readonly string[] =>
   run.tracer
-    .eventsNamed(run.runId, artifactsEventName(step))
+    .eventsNamed(run.runId, artifactsEventName(activity))
     .flatMap((payload) =>
       Array.isArray(payload.created)
         ? payload.created.filter(
@@ -115,17 +115,17 @@ export const runActivityRun =
     /*
      * What the handoff directory held before this activityRun touched it.
      *
-     * Taken here rather than inside the agent call because a code step writes
+     * Taken here rather than inside the agent call because a code activity writes
      * documents too, and because an activity run that FAILED may still have written
      * one — which is precisely the file a reader goes looking for.
      */
     const handoffBefore = snapshotHandoff(run.contextHandoffDir)
     /*
-     * A step running again may replace its OWN documents.
+     * A activity running again may replace its OWN documents.
      *
      * That is the one overwrite that must be allowed — a retry, or a
-     * rejection sending the step back, legitimately produces a new design.
-     * Everything another step produced stays locked, so "may I write this?"
+     * rejection sending the activity back, legitimately produces a new design.
+     * Everything another activity produced stays locked, so "may I write this?"
      * is answered by who wrote it, not by who is asking.
      */
     const own = new Set(createdBefore(run, params.name))
@@ -153,12 +153,12 @@ export const runActivityRun =
         payload: { ...change, observed: true },
       })
       /*
-       * Lock on the way out, including when the activityRun failed: a failed step
-       * can still have written the document a reader wants, and the step
+       * Lock on the way out, including when the activityRun failed: a failed activity
+       * can still have written the document a reader wants, and the activity
        * after it has no more right to overwrite that one than any other.
        */
       /*
-       * A step's own documents, locked again: the ones it has just made, and
+       * A activity's own documents, locked again: the ones it has just made, and
        * the ones it replaced because it had made them in an earlier attempt.
        */
       lockArtifacts(run.contextHandoffDir, [
@@ -167,7 +167,7 @@ export const runActivityRun =
       ])
 
       /*
-       * Put back what this step took from another.
+       * Put back what this activity took from another.
        *
        * The lock stops an overwrite at the moment it is attempted, but it
        * cannot stop a DELETE — unlinking is governed by the directory's
@@ -177,13 +177,13 @@ export const runActivityRun =
        * is worse than a run that says what it put back.
        */
       /*
-       * Damage is what this step did to ANOTHER step's documents.
+       * Damage is what this activity did to ANOTHER activity's documents.
        *
        * Its own are excluded, and that distinction is the whole reason the
-       * trace records who created what: a retried step rewriting its own
+       * trace records who created what: a retried activity rewriting its own
        * design is the ordinary path, and restoring the first attempt over it
        * would quietly undo the work the retry existed to do — which is what
-       * this did until a test ran the same step twice.
+       * this did until a test ran the same activity twice.
        */
       const damaged = [...change.modified, ...change.deleted].filter(
         (path) => isStepDocument(path) && !own.has(path),
@@ -198,12 +198,12 @@ export const runActivityRun =
         name: `${params.name} restored`,
         payload: {
           restored,
-          reason: 'a document belonging to an earlier step was changed',
+          reason: 'a document belonging to an earlier activity was changed',
         },
       })
       run.console.note(
         `${params.name} changed ${damaged.length} document(s) belonging to ` +
-          `earlier steps; restored ${restored.length}: ${restored.join(', ')}`,
+          `earlier activities; restored ${restored.length}: ${restored.join(', ')}`,
       )
     }
     // This function IS the error boundary: turning a throw into a recorded

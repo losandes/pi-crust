@@ -10,7 +10,7 @@ Order is the order of the work: find out, decide, do, check.
 
 ## Step 2 — Group them into Stages
 
-A Stage is a progression step. It holds Activities and says how they run:
+A Stage is one step of the progression. It holds Activities and says how they run:
 
 ```yaml
 lifecycles:
@@ -46,7 +46,7 @@ When in doubt, leave it serial. The cost is wall-clock time; the cost of being w
 ## Step 4 — Run it
 
 ```bash
-just crust compose "the request" --lifecycle quick
+just crust run "the request" --lifecycle quick
 ```
 
 It also appears in `just crust please` automatically, above the individual Activities.

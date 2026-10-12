@@ -126,7 +126,7 @@ test(
     const keys = decodeKeys(chunk)
 
     // then — a menu reads these as the cursor; the ordering screen moves
-    // the step with them, which only works if the decoder kept them apart
+    // the activity with them, which only works if the decoder kept them apart
     expect(keys).toEqual(['vimDown', 'vimUp'])
   },
 )
@@ -134,7 +134,7 @@ test(
 test(
   [
     'given data/ask::decodeKeys',
-    'when the capitals that used to move a step arrive',
+    'when the capitals that used to move a activity arrive',
     'it should still accept them, for hands that learned them',
   ].join(' '),
   () => {

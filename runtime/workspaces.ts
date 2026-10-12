@@ -6,8 +6,8 @@
  * work has happened rather than a list anybody maintains. The observer reads
  * the same file and watches every tree in it.
  *
- *   bun .pi-crust/workspaces.ts            list them
- *   bun .pi-crust/workspaces.ts forget <path>...  drop one or more
+ *   just crust trees                      list them
+ *   just crust forget-tree <path>...      drop one or more
  *
  * Forgetting is explicit and never automatic. A tree whose database cannot be
  * opened right now looks exactly like one on an unmounted volume, or one that

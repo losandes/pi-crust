@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { crustConfigSchema } from '../../typedefs/config'
 import type { TPiCrustConfig } from '../../typedefs/config'
-import { DEFAULT_STEP_OPTIONS } from '../../typedefs/step'
-import { requiredAgents, resolveSteps } from './index'
+import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
+import { requiredAgents, runnableActivities } from './index'
 
 const prompts = { system: 'p/system.md', user: 'p/user.md' }
 
@@ -31,7 +31,7 @@ const aConfig = (
 
 test(
   [
-    'given use-cases/steps::resolveSteps',
+    'given use-cases/activities::runnableActivities',
     'when the registry declares an Activity',
     'it should own its activity run itself, because an Activity IS an agent',
   ].join(', '),
@@ -48,10 +48,10 @@ test(
     ])
 
     // when
-    const actual = resolveSteps(['plan', 'build'], given)
+    const actual = runnableActivities(['plan', 'build'], given)
 
     // then — no performer to bridge to: the Activity is the owner
-    expect(actual.map((step) => `${step.params.kind}:${step.params.owner}`)).toEqual([
+    expect(actual.map((activity) => `${activity.params.kind}:${activity.params.owner}`)).toEqual([
       'agent:plan',
       'agent:build',
     ])
@@ -66,7 +66,7 @@ test(
 
 test(
   [
-    'given use-cases/steps::resolveSteps',
+    'given use-cases/activities::runnableActivities',
     'when a run was started with --commit false',
     'it should take committing away from an Activity that declared it',
   ].join(', '),
@@ -77,7 +77,7 @@ test(
     ])
 
     // when
-    const actual = resolveSteps(['build'], given, { committing: false })
+    const actual = runnableActivities(['build'], given, { committing: false })
 
     // then
     expect(actual[0]?.commit).toEqual(false)
@@ -86,7 +86,7 @@ test(
 
 test(
   [
-    'given use-cases/steps::resolveSteps',
+    'given use-cases/activities::runnableActivities',
     'when an Activity is named more than once',
     'it should number the repeats, which is what each budget is kept against',
   ].join(', '),
@@ -98,16 +98,16 @@ test(
     ])
 
     // when
-    const actual = resolveSteps(['build', 'review', 'build', 'review'], given)
+    const actual = runnableActivities(['build', 'review', 'build', 'review'], given)
 
     // then
-    expect(actual.map((step) => step.instance)).toEqual([
+    expect(actual.map((activity) => activity.instance)).toEqual([
       'build',
       'review',
       'build_2',
       'review_2',
     ])
-    expect(actual.map((step) => step.name)).toEqual([
+    expect(actual.map((activity) => activity.name)).toEqual([
       'build',
       'review',
       'build',
@@ -118,7 +118,7 @@ test(
 
 test(
   [
-    'given use-cases/steps::resolveSteps',
+    'given use-cases/activities::runnableActivities',
     'when a name is not an Activity this repository offers',
     'it should throw and list the ones that are',
   ].join(', '),
@@ -127,7 +127,7 @@ test(
     const given = aConfig([anActivity('plan', { output: 'planOutput' })])
 
     // when, then
-    expect(() => resolveSteps(['plan', 'deploy'], given)).toThrow(
+    expect(() => runnableActivities(['plan', 'deploy'], given)).toThrow(
       /unknown activity\(s\): deploy[\s\S]*offers plan/,
     )
   },
@@ -135,7 +135,7 @@ test(
 
 test(
   [
-    'given use-cases/steps::resolveSteps',
+    'given use-cases/activities::runnableActivities',
     'when a Planner is resolved',
     'it should carry the gate the engine owns rather than one a team declared',
   ].join(', '),
@@ -144,7 +144,7 @@ test(
     const given = aConfig([anActivity('plan', { output: 'planOutput' })])
 
     // when
-    const actual = resolveSteps(['operator'], given)
+    const actual = runnableActivities(['operator'], given)
 
     // then
     expect(actual[0]?.params.owner).toEqual('operator')
@@ -155,19 +155,19 @@ test(
 
 test(
   [
-    'given use-cases/steps::resolveSteps',
+    'given use-cases/activities::runnableActivities',
     'when no --scope was given',
-    'it should default to the empty selector so a step can tell that apart from --scope main',
+    'it should default to the empty selector so a activity can tell that apart from --scope main',
   ].join(', '),
   () => {
     // given, when, then
-    expect(DEFAULT_STEP_OPTIONS.base).toEqual('')
+    expect(DEFAULT_ACTIVITY_OPTIONS.base).toEqual('')
   },
 )
 
 test(
   [
-    'given use-cases/steps::requiredAgents',
+    'given use-cases/activities::requiredAgents',
     'when a chain names one Activity twice',
     'it should name each agent once, so validation does not repeat itself',
   ].join(', '),
@@ -180,7 +180,7 @@ test(
 
     // when
     const actual = requiredAgents(
-      resolveSteps(['build', 'review', 'build'], given),
+      runnableActivities(['build', 'review', 'build'], given),
     )
 
     // then

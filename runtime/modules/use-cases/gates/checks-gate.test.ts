@@ -6,7 +6,7 @@ import { crustConfigSchema } from '../../typedefs/config'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
 import { violationsOf } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'
-import { checkedPaths, checks } from './checks-gate'
+import { checkedPaths, checks, checksReport } from './checks-gate'
 
 /**
  * A run with a real repo root and a tracer that forgets, because this gate
@@ -161,5 +161,24 @@ test(
 
     // then
     expect(actual).toEqual(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::checks',
+    'when the repository has declared no checks',
+    'it should pass and SAY why, so green is not mistaken for coverage',
+  ].join(', '),
+  () => {
+    // given
+    const run = runWith({ checks: [] })
+
+    // when
+    const actual = checksReport(run, ['src/add.ts'])
+
+    // then
+    expect(violationsOf(actual)).toEqual([])
+    expect(actual.checks[0]?.note).toContain('no checks are declared')
   },
 )

@@ -7,10 +7,10 @@ import { createTracer } from '../data/trace-db'
 import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
-import type { TStep, TStepContext } from '../typedefs/step'
+import type { TActivity, TActivityContext } from '../typedefs/runnable-activity'
 import type { TUnit } from '../typedefs/unit'
 import { createRun } from './create-run'
-import { runUnits } from './run-steps'
+import { runUnits } from './run-activities'
 
 /** Where this run's events land, so a test can read what it recorded. */
 const EVENTS = new WeakMap<object, string>()
@@ -40,12 +40,12 @@ const eventsOf = (run: TRun): readonly Record<string, unknown>[] =>
     .filter(Boolean)
     .map((line) => JSON.parse(line) as Record<string, unknown>)
 
-/** A step that records when it started and finished, so overlap is observable. */
-const timedStep = (
+/** A activity that records when it started and finished, so overlap is observable. */
+const timedActivity = (
   name: string,
   log: string[],
   delayMs: number,
-): TStep =>
+): TActivity =>
   ({
     name,
     params: activityRunParams({
@@ -76,9 +76,9 @@ const timedStep = (
       return { previous: { status: 'success' }, accepted: true }
     },
     replay: () => Promise.resolve({ previous: undefined, accepted: true }),
-  }) as unknown as TStep
+  }) as unknown as TActivity
 
-const contextFor = (run: TRun): TStepContext =>
+const contextFor = (run: TRun): TActivityContext =>
   ({
     run,
     prompt: 'x',
@@ -89,17 +89,17 @@ const contextFor = (run: TRun): TStepContext =>
     baseline: '',
     outcomes: [],
     feedback: [],
-  }) as unknown as TStepContext
+  }) as unknown as TActivityContext
 
 const unit = (
   stage: string,
   strategy: 'serial' | 'concurrent',
-  steps: readonly TStep[],
-): TUnit => ({ stage, strategy, steps, endsStage: true })
+  activities: readonly TActivity[],
+): TUnit => ({ stage, strategy, activities, endsStage: true })
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a stage is concurrent',
     'it should start the second activity before the first has finished',
   ].join(', '),
@@ -109,8 +109,8 @@ test(
     const log: string[] = []
     const given = [
       unit('accept', 'concurrent', [
-        timedStep('review', log, 40),
-        timedStep('code-review', log, 5),
+        timedActivity('review', log, 40),
+        timedActivity('code-review', log, 5),
       ]),
     ]
 
@@ -129,7 +129,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a stage is serial',
     'it should not start the second activity until the first has finished',
   ].join(', '),
@@ -139,8 +139,8 @@ test(
     const log: string[] = []
     const given = [
       unit('implement', 'serial', [
-        timedStep('test', log, 20),
-        timedStep('build', log, 1),
+        timedActivity('test', log, 20),
+        timedActivity('build', log, 1),
       ]),
     ]
 
@@ -159,7 +159,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a concurrent stage finishes',
     'it should carry every activity it ran forward as upstream, in declaration order',
   ].join(', '),
@@ -169,8 +169,8 @@ test(
     const log: string[] = []
     const given = [
       unit('accept', 'concurrent', [
-        timedStep('review', log, 20),
-        timedStep('code-review', log, 1),
+        timedActivity('review', log, 20),
+        timedActivity('code-review', log, 1),
       ]),
     ]
 
@@ -178,11 +178,11 @@ test(
     const actual = await runUnits({ run, units: given, start: contextFor(run) })
 
     // then
-    expect(actual.upstream.map((one) => one.step)).toEqual([
+    expect(actual.upstream.map((one) => one.activity)).toEqual([
       'review',
       'code-review',
     ])
-    expect(actual.outcomes.map((one) => one.step)).toEqual([
+    expect(actual.outcomes.map((one) => one.activity)).toEqual([
       'review',
       'code-review',
     ])
@@ -191,7 +191,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a gate stops the run',
     'it should record what it did not reach as blocked, not as nothing at all',
   ].join(', '),
@@ -200,9 +200,9 @@ test(
     const run = aRun()
     const log: string[] = []
     const given = [
-      unit('design', 'serial', [timedStep('plan', log, 1)]),
-      unit('implement', 'serial', [timedStep('build', log, 1)]),
-      unit('accept', 'serial', [timedStep('review', log, 1)]),
+      unit('design', 'serial', [timedActivity('plan', log, 1)]),
+      unit('implement', 'serial', [timedActivity('build', log, 1)]),
+      unit('accept', 'serial', [timedActivity('review', log, 1)]),
     ]
 
     // when
@@ -222,7 +222,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when an activity inside a concurrent stage is named in --approve-after',
     'it should let its siblings finish, then pause at the stage boundary',
   ].join(', '),
@@ -232,10 +232,10 @@ test(
     const log: string[] = []
     const given = [
       unit('accept', 'concurrent', [
-        timedStep('review', log, 30),
-        timedStep('code-review', log, 1),
+        timedActivity('review', log, 30),
+        timedActivity('code-review', log, 1),
       ]),
-      unit('deliver', 'serial', [timedStep('commit', log, 1)]),
+      unit('deliver', 'serial', [timedActivity('commit', log, 1)]),
     ]
 
     // when
@@ -253,7 +253,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a serial stage is named with the stage prefix',
     'it should pause after the whole stage, not after its first activity',
   ].join(', '),
@@ -265,16 +265,16 @@ test(
       {
         stage: 'design',
         strategy: 'serial' as const,
-        steps: [timedStep('plan', log, 1)],
+        activities: [timedActivity('plan', log, 1)],
         endsStage: false,
       },
       {
         stage: 'design',
         strategy: 'serial' as const,
-        steps: [timedStep('design', log, 1)],
+        activities: [timedActivity('design', log, 1)],
         endsStage: true,
       },
-      unit('implement', 'serial', [timedStep('build', log, 1)]),
+      unit('implement', 'serial', [timedActivity('build', log, 1)]),
     ]
 
     // when
@@ -291,7 +291,7 @@ test(
 )
 
 /**
- * A step with gates, whose envelope changes on the attempt it is told to
+ * A activity with gates, whose envelope changes on the attempt it is told to
  * pass on.
  *
  * `runs` records every execution, so "an attempt IS an Activity Run" is
@@ -306,7 +306,7 @@ const gatedStep = (
     attempts?: number
     commit?: boolean
   }>,
-): TStep =>
+): TActivity =>
   ({
     name,
     instance: name,
@@ -328,7 +328,7 @@ const gatedStep = (
     ],
     attempts: params.attempts ?? 2,
     commit: params.commit ?? false,
-    execute: (ctx: TStepContext) => {
+    execute: (ctx: TActivityContext) => {
       // biome-ignore lint/plugin/no-array-mutation: counting executions is the test
       params.runs.push(name)
       // biome-ignore lint/plugin/no-array-mutation: recording what it was told is the test
@@ -341,11 +341,11 @@ const gatedStep = (
       })
     },
     replay: () => Promise.resolve({ previous: undefined, accepted: true }),
-  }) as unknown as TStep
+  }) as unknown as TActivity
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a gate fails and the instance has budget left',
     'it should run the Activity again as its own Activity Run, with the violations in hand',
   ].join(', '),
@@ -381,7 +381,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a gate fails and the instance has spent its budget',
     'it should stop the run and report every cause the budget went on',
   ].join(', '),
@@ -408,7 +408,7 @@ test(
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when a concurrent stage holds a gate that reads the working tree',
     'it should judge it at the stage boundary, once no sibling is still writing',
   ].join(', '),
@@ -421,7 +421,7 @@ test(
     const given = [
       unit('accept', 'concurrent', [
         gatedStep('build', { runs, feedbackSeen, passOn: 1 }),
-        timedStep('review', log, 20),
+        timedActivity('review', log, 20),
       ]),
     ]
 
@@ -459,7 +459,7 @@ const aRepo = (): string => {
 
 test(
   [
-    'given use-cases/run-steps::runUnits',
+    'given use-cases/run-activities::runUnits',
     'when an Activity declares commit and its gates pass',
     'it should land its own change, and only after the gate ruled',
   ].join(', '),

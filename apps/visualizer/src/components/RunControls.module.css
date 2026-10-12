@@ -3,7 +3,7 @@
  * where the surrounding panel owns the gutter and anything else leaves the
  * input narrower than the two columns directly above it.
  *
- * `.standalone` is the page case — no step selected — and it matches the
+ * `.standalone` is the page case — no activity selected — and it matches the
  * waterfall's 28px exactly, as the gate question does.
  */
 .controls {

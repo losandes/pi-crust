@@ -1,5 +1,5 @@
 /**
- * What a step actually wrote, as opposed to what it says it wrote.
+ * What a activity actually wrote, as opposed to what it says it wrote.
  *
  * `artifacts` on an envelope is self-reported. It is usually right, and it is
  * the only way to learn about a file written outside the handoff directory —
@@ -12,7 +12,7 @@
  * one changed a file another activityRun owns.
  *
  * Content-addressed rather than a directory listing, because the case worth
- * catching is the one a listing cannot see. A step that rewrites `design.md`
+ * catching is the one a listing cannot see. A activity that rewrites `design.md`
  * leaves the name and often the size intact; only the bytes say it happened.
  * These are markdown documents of a few kilobytes, so hashing them costs
  * nothing worth measuring.
@@ -105,12 +105,12 @@ export const changed = (change: THandoffChange): boolean =>
  * work.
  */
 /**
- * Put copies back over what a step changed or removed. Returns what it fixed.
+ * Put copies back over what a activity changed or removed. Returns what it fixed.
  *
  * The file may be locked, which is the normal case — it was locked precisely
- * because it belonged to an earlier step — so the mode is lifted for the
+ * because it belonged to an earlier activity — so the mode is lifted for the
  * write and the caller locks it again. A path with no copy is one that did
- * not exist before this step, so there is nothing to restore and nothing
+ * not exist before this activity, so there is nothing to restore and nothing
  * wrong.
  */
 export const restoreAll = (

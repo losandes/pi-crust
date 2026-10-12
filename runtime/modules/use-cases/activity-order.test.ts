@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
-import { moveItem, orderSteps, visibleSteps } from './step-order'
+import { moveItem, orderSteps, visibleSteps } from './activity-order'
 
 const CANONICAL = ['identify', 'plan', 'design', 'build', 'verify'] as const
 
 test(
   [
-    'given use-cases/step-order::orderSteps',
-    'when steps were ticked in any order at all',
+    'given use-cases/activity-order::orderSteps',
+    'when activities were ticked in any order at all',
     'it should sort them into the running order',
   ].join(' '),
   () => {
@@ -23,8 +23,8 @@ test(
 
 test(
   [
-    'given use-cases/step-order::orderSteps',
-    'when a selected step is missing from the order',
+    'given use-cases/activity-order::orderSteps',
+    'when a selected activity is missing from the order',
     'it should go last rather than vanish from the chain',
   ].join(' '),
   () => {
@@ -41,8 +41,8 @@ test(
 
 test(
   [
-    'given use-cases/step-order::visibleSteps',
-    'when the config hides some steps',
+    'given use-cases/activity-order::visibleSteps',
+    'when the config hides some activities',
     'it should drop exactly those from what the menu offers',
   ].join(' '),
   () => {
@@ -59,8 +59,8 @@ test(
 
 test(
   [
-    'given use-cases/step-order::moveItem',
-    'when a step is moved down',
+    'given use-cases/activity-order::moveItem',
+    'when a activity is moved down',
     'it should swap with its neighbour and leave the rest alone',
   ].join(' '),
   () => {
@@ -77,7 +77,7 @@ test(
 
 test(
   [
-    'given use-cases/step-order::moveItem',
+    'given use-cases/activity-order::moveItem',
     'when the first item is pushed up again',
     'it should stay put rather than wrap round to the end',
   ].join(' '),

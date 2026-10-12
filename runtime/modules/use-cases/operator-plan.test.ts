@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import type { TEnvelopeBase } from '../typedefs/envelope'
-import type { TStepContext } from '../typedefs/step'
+import type { TActivityContext } from '../typedefs/runnable-activity'
 import { chainNote, plannedChain } from './operator-plan'
 
-const envelope = (steps: readonly unknown[]): TEnvelopeBase =>
+const envelope = (activities: readonly unknown[]): TEnvelopeBase =>
   ({
     status: 'success',
     summary: '',
@@ -16,13 +16,14 @@ const envelope = (steps: readonly unknown[]): TEnvelopeBase =>
     risks: [],
     objective_met: { met: true, evidence: '' },
     regress_to: { activity: '', because: '' },
-    steps,
+    // the operator envelope's published field name
+    steps: activities,
   }) as unknown as TEnvelopeBase
 
 const contextOf = (
   previousStep: string | undefined,
   previous: TEnvelopeBase | undefined,
-): TStepContext =>
+): TActivityContext =>
   ({
     previousStep,
     previous,
@@ -45,7 +46,7 @@ const contextOf = (
         ],
       },
     },
-  }) as unknown as TStepContext
+  }) as unknown as TActivityContext
 
 test(
   [
@@ -68,7 +69,7 @@ test(
 test(
   [
     'given use-cases/operator-plan::plannedChain',
-    'when the previous step was anything other than an operator',
+    'when the previous activity was anything other than an operator',
     'it should return nothing, so an ordinary run is never rewritten',
   ].join(' '),
   () => {
@@ -86,12 +87,12 @@ test(
 test(
   [
     'given use-cases/operator-plan::plannedChain',
-    'when a trace holds a step name this factory no longer has',
+    'when a trace holds a activity name this factory no longer has',
     'it should drop it rather than fail the resumed run',
   ].join(' '),
   () => {
     // given
-    const ctx = contextOf('operator', envelope(['plan', 'retired-step', 'build']))
+    const ctx = contextOf('operator', envelope(['plan', 'retired-activity', 'build']))
 
     // when
     const chain = plannedChain(ctx)
@@ -123,7 +124,7 @@ test(
   [
     'given use-cases/operator-plan::chainNote',
     'when a chain is about to run',
-    'it should name every step, because that is what is about to be paid for',
+    'it should name every activity, because that is what is about to be paid for',
   ].join(' '),
   () => {
     // given

@@ -96,12 +96,36 @@ type TRegistryFile = Readonly<{
 
 const EMPTY_REGISTRY: TRegistryFile = { activities: [], planners: [] }
 
+/**
+ * The registry file as WRITTEN, having been checked.
+ *
+ * Validated through the schema and then discarded, because what the merge
+ * needs is the keys the file actually set. Keeping the parsed value instead
+ * silently broke inheritance: the schema fills `model` with its own fallback,
+ * so every Activity arrived at `resolveConfig` already holding a model, the
+ * `!(key in entry)` test never fired, and `defaults.model` in
+ * `crust.config.yaml` was read by nothing. A fresh stamp then failed
+ * validation against a Google model nobody had written down anywhere.
+ *
+ * The schema's defaults are not lost — `crustConfigSchema` applies them at
+ * the end, which is after inheritance rather than before it.
+ */
+const checkedRegistry = (path: string): TRegistryFile => {
+  const raw = asRecord(Bun.YAML.parse(readText(path)))
+  activitiesFileSchema.parse(raw)
+
+  return {
+    activities: Array.isArray(raw.activities) ? raw.activities : [],
+    planners: Array.isArray(raw.planners) ? raw.planners : [],
+  }
+}
+
 const activitiesBeside = (configPath: string): TRegistryFile => {
   const path = join(dirname(configPath), 'crust.activities.yaml')
   if (!fileExists(path)) {
     return EMPTY_REGISTRY
   }
-  const base = activitiesFileSchema.parse(Bun.YAML.parse(readText(path)))
+  const base = checkedRegistry(path)
   const localPath = path.replace(/\.yaml$/, '.local.yaml')
   if (!fileExists(localPath)) {
     return base

@@ -38,7 +38,7 @@ export type TMenuKey =
   | 'none'
   | 'reorder'
   /** j / k. A menu reads them as the cursor; the ordering screen moves the
-   * step with them, because there the arrows already move the cursor and a
+   * activity with them, because there the arrows already move the cursor and a
    * shift chord to reorder is a chord nobody should have to hold. */
   | 'vimDown'
   | 'vimUp'
@@ -67,7 +67,7 @@ const move = (cursor: number, delta: number, size: number): number =>
 /**
  * Selection is ordered by WHEN it was chosen, not by position in the list.
  *
- * For a step chain that is the whole point: picking `build` and then `plan`
+ * For a activity chain that is the whole point: picking `build` and then `plan`
  * means plan-after-build, which is a different run from the other order.
  */
 const toggle = (chosen: readonly number[], index: number): readonly number[] =>
@@ -110,7 +110,7 @@ export const applyKey = (
 /**
  * Some choices cannot be combined, and the menu has to say so by behaving.
  *
- * A lifecycle and a hand-picked list of steps are two ways of answering the
+ * A lifecycle and a hand-picked list of activities are two ways of answering the
  * same question, not two things you add together. With `sdlc` preselected and
  * tab the only way off it, picking `scout` APPENDED scout to the whole
  * lifecycle — the run that was meant to be one agent call ran nine and then
@@ -183,7 +183,7 @@ export const selected = <T>(
  * means moving the cursor up by its height, and the cursor cannot go above
  * the top of the screen — so every keypress leaves the previous frame
  * stranded above the new one. The menu grew past that point the day seven
- * steps and an operator row were added, and the symptom was a screen filling
+ * activities and an operator row were added, and the symptom was a screen filling
  * with copies of itself.
  *
  * Costs are per option, because an option with a detail line is two rows.
@@ -201,7 +201,7 @@ export const visibleWindow = (
    * How far forward we can reach from `start` without exceeding the budget.
    *
    * Carries a running total rather than collecting the costs it took: the
-   * list is every step the factory has, and rebuilding an array per option
+   * list is every activity the factory has, and rebuilding an array per option
    * would make drawing a menu quadratic in the thing being drawn.
    */
   const reachFrom = (start: number): number =>

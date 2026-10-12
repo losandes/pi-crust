@@ -30,7 +30,8 @@ export type TEnvelopeRecord = Readonly<{
  *
  * The name matters on replay: the console echoes every activity run line as a `log`
  * too, so "the last log" is usually a human sentence rather than the verdict a
- * code step recorded. A step files its own result under `step_result` and asks
+ * code activity recorded. An Activity files its own result under the
+ * `step_result` event name — a wire value older traces already carry — and asks
  * for it back by that name.
  */
 export type TActivityRunLog = Readonly<{

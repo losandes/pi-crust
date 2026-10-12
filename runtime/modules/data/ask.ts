@@ -13,7 +13,7 @@
 
 import { paint } from './terminal'
 import type { TMenuKey, TMenuState } from '../use-cases/menu'
-import { moveItem } from '../use-cases/step-order'
+import { moveItem } from '../use-cases/activity-order'
 import {
   applyExclusiveKey,
   applyKey,
@@ -375,7 +375,7 @@ export const askOrder = async (
       }),
       paint(`  → ${ordered.join(' → ')}`, 'cyan'),
       paint(
-        '  ↑↓ cursor · j/k move the step · enter confirm · esc cancel',
+        '  ↑↓ cursor · j/k move the activity · enter confirm · esc cancel',
         'dim',
       ),
     ]
@@ -391,14 +391,14 @@ export const askOrder = async (
       return true
     }
     if (key === 'submit' || key === 'reorder') return true
-    // Arrows move the cursor; j/k move the step. Here the arrows are free to
+    // Arrows move the cursor; j/k move the activity. Here the arrows are free to
     // take the cursor on their own, so the letters can do the useful thing.
     if (key === 'up') cursor = Math.max(0, cursor - 1)
     if (key === 'down') cursor = Math.min(ordered.length - 1, cursor + 1)
     if (key === 'vimUp' || key === 'vimDown') {
       const delta = key === 'vimUp' ? -1 : 1
       const moved = moveItem(ordered, cursor, delta)
-      // The cursor follows the step it is holding; losing it would mean a
+      // The cursor follows the activity it is holding; losing it would mean a
       // second press moved whatever had slid into that slot instead.
       if (moved !== ordered) cursor += delta
       ordered = moved

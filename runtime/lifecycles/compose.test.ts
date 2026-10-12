@@ -13,7 +13,7 @@ const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
   runId: undefined,
   base: undefined,
   resume: false,
-  steps: undefined,
+  activities: undefined,
   lifecycle: undefined,
   approveAfter: undefined,
   commit: undefined,
@@ -78,7 +78,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = args({ steps: 'plan,test,build' })
+    const given = args({ activities: 'plan,test,build' })
 
     // when
     const actual = plannedActivities(given, cfg)
@@ -93,12 +93,12 @@ test(
 test(
   [
     'given lifecycles/compose::plannedActivities',
-    'when both a lifecycle and a step list are given',
+    'when both a lifecycle and an activity chain are given',
     'it should refuse rather than apply a precedence nobody remembers',
   ].join(', '),
   () => {
     // given
-    const given = args({ lifecycle: 'sdlc', steps: 'plan' })
+    const given = args({ lifecycle: 'sdlc', activities: 'plan' })
 
     // when
     const actual = () => plannedActivities(given, cfg)
@@ -150,13 +150,13 @@ lifecycles:
 
 test(
   [
-    'given lifecycles/compose::parseSteps',
+    'given lifecycles/compose::plannedActivities',
     'when a chain names a Planner',
     'it should refuse, because a Lifecycle names Activities and a Planner is not one',
   ].join(', '),
   () => {
     // given
-    const given = args({ steps: 'plan,operator' })
+    const given = args({ activities: 'plan,operator' })
 
     // when
     const actual = () => plannedActivities(given, cfg)
@@ -168,18 +168,39 @@ test(
 
 test(
   [
-    'given lifecycles/compose::parseSteps',
+    'given lifecycles/compose::plannedActivities',
     'when a chain names something this repository does not register',
     'it should refuse at the call site, where the compiler used to',
   ].join(', '),
   () => {
     // given
-    const given = args({ steps: 'plan,deploy' })
+    const given = args({ activities: 'plan,deploy' })
 
     // when
     const actual = () => plannedActivities(given, cfg)
 
     // then
     expect(actual).toThrow(/unknown activity\(s\): deploy/)
+  },
+)
+
+test(
+  [
+    'given lifecycles/compose::plannedActivities',
+    'when neither a lifecycle nor a chain was named',
+    'it should name BOTH routes, because either one answers the question',
+  ].join(', '),
+  () => {
+    // given — the message used to describe only --activities, which reads as
+    // "you must list activities" to somebody who asked for a Lifecycle
+    const given = args({})
+
+    // when
+    const actual = () => plannedActivities(given, cfg)
+
+    // then
+    expect(actual).toThrow(/--lifecycle/)
+    expect(actual).toThrow(/--activities/)
+    expect(actual).toThrow(/just crust list/)
   },
 )

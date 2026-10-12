@@ -3,7 +3,7 @@
  * pi-crust Triage — choose the chain, and hand it back.
  *
  * Usage:
- *     bun .pi-crust/stages/triage.ts "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
+ *     just crust triage "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
  *
  * Activity Runs: engineer(request) -> triage. Nothing follows, by construction.
  *
@@ -31,7 +31,7 @@ import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
 import { asSingleStage } from '../modules/use-cases/plan-units'
 import { runWorkflow } from '../modules/use-cases/run-workflow'
 
-export const STEPS = ['triage'] as const
+export const ACTIVITIES = ['triage'] as const
 
 export const main = async (args: TWorkflowArgs): Promise<number> => {
   /*
@@ -41,10 +41,10 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
    * would have to guess which run was its own.
    */
   const withId: TWorkflowArgs = { ...args, runId: args.runId ?? newId(8) }
-  const code = await runWorkflow(withId, asSingleStage(STEPS))
+  const code = await runWorkflow(withId, asSingleStage(ACTIVITIES))
   /*
    * Printed after the run rather than by the agent, because the agent is
-   * not the authority on how this factory is invoked: it chose the steps,
+   * not the authority on how this factory is invoked: it chose the activities,
    * and the shape of the command belongs to the code that knows what
    * `compose` takes today.
    */
@@ -60,7 +60,7 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
 }
 
 if (import.meta.main) {
-  await runCli('.pi-crust/stages/triage.ts', (args) =>
+  await runCli('triage', (args) =>
     main(workflowArgs(args, resolvePrompt(args.prompt))),
   )
 }

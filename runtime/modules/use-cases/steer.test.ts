@@ -4,7 +4,7 @@ import {
   activityRunsToSupersede,
   steeringBlock,
   steeringEntry,
-  stepsToReplay,
+  activitiesToReplay,
 } from './steer'
 
 const activityRun = (
@@ -36,18 +36,18 @@ const RUN: readonly TActivityRunState[] = [
 
 test(
   [
-    'given use-cases/steer::stepsToReplay',
-    'when a run is sent back to a step three stages earlier',
-    'it should replay that step and everything after it',
+    'given use-cases/steer::activitiesToReplay',
+    'when a run is sent back to a activity three stages earlier',
+    'it should replay that activity and everything after it',
   ].join(', '),
   () => {
-    // given — the steps are a chain, each consuming the last one's output,
+    // given — the activities are a chain, each consuming the last one's output,
     // so a change at the start of the chain is a change to all of it.
     // Re-running one in isolation is `amend`, and that is a judgement a
     // person makes deliberately rather than a side effect of steering.
 
     // when
-    const actual = stepsToReplay(RUN, 'conceptualize')
+    const actual = activitiesToReplay(RUN, 'conceptualize')
 
     // then
     expect(actual).toEqual(['conceptualize', 'design', 'plan'])
@@ -57,11 +57,11 @@ test(
 test(
   [
     'given use-cases/steer::activityRunsToSupersede',
-    'when steps have run more than once already',
+    'when activities have run more than once already',
     'it should supersede only the attempt that was standing',
   ].join(', '),
   () => {
-    // given — a step that already regressed once has two rows, and the
+    // given — a activity that already regressed once has two rows, and the
     // earlier one is history. Resume reads the LATEST per name, so marking
     // an old attempt would change nothing and marking both would rewrite
     // what the abandoned path recorded.
@@ -83,16 +83,16 @@ test(
 
 test(
   [
-    'given use-cases/steer::stepsToReplay',
-    'when the named step never ran in this run',
+    'given use-cases/steer::activitiesToReplay',
+    'when the named activity never ran in this run',
     'it should replay nothing rather than guess',
   ].join(', '),
   () => {
-    // given — a typo in a step name must not silently re-run the whole run
+    // given — a typo in a activity name must not silently re-run the whole run
     // when the caller is about to overwrite its documents
 
     // when
-    const actual = stepsToReplay(RUN, 'desgin')
+    const actual = activitiesToReplay(RUN, 'desgin')
 
     // then
     expect(actual).toEqual([])

@@ -21,7 +21,7 @@ test(
       runId: undefined,
       base: undefined,
       resume: false,
-      steps: undefined,
+      activities: undefined,
       lifecycle: undefined,
       approveAfter: undefined,
       commit: undefined,
@@ -58,7 +58,7 @@ test(
       runId: 'a1b2c3d4',
       base: undefined,
       resume: false,
-      steps: undefined,
+      activities: undefined,
       lifecycle: undefined,
       approveAfter: undefined,
       commit: 'false',
@@ -79,8 +79,8 @@ test(
     const argv = ['--run-id', 'a1b2c3d4']
 
     // when, then
-    expect(() => parseCli(argv, '.pi-crust/stages/plan.ts')).toThrow(
-      /a prompt is required[\s\S]*usage: bun \.pi-crust\/stages\/plan\.ts/,
+    expect(() => parseCli(argv, 'run')).toThrow(
+      /a prompt is required[\s\S]*usage: just crust run/,
     )
   },
 )
@@ -127,19 +127,35 @@ test(
 test(
   [
     'given use-cases/parse-cli::parseCli',
-    'when --steps is given a comma-separated list',
-    'it should keep the list verbatim for the workflow to split',
+    'when --activities is given a chain',
+    'it should keep the value verbatim for the Composer to parse',
   ].join(', '),
   () => {
     // given
-    const argv = ['compose it', '--steps', 'plan,build,verify']
+    const argv = ['compose it', '--activities', 'plan,build,review+code-review']
 
     // when
     const actual = parseCli(argv)
 
     // then
-    expect(actual.steps).toEqual('plan,build,verify')
+    expect(actual.activities).toEqual('plan,build,review+code-review')
     expect(actual.prompt).toEqual('compose it')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when the removed --steps flag is used',
+    'it should refuse by name rather than swallow it as the prompt',
+  ].join(', '),
+  () => {
+    // given — an unknown flag becomes a positional, so silence here would
+    // start a run on the word "--steps"
+    const argv = ['compose it', '--steps', 'plan,build']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/--steps was removed. Use --activities/)
   },
 )
 
@@ -159,5 +175,56 @@ test(
 
     // then
     expect(actual).toThrow(/--commit takes only 'false'/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when a flag is misspelled',
+    'it should refuse and name the one it meant, not read it as the prompt',
+  ].join(', '),
+  () => {
+    // given — one letter wrong. This used to fall through to the positional
+    // list, leaving --lifecycle unset, and the run failed saying --activities
+    // was required: a true sentence about the wrong problem.
+    const argv = ['do the thing', '--lifecycles', 'sdlc']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/unknown flag: --lifecycles/)
+    expect(() => parseCli(argv)).toThrow(/did you mean --lifecycle\?/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when a flag nothing resembles is given',
+    'it should still refuse, rather than swallow it as part of the prompt',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['do the thing', '--wat', 'x']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/unknown flag: --wat/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when the prompt itself contains a double dash',
+    'it should stay the prompt, because only a LEADING -- is a flag',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['rename the --steps flag in the docs']
+
+    // when
+    const actual = parseCli(argv)
+
+    // then
+    expect(actual.prompt).toEqual('rename the --steps flag in the docs')
   },
 )

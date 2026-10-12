@@ -150,7 +150,7 @@ export const readRunState = (
 }
 
 /**
- * The payload a code activityRun filed under `eventName` — how a code step replays.
+ * The payload a code activityRun filed under `eventName` — how a code activity replays.
  *
  * A code activity-run's verdict is NOT its activityRun status: a verify activityRun that ran the
  * suite did its job even when the suite came back red. Replay therefore reads

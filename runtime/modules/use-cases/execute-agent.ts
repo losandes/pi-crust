@@ -11,7 +11,7 @@ import { ensureDir, writeText } from '../data/files'
 import { changedFiles, isRepo, rev, untrackedFiles } from '../data/git'
 import { newId } from '../data/ids'
 import * as piAgent from '../data/pi-agent'
-import { render, savePrompt } from '../data/prompt-files'
+import { render, savePrompt, resolveReference } from '../data/prompt-files'
 import { snapshotTree } from '../data/working-tree'
 import type { TAgentConfig } from '../typedefs/config'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
@@ -31,7 +31,7 @@ import { resolveAgent } from './load-config'
 import { trustStance } from '../typedefs/trust'
 import { readSteering } from '../data/steering'
 import { steeringBlock } from './steer'
-import { stepCatalogue } from './step-catalogue'
+import { activityCatalogue } from './activity-catalogue'
 import { matchingSkills } from './route-by-path'
 
 /**
@@ -287,7 +287,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
         ? (call.upstream ?? [])
             .map(
               (one) =>
-                `## from ${one.step}\n\n${JSON.stringify(one.envelope, null, 2)}`,
+                `## from ${one.activity}\n\n${JSON.stringify(one.envelope, null, 2)}`,
             )
             .join('\n\n')
         : '(none)',
@@ -320,14 +320,14 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     // and read it rather than conclude nothing was done.
     change_base: call.changeBase ?? '(the uncommitted working tree)',
     /*
-     * Only the operator substitutes this, and it is generated from the step
+     * Only the operator substitutes this, and it is generated from the activity
      * registry and the roster rather than written into its prompt. Every
      * other agent renders it to nothing, because `render` leaves an unused
      * variable alone — the cost of computing it for all of them is a string
      * nobody reads, and the alternative is a conditional here that knows
      * which agent is which.
      */
-    step_catalogue: stepCatalogue(run.cfg.activities),
+    step_catalogue: activityCatalogue(run.cfg.activities),
     /*
      * The dial, in words, to every agent.
      *
@@ -345,7 +345,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    *
    * A `{{steering}}` variable would be opt-in, and a run sent back with new
    * instructions where one agent's prompt forgot the placeholder is a run
-   * that silently ignored the person. Every step from the branch point
+   * that silently ignored the person. Every activity from the branch point
    * onward has to hear it, so no prompt gets a say in whether it does.
    */
   const userText = `${render(agent.prompt_engineering.user, variables)}${steeringBlock(
@@ -439,7 +439,12 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
         sessionDir: resolve(join(agentDir, 'pi_sessions')),
         rawOutputPath: resolve(join(agentDir, 'raw_output.jsonl')),
         tools: agent.tools,
-        extensions: agent.harness_engineering,
+        /*
+         * Resolved here, not handed over as written: pi opens an extension
+         * relative to ITS cwd, which is the repository being worked on, and
+         * the extensions ship with the package rather than with the stamp.
+         */
+        extensions: agent.harness_engineering.map(resolveReference),
         skills,
         cwd: run.repoRoot,
       },

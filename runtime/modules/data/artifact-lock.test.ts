@@ -19,7 +19,7 @@ const tryWrite = (path: string): string => {
 test(
   [
     'given data/artifact-lock::lockArtifacts',
-    'when a later step tries to overwrite a finished document',
+    'when a later activity tries to overwrite a finished document',
     'it should be refused, and the original survive',
   ].join(', '),
   () => {
@@ -44,11 +44,11 @@ test(
 test(
   [
     'given data/artifact-lock::unlockArtifacts',
-    'when the step that wrote a document runs again',
+    'when the activity that wrote a document runs again',
     'it should be able to replace its own output',
   ].join(', '),
   () => {
-    // given — a retry, or a rejection sending the step back, legitimately
+    // given — a retry, or a rejection sending the activity back, legitimately
     // produces a new design. That is the one overwrite that must be allowed.
     const dir = scratch()
     writeFileSync(join(dir, 'design.md'), 'first attempt')
@@ -66,13 +66,13 @@ test(
 test(
   [
     'given data/artifact-lock::lockArtifacts',
-    "when the file is the run's own machinery rather than a step's output",
+    "when the file is the run's own machinery rather than a activity's output",
     'it should be left writable',
   ].join(', '),
   () => {
     // given — the gate rewrites its question every time a run stops, and the
     // answer arrives from a person. Locking either would not protect a
-    // step's work; it would break what was about to write them again.
+    // activity's work; it would break what was about to write them again.
     const dir = scratch()
     for (const name of [
       'decision-request.md',
@@ -106,7 +106,7 @@ test(
     'it should report what it locked rather than fail',
   ].join(', '),
   () => {
-    // given — `created` comes from an observation that may race a step
+    // given — `created` comes from an observation that may race a activity
     // cleaning up after itself, and locking must never be what fails a run
     const dir = scratch()
     writeFileSync(join(dir, 'real.md'), 'here')
@@ -122,8 +122,8 @@ test(
 test(
   [
     'given data/artifact-lock::isStepDocument',
-    'when asked which files belong to a step',
-    'it should separate a step\u2019s output from the run\u2019s plumbing',
+    'when asked which files belong to a activity',
+    'it should separate a activity\u2019s output from the run\u2019s plumbing',
   ].join(', '),
   () => {
     // given — the same distinction the UI draws, kept here because this side

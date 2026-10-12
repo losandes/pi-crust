@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadConfig, parseConfig, resolveAgent } from './load-config'
-import { resolveSteps } from './steps'
+import { runnableActivities } from './activities'
 
 const ROSTER = `
 defaults:
@@ -272,7 +272,7 @@ test(
     /*
      * given — this is the whole point of the registry being configuration.
      * Before it, a team could add an agent and never reach it: nothing bound
-     * a step to it.
+     * a activity to it.
      */
     const path = stamped({
       'crust.config.yaml': 'defaults:\n  data_dir: .pi-crust/data\n',
@@ -293,12 +293,12 @@ activities:
 
     // when
     const cfg = loadConfig(path)
-    const actual = resolveSteps(['plan', 'spike'], cfg)
+    const actual = runnableActivities(['plan', 'spike'], cfg)
 
     // then — registered, on the roster, and resolved into something runnable
     expect(cfg.activities.map((one) => one.name)).toEqual(['plan', 'spike'])
     expect(cfg.agents.map((one) => one.name)).toContain('spike')
-    expect(actual.map((step) => step.params.owner)).toEqual(['plan', 'spike'])
+    expect(actual.map((activity) => activity.params.owner)).toEqual(['plan', 'spike'])
     expect(actual[1]?.attempts).toEqual(1)
     expect(actual[1]?.gates.map((gate) => gate.name)).toEqual(['artifacts_exist'])
   },
@@ -379,5 +379,61 @@ test(
 
     // then
     expect(actual).toThrow(/planner 'triage' has no entry/)
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when an Activity states no model',
+    'it should inherit the roster default rather than a model in this package',
+  ].join(', '),
+  () => {
+    // given — `defaults.model` is the one knob crust.config.yaml documents,
+    // and the registry schema's own fallback used to win over it silently
+    const dir = mkdtempSync(join(tmpdir(), 'crust-inherit-'))
+    writeFileSync(
+      join(dir, 'crust.config.yaml'),
+      'defaults:\n  model: anthropic/claude-sonnet-5\n  thinking: high\n',
+    )
+    writeFileSync(
+      join(dir, 'crust.activities.yaml'),
+      [
+        'activities:',
+        '  - name: plan',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+        '  - name: build',
+        '    model: openai/gpt-5.6-terra',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+        'planners:',
+        '  - name: operator',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+        '  - name: triage',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+      ].join('\n'),
+    )
+
+    // when
+    const actual = loadConfig(join(dir, 'crust.config.yaml'))
+    const modelOf = (name: string) =>
+      actual.activities.find((one) => one.name === name)?.model
+
+    // then — inherited where silent, kept where stated
+    expect(modelOf('plan')).toEqual('anthropic/claude-sonnet-5')
+    expect(modelOf('build')).toEqual('openai/gpt-5.6-terra')
+    expect(actual.planners[0]?.model).toEqual('anthropic/claude-sonnet-5')
+    expect(actual.activities.find((one) => one.name === 'plan')?.thinking).toEqual('high')
   },
 )

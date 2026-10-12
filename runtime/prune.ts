@@ -3,8 +3,8 @@
  * pi-crust Prune — forget old runs, on disk and in the trace together.
  *
  * Usage:
- *     bun .pi-crust/prune.ts --older-than 14d          # say what WOULD go
- *     bun .pi-crust/prune.ts --older-than 14d --yes    # actually delete it
+ *     just crust prune 14d                 # say what WOULD go
+ *     just crust prune 14d --yes           # actually delete it
  *
  * Dry by default. Deleting a run is unrecoverable, and a command whose first
  * use is destructive is one somebody will run before reading it.
@@ -28,7 +28,7 @@ import { EXIT } from './modules/typedefs/run-state'
 import { parseAge, pruneVerdict, type TPrunable } from './modules/use-cases/prune'
 
 export const USAGE =
-  'usage: bun .pi-crust/prune.ts --older-than <14d|36h> [--yes] [--db <path>]\n' +
+  'usage: just crust prune <14d|36h> [--yes] [--db <path>]\n' +
   'env: CRUST_DB overrides the db path; --db still wins.'
 
 /** Every table that keys on a run, in an order no foreign key objects to. */

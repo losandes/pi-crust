@@ -1,15 +1,15 @@
 /**
- * Sending a run back to a step with new instructions.
+ * Sending a run back to a activity with new instructions.
  *
  * An agent can already do this: a stage that cannot work with what it was
- * given asks to regress, and the fold rewinds to that step and replays
+ * given asks to regress, and the fold rewinds to that activity and replays
  * everything from there in order. `steer` is the same act performed by a
  * person, which is why it reuses the same idea rather than inventing one —
- * the steps between the target and the end are a chain, and a change at the
+ * the activities between the target and the end are a chain, and a change at the
  * start of a chain is a change to all of it.
  *
- * What it is NOT is a way to re-run one step in isolation. That exists and is
- * called `amend`: it revises a step's own document without touching anything
+ * What it is NOT is a way to re-run one activity in isolation. That exists and is
+ * called `amend`: it revises a activity's own document without touching anything
  * downstream, because you have judged the change superficial. `steer` is for
  * when you have not.
  */
@@ -19,7 +19,7 @@ import type { TActivityRunState } from '../typedefs/run-state'
 /**
  * How a branch inherits the conversations it is branching from.
  *
- * `fork` copies each agent's session, so the replayed step sees its own
+ * `fork` copies each agent's session, so the replayed activity sees its own
  * earlier attempt and the instruction that rejected it. That is usually what
  * you want: the rejected attempt is WHY you are steering, and an agent that
  * cannot see it tends to re-derive it.
@@ -34,7 +34,7 @@ export type TSeeding = 'fork' | 'fresh'
  * Where the result goes, and the one thing a caller must say out loud.
  *
  * There is no default. `overwrite` discards the path you are steering away
- * from — the replayed steps rewrite their own documents — and `branch` keeps
+ * from — the replayed activities rewrite their own documents — and `branch` keeps
  * both as two runs. A default on a choice where one option destroys evidence
  * is a choice made by habit.
  */
@@ -44,22 +44,22 @@ export type TSteer = Readonly<{
   target: TSteerTarget
   /** Only meaningful for a branch; an overwrite continues what exists. */
   seeding: TSeeding
-  step: string
+  activity: string
   note: string
 }>
 
 /**
- * The steps a steer will replay: the target and everything after it.
+ * The activities a steer will replay: the target and everything after it.
  *
  * By sequence rather than by the configured order, because the sequence is
- * what actually happened — a run whose steps were reordered, or which
+ * what actually happened — a run whose activities were reordered, or which
  * regressed once already, is described by its trace and not by its config.
  */
-export const stepsToReplay = (
+export const activitiesToReplay = (
   activityRuns: readonly TActivityRunState[],
-  step: string,
+  activity: string,
 ): readonly string[] => {
-  const target = activityRuns.filter((activityRun) => activityRun.name === step).at(-1)
+  const target = activityRuns.filter((activityRun) => activityRun.name === activity).at(-1)
   if (target === undefined) return []
   const after = activityRuns.filter((activityRun) => activityRun.seq >= target.seq)
   return [...new Set(after.map((activityRun) => activityRun.name))]
@@ -68,15 +68,15 @@ export const stepsToReplay = (
 /**
  * The activityRun rows a steer must mark superseded for the replay to happen.
  *
- * Resume skips a step whose LATEST activityRun succeeded, so this is precisely the
+ * Resume skips a activity whose LATEST activityRun succeeded, so this is precisely the
  * set that would otherwise be skipped. Earlier attempts are left alone: they
  * are history, and the one being replaced is the one that was standing.
  */
 export const activityRunsToSupersede = (
   activityRuns: readonly TActivityRunState[],
-  step: string,
+  activity: string,
 ): readonly string[] => {
-  const names = new Set(stepsToReplay(activityRuns, step))
+  const names = new Set(activitiesToReplay(activityRuns, activity))
   return activityRuns
     .filter((activityRun) => names.has(activityRun.name) && activityRun.status === 'success')
     .filter(
@@ -95,12 +95,12 @@ export const activityRunsToSupersede = (
  * steered twice, and the second instruction rarely cancels the first.
  */
 export const steeringEntry = (
-  step: string,
+  activity: string,
   note: string,
   at: string,
 ): string =>
   [
-    `## Steering — sent back to \`${step}\` at ${at}`,
+    `## Steering — sent back to \`${activity}\` at ${at}`,
     '',
     note.trim(),
     '',
@@ -111,7 +111,7 @@ export const steeringEntry = (
  *
  * Deliberately not a template variable the prompts opt into: a steered run
  * where one agent's prompt forgot to include `{{steering}}` is a run that
- * silently ignored the person, and the whole point is that every step from
+ * silently ignored the person, and the whole point is that every activity from
  * the branch point onward hears it.
  */
 export const steeringBlock = (steering: string): string =>
@@ -121,9 +121,9 @@ export const steeringBlock = (steering: string): string =>
         '',
         '## Steering from the developer',
         '',
-        'This run was sent back to an earlier step with new instructions.',
+        'This run was sent back to an earlier activity with new instructions.',
         'They apply to you, and they override what the earlier pass of this',
-        'step concluded wherever the two conflict.',
+        'activity concluded wherever the two conflict.',
         '',
         steering.trim(),
       ].join('\n')

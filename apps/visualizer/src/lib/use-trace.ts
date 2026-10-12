@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchEnvelopes, fetchEvents, fetchGates, fetchSession } from './api'
+import { byStart } from './order'
 import type {
   AgentSession,
   Envelope,
@@ -119,7 +120,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
       state.loaded = true
       setTrace((previous) => ({
         session: detail.session,
-        activityRuns: detail.activityRuns.toSorted((a, b) => (a.seq ?? 0) - (b.seq ?? 0)),
+        activityRuns: detail.activityRuns.toSorted(byStart),
         agents: detail.agents,
         usage: detail.usage,
         events: fresh.length > 0 ? [...previous.events, ...fresh] : previous.events,

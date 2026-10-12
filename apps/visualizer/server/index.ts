@@ -32,6 +32,7 @@ import {
   isInboxKind,
   postMessage,
   startConsult,
+  startupFailure,
   startSteer,
   recordDecision,
   refuseUnlessAuthorised,
@@ -321,8 +322,19 @@ const server = Bun.serve({
 
     "/api/sessions/:run_id": safely((req) => {
       const runId = param(req, "run_id");
-      const detail = forRun(req, runId)?.sessionDetail(runId);
-      return detail ? json(detail) : notFound(`no session ${runId}`);
+      const owner = forRun(req, runId);
+      const detail = owner?.sessionDetail(runId);
+      if (detail) return json(detail);
+      /*
+       * A run REFUSED at load has no session row and never will — a
+       * concurrent Stage with overlapping `writes` is the case this exists
+       * for. The reason is in the log the spawn wrote, and without it the UI
+       * shows a run that simply never appeared.
+       */
+      const failure = owner && startupFailure(owner.path, runId);
+      return notFound(
+        failure ? `run ${runId} did not start:\n${failure}` : `no session ${runId}`,
+      );
     }),
 
     /*
@@ -412,6 +424,36 @@ const server = Bun.serve({
       }),
     },
 
+    /*
+     * Pick a FINISHED run back up, where nothing is being answered.
+     *
+     * Separate from `/decision`, which records an approve, reject or answer
+     * against a gate and resumes as a consequence. A run that failed has no
+     * gate waiting and no decision to record — the developer fixed what
+     * broke it and wants it continued — and posting a decision to say so
+     * would write a gate answer nobody gave.
+     *
+     * Needed because a consult does not move a run. An `amend` rewrites a
+     * document and opens no Activity Run by design, so after correcting the
+     * thing that failed there was no way forward from this UI at all.
+     */
+    "/api/sessions/:run_id/resume": {
+      POST: safely((req) => {
+        const refusal = refuseUnlessAuthorised(req);
+        if (refusal) return refusal;
+        const runId = param(req, "run_id");
+        if (!isSafeSegment(runId)) {
+          return json({ error: "invalid run_id" } satisfies ApiError, 400);
+        }
+        const owner = forRun(req, runId);
+        if (!owner) return notFound(`no session ${runId}`);
+        const resumed = resumeRun(owner.path, runId);
+        return resumed.resumed
+          ? json({ run_id: runId, ...resumed })
+          : json({ error: resumed.reason } satisfies ApiError, 503);
+      }),
+    },
+
     // Start a lifecycle. The heaviest thing this server can do, so it is the
     // one that most needs the token in front of it.
     "/api/runs": {
@@ -457,26 +499,32 @@ const server = Bun.serve({
             400,
           );
         }
-        return json(startRun(target.path, lifecycle, prompt, args));
+        const started = startRun(target.path, lifecycle, prompt, args);
+        // A refusal is a 503, not a 200 with a falsy field. The UI shows what
+        // the server says; a success-shaped body for a run that never started
+        // is the defect this whole route had.
+        return started.run_id === ""
+          ? json({ error: started.reason ?? "" } satisfies ApiError, 503)
+          : json(started);
       }),
     },
 
     // Archiving is review triage — it belongs to the reader, not to the run —
     // so it never touches anything a tracer wrote. It is still a write.
     /*
-     * Ask a finished step a question, or have it amend its own document.
+     * Ask a finished Activity Run a question, or have it amend its own document.
      *
      * Behind the token like every write: `amend` rewrites a document, and
      * even `ask` spends money on a model.
      */
-    "/api/sessions/:run_id/steps/:step/consult": {
+    "/api/sessions/:run_id/activities/:activity/consult": {
       POST: safely(async (req) => {
         const refusal = refuseUnlessAuthorised(req);
         if (refusal) return refusal;
         const runId = param(req, "run_id");
-        const step = param(req, "step");
-        if (!(isSafeSegment(runId) && isSafeSegment(step))) {
-          return json({ error: "invalid run_id or step" } satisfies ApiError, 400);
+        const activity = param(req, "activity");
+        if (!(isSafeSegment(runId) && isSafeSegment(activity))) {
+          return json({ error: "invalid run_id or activity" } satisfies ApiError, 400);
         }
         const body = (await req.json().catch(() => ({}))) as {
           mode?: unknown;
@@ -492,28 +540,26 @@ const server = Bun.serve({
         }
         const owner = forRun(req, runId);
         if (!owner) return notFound(`no session ${runId}`);
-        return json({
-          run_id: runId,
-          step,
-          mode,
-          ...startConsult(owner.path, runId, step, mode, question),
-        });
+        const started = startConsult(owner.path, runId, activity, mode, question);
+        return started.started
+          ? json({ run_id: runId, activity, mode, ...started })
+          : json({ error: started.reason ?? "" } satisfies ApiError, 503);
       }),
     },
 
     /*
-     * Send a run back to a step. The target is REQUIRED in the body and is
+     * Send a run back to an Activity Run. The target is REQUIRED in the body and
      * not defaulted here: overwrite discards the path being steered away
      * from, and a default on that choice is a choice made by habit.
      */
-    "/api/sessions/:run_id/steps/:step/steer": {
+    "/api/sessions/:run_id/activities/:activity/steer": {
       POST: safely(async (req) => {
         const refusal = refuseUnlessAuthorised(req);
         if (refusal) return refusal;
         const runId = param(req, "run_id");
-        const step = param(req, "step");
-        if (!(isSafeSegment(runId) && isSafeSegment(step))) {
-          return json({ error: "invalid run_id or step" } satisfies ApiError, 400);
+        const activity = param(req, "activity");
+        if (!(isSafeSegment(runId) && isSafeSegment(activity))) {
+          return json({ error: "invalid run_id or activity" } satisfies ApiError, 400);
         }
         const body = (await req.json().catch(() => ({}))) as {
           target?: unknown;
@@ -534,12 +580,10 @@ const server = Bun.serve({
         }
         const owner = forRun(req, runId);
         if (!owner) return notFound(`no session ${runId}`);
-        return json({
-          run_id: runId,
-          step,
-          target: body.target,
-          ...startSteer(owner.path, runId, step, body.target, note),
-        });
+        const started = startSteer(owner.path, runId, activity, body.target, note);
+        return started.started
+          ? json({ run_id: runId, activity, target: body.target, ...started })
+          : json({ error: started.reason ?? "" } satisfies ApiError, 503);
       }),
     },
 

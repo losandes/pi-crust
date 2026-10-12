@@ -81,7 +81,7 @@ test(
   [
     'given use-cases/regression::regressionVerdict',
     'when a stage asks to go FORWARD',
-    'it should refuse, because that is just the next step',
+    'it should refuse, because that is just the next activity',
   ].join(', '),
   () => {
     // given a poc (index 2) pointing at verify (index 4)

@@ -50,7 +50,7 @@ activities:
 
   # Keep one out of the `just crust please` menu, for work you never pick by
   # hand. HIDDEN, not disabled: a Lifecycle, a Planner, or an explicit
-  # --steps still runs it. Hiding is a preference about a menu.
+  # --activities still runs it. Hiding is a preference about a menu.
   - name: security-research
     hidden: true
 
@@ -81,7 +81,7 @@ activities:
 
   # Something only you run. `output` and `gates` name what the package
   # publishes; leave them out and you get `genericOutput` with no gates.
-  # Nothing references it until you name it in --steps or in a Lifecycle.
+  # Nothing references it until you name it in --activities or a Lifecycle.
   - name: spike
     model: anthropic/claude-haiku-4-5
     purpose: Answer one throwaway question without touching the repository.

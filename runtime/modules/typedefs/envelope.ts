@@ -234,10 +234,10 @@ export type TContextEnvelope = Readonly<z.infer<typeof contextEnvelopeSchema>>
 /**
  * Narrow an envelope travelling as `TEnvelopeBase` back to its own shape.
  *
- * `TStepContext.previous` is the base type, because a context is folded through
- * steps that each produce something different. Every consumer therefore has to
+ * `TActivityContext.previous` is the base type, because a context is folded through
+ * activities that each produce something different. Every consumer therefore has to
  * say what it expects, and saying it with `as` is a lie the compiler cannot
- * check: a `review` step handed an `identify` envelope would read `.approved`
+ * check: a `review` activity handed an `identify` envelope would read `.approved`
  * as `undefined`, conclude the review did not approve, and spend a build-sized
  * call revising against a verdict that was never cast.
  *
@@ -270,7 +270,7 @@ export const genericOutput = envelopeSpec('GenericOutput', genericOutputSchema)
 export const planOutputSchema = contextEnvelopeSchema.extend({
   // Subject for committing the PLAN — the spec file the planner wrote, not the
   // implementation it describes. Each agent's commit_message covers its own
-  // work product, so a chain that commits per step never reuses one agent's
+  // work product, so a chain that commits per activity never reuses one agent's
   // words for another agent's diff.
   commit_message: z.string().default(''),
 })
@@ -354,7 +354,7 @@ export type TResearchFinding = Readonly<z.infer<typeof researchFindingSchema>>
  *
  * They investigate different subjects and read different sources, but they
  * answer the same contract: here is what is true, here is how I know, here is
- * how sure I am, and here is what I could not settle. The step name already
+ * how sure I am, and here is what I could not settle. The activity name already
  * records which discipline asked, so a field repeating it would be a second
  * source of truth. Six near-identical schemas would drift apart within a
  * month, and every consumer would have to learn all six.
@@ -408,19 +408,19 @@ export const uxDesignOutputSchema = contextEnvelopeSchema.extend({
 export type TUxDesignOutput = Readonly<z.infer<typeof uxDesignOutputSchema>>
 export const uxDesignOutput = envelopeSpec('UxDesignOutput', uxDesignOutputSchema)
 
-/** One step in a planned chain, with the wiring a DAG will later need. */
+/** One activity in a planned chain, with the wiring a DAG will later need. */
 export const plannedStepSchema = z.object({
-  /** MUST be a pi-crust step name — `steps_valid` rejects anything else */
-  step: z.string(),
-  /** why this step earns its place, in terms of the outcome */
+  /** MUST be an Activity this repository registers — `steps_valid` refuses the rest */
+  activity: z.string(),
+  /** why this activity earns its place, in terms of the outcome */
   because: z.string().default(''),
   /**
-   * Which earlier steps it needs the output of. Recorded now and unused: the
+   * Which earlier activities it needs the output of. Recorded now and unused: the
    * runner is sequential today, so this is the DAG's evidence being gathered
    * before the DAG exists rather than reconstructed afterwards.
    */
   depends_on: z.array(z.string()).default([]),
-  /** what should reach it from those steps, in words */
+  /** what should reach it from those activities, in words */
   inputs: z.string().default(''),
 })
 export type TPlannedStep = Readonly<z.infer<typeof plannedStepSchema>>
@@ -429,10 +429,15 @@ export type TPlannedStep = Readonly<z.infer<typeof plannedStepSchema>>
  * A workflow, chosen rather than assumed.
  *
  * `steps` is ordered and is the authority on execution order; `plan` carries
- * the same steps with their reasons and dependencies. Two fields for one list
- * is a real cost, accepted because the ordered list is what a machine runs
- * and the annotated one is what a person reads — and conflating them put
- * prose where a `--steps` argument has to go.
+ * the same Activities with their reasons and dependencies. Two fields for one
+ * list is a real cost, accepted because the ordered list is what a machine
+ * runs and the annotated one is what a person reads — and conflating them put
+ * prose where the chain has to go.
+ *
+ * The field is still spelled `steps`. It is a contract with the prompts that
+ * ask for it and with every trace already written: renaming it would make a
+ * resumed run read its own recorded plan as empty. The vocabulary around it
+ * is Activities; the wire key is not a place to say so.
  */
 export const operatorPlanOutputSchema = contextEnvelopeSchema.extend({
   /** REQUIRED: the chain, in execution order. Empty means "nothing to do". */
@@ -440,7 +445,7 @@ export const operatorPlanOutputSchema = contextEnvelopeSchema.extend({
   plan: z.array(plannedStepSchema).default([]),
   /** what the run is for, in the operator's words — the outcome it aimed at */
   outcome: z.string().default(''),
-  /** steps considered and rejected, so nobody re-proposes them */
+  /** activities considered and rejected, so nobody re-proposes them */
   excluded: z.array(z.string()).default([]),
   /** how a reader knows the chain finished the job */
   completion: z.string().default(''),
@@ -559,7 +564,7 @@ export const diagnosisOutputSchema = contextEnvelopeSchema.extend({
   /**
    * A test that fails BECAUSE of this bug, if one can exist.
    *
-   * Steps are required; a test is desired. A failing test turns "it should not
+   * Activities are required; a test is desired. A failing test turns "it should not
    * do that" into something a builder can finish against and a reviewer can
    * check, and it keeps the bug fixed after everyone has forgotten it.
    *

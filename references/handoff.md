@@ -189,7 +189,7 @@ This matters because of what used to happen when it did not. A activity run whos
 
 | Activity Run kind            | Replayed from                                                              |
 | ---------------------------- | -------------------------------------------------------------------------- |
-| agent                        | `{sessionDir}/{agent}/envelope.json`, parsed against the step's spec       |
+| agent                        | `{sessionDir}/{agent}/envelope.json`, parsed against the Activity's spec   |
 | code                         | the payload the activity run filed under the `step_result` event           |
 | git (commit, change capture) | the recorded sha, or simply re-captured — a diff is deterministic and free |
 
@@ -198,4 +198,4 @@ Two rules hold this together:
 - **A skipped activity run opens no new activity run row.** The trace already holds the successful one; a second would corrupt the completed set the next resume reads, and the reporter and resume would start to disagree.
 - **An Activity Run's verdict is not its status.** A review that ruled against the work succeeded at its job; what failed is the work. `finish(accepted:)` settles the run, and the Activity Run stays green.
 
-A missing `envelope.json` on a replayed agent activity run is an error naming the exact path and both ways forward — drop `--resume`, or run that step alone. It is never a silent `previous: undefined`.
+A missing `envelope.json` on a replayed agent activity run is an error naming the exact path and both ways forward — drop `--resume`, or run that Activity alone. It is never a silent `previous: undefined`.

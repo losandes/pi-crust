@@ -2,7 +2,7 @@
  * What the interactive menu offers, derived from what is registered.
  *
  * It used to be three hardcoded lists: the lifecycles, the planners, and
- * every step name. Hardcoding drifted, silently and in the direction that
+ * every activity name. Hardcoding drifted, silently and in the direction that
  * matters — the menu's `sdlc` ran design before plan, and its `bugfix`
  * opened with `identify`, while the recipes of the same name ran neither.
  * A menu that offers a chain nobody can run by any other route is worse

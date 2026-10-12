@@ -12,7 +12,7 @@
  * while an exported variable outlives the terminal it was set in.
  *
  * An empty or whitespace-only value reads as unset rather than as a path of
- * `''`, so `CRUST_DB= bun .pi-crust/report.ts` behaves like not setting it at all.
+ * `''`, so `CRUST_DB= just crust report` behaves like not setting it at all.
  *
  * The environment arrives as an argument so a caller can hand over a plain
  * object. Mutating `process.env` to exercise this would be both a shared

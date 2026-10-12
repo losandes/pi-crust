@@ -1,7 +1,7 @@
 /**
  * The operator's plan, turned into the rest of its own run.
  *
- * Every other step produces something a person reads. This one produces the
+ * Every other activity produces something a person reads. This one produces the
  * chain, and the chain executes — so the run it is part of cannot be a fixed
  * list decided before anything spawned.
  *
@@ -25,18 +25,18 @@
 
 import { plannedNames } from './gates'
 import { narrowEnvelope, operatorPlanOutput } from '../typedefs/envelope'
-import type { TStepContext } from '../typedefs/step'
+import type { TActivityContext } from '../typedefs/runnable-activity'
 
 /**
  * The chain an operator activityRun chose, or nothing when this run had no operator.
  *
- * Filtered to real step names a second time, after the gate already checked
+ * Filtered to real activity names a second time, after the gate already checked
  * them. Not redundancy for its own sake: the gate runs against the agent's
  * reply, and this runs against whatever is in the trace — including a trace
- * written by an older version of this factory, where a step that existed then
+ * written by an older version of this factory, where a activity that existed then
  * may not exist now. A resumed run must not die on a name it cannot resolve.
  */
-export const plannedChain = (ctx: TStepContext): readonly string[] => {
+export const plannedChain = (ctx: TActivityContext): readonly string[] => {
   if (ctx.previousStep !== 'operator') return []
   const plan = narrowEnvelope(operatorPlanOutput, ctx.previous)
   if (plan === undefined) return []
@@ -55,7 +55,7 @@ export const plannedChain = (ctx: TStepContext): readonly string[] => {
  * What to tell a person before the planned chain runs.
  *
  * Printed whether the chain was approved by a human or by the dial, because
- * "which steps am I about to pay for" is the question in both cases.
+ * "which activities am I about to pay for" is the question in both cases.
  */
-export const chainNote = (steps: readonly string[]): string =>
-  `operator chose: ${steps.join(' -> ')}`
+export const chainNote = (activities: readonly string[]): string =>
+  `operator chose: ${activities.join(' -> ')}`

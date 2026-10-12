@@ -2,11 +2,11 @@
  * Gates over a plan that something else will execute.
  *
  * The operator's envelope is the only one a machine consumes directly: its
- * `steps` become the chain that runs. That makes a wrong one qualitatively
- * different from a wrong paragraph — an invented step name is not a weak
+ * `activities` become the chain that runs. That makes a wrong one qualitatively
+ * different from a wrong paragraph — an invented activity name is not a weak
  * recommendation, it is a run that cannot start.
  *
- * A prompt can ASK for valid step names. Only a gate can establish them, and
+ * A prompt can ASK for valid activity names. Only a gate can establish them, and
  * the failed checks go back to the same agent session as a correction, so the
  * operator gets one chance to fix its own plan before anyone sees it.
  */
@@ -29,11 +29,14 @@ const forbidden = (name: string): string | undefined =>
       `Planner. The Planners are ${PLANNER_NAMES.join(', ')}.`
     : undefined
 
-/** The ordered step list a plan claims, with non-strings discarded. */
+/** The ordered activity list a plan claims, with non-strings discarded. */
 export const plannedNames = (envelope: TEnvelopeBase): readonly string[] => {
-  const steps = (envelope as { steps?: unknown }).steps
-  return Array.isArray(steps)
-    ? steps.filter((step): step is string => typeof step === 'string')
+  // `steps` is the operator's envelope field, a wire contract with the
+  // prompts and with every trace already written. The vocabulary here is
+  // Activities; the field keeps the name the envelope published.
+  const activities = (envelope as { steps?: unknown }).steps
+  return Array.isArray(activities)
+    ? activities.filter((activity): activity is string => typeof activity === 'string')
     : []
 }
 
@@ -59,8 +62,8 @@ export const stepsValid: TGate = {
         emptyReport,
         'plan',
         false,
-        'no steps planned — a chain of nothing cannot produce an outcome. ' +
-          'Name the steps the outcome needs, or say in `unresolved` why none apply.',
+        'no activities planned — a chain of nothing cannot produce an outcome. ' +
+          'Name the activities the outcome needs, or say in `unresolved` why none apply.',
       )
     }
     return names.reduce<TGateReport>((report, name) => {

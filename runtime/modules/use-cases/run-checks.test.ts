@@ -51,3 +51,49 @@ test(
     expect(actual.failures[0]).toContain('no routing.checks matched')
   },
 )
+
+test(
+  [
+    'given use-cases/run-checks::runVerification',
+    'when the repository has declared no checks at all',
+    'it should pass, because nothing was promised and nothing is evidence',
+  ].join(', '),
+  () => {
+    // given — `checks: []` is what an install stamps, and crust.config.yaml
+    // is in protected_files, so a build agent met a gate it could not pass
+    // and was not allowed to fix
+    const run = runWith({ checks: [] })
+
+    // when
+    const actual = runVerification(run, ['src/add.ts', 'src/add.test.ts'])
+
+    // then
+    expect(actual.passed).toEqual(true)
+    expect(actual.checks).toEqual([])
+    expect(actual.failures).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/run-checks::runVerification',
+    'when one rule is declared and this change falls outside it',
+    'it should still FAIL, because that is a gap rather than an abstention',
+  ].join(', '),
+  () => {
+    // given — declaring nothing and declaring a rule that misses are
+    // different claims, and only the second is evidence of a gap
+    const run = runWith({
+      checks: [
+        { name: 'lint', when: ['**/*.md'], operation: 'lint', argv: ['true'] },
+      ],
+    })
+
+    // when
+    const actual = runVerification(run, ['src/add.ts'])
+
+    // then
+    expect(actual.passed).toEqual(false)
+    expect(actual.failures[0]).toContain('no routing.checks matched')
+  },
+)

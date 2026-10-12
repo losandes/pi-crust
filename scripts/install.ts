@@ -96,11 +96,43 @@ const GITIGNORE_ENTRIES = [
   '.pi-crust/prompt-engineering/example/',
 ]
 
+/**
+ * The setting that keeps a prompt one argument.
+ *
+ * `{{ARGS}}` interpolates a variadic parameter into the command line as
+ * TEXT, so the shell splits it again on whitespace: `just crust run "add a
+ * src directory"` reached the runtime as six arguments, the first of which
+ * became the whole prompt. The run then did real work on the word "add".
+ *
+ * `set positional-arguments` plus `"$@"` is the only mechanism just has for
+ * passing arguments through with their boundaries intact. It is file-scoped
+ * rather than recipe-scoped, which is a real imposition on a repository's own
+ * justfile and is accepted because the alternative is a factory that silently
+ * truncates every prompt containing a space.
+ */
+const JUST_SETTING = 'set positional-arguments'
+
 const JUST_RECIPE = [
   '# pi-crust: every recipe lives in the package, not in this repository.',
   '# `just crust <recipe>` reaches them; `just crust default` lists them.',
+  '#',
+  '# `set positional-arguments` + "$@" rather than {{ARGS}}: interpolation',
+  '# re-splits on whitespace, which turns a quoted prompt into one word.',
+  JUST_SETTING,
+  '',
   'crust *ARGS:',
-  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" {{ARGS}}',
+  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"',
+].join('\n')
+
+/** The same block, for a justfile that already carries the setting. */
+const JUST_RECIPE_ONLY = [
+  '# pi-crust: every recipe lives in the package, not in this repository.',
+  '# `just crust <recipe>` reaches them; `just crust default` lists them.',
+  '#',
+  '# Relies on this file\'s `set positional-arguments`: without it, {{ARGS}}',
+  '# interpolation re-splits a quoted prompt on whitespace.',
+  'crust *ARGS:',
+  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"',
 ].join('\n')
 
 /**
@@ -206,6 +238,50 @@ const ensureGitignore = (root: string, tally: TTally): void => {
  * one fails every recipe in the repository, not only the crust ones. A
  * passthrough resolves at call time and costs an unrelated recipe nothing.
  */
+/**
+ * An ALREADY-STAMPED justfile whose passthrough still interpolates.
+ *
+ * The first version of this recipe ended `{{ARGS}}`, which the shell splits
+ * again on whitespace — so every prompt containing a space arrived as its
+ * first word and runs were started on "add". A repository that has the old
+ * line gets it corrected on the next install; one that has already been
+ * corrected, or that a team has edited, is left alone.
+ *
+ * This is the one case where an install rewrites a line the repository owns.
+ * It is narrow by construction: the exact old body, replaced by the exact new
+ * one, and the setting added only when the file lacks it.
+ */
+const OLD_PASSTHROUGH =
+  '@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" {{ARGS}}'
+
+const NEW_PASSTHROUGH =
+  '@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"'
+
+const repairInterpolation = (
+  justfile: string,
+  existing: string,
+  tally: TTally,
+): void => {
+  if (!existing.includes(OLD_PASSTHROUGH)) {
+    return
+  }
+  const settled = existing
+    .split('\n')
+    .map((line) => line.trim())
+    .some(
+      (line) => line === JUST_SETTING || line === `${JUST_SETTING} := true`,
+    )
+  const repaired = existing.replace(OLD_PASSTHROUGH, NEW_PASSTHROUGH)
+  writeFileSync(
+    justfile,
+    settled ? repaired : `${JUST_SETTING}\n\n${repaired}`,
+    'utf8',
+  )
+  tally.stamped.push(
+    `${justfile} (crust recipe repaired: a quoted prompt stayed one word)`,
+  )
+}
+
 const ensureJustRecipe = (root: string, tally: TTally): void => {
   const justfile = join(root, 'justfile')
   const existing = existsSync(justfile) ? readFileSync(justfile, 'utf8') : ''
@@ -216,10 +292,10 @@ const ensureJustRecipe = (root: string, tally: TTally): void => {
    * reads that as "already installed" and silently stamps nothing. Match a
    * real, uncommented recipe header.
    */
-  const installed = existing
-    .split('\n')
-    .some((line) => line.trim() === 'crust *ARGS:')
+  const lines = existing.split('\n').map((line) => line.trim())
+  const installed = lines.some((line) => line === 'crust *ARGS:')
   if (installed) {
+    repairInterpolation(justfile, existing, tally)
     return
   }
   if (existing === '') {
@@ -227,8 +303,19 @@ const ensureJustRecipe = (root: string, tally: TTally): void => {
     tally.stamped.push(`${justfile} (created, +crust recipe)`)
     return
   }
-  appendFileSync(justfile, `\n${JUST_RECIPE}\n`, 'utf8')
-  tally.stamped.push(`${justfile} (+crust recipe)`)
+  /*
+   * A second `set positional-arguments` is a parse error, so a justfile that
+   * already has it gets the recipe alone. The setting is file-scoped and
+   * order does not matter, which is why appending works at all.
+   */
+  const settled = lines.some(
+    (line) => line === JUST_SETTING || line === `${JUST_SETTING} := true`,
+  )
+  const block = settled ? JUST_RECIPE_ONLY : JUST_RECIPE
+  appendFileSync(justfile, `\n${block}\n`, 'utf8')
+  tally.stamped.push(
+    `${justfile} (+crust recipe${settled ? '' : ', +positional-arguments'})`,
+  )
 }
 
 const say = (line: string): void => {
@@ -274,7 +361,8 @@ const main = (): number => {
   say('  4. just crust observe       # the trace UI, needs bun')
   say('\n  no just? the raw form of step 2 is:')
   say(
-    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/lifecycles/compose.ts" "list the top-level directories in this repo" --steps scout',
+    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/lifecycles/compose.ts" \\\n' +
+      '       "list the top-level directories in this repo" --activities scout',
   )
   say(
     '\n  read .pi-crust/prompt-engineering/README.md — it explains what is yours here.',

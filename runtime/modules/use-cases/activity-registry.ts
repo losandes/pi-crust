@@ -4,7 +4,7 @@
  * `crust.activities.yaml` names an envelope spec and some gates. This is
  * where those names become the spec and the gates themselves, and where a
  * name nothing publishes is refused — at load, naming what was available,
- * because that refusal is what replaces the compiler's old union of step
+ * because that refusal is what replaces the compiler's old union of activity
  * names. An unknown Activity used to be a type error; it is now this.
  */
 
@@ -15,7 +15,7 @@ import { ENVELOPE_NAMES, envelopeNamed } from '../typedefs/envelope'
 import type { TGate } from '../typedefs/gate'
 import { GATE_NAMES, gateNamed } from './gates'
 
-/** What a step is built from: the entry, with its names resolved. */
+/** What a activity is built from: the entry, with its names resolved. */
 export type TResolvedActivity = Readonly<{
   config: TActivityConfig
   spec: TEnvelopeSpec<TEnvelopeBase>

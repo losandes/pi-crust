@@ -17,7 +17,7 @@
  * than a configuration error that stops a run.
  *
  * Plain CSS rather than SCSS: a theme is a block of channel triples under one
- * selector, and compiling would put a build step between editing a file and
+ * selector, and compiling would put a build activity between editing a file and
  * seeing the colour change.
  */
 

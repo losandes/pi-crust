@@ -55,8 +55,8 @@ test(
 test(
   [
     'given use-cases/revise-loop::trailingReview',
-    'when a chain ends in a review step',
-    'it should name that step, and name nothing for a chain that does not',
+    'when a chain ends in a review activity',
+    'it should name that activity, and name nothing for a chain that does not',
   ].join(', '),
   () => {
     // given
@@ -105,7 +105,7 @@ test(
     const params = {
       unmoved: 2,
       reportPath: 'handoff/disputes.md',
-      fallback: 'a step did not meet its own criterion',
+      fallback: 'a activity did not meet its own criterion',
     }
 
     // when

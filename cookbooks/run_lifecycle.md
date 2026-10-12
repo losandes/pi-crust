@@ -17,8 +17,8 @@ Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the shor
 ```bash
 bun <pi-crust>/runtime/lifecycles/sdlc.ts "add a /health endpoint"
 bun <pi-crust>/runtime/lifecycles/compose.ts requests/health.md
-just crust build "implement the plan" --run-id a1b2c3d4
-just crust scout "where is auth handled" --config path/to/other.config.yaml
+just crust run "implement the plan" --activities build --run-id a1b2c3d4
+just crust run "where is auth handled" --activities scout --config path/to/other.config.yaml
 ```
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `run_id` is printed on startup — capture it, everything else keys off it.
@@ -62,9 +62,9 @@ CRUST_CONFIG=.pi-crust/config/crust.frontier.config.yaml just <recipe> "<prompt>
 `--scope` says what the judging Activities judge: `review`, `code-review` and `document` all read it, and so does `just crust verify`.
 
 ```bash
-just crust code-review "the stats refactor" --scope HEAD~3..HEAD    # a range
+just crust run "the stats refactor" --activities code-review --scope HEAD~3..HEAD   # a range
 just crust verify --scope main                                       # since a ref
-just crust code-review "the gateway" --scope apps/gateway            # a directory, however old
+just crust run "the gateway" --activities code-review --scope apps/gateway         # a directory
 just crust verify --scope 'lib/**/*.ts'                              # a glob
 ```
 
@@ -79,7 +79,7 @@ Committing is a property of each Activity, not a mode of the run. An Activity th
 `--commit false` turns committing off for a whole run, whatever the registry says. There is no `--commit true`: a flag granting a permission the configuration withheld would make a run behave in a way nobody reading the registry could predict.
 
 ```bash
-just crust sdlc "add a /health endpoint" --commit false   # leave everything in the working tree
+just crust run "add a /health endpoint" --lifecycle sdlc --commit false   # leave it in the working tree
 ```
 
 An Activity that was not committing and moved `HEAD` anyway is reported as a permission breach, like any other overstep. No prompt asks an agent to commit, but a prompt is advice.
@@ -91,21 +91,21 @@ Two things that bite:
 
 `--run-id` is optional on **every** workflow. Given one, the run joins that session if it exists or creates it pinned to exactly that id: same `sessions/{run_id}/` dirs, same `context_handoff/`, envelopes appended, and each agent resumes its existing coding-agent context window via `agent_map.json`. That is how you chain workflows — plan under one id, then build under the same id.
 
-## Run one step, or any subset
+## Run one Activity, or any subset
 
-Every step of a workflow also runs on its own, which is what an engineer usually wants when the ask is narrow:
+Every Activity also runs on its own, which is what an engineer usually wants when the ask is narrow:
 
 ```bash
-just crust code-review "the /health work"        # just the conventions review
+just crust run "the /health work" --activities code-review   # just the conventions review
 just crust verify                                # just the declared checks, no run at all
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps test,build,review
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,review
 ```
 
 `compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,review,build,review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
 
-A chain whose LAST Activity is `review` or `code-review` ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, the reviewer rules again, and the bound is that Activity's `attempts`. That applies to a lone `just crust review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
+A chain whose LAST Activity is `review` or `code-review` ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, the reviewer rules again, and the bound is that Activity's `attempts`. That applies to a lone `--activities review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
 
-Still prefer a composed chain when the work is real: a lone `build` has nothing checking it. Single steps are for a narrow ask, or for picking a stopped run up by hand.
+Still prefer a composed chain when the work is real: a lone `build` has nothing checking it. A single Activity is for a narrow ask, or for picking a stopped run up by hand.
 
 ## Where did it stop, and how do I pick it up
 

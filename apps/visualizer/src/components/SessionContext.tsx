@@ -4,9 +4,9 @@
  * Shaped after a repository landing page, where the README is simply there:
  * the prompt is the thing a reader needs first and most often, and until now
  * it was a 500-character stub on a card, with the full text only reachable
- * by opening the request step.
+ * by opening the request activity.
  *
- * No accordions. The step view folds its context away because a step has
+ * No accordions. The activity view folds its context away because a activity has
  * fifteen kinds of it; a run has two, and a fold costs a click to reach the
  * thing you came for.
  */
@@ -24,7 +24,7 @@ import styles from './SessionContext.module.css'
  * The prompt as it was given, not as the session row kept it.
  *
  * `sessions.request` is truncated to 500 characters for the list; the request
- * step's own log event holds the whole thing, which for a real request is a
+ * activity's own log event holds the whole thing, which for a real request is a
  * markdown document of several pages.
  */
 const fullPrompt = (

@@ -297,15 +297,15 @@ Dry by default, because deleting a run cannot be undone, and an age is always re
 
 ## Building a command by answering questions
 
-`just crust please` asks for the run instead of the flags. It opens with the run id, because that question subsumes the rest: naming a run that is waiting means you are continuing it, and the only thing left to ask is whether you are approving, answering or rejecting. Say nothing and it offers a new run instead — which lifecycle or steps, in what order, how much it may decide for itself, how it hands the work over, and where to stop and show you.
+`just crust please` asks for the run instead of the flags. It opens with the run id, because that question subsumes the rest: naming a run that is waiting means you are continuing it, and the only thing left to ask is whether you are approving, answering or rejecting. Say nothing and it offers a new run instead — which Lifecycle or Activities, in what order, how much it may decide for itself, how it hands the work over, and where to stop and show you.
 
 It ends by printing the command and offering to run it. The line is the point: `please` is a way to build a command, not a replacement for knowing them, and seeing the one you just described is how the flags stop needing the wizard. Choose "just give me the line" and nothing is started.
 
-The menus move with the arrow keys or `j`/`k`, select with tab or space, `a` and `n` take or clear everything, enter confirms and escape backs out. A multi-select records the order you chose things in, because for a chain of steps the order is what the chain means.
+The menus move with the arrow keys or `j`/`k`, select with tab or space, `a` and `n` take or clear everything, enter confirms and escape backs out. A multi-select records the order you chose things in, because for a chain of Activities the order is what the chain means.
 
 ## Research, design, and letting it choose the chain
 
-Seven steps sit outside every lifecycle, because they answer questions a lifecycle does not ask. Run them when the question is theirs.
+Seven Activities sit outside every Lifecycle, because they answer questions a lifecycle does not ask. Run them when the question is theirs.
 
 Five of them are research disciplines — `technical-research`, `ux-research`, `domain-research`, `security-research`, `data-research`. Each establishes what is TRUE in its own subject and decides nothing, and each reports findings the same way: what was found, how it is known, how confident, and what contradicts it. `source` separates what was *observed* from what is *documented* from what was *inferred*, which is the distinction the whole exercise turns on — "the documentation says it retries" is not "it retries", and a design built on the second when only the first was established fails in production rather than in review. They are read-only; findings go to the session's handoff directory, never to the repository.
 
@@ -313,11 +313,11 @@ Five of them are research disciplines — `technical-research`, `ux-research`, `
 
 `ux-design` is not research: it decides. It produces an interface specification precise enough that an implementer invents no UX of their own, including every meaningful state, the keyboard and accessibility behaviour, and an explicit list of what was deliberately left open.
 
-`operator` chooses the chain and performs none of it. It is handed a catalogue of the steps that exist — generated from the registry and the roster, never written into its prompt — and returns the smallest chain that can produce the outcome, with what it excluded and why. Its plan then becomes the rest of that same run, so the reasoning and the work it caused live in one trace.
+`operator` chooses the chain and performs none of it. It is handed a catalogue of the Activities that exist — generated from the registry and the roster, never written into its prompt — and returns the smallest chain that can produce the outcome, with what it excluded and why. Its plan then becomes the rest of that same run, so the reasoning and the work it caused live in one trace.
 
-Two things govern it. `steps_valid` rejects a plan naming a step that does not exist, or naming another operator, and hands the mistake back to the same session to fix. The trust dial decides whether the chain may run unseen: below 50 the run stops and shows you the steps it proposes before spending anything on them, and at 50 or above it runs them and reports the choice with everything else the run decided for itself. There is no `--execute` flag, because that question is already answered by the dial, and two controls for one intention is a mistake this factory has made before.
+Two things govern it. `steps_valid` rejects a plan naming an Activity that does not exist, or naming another operator, and hands the mistake back to the same session to fix. The trust dial decides whether the chain may run unseen: below 50 the run stops and shows you the chain it proposes before spending anything on them, and at 50 or above it runs them and reports the choice with everything else the run decided for itself. There is no `--execute` flag, because that question is already answered by the dial, and two controls for one intention is a mistake this factory has made before.
 
-`operator` and `--steps` together are refused rather than reconciled. One asks the factory to choose the chain and the other names it; honouring either silently would mean guessing which you meant.
+`operator` and `--activities` together are refused rather than reconciled. One asks the factory to choose the chain and the other names it; honouring either silently would mean guessing which you meant.
 
 ## Watching a run from another machine
 
