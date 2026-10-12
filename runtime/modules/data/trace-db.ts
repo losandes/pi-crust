@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS activity_runs (
   seq           INTEGER,
   name TEXT, kind TEXT, owner TEXT, description TEXT,
   status        TEXT DEFAULT 'fail',
-  attempt       INTEGER DEFAULT 0, retries INTEGER DEFAULT 0,
   error         TEXT,
   started_at    TEXT, ended_at TEXT
 );
@@ -59,14 +58,12 @@ CREATE TABLE IF NOT EXISTS envelopes (
   output_type   TEXT,
   payload_json  TEXT,
   valid         INTEGER,
-  attempt       INTEGER,
   created_at    TEXT
 );
 CREATE TABLE IF NOT EXISTS gate_results (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   run_id        TEXT REFERENCES sessions,
   activity_run_id      TEXT REFERENCES activity_runs,
-  attempt       INTEGER,
   gate          TEXT,
   passed        INTEGER,
   violations_json TEXT,
@@ -364,10 +361,10 @@ export const createTracer = (
       const p = activityRun.params
       db.run(
         'INSERT INTO activity_runs (activity_run_id, run_id, seq, name, kind, owner, description,' +
-          ' status, attempt, retries, error, started_at, ended_at)' +
-          ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)' +
+          ' status, error, started_at, ended_at)' +
+          ' VALUES (?,?,?,?,?,?,?,?,?,?,?)' +
           ' ON CONFLICT(activity_run_id) DO UPDATE SET status=excluded.status,' +
-          ' attempt=excluded.attempt, error=excluded.error, ended_at=excluded.ended_at',
+          ' error=excluded.error, ended_at=excluded.ended_at',
         [
           activityRun.activity_run_id,
           activityRun.run_id,
@@ -377,8 +374,6 @@ export const createTracer = (
           p.owner,
           p.description,
           activityRun.status,
-          activityRun.attempt,
-          p.retries,
           activityRun.error ?? null,
           activityRun.started_at ?? null,
           activityRun.ended_at ?? null,
@@ -387,10 +382,10 @@ export const createTracer = (
     },
 
     // ── envelopes / gates / agent sessions ──────────────────────────────────
-    envelopeRow: (activityRun, agent, outputType, payloadJson, valid, attempt) => {
+    envelopeRow: (activityRun, agent, outputType, payloadJson, valid) => {
       db.run(
         'INSERT INTO envelopes (envelope_id, run_id, activity_run_id, agent, output_type,' +
-          ' payload_json, valid, attempt, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+          ' payload_json, valid, created_at) VALUES (?,?,?,?,?,?,?,?)',
         [
           `env_${newId(12)}`,
           activityRun.run_id,
@@ -399,21 +394,19 @@ export const createTracer = (
           outputType,
           payloadJson,
           valid ? 1 : 0,
-          attempt,
           nowIso(),
         ],
       )
     },
 
     /** The report carries both the verdict and the evidence behind it. */
-    gateRow: (activityRun, gate, report: TGateReport, attempt) => {
+    gateRow: (activityRun, gate, report: TGateReport) => {
       db.run(
-        'INSERT INTO gate_results (run_id, activity_run_id, attempt, gate, passed,' +
-          ' violations_json, checks_json, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO gate_results (run_id, activity_run_id, gate, passed,' +
+          ' violations_json, checks_json, created_at) VALUES (?,?,?,?,?,?,?)',
         [
           activityRun.run_id,
           activityRun.activity_run_id,
-          attempt,
           gate,
           reportPassed(report) ? 1 : 0,
           JSON.stringify(violationsOf(report)),

@@ -19,9 +19,60 @@
  */
 
 import { z } from 'zod'
-import { CODING_AGENTS, DEFAULT_MODEL, promptEngineeringSchema } from './config'
+
+/**
+ * The primitives an Activity and the roster share.
+ *
+ * They live here rather than in `config.ts` because the roster is now
+ * assembled FROM Activities: a config that imported this file while this
+ * file imported it back would be a cycle, and the shared half is the small
+ * half. `config.ts` re-exports all three, so every existing importer is
+ * unaffected.
+ */
+export const CODING_AGENTS = ['pi', 'claude_code'] as const
+export type TCodingAgent = (typeof CODING_AGENTS)[number]
+
+export const DEFAULT_MODEL = 'google/gemini-3.6-flash'
+
+export const promptEngineeringSchema = z.object({
+  /** path to system.md */
+  system: z.string(),
+  /** path to user.md */
+  user: z.string(),
+})
+export type TPromptEngineering = Readonly<
+  z.infer<typeof promptEngineeringSchema>
+>
 
 export const DEFAULT_ACTIVITIES_PATH = '.pi-crust/config/crust.activities.yaml'
+
+/**
+ * How many Activity Runs of ONE instance a Workflow Run may spend.
+ *
+ * Two, including the first. Every autonomous re-execution — a gate failure,
+ * a revision, a regression — comes out of the same budget, because the
+ * failure modes are correlated: one bad input expresses itself as all three
+ * in turn, and three separate budgets let it burn three times before a
+ * person is asked.
+ *
+ * An Activity whose re-execution is expensive should declare `attempts: 1`
+ * rather than inherit this.
+ */
+export const DEFAULT_ATTEMPTS = 2
+
+/**
+ * The Planners: they decide what happens and perform none of it.
+ *
+ * A CLOSED set, in code. Configuration tunes a Planner's model, tools,
+ * writes and prompts; it cannot add one or take one away, because a Planner
+ * is wired into the engine rather than named by a Lifecycle. The Composer is
+ * the third and has no entry at all: it has no agent.
+ */
+export const PLANNER_NAMES = ['operator', 'triage'] as const
+export type TPlannerName = (typeof PLANNER_NAMES)[number]
+
+export const isPlannerName = (name: string): name is TPlannerName =>
+  (PLANNER_NAMES as readonly string[]).includes(name)
 
 export const activityConfigSchema = z.object({
   name: z.string(),
@@ -57,13 +108,94 @@ export const activityConfigSchema = z.object({
   //   [...]     -> only these. A trailing "/" means a directory prefix; a "*"
   //                makes it a glob; anything else is an exact path.
   writes: z.array(z.string()).optional(),
+
+  // ── the work half ────────────────────────────────────────────────────────
+  // An Activity entry carries what the performer IS and what the work NEEDS,
+  // because they are the same thing: a Lifecycle names `plan`, and `plan` is
+  // this entry. Everything below names something the package publishes by
+  // name, and a name nothing publishes is refused at load.
+
+  /** the envelope spec this Activity answers with, from `ENVELOPE_CATALOGUE` */
+  output: z.string().default('genericOutput'),
+  /** gates this Activity's envelope must survive, from `GATE_CATALOGUE` */
+  gates: z.array(z.string()).default([]),
+  /**
+   * What this Activity is handed as its `previous` envelope, from
+   * `INPUT_CATALOGUE`.
+   *
+   *   upstream  what the Activity before it produced (the default)
+   *   changes   the diff this run has made since its own baseline
+   *
+   * `changes` is what the documenter needs: it writes up a change rather
+   * than answering the Activity before it, and a run that commits as it goes
+   * has already moved `main` by the time it documents.
+   */
+  input: z.string().default('upstream'),
+  /** Activity Runs of this instance one Workflow Run may spend, first included */
+  attempts: z.number().int().min(1).default(DEFAULT_ATTEMPTS),
+  /**
+   * Commit this Activity's own change once every gate on it has passed.
+   *
+   * Granularity follows the chain: several writing Activities produce
+   * several commits, each in the words of the envelope that wrote it. An
+   * Activity that does not declare this is not committed by anybody — not by
+   * pi-crust, and not by the agent performing it, which `enforce-permissions`
+   * checks rather than asks for.
+   */
+  commit: z.boolean().default(false),
 })
 export type TActivityConfig = Readonly<z.infer<typeof activityConfigSchema>>
 
+/**
+ * A Planner's entry: the agent half only.
+ *
+ * No `output`, `gates`, `attempts` or `commit`, because a Planner's work
+ * configuration is the engine's and not a team's. What a team may change is
+ * who answers and how: model, thinking, tools, writes, prompts.
+ */
+export const plannerConfigSchema = activityConfigSchema.omit({
+  output: true,
+  gates: true,
+  input: true,
+  attempts: true,
+  commit: true,
+})
+export type TPlannerConfig = Readonly<z.infer<typeof plannerConfigSchema>>
+
 export const activitiesFileSchema = z.object({
   activities: z.array(activityConfigSchema).default([]),
+  planners: z.array(plannerConfigSchema).default([]),
 })
 export type TActivitiesFile = Readonly<z.infer<typeof activitiesFileSchema>>
+
+/**
+ * Every Planner is configured, and nothing else is.
+ *
+ * Refused at load rather than discovered when a run reaches for one: an
+ * engine Planner with no entry has no prompts, and an entry naming something
+ * that is not a Planner is a team believing it can add one.
+ */
+export const plannerFaults = (
+  planners: readonly Readonly<{ name: string }>[],
+): readonly string[] => {
+  const named = planners.map((one) => one.name)
+  const missing = PLANNER_NAMES.filter((one) => !named.includes(one))
+  const unknown = named.filter((one) => !isPlannerName(one))
+
+  return [
+    ...missing.map(
+      (one) =>
+        `planner '${one}' has no entry under planners: — the Planners are ` +
+        `${PLANNER_NAMES.join(', ')}, and every one of them must be configured`,
+    ),
+    ...unknown.map(
+      (one) =>
+        `'${one}' is under planners: and is not a Planner — the Planners are ` +
+        `${PLANNER_NAMES.join(', ')}, and configuration cannot add one. ` +
+        'Add it under activities: instead.',
+    ),
+  ]
+}
 
 /**
  * A local layer, which is a PATCH and cannot be a complete Activity.
@@ -76,6 +208,7 @@ export type TActivitiesFile = Readonly<z.infer<typeof activitiesFileSchema>>
  */
 export const activityPatchFileSchema = z.object({
   activities: z.array(z.record(z.string(), z.unknown())).default([]),
+  planners: z.array(z.record(z.string(), z.unknown())).default([]),
 })
 
 /** Look an Activity up by name. Absent means the registry does not have it. */

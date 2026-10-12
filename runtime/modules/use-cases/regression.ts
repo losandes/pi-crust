@@ -13,9 +13,16 @@
  * discovering it a thousand lines later.
  *
  * The bound is the whole design problem. Unbounded, two stages can disagree
- * forever at a build-sized price per lap. So: a stage may be returned to ONCE.
- * A second regression to the same stage is not a loop worth paying for — it is
- * a disagreement no agent is going to settle, and it goes to the developer.
+ * forever at a build-sized price per lap. The bound is no longer this
+ * module's own number: a lap is an Activity Run of the destination, so it
+ * comes out of that instance's `attempts`, like a gate retry and a revision.
+ * One ceiling, because the three failure modes are one failure mode wearing
+ * different clothes.
+ *
+ * Unification makes the expensive path more expensive on purpose: a
+ * regression re-runs its destination AND everything downstream, where a gate
+ * retry continues one agent session. An Activity whose laps are costly
+ * should declare `attempts: 1`.
  *
  * Pure. The driver applies these decisions; this module makes them.
  */
@@ -57,9 +64,10 @@ export const regressionVerdict = (params: {
   /** where the asking stage sits in that chain */
   readonly askedAt: number
   readonly history: readonly TRegressionRecord[]
-  readonly maxReturnsPerStage: number
+  /** Activity Runs the destination instance has left in this run's budget */
+  readonly attemptsLeft: number
 }): TRegressionVerdict => {
-  const { request, names, askedAt, history, maxReturnsPerStage } = params
+  const { request, names, askedAt, attemptsLeft } = params
   if (request === undefined) {
     return { kind: 'none' }
   }
@@ -82,13 +90,14 @@ export const regressionVerdict = (params: {
         'step.',
     }
   }
-  if (timesReturnedTo(history, request.activity) >= maxReturnsPerStage) {
+  if (attemptsLeft <= 0) {
     return {
       kind: 'exhausted',
       reason:
-        `'${request.activity}' has already been returned to once, and is being ` +
-        `asked for again: ${request.because}. Two laps over the same stage ` +
-        'is a disagreement no agent is going to settle on its own.',
+        `asked to return to '${request.activity}', which has no attempts ` +
+        `left in this run: ${request.because}. Another lap over a stage ` +
+        'that has spent its budget is a disagreement no agent is going to ' +
+        'settle on its own.',
     }
   }
   return { kind: 'regress', to: request.activity, index }

@@ -25,7 +25,6 @@ test(
       kind: 'code',
       owner: 'git',
       description: 'Put the spec on record before any code exists',
-      retries: 0,
     })
   },
 )
@@ -73,15 +72,20 @@ test(
 test(
   [
     'given typedefs/activityRun::activityRunParams',
-    'when retries are given',
-    'it should carry them through',
+    'when a budget is written into the params',
+    'it should be dropped, because nothing is budgeted inside one Activity Run',
   ].join(', '),
   () => {
-    // given
+    /*
+     * given — `retries` was a gate-failure count spent INSIDE one Activity
+     * Run, which is exactly why a budget counting Activity Runs would have
+     * missed gate failures. A re-execution is its own run now, against the
+     * Activity's `attempts`.
+     */
     const input = {
       name: 'build',
       kind: 'agent',
-      owner: 'builder',
+      owner: 'build',
       description: 'Implement the plan exactly',
       retries: 2,
     } as const
@@ -90,6 +94,6 @@ test(
     const actual = activityRunParams(input)
 
     // then
-    expect(actual.retries).toEqual(2)
+    expect('retries' in actual).toEqual(false)
   },
 )

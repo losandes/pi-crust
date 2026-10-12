@@ -6,27 +6,27 @@
  */
 
 import { z } from 'zod'
+import {
+  activityConfigSchema,
+  CODING_AGENTS,
+  DEFAULT_MODEL,
+  plannerConfigSchema,
+  promptEngineeringSchema,
+} from './activity'
 import { QUALITY_AREAS, QUALITY_OPERATIONS } from './quality'
 
-export const CODING_AGENTS = ['pi', 'claude_code'] as const
-export type TCodingAgent = (typeof CODING_AGENTS)[number]
+export {
+  CODING_AGENTS,
+  DEFAULT_MODEL,
+  promptEngineeringSchema,
+} from './activity'
+export type { TCodingAgent, TPromptEngineering } from './activity'
 
-export const DEFAULT_MODEL = 'google/gemini-3.6-flash'
 export const DEFAULT_DATA_DIR = '.pi-crust/data'
 export const DEFAULT_DB = '.pi-crust/data/crust.db'
 export const DEFAULT_CONFIG_PATH = '.pi-crust/config/crust.config.yaml'
 export const DEFAULT_BE_PORT = 4600
 export const DEFAULT_FE_PORT = 4601
-
-export const promptEngineeringSchema = z.object({
-  /** path to system.md */
-  system: z.string(),
-  /** path to user.md */
-  user: z.string(),
-})
-export type TPromptEngineering = Readonly<
-  z.infer<typeof promptEngineeringSchema>
->
 
 export const agentConfigSchema = z.object({
   name: z.string(),
@@ -131,7 +131,7 @@ export type TObservabilityConfig = Readonly<
   z.infer<typeof observabilityConfigSchema>
 >
 
-// ── routing: what agents LOAD and what `verify` RUNS ────────────────────────
+// ── routing: what agents LOAD and what the `checks` gate RUNS ──────────────
 // Both are selected by the paths a change actually touched. crust is stamped
 // into other repositories, so neither a skill path nor a checker command may
 // appear in a prompt or a module — a repo that has no such skill simply
@@ -149,7 +149,7 @@ export const routingSkillSchema = z.object({
   /** agents that receive it; empty = every agent */
   agents: z.array(z.string()).default([]),
   when: z.array(z.string()).default([]),
-  /** Activity names that receive it; empty = every Activity. `revise_2` matches `revise`. */
+  /** Activity names that receive it; empty = every Activity. `build_2` matches `build`. */
   activity_runs: z.array(z.string()).default([]),
 })
 export type TRoutingSkill = Readonly<z.infer<typeof routingSkillSchema>>
@@ -182,6 +182,19 @@ export const crustConfigSchema = z.object({
   defaults: configDefaultsSchema.prefault({}),
   observability: observabilityConfigSchema.prefault({}),
   routing: routingConfigSchema.prefault({}),
+  /**
+   * The roster: every Activity and every Planner, as agents.
+   *
+   * Assembled from the two lists below rather than written by hand. An
+   * Activity IS an agent — there is no second kind of registry entry — and
+   * everything that resolves an owner, enforces a writes boundary or renders
+   * a prompt reads this one list without caring which half an entry came
+   * from.
+   */
   agents: z.array(agentConfigSchema).default([]),
+  /** what a Lifecycle may name, with the work half each entry declares */
+  activities: z.array(activityConfigSchema).default([]),
+  /** the closed set of Planners, tuned by configuration and never extended */
+  planners: z.array(plannerConfigSchema).default([]),
 })
 export type TPiCrustConfig = Readonly<z.infer<typeof crustConfigSchema>>

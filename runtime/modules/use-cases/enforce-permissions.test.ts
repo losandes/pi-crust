@@ -3,6 +3,7 @@ import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema } from '../typedefs/config'
 import {
   changedPaths,
+  commitBreach,
   handoffDocument,
   matchesPattern,
   permitted,
@@ -335,5 +336,70 @@ test(
     // then
     expect(mine).toEqual(true)
     expect(theirs).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::commitBreach',
+    'when an activity that was not committing moved HEAD',
+    'it should be reported as a breach, like any other overstep',
+  ].join(', '),
+  () => {
+    /*
+     * given — no prompt asks an agent to commit, but a prompt is advice.
+     * Without this check `--commit false` would stop the engine while
+     * leaving an agent free to commit with `bash`, and the run would be
+     * reported as having made no commits while carrying one.
+     */
+    const given = {
+      tree: {},
+      head: 'a'.repeat(40),
+      committing: false,
+    }
+
+    // when
+    const actual = commitBreach(given)
+
+    // then — the real HEAD of this repository is not the fixture's
+    expect(actual).toHaveLength(1)
+    expect(actual[0]).toContain('HEAD moved from aaaaaaa')
+    expect(actual[0]).toContain('was not committing')
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::commitBreach',
+    'when the activity was the one committing',
+    'it should say nothing, because the commit is what it was asked for',
+  ].join(', '),
+  () => {
+    // given
+    const given = { tree: {}, head: 'a'.repeat(40), committing: true }
+
+    // when
+    const actual = commitBreach(given)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::commitBreach',
+    'when there is no history to have moved',
+    'it should say nothing rather than invent a breach outside a repository',
+  ].join(', '),
+  () => {
+    // given — '' is what a run outside a git repository records
+    const given = { tree: {}, head: '', committing: false }
+
+    // when
+    const actual = commitBreach(given)
+
+    // then
+    expect(actual).toEqual([])
   },
 )

@@ -31,7 +31,6 @@ export type TTraceActivityRunRow = Readonly<{
   owner: string
   description: string | null
   status: string
-  attempt: number | null
   error: string | null
   started_at: string | null
   ended_at: string | null
@@ -51,7 +50,6 @@ export type TTraceEnvelopeRow = Readonly<{
   output_type: string
   payload_json: string | null
   valid: number
-  attempt: number
   created_at: string | null
 }>
 
@@ -59,7 +57,6 @@ export type TTraceGateRow = Readonly<{
   activity_run_id: string | null
   gate: string
   passed: number
-  attempt: number
   violations_json: string | null
   checks_json: string | null
 }>
@@ -118,7 +115,7 @@ export const readTrace = (
     session,
     activityRuns: db
       .query<TTraceActivityRunRow, [string]>(
-        'SELECT activity_run_id, seq, name, kind, owner, description, status, attempt,' +
+        'SELECT activity_run_id, seq, name, kind, owner, description, status,' +
           ' error, started_at, ended_at FROM activity_runs WHERE run_id=? ORDER BY seq',
       )
       .all(id),
@@ -130,13 +127,13 @@ export const readTrace = (
       .all(id),
     envelopes: db
       .query<TTraceEnvelopeRow, [string]>(
-        'SELECT activity_run_id, agent, output_type, payload_json, valid, attempt,' +
+        'SELECT activity_run_id, agent, output_type, payload_json, valid,' +
           ' created_at FROM envelopes WHERE run_id=? ORDER BY rowid',
       )
       .all(id),
     gates: db
       .query<TTraceGateRow, [string]>(
-        'SELECT activity_run_id, gate, passed, attempt, violations_json, checks_json' +
+        'SELECT activity_run_id, gate, passed, violations_json, checks_json' +
           ' FROM gate_results WHERE run_id=? ORDER BY id',
       )
       .all(id),

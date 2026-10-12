@@ -20,7 +20,6 @@ const activityRun = (
     owner: name,
     description: '',
     status,
-    attempt: 1,
     error: undefined,
     started_at: undefined,
     ended_at: undefined,

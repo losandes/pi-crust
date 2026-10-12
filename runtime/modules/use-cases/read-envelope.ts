@@ -20,7 +20,6 @@ export const ENVELOPE_METADATA_KEYS = [
   'agent_name',
   'purpose',
   'output_type',
-  'attempt',
 ] as const
 
 export const envelopePath = (run: TRun, agentName: string): string =>

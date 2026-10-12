@@ -14,14 +14,20 @@
 import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
-import { isStepName, STEP_NAMES } from '../../typedefs/step'
+import { isPlannerName, PLANNER_NAMES } from '../../typedefs/activity'
 
-/** Steps the operator must never plan, with the reason the agent is told. */
-const FORBIDDEN: Readonly<Record<string, string>> = {
-  operator:
-    'an operator cannot plan an operator — the second would replan the chain ' +
-    'the first just chose',
-}
+/**
+ * A Planner may never be planned, and the agent is told why.
+ *
+ * `operator` is the obvious case — the second would replan the chain the
+ * first just chose — and `triage` is the same mistake with the answer handed
+ * back instead. Neither is an Activity, so neither is nameable in a plan.
+ */
+const forbidden = (name: string): string | undefined =>
+  isPlannerName(name)
+    ? `'${name}' is a Planner, not an Activity — a Planner cannot plan a ` +
+      `Planner. The Planners are ${PLANNER_NAMES.join(', ')}.`
+    : undefined
 
 /** The ordered step list a plan claims, with non-strings discarded. */
 export const plannedNames = (envelope: TEnvelopeBase): readonly string[] => {
@@ -32,15 +38,21 @@ export const plannedNames = (envelope: TEnvelopeBase): readonly string[] => {
 }
 
 /**
- * Every planned step exists, none is forbidden, and the plan is not empty.
+ * Every planned Activity exists, none is a Planner, and the plan is not empty.
  *
- * An empty plan is a failure rather than a no-op: the operator was asked
- * which steps achieve an outcome, and "none" is an answer it must argue for
- * in `unresolved`, not one it can give by returning nothing.
+ * Checked against the registry the RUN loaded, because Activities are
+ * configuration: what exists is whatever `crust.activities.yaml` turned out
+ * to hold, and a gate holding its own list would be the hardcoding this
+ * whole refactor removed.
+ *
+ * An empty plan is a failure rather than a no-op: the Planner was asked
+ * which Activities achieve an outcome, and "none" is an answer it must
+ * argue for in `unresolved`, not one it can give by returning nothing.
  */
 export const stepsValid: TGate = {
   name: 'steps_valid',
-  check: (envelope) => {
+  check: (envelope, run) => {
+    const offered = run.cfg.activities.map((one) => one.name)
     const names = plannedNames(envelope)
     if (names.length === 0) {
       return addCheck(
@@ -52,17 +64,20 @@ export const stepsValid: TGate = {
       )
     }
     return names.reduce<TGateReport>((report, name) => {
-      const forbidden = FORBIDDEN[name]
-      if (forbidden !== undefined) {
-        return addCheck(report, name, false, forbidden)
+      const refusal = forbidden(name)
+      if (refusal !== undefined) {
+        return addCheck(report, name, false, refusal)
       }
+      const known = offered.includes(name)
+
       return addCheck(
         report,
         name,
-        isStepName(name),
-        isStepName(name)
-          ? 'a pi-crust step'
-          : `not a pi-crust step. The steps are: ${STEP_NAMES.join(', ')}`,
+        known,
+        known
+          ? 'an Activity this repository offers'
+          : 'not an Activity this repository offers. They are: ' +
+            `${offered.join(', ')}`,
       )
     }, emptyReport)
   },

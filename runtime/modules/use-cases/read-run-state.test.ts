@@ -26,7 +26,6 @@ const activityRunRecord = (
     description: `Do the ${name} work and record what it found`,
   }),
   status,
-  attempt: 1,
   error: undefined,
   started_at: '2024-01-01T00:00:00.000Z',
   ended_at: '2024-01-01T00:00:01.000Z',

@@ -133,9 +133,7 @@ export const ActivityRunDetail = ({
     () =>
       gates
         .filter((gate) => gate.activity_run_id === activityRun.activity_run_id)
-        .toSorted(
-          (a, b) => (a.attempt ?? 0) - (b.attempt ?? 0) || a.id - b.id,
-        ),
+        .toSorted((a, b) => a.id - b.id),
     [gates, activityRun.activity_run_id],
   )
 
@@ -143,7 +141,7 @@ export const ActivityRunDetail = ({
     () =>
       envelopes
         .filter((envelope) => envelope.activity_run_id === activityRun.activity_run_id)
-        .toSorted((a, b) => (a.attempt ?? 0) - (b.attempt ?? 0)),
+        ,
     [envelopes, activityRun.activity_run_id],
   )
 
@@ -253,12 +251,6 @@ export const ActivityRunDetail = ({
           <span className={styles.tag}>
             <span className={styles.tagK}>kind</span>
             <span className={styles.tagV}>{activityRun.kind ?? '—'}</span>
-          </span>
-          <span className={styles.tag}>
-            <span className={styles.tagK}>attempt</span>
-            <span className={styles.tagV}>
-              {activityRun.attempt ?? 0}/{activityRun.retries ?? 0}
-            </span>
           </span>
         </div>
         <button
@@ -601,10 +593,6 @@ export const ActivityRunDetail = ({
                           <span className={styles.tagK}>checks</span>
                           <span className={styles.tagV}>{checksLabel(checks)}</span>
                         </span>
-                        <span className={styles.tag}>
-                          <span className={styles.tagK}>attempt</span>
-                          <span className={styles.tagV}>{gate.attempt ?? 0}</span>
-                        </span>
                         <span className={`dim ${styles.gateTime}`}>
                           {fmtClock(gate.created_at)}
                         </span>
@@ -650,10 +638,6 @@ export const ActivityRunDetail = ({
                       <div className={styles.gateLine}>
                         <span className={styles.gateMark}>{gate.passed ? '✓' : '✗'}</span>
                         <span className={styles.gateName}>{gate.gate}</span>
-                        <span className={styles.tag}>
-                          <span className={styles.tagK}>attempt</span>
-                          <span className={styles.tagV}>{gate.attempt ?? 0}</span>
-                        </span>
                         <span className={`dim ${styles.gateTime}`}>
                           {fmtClock(gate.created_at)}
                         </span>
@@ -732,10 +716,6 @@ export const ActivityRunDetail = ({
                   <span className={styles.tag}>
                     <span className={styles.tagK}>agent</span>
                     <span className={styles.tagV}>{envelope.agent ?? '—'}</span>
-                  </span>
-                  <span className={styles.tag}>
-                    <span className={styles.tagK}>attempt</span>
-                    <span className={styles.tagV}>{envelope.attempt ?? 0}</span>
                   </span>
                   <span
                     className={`${styles.outputValid} ${envelope.valid ? styles.pass : styles.fail}`}

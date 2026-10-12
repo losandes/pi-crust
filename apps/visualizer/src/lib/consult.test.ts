@@ -37,8 +37,6 @@ const activityRun = (seq: number, name: string, endedAt: string): ActivityRun =>
     owner: name,
     description: '',
     status: 'success',
-    attempt: 1,
-    retries: 0,
     error: null,
     started_at: endedAt,
     ended_at: endedAt,

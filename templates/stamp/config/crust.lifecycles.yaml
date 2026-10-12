@@ -27,28 +27,40 @@
 # Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
 
 lifecycles:
-  - name: sdlc
+  - name: tdd
     description: >-
-      The whole lifecycle, identify through code-review. Deliberately the
-      expensive chain: success criteria written before anyone builds, a
-      logical model decided before a schema settles it, and a reviewer with
-      something other than its own opinion to rule against.
+      The whole lifecycle, identify through code-review with test-driven
+      development: success criteria written before the build.
     stages:
       - name: discover
         strategy: serial
         activities: [identify, conceptualize]
       - name: deliver
         strategy: serial
-        activities: [plan, design, test, build]
+        activities: [plan, design, test-tdd, build]
+      - name: accept
+        strategy: concurrent
+        activities: [review, code-review]
+
+  - name: sdlc
+    description: >-
+      The whole lifecycle, identify through code-review. Success criteria
+      written after the build.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, conceptualize]
+      - name: deliver
+        strategy: serial
+        activities: [plan, design, build, test]
       - name: accept
         strategy: concurrent
         activities: [review, code-review]
 
   - name: bugfix
     description: >-
-      A reported bug, start to finish. Reproduction comes first and gates the
-      rest: a fix for a bug nobody reproduced is a guess with a commit
-      message.
+      Fix a reported bug, start to finish. Reproduction comes first and gates the
+      rest.
     stages:
       - name: diagnose
         strategy: serial
@@ -62,9 +74,8 @@ lifecycles:
 
   - name: de-risk
     description: >-
-      Stop at the proof. For work whose shape depends on an answer nobody
-      has, this ends at a proof of concept rather than at an implementation
-      built on an assumption.
+      Learn, disprove, de-risk. Evaluate a concept to determine its feasibility
+      and learn through experimentation.
     stages:
       - name: discover
         strategy: serial

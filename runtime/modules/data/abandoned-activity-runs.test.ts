@@ -43,7 +43,6 @@ const openActivityRun = (
       description: 'Turn the problem into an outcome',
     }),
     status: 'running',
-    attempt: 1,
     error: undefined,
     started_at: '2026-01-01T00:00:00.000Z',
     ended_at: undefined,

@@ -60,9 +60,22 @@ export const activityRunParamsSchema = z.object({
   owner: z.string(),
   /** REQUIRED: what this activityRun does and why — see activityRunParams below */
   description: z.string(),
-  /** agent activityRuns: gate-failure retries via continue */
-  retries: z.number().int().default(0),
 })
+
+/*
+ * There is no `retries` here any more.
+ *
+ * It was a gate-failure budget spent INSIDE one Activity Run, which is why
+ * a cap counting Activity Runs would have missed gate failures entirely.
+ * A re-execution is an Activity Run of its own now, budgeted by the
+ * Activity's `attempts`, so this layer has nothing left to count.
+ *
+ * The column went with it. A database written by an older pi-crust keeps
+ * its `retries` and `attempt` columns — `CREATE TABLE IF NOT EXISTS` never
+ * revisits a table, and `MIGRATIONS` is additive by construction — and both
+ * are nullable, so the inserts that no longer name them still work. New
+ * databases simply do not have them.
+ */
 
 /** Everything runActivityRun() needs. Passed as one object, never loose params. */
 export type TActivityRunParams = Readonly<z.infer<typeof activityRunParamsSchema>>
@@ -112,7 +125,6 @@ export type TActivityRun = Readonly<{
   params: TActivityRunParams
   /** success must be earned */
   status: TActivityRunStatus
-  attempt: number
   error: string | undefined
   started_at: string | undefined
   ended_at: string | undefined

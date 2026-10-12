@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { crustConfigSchema } from '../modules/typedefs/config'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { plannedNames } from '../modules/use-cases/plan-units'
 import { plannedActivities } from './compose'
@@ -10,16 +11,25 @@ const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
   prompt: 'x',
   config: '.pi-crust/config/crust.config.yaml',
   runId: undefined,
-  agent: undefined,
   base: undefined,
   resume: false,
   steps: undefined,
   lifecycle: undefined,
   approveAfter: undefined,
-  deliver: undefined,
+  commit: undefined,
   stream: false,
   trustLevel: undefined,
   ...over,
+})
+
+const cfg = crustConfigSchema.parse({
+  activities: ['identify', 'conceptualize', 'plan', 'test', 'build'].map(
+    (name) => ({
+      name,
+      purpose: `Do the ${name} work and report it`,
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+    }),
+  ),
 })
 
 const lifecyclesFile = (yaml: string) => {
@@ -52,7 +62,7 @@ test(
     const given = lifecyclesFile(SDLC)
 
     // when
-    const actual = plannedActivities(args({ lifecycle: 'sdlc' }), given)
+    const actual = plannedActivities(args({ lifecycle: 'sdlc' }), cfg, given)
 
     // then
     expect(actual.map((stage) => stage.name)).toEqual(['discover', 'implement'])
@@ -68,13 +78,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = args({ steps: 'plan,build,verify' })
+    const given = args({ steps: 'plan,test,build' })
 
     // when
-    const actual = plannedActivities(given)
+    const actual = plannedActivities(given, cfg)
 
     // then
-    expect(plannedNames(actual)).toEqual(['plan', 'build', 'verify'])
+    expect(plannedNames(actual)).toEqual(['plan', 'test', 'build'])
     expect(actual).toHaveLength(1)
     expect(actual[0]?.strategy).toEqual('serial')
   },
@@ -91,7 +101,7 @@ test(
     const given = args({ lifecycle: 'sdlc', steps: 'plan' })
 
     // when
-    const actual = () => plannedActivities(given)
+    const actual = () => plannedActivities(given, cfg)
 
     // then
     expect(actual).toThrow(/not both/)
@@ -109,7 +119,7 @@ test(
     const given = lifecyclesFile(SDLC)
 
     // when
-    const actual = () => plannedActivities(args({ lifecycle: 'nope' }), given)
+    const actual = () => plannedActivities(args({ lifecycle: 'nope' }), cfg, given)
 
     // then
     expect(actual).toThrow(/sdlc/)
@@ -131,9 +141,45 @@ lifecycles:
 `)
 
     // when
-    const actual = () => plannedActivities(args({ lifecycle: 'empty' }), given)
+    const actual = () => plannedActivities(args({ lifecycle: 'empty' }), cfg, given)
 
     // then
     expect(actual).toThrow(/no activities/)
+  },
+)
+
+test(
+  [
+    'given lifecycles/compose::parseSteps',
+    'when a chain names a Planner',
+    'it should refuse, because a Lifecycle names Activities and a Planner is not one',
+  ].join(', '),
+  () => {
+    // given
+    const given = args({ steps: 'plan,operator' })
+
+    // when
+    const actual = () => plannedActivities(given, cfg)
+
+    // then
+    expect(actual).toThrow(/operator cannot be named in a chain/)
+  },
+)
+
+test(
+  [
+    'given lifecycles/compose::parseSteps',
+    'when a chain names something this repository does not register',
+    'it should refuse at the call site, where the compiler used to',
+  ].join(', '),
+  () => {
+    // given
+    const given = args({ steps: 'plan,deploy' })
+
+    // when
+    const actual = () => plannedActivities(given, cfg)
+
+    // then
+    expect(actual).toThrow(/unknown activity\(s\): deploy/)
   },
 )

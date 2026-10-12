@@ -27,7 +27,7 @@ const diagnosis = (
 
 const failed = (envelope: TEnvelopeBase): readonly string[] =>
   reproductionSupported
-    .check(envelope, NO_RUN)
+    .check(envelope, NO_RUN, [])
     .checks.filter((check) => !check.ok)
     .map((check) => check.item)
 

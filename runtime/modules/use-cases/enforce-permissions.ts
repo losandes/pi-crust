@@ -32,7 +32,7 @@
  */
 
 import { resolve } from 'node:path'
-import { checkoutPath } from '../data/git'
+import { checkoutPath, isRepo, rev } from '../data/git'
 import type { TTreeSnapshot } from '../data/working-tree'
 import { deletePath, snapshotTree } from '../data/working-tree'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
@@ -250,10 +250,47 @@ const scopeOf = (agent: TAgentConfig, cfg: TPiCrustConfig): string => {
  * reporting a failure, so anything the agent introduced outside its allowlist
  * is rolled back before the activityRun dies. What it cannot undo, it names.
  */
+/**
+ * Where the repository was before an Activity touched it.
+ *
+ * The tree AND history, because an agent that commits its own work leaves a
+ * clean tree: comparing change-sets alone would report that nothing
+ * happened. `committing` is the EFFECTIVE permission, not the declared one —
+ * under `--commit false` an Activity that declares `commit: true` is not
+ * committing either.
+ */
+export type TRepoBefore = Readonly<{
+  tree: TTreeSnapshot
+  /** HEAD before the Activity ran; '' outside a repository */
+  head: string
+  committing: boolean
+}>
+
+/**
+ * A commit nobody authorised, reported like any other breach.
+ *
+ * Not rolled back. Resetting history under a developer is a bigger harm than
+ * the commit was, and the commit is recoverable by whoever reads the report.
+ */
+export const commitBreach = (before: TRepoBefore): readonly string[] => {
+  if (before.committing || before.head === '' || !isRepo()) {
+    return []
+  }
+  const head = rev('HEAD')
+
+  return head === before.head
+    ? []
+    : [
+        `HEAD moved from ${before.head.slice(0, 7)} to ${head.slice(0, 7)} — ` +
+          'this activity was not committing, and committing is the engine\'s ' +
+          'to do. Left in history; undo it yourself if it is wrong.',
+      ]
+}
+
 export const enforcePermissions = (
   run: TRun,
   agent: TAgentConfig,
-  before: TTreeSnapshot,
+  repoBefore: TRepoBefore,
   /*
    * The agents running alongside this one, when a Stage claimed concurrency.
    *
@@ -274,8 +311,10 @@ export const enforcePermissions = (
    */
   siblings: readonly TAgentConfig[] = [],
 ): readonly string[] => {
+  const before = repoBefore.tree
   const after = snapshotTree(run.repoRoot)
   const touched = changedPaths(before, after)
+  const committed = commitBreach(repoBefore)
   const resolveFor = (one: TAgentConfig): readonly string[] =>
     resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)
   const writes = resolveFor(agent)
@@ -284,17 +323,18 @@ export const enforcePermissions = (
   const breaches = touched.filter(
     (path) => !(permitted(path, agent, run.cfg, writes) || theirs(path)),
   )
-  if (breaches.length === 0) {
+  if (breaches.length === 0 && committed.length === 0) {
     return touched
   }
 
-  const detail = breaches
-    .map(
+  const detail = [
+    ...breaches.map(
       (path) => `  - ${path} — ${rollBack(run.repoRoot, path, before, after)}`,
-    )
-    .join('\n')
+    ),
+    ...committed.map((note) => `  - ${note}`),
+  ].join('\n')
   throw new PermissionBreach(
-    `${agent.name} is ${scopeOf(agent, run.cfg)} but modified ` +
-      `${breaches.length} path(s):\n${detail}`,
+    `${agent.name} is ${scopeOf(agent, run.cfg)} but overstepped ` +
+      `${breaches.length + committed.length} time(s):\n${detail}`,
   )
 }

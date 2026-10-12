@@ -15,12 +15,23 @@
  */
 
 import { errorMessage } from '../typedefs/settlement'
-import { regressionOf } from '../typedefs/envelope'
+import { buildOutput, narrowEnvelope, regressionOf } from '../typedefs/envelope'
+import type { TEnvelopeBase } from '../typedefs/envelope'
+import { violationsOf } from '../typedefs/gate'
 import { activityRunParams } from '../typedefs/activity-run'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import type { TStep, TStepContext, TUpstream } from '../typedefs/step'
 import type { TUnit } from '../typedefs/unit'
 import { activityGates, wantsStageGate } from '../typedefs/unit'
+import type { TAttemptLedger } from './attempts'
+import {
+  attemptLedger,
+  FIRST_ATTEMPT,
+  gateCause,
+  regressionCause,
+} from './attempts'
+import { commitActivity } from './deliver'
 import type { TGateReason } from './human-gate'
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import {
@@ -34,18 +45,17 @@ import type { TRegressionRecord } from './regression'
 import { regressionNote, regressionVerdict } from './regression'
 import { skipIfDone } from './resume'
 
-/**
- * How often one stage may be returned to before the developer is asked.
- *
- * One. A stage returned to twice is two agents disagreeing at a build-sized
- * price per lap, and no amount of further looping settles that.
- */
-export const MAX_RETURNS_PER_STAGE = 1
-
 /** The activityRun row a gate event should hang off, best effort. */
+const activityRunFor = (
+  run: TRun,
+  stepName: string,
+): TActivityRun | undefined =>
+  run
+    .activityRuns()
+    .findLast((activityRun) => activityRun.params.name === stepName)
+
 const handleIdOf = (run: TRun, stepName: string): string =>
-  run.activityRuns().findLast((activityRun) => activityRun.params.name === stepName)
-    ?.activity_run_id ?? ''
+  activityRunFor(run, stepName)?.activity_run_id ?? ''
 
 /**
  * The engineer activityRun every chain opens with: the ask, on the record.
@@ -93,17 +103,28 @@ type TRan = Readonly<{ step: TStep; result: Awaited<ReturnType<TStep['execute']>
  * still dies on a failed Activity, exactly as it does serially; the
  * difference is that the trace says which of the Stage completed first.
  */
-const runUnit = async (
+/**
+ * One Activity Run, and the attempt it spends.
+ *
+ * The attempt is spent inside the body, so a replay spends nothing: a resume
+ * past an answered gate is a person's decision, not the run deciding to try
+ * again. `cause` is what the exhaustion report will say the budget went on —
+ * one number explains nothing when a developer is asked why a chain stopped.
+ */
+const runStep = (
   run: TRun,
   unit: TUnit,
   ctx: TStepContext,
-): Promise<readonly TRan[]> => {
+  step: TStep,
+  ledger: TAttemptLedger,
+  params: Readonly<{ cause: string; feedback: readonly string[] }>,
+): Promise<TRan> => {
   /*
    * Each Activity is told who else is running, and never itself. Permission
    * enforcement uses it to attribute a write by the path it landed on rather
    * than by the window it landed in.
    */
-  const withCohort = (step: TStep): TStepContext => ({
+  const given: TStepContext = {
     ...ctx,
     cohort:
       unit.strategy === 'concurrent'
@@ -111,14 +132,32 @@ const runUnit = async (
             .filter((other) => other.name !== step.name)
             .map((other) => other.name)
         : [],
-  })
+    feedback: params.feedback,
+  }
+
+  return skipIfDone(
+    run,
+    step.params,
+    (handle) => {
+      ledger.spend(step.instance, params.cause)
+
+      return step.execute(given, handle)
+    },
+    () => step.replay(given),
+  ).then((result) => ({ step, result }))
+}
+
+const runUnit = async (
+  run: TRun,
+  unit: TUnit,
+  ctx: TStepContext,
+  ledger: TAttemptLedger,
+): Promise<readonly TRan[]> => {
   const one = (step: TStep): Promise<TRan> =>
-    skipIfDone(
-      run,
-      step.params,
-      (handle) => step.execute(withCohort(step), handle),
-      () => step.replay(withCohort(step)),
-    ).then((result) => ({ step, result }))
+    runStep(run, unit, ctx, step, ledger, {
+      cause: FIRST_ATTEMPT,
+      feedback: [],
+    })
 
   if (unit.strategy !== 'concurrent') {
     return await unit.steps.reduce<Promise<readonly TRan[]>>(
@@ -143,6 +182,124 @@ const runUnit = async (
   }
 
   return done
+}
+
+/** What an Activity says it changed — what a gate reading the tree judges. */
+const claimedPaths = (envelope: TEnvelopeBase): readonly string[] =>
+  narrowEnvelope(buildOutput, envelope)?.changed_files ?? []
+
+/**
+ * Judge one Activity's gates, recording every one of them.
+ *
+ * At the UNIT boundary, which in a concurrent Stage is the Stage boundary.
+ * That is not a nicety: `checks` runs the repository's own commands against
+ * the working tree, and a sibling Activity may still be writing to it.
+ */
+const judgeGates = (
+  run: TRun,
+  step: TStep,
+  envelope: TEnvelopeBase,
+): readonly string[] => {
+  const activityRun = activityRunFor(run, step.instance)
+  if (activityRun === undefined) {
+    return []
+  }
+
+  return step.gates.flatMap((gate) => {
+    const report = gate.check(envelope, run, claimedPaths(envelope))
+    const found = violationsOf(report)
+    run.tracer.gateRow(activityRun, gate.name, report)
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun.activity_run_id,
+      type: found.length > 0 ? 'gate_fail' : 'gate_pass',
+      name: gate.name,
+      payload: { violations: found, checks: report.checks },
+    })
+    run.console.gateResult(gate.name, report)
+
+    return found
+  })
+}
+
+/**
+ * Gate every Activity the Unit ran, re-running what did not hold.
+ *
+ * A failing gate feeds its violations back to the Activity it gates, which
+ * runs AGAIN — a new Activity Run, with its own row, spending one of the
+ * instance's attempts. It used to be a counter on the existing row, which
+ * is why a budget counting Activity Runs would have missed gate failures
+ * entirely: the case it most obviously governs.
+ *
+ * An Activity whose gates hold and which declares `commit: true` commits its
+ * own change here, in the words its envelope carried.
+ */
+const settleGates = (
+  run: TRun,
+  unit: TUnit,
+  ctx: TStepContext,
+  ran: readonly TRan[],
+  ledger: TAttemptLedger,
+): Promise<readonly TRan[]> => {
+  const settleOne = async (entry: TRan): Promise<TRan> => {
+    const envelope = entry.result.previous
+    if (envelope === undefined || entry.step.gates.length === 0) {
+      return entry
+    }
+    const violations = judgeGates(run, entry.step, envelope)
+    if (violations.length === 0) {
+      if (entry.step.commit) {
+        commitActivity(
+          run,
+          entry.step.instance,
+          handleIdOf(run, entry.step.instance),
+          envelope,
+        )
+      }
+
+      return entry
+    }
+    const standing = activityRunFor(run, entry.step.instance)
+    if (ledger.remaining(entry.step.instance, entry.step.attempts) === 0) {
+      // The row said success because the Activity ran; its work is what did
+      // not hold, and a trace that leaves it green is a trace that disagrees
+      // with the reason the run stopped.
+      if (standing !== undefined) {
+        run.tracer.activityRunUpsert(
+          run.updateActivityRun(standing.activity_run_id, { status: 'fail' }),
+        )
+      }
+      throw new Error(
+        `${entry.step.instance} failed its gates and has no attempts left:\n- ` +
+          `${violations.join('\n- ')}\n\n` +
+          ledger.report(entry.step.instance, entry.step.attempts),
+      )
+    }
+    if (standing !== undefined) {
+      run.tracer.activityRunUpsert(
+        run.updateActivityRun(standing.activity_run_id, {
+          status: 'superseded',
+        }),
+      )
+    }
+    run.console.note(
+      `${entry.step.instance}: ${violations.length} gate violation(s) — ` +
+        'running it again ' +
+        `(attempt ${ledger.spent(entry.step.instance) + 1} of ${entry.step.attempts})`,
+    )
+
+    return settleOne(
+      await runStep(run, unit, ctx, entry.step, ledger, {
+        cause: gateCause(violations),
+        feedback: violations,
+      }),
+    )
+  }
+
+  return ran.reduce<Promise<readonly TRan[]>>(
+    async (sofar, entry) => [...(await sofar), await settleOne(entry)],
+    Promise.resolve([]),
+  )
 }
 
 /**
@@ -207,14 +364,30 @@ const noteDisagreement = (
   })
 }
 
-export const runUnits = (
-  run: TRun,
-  units: readonly TUnit[],
-  start: TStepContext,
-  approveAfter: readonly string[] = [],
-  onWaiting: (waiting: TWaiting) => void = () => undefined,
-  trust: number = TRUST_DEFAULT,
-): Promise<TStepContext> => {
+/**
+ * Everything the driver needs, as one object.
+ *
+ * It was six positional parameters and had earned the four-param rule twice
+ * over; the ledger would have been the seventh. The ledger is explicit
+ * rather than minted here because the revise loop spends from the SAME
+ * budget — one ceiling means one ledger for the whole run.
+ */
+export type TRunUnitsParams = Readonly<{
+  run: TRun
+  units: readonly TUnit[]
+  start: TStepContext
+  approveAfter?: readonly string[]
+  onWaiting?: (waiting: TWaiting) => void
+  trust?: number
+  ledger?: TAttemptLedger
+}>
+
+export const runUnits = (params: TRunUnitsParams): Promise<TStepContext> => {
+  const { run, units, start } = params
+  const approveAfter = params.approveAfter ?? []
+  const onWaiting = params.onWaiting ?? (() => undefined)
+  const trust = params.trust ?? TRUST_DEFAULT
+  const ledger = params.ledger ?? attemptLedger()
   const names = units.flatMap((unit) => unit.steps.map((step) => step.name))
   const gatedActivities = activityGates(approveAfter)
 
@@ -235,7 +408,13 @@ export const runUnits = (
     if (unit === undefined) {
       return ctx
     }
-    const ran = await runUnit(run, unit, ctx)
+    const ran = await settleGates(
+      run,
+      unit,
+      ctx,
+      await runUnit(run, unit, ctx, ledger),
+      ledger,
+    )
     noteDisagreement(run, unit, ran)
 
     const upstream: readonly TUpstream[] = ran.flatMap((one) =>
@@ -401,12 +580,24 @@ export const runUnits = (
       })
     }
 
+    /*
+     * A regression spends from the destination's own budget, like every
+     * other autonomous re-execution. It was a separate cap of one per
+     * stage, which let a bad input burn a gate retry, a revision AND a lap
+     * of the chain before anybody was asked.
+     */
+    const destination = units
+      .flatMap((one) => one.steps)
+      .find((step) => step.name === regressionOf(result?.previous)?.activity)
     const verdict = regressionVerdict({
       request: regressionOf(result?.previous),
       names,
       askedAt: startOf(index),
       history,
-      maxReturnsPerStage: MAX_RETURNS_PER_STAGE,
+      attemptsLeft:
+        destination === undefined
+          ? 0
+          : ledger.remaining(destination.instance, destination.attempts),
     })
 
     if (verdict.kind === 'refused' || verdict.kind === 'exhausted') {
@@ -444,6 +635,17 @@ export const runUnits = (
         name: 'regression',
         payload: { ...record },
       })
+      /*
+       * The lap is charged to the Activity being returned to, before it
+       * runs: it is about to execute again because the run decided so, and
+       * `skipIfDone` would otherwise charge it as a first attempt.
+       */
+      if (destination !== undefined) {
+        ledger.spend(
+          destination.instance,
+          regressionCause(step.name, record.because),
+        )
+      }
       // Re-running a stage means its earlier success no longer settles the
       // run: the chain from here is being redone, and the record of what the
       // abandoned path decided stays in the trace rather than in the verdict.
@@ -469,23 +671,25 @@ export const runUnits = (
  * to. Expressed as one Unit per step, which is what serial means.
  */
 export const runSteps = (
-  run: TRun,
-  steps: readonly TStep[],
-  start: TStepContext,
-  approveAfter: readonly string[] = [],
-  onWaiting: (waiting: TWaiting) => void = () => undefined,
-  trust: number = TRUST_DEFAULT,
-): Promise<TStepContext> =>
-  runUnits(
-    run,
-    steps.map((step) => ({
+  params: Readonly<{
+    run: TRun
+    steps: readonly TStep[]
+    start: TStepContext
+    approveAfter?: readonly string[]
+    onWaiting?: (waiting: TWaiting) => void
+    trust?: number
+    ledger?: TAttemptLedger
+  }>,
+): Promise<TStepContext> => {
+  const { steps, ...rest } = params
+
+  return runUnits({
+    ...rest,
+    units: steps.map((step) => ({
       stage: step.name,
       strategy: 'serial' as const,
       steps: [step],
       endsStage: true,
     })),
-    start,
-    approveAfter,
-    onWaiting,
-    trust,
-  )
+  })
+}

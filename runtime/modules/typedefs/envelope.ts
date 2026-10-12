@@ -624,41 +624,21 @@ export const designOutputSchema = contextEnvelopeSchema.extend({
 export type TDesignOutput = Readonly<z.infer<typeof designOutputSchema>>
 export const designOutput = envelopeSpec('DesignOutput', designOutputSchema)
 
-/**
- * 2.0 POC — an experiment, not an early implementation.
+/*
+ * There is no `verifyOutput`.
  *
- * `hypothesis` is required and comes FIRST, because a POC that starts without
- * one is a demonstration that code can be written. `supported` may be false
- * and that is a successful POC: disproving an architecture early is the
- * cheapest outcome this stage can produce.
+ * It was the adapter a `verify` Activity used to hand a lint/test result
+ * forward as an envelope. The repository's checks are a GATE now, and a
+ * gate reports `{item, ok, note}` checks rather than an envelope — so
+ * nothing built one, and a published contract nothing produces is a
+ * contract an Activity can name and never receive.
  */
-export const pocOutputSchema = contextEnvelopeSchema.extend({
-  hypothesis: z.string(),
-  /** what would have supported or disproved it, decided before experimenting */
-  evidence_sought: z.string(),
-  supported: z.boolean(),
-  /** what to throw away — a POC's code is not production code */
-  discard: z.array(z.string()),
-})
-export type TPocOutput = Readonly<z.infer<typeof pocOutputSchema>>
-export const pocOutput = envelopeSpec('PocOutput', pocOutputSchema)
-
-export const verifyOutputSchema = envelopeBaseSchema.extend({
-  /**
-   * REQUIRED, both of them. Code builds this envelope, so the compiler
-   * enforces what the schema states, and a verification that forgot to say
-   * whether it passed must not read as a failure-free pass.
-   */
-  passed: z.boolean(),
-  failures: z.array(z.string()),
-})
-export type TVerifyOutput = Readonly<z.infer<typeof verifyOutputSchema>>
-export const verifyOutput = envelopeSpec('VerifyOutput', verifyOutputSchema)
 
 /**
  * A change-set shaped as an envelope so an agent can be handed it directly.
- * Same adapter idea as TVerifyOutput: code computes the diff, the documenter
- * consumes it through the one door every agent handoff uses.
+ * Code computes the diff and the documenter consumes it through the one
+ * door every agent handoff uses, so `input: changes` needs no second
+ * mechanism.
  */
 export const changesOutputSchema = envelopeBaseSchema.extend({
   /** "<ref> @ <commit> — <reason>" */
@@ -672,3 +652,58 @@ export const changesOutputSchema = envelopeBaseSchema.extend({
 })
 export type TChangesOutput = Readonly<z.infer<typeof changesOutputSchema>>
 export const changesOutput = envelopeSpec('ChangesOutput', changesOutputSchema)
+
+/**
+ * Every envelope spec an Activity may name, by the name it is named by.
+ *
+ * Published rather than discovered: `crust.activities.yaml` says
+ * `output: planOutput`, and the loader resolves it here. A name nothing
+ * publishes is refused at load, with this list as the answer to "what could
+ * I have written instead" — which is the whole price of moving the registry
+ * out of TypeScript, and it has to be paid as loudly as the compiler paid it.
+ */
+export const ENVELOPE_CATALOGUE: Readonly<
+  Record<string, TEnvelopeSpec<TEnvelopeBase>>
+> = {
+  genericOutput,
+  planOutput,
+  buildOutput,
+  scoutOutput,
+  researchOutput,
+  uxDesignOutput,
+  operatorPlanOutput,
+  reviewOutput,
+  documentOutput,
+  identifyOutput,
+  diagnosisOutput,
+  conceptualizeOutput,
+  designOutput,
+  changesOutput,
+} as unknown as Readonly<Record<string, TEnvelopeSpec<TEnvelopeBase>>>
+
+export const ENVELOPE_NAMES: readonly string[] = Object.keys(ENVELOPE_CATALOGUE)
+
+/** The spec an Activity named, or undefined when nothing publishes it. */
+export const envelopeNamed = (
+  name: string,
+): TEnvelopeSpec<TEnvelopeBase> | undefined => ENVELOPE_CATALOGUE[name]
+
+/**
+ * What makes THIS envelope acceptable, decided by its own contract.
+ *
+ * A verdict is accepted when it approves; everything else is accepted when
+ * it reports success. Carried by the spec rather than declared per Activity,
+ * because it is a property of the shape: a `reviewOutput` that forgot to say
+ * `approved` is not a review, whatever Activity produced it.
+ */
+export const envelopeAccepted = (
+  spec: TEnvelopeSpec<TEnvelopeBase>,
+  envelope: TEnvelopeBase,
+): boolean =>
+  spec.name === reviewOutput.name
+    ? (envelope as Readonly<{ approved?: boolean }>).approved === true
+    : envelope.status === 'success'
+
+/** Does this contract rule on a change somebody else made? */
+export const envelopeJudges = (spec: TEnvelopeSpec<TEnvelopeBase>): boolean =>
+  spec.name === reviewOutput.name

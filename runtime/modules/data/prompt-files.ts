@@ -3,7 +3,7 @@
  *
  * A reference is resolved against the repository first and the pi-crust
  * package second. That is the whole override mechanism: a team that wants a
- * different planner prompt writes `.pi-crust/prompt-engineering/planner/
+ * different planner prompt writes `.pi-crust/prompt-engineering/plan/
  * system.md`, and nothing else changes — no registry, no flag, no config
  * edit. Absent that file, the prompt that ships is the one used, so an
  * improvement to a shipped prompt reaches every repository that did not

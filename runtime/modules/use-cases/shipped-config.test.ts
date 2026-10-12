@@ -3,7 +3,8 @@ import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activitiesFileSchema } from '../typedefs/activity'
-import { agentConfigSchema } from '../typedefs/config'
+import { crustConfigSchema } from '../typedefs/config'
+import type { TPiCrustConfig } from '../typedefs/config'
 import { activityOrder } from '../typedefs/lifecycle'
 import { loadLifecycles } from './load-lifecycles'
 
@@ -27,12 +28,17 @@ const lifecyclesAt = (yaml: string): string => {
   return path
 }
 
-const shippedAgents = () =>
-  activitiesFileSchema
-    .parse(
-      Bun.YAML.parse(readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8')),
-    )
-    .activities.map((one) => agentConfigSchema.parse(one))
+const shippedConfig = (): TPiCrustConfig => {
+  const registry = activitiesFileSchema.parse(
+    Bun.YAML.parse(readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8')),
+  )
+
+  return crustConfigSchema.parse({
+    activities: registry.activities,
+    planners: registry.planners,
+    agents: [...registry.activities, ...registry.planners],
+  })
+}
 
 test(
   [
@@ -45,10 +51,15 @@ test(
     const given = join(STAMP, 'crust.lifecycles.yaml')
 
     // when
-    const actual = loadLifecycles(given, shippedAgents())
+    const actual = loadLifecycles(given, shippedConfig())
 
     // then
-    expect(actual.map((one) => one.name)).toEqual(['sdlc', 'bugfix', 'de-risk'])
+    expect(actual.map((one) => one.name)).toEqual([
+      'tdd',
+      'sdlc',
+      'bugfix',
+      'de-risk',
+    ])
   },
 )
 
@@ -70,7 +81,7 @@ lifecycles:
 `)
 
     // when
-    const actual = () => loadLifecycles(given, shippedAgents())
+    const actual = () => loadLifecycles(given, shippedConfig())
 
     // then
     expect(actual).toThrow(/concurrently, but both may write/)
@@ -94,7 +105,7 @@ lifecycles:
 `)
 
     // when
-    const actual = loadLifecycles(given, shippedAgents())
+    const actual = loadLifecycles(given, shippedConfig())
 
     // then
     expect(actual).toHaveLength(1)
@@ -118,10 +129,11 @@ test(
     )
 
     // when
-    const actual = loadLifecycles(base, shippedAgents())
+    const actual = loadLifecycles(base, shippedConfig())
 
     // then
     expect(actual.map((one) => one.name)).toEqual([
+      'tdd',
       'sdlc',
       'bugfix',
       'de-risk',
@@ -148,7 +160,7 @@ test(
     )
 
     // when
-    const actual = loadLifecycles(base, shippedAgents())
+    const actual = loadLifecycles(base, shippedConfig())
     const survey = actual.find((one) => one.name === 'survey')
 
     // then
@@ -169,7 +181,7 @@ test(
     const given = join(STAMP, 'crust.lifecycles.yaml')
 
     // when
-    const actual = loadLifecycles(given, shippedAgents())
+    const actual = loadLifecycles(given, shippedConfig())
     const stagesOf = (name: string) =>
       actual.find((one) => one.name === name)?.stages.map((s) => s.name)
 
@@ -191,7 +203,7 @@ test(
     const given = join(STAMP, 'crust.lifecycles.yaml')
 
     // when
-    const actual = loadLifecycles(given, shippedAgents())
+    const actual = loadLifecycles(given, shippedConfig())
     const sdlc = actual.find((one) => one.name === 'sdlc')
 
     // then
@@ -200,9 +212,8 @@ test(
       'conceptualize',
       'plan',
       'design',
-      'test',
       'build',
-      'verify',
+      'test',
       'review',
       'code-review',
     ])
@@ -220,18 +231,12 @@ test(
     const given = join(STAMP, 'crust.lifecycles.yaml')
 
     // when
-    const actual = loadLifecycles(given, shippedAgents())
+    const actual = loadLifecycles(given, shippedConfig())
     const sdlc = actual.find((one) => one.name === 'sdlc')
     const deliver = sdlc?.stages.find((one) => one.name === 'deliver')
 
     // then
     expect(deliver?.strategy).toBe('serial')
-    expect(deliver?.activities).toEqual([
-      'plan',
-      'design',
-      'test',
-      'build',
-      'verify',
-    ])
+    expect(deliver?.activities).toEqual(['plan', 'design', 'build', 'test'])
   },
 )

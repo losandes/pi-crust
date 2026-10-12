@@ -19,13 +19,12 @@ test(
       prompt: 'add a /health endpoint',
       config: '.pi-crust/config/crust.config.yaml',
       runId: undefined,
-      agent: undefined,
       base: undefined,
       resume: false,
       steps: undefined,
       lifecycle: undefined,
       approveAfter: undefined,
-      deliver: undefined,
+      commit: undefined,
       stream: false,
       trustLevel: undefined,
     })
@@ -46,7 +45,7 @@ test(
       'implement the plan',
       '--run-id',
       'a1b2c3d4',
-      '--agent=scout',
+      '--commit=false',
     ]
 
     // when
@@ -57,13 +56,12 @@ test(
       prompt: 'implement the plan',
       config: 'other.yaml',
       runId: 'a1b2c3d4',
-      agent: 'scout',
       base: undefined,
       resume: false,
       steps: undefined,
       lifecycle: undefined,
       approveAfter: undefined,
-      deliver: undefined,
+      commit: 'false',
       stream: false,
       trustLevel: undefined,
     })
@@ -142,5 +140,24 @@ test(
     // then
     expect(actual.steps).toEqual('plan,build,verify')
     expect(actual.prompt).toEqual('compose it')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when --commit is given a value other than false',
+    'it should refuse, because the flag can only ever subtract',
+  ].join(', '),
+  () => {
+    // given — `--commit true` would grant a permission the registry
+    // withheld, and a run nobody could predict from reading the registry
+    const argv = ['do the thing', '--commit', 'true']
+
+    // when
+    const actual = () => parseCli(argv)
+
+    // then
+    expect(actual).toThrow(/--commit takes only 'false'/)
   },
 )

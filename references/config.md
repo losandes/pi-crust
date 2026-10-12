@@ -15,21 +15,34 @@ defaults:
   tools: [read, bash, edit, write, grep, find, ls]
   data_dir: .pi-crust/data
 
+# crust.activities.yaml, beside it
 activities:
-  - name: planner
+  - name: plan
     coding_agent: pi
     model: google/gemini-3.6-flash        # ALWAYS provider/model-id
     thinking: high
-    color: "#a78bfa"
+    color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
-      system: <pi-crust>/runtime/prompt-engineering/planner/system.md
-      user: <pi-crust>/runtime/prompt-engineering/planner/user.md
+      system: <pi-crust>/runtime/prompt-engineering/plan/system.md
+      user: <pi-crust>/runtime/prompt-engineering/plan/user.md
     harness_engineering:
       - json-enforcer
     tools:
       - read
       - bash
+    output: planOutput                    # the envelope contract it answers
+    gates: [artifactsExist, filesNonEmpty]
+    attempts: 2                           # Activity Runs of this instance, first included
+    commit: false                         # land its own change once its gates pass
+
+planners:                                 # closed set: operator and triage
+  - name: operator
+    purpose: Choose the smallest chain that can produce the outcome.
+    prompt_engineering:
+      system: <pi-crust>/runtime/prompt-engineering/operator/system.md
+      user: <pi-crust>/runtime/prompt-engineering/operator/user.md
+    writes: ['{handoff}/plan.md']
 ```
 
 ## Fields
@@ -90,7 +103,19 @@ themes:
 | `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `writes`                                                            | **yes**  | What this agent may modify **in the repo**, and where its own document goes. Enforced after every call. `['*']` = unrestricted (still barred from `protected_files`). `[]` = modifies nothing. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, `{handoff}` expands to this run's context_handoff directory, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **Required** — omitting it used to mean *unrestricted*, so the widest permission was the one granted by saying nothing. |
 
-Output types are deliberately absent: config defines who an agent *is*; the workflow call site defines how it's *used*. One agent serves many calls — same system prompt, different user prompt + output type per call.
+### The work half of an Activity
+
+An Activity entry carries what the work IS as well as who performs it, because they are one thing: a Lifecycle names `plan`, and `plan` is the entry.
+
+| Field      | Required | Meaning                                                                                                                                                                                                 |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `output`   | no       | The envelope spec it answers, by published name. Default `genericOutput`. A name the package does not publish is refused at load, listing the ones it does.                                           |
+| `gates`    | no       | What its envelope must survive, by published name. `checks` runs this repository's `routing.checks` commands and is deliberately opt-in: after `test` the suite is red on purpose.                     |
+| `input`    | no       | `upstream` (the default) or `changes` — the run's own diff since its baseline, which is what the documenter reads.                                                                                     |
+| `attempts` | no       | Activity Runs of ONE instance this run may spend, the first included. Default 2. A gate failure, a revise round and a regression all come out of it. Declare 1 where re-execution is expensive.         |
+| `commit`   | no       | Land this Activity's own change, in its envelope's `commit_message`, once every gate on it has passed. `--commit false` takes it away for a run; nothing grants it.                                    |
+
+Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
 
 ## Defaults merging
 
@@ -146,7 +171,7 @@ Other consequences worth knowing:
 
 `tools` cannot express a safety boundary, because two of the tools are general purpose. `bash` runs anything, including `git checkout`, which discards an engineer's uncommitted work; `write` reaches any path, not only the one report file an agent was granted it for. So "this agent changes nothing" is a claim a tool list can state but never keep.
 
-`modules/use-cases/enforce-permissions.ts` keeps it, the same way every other claim in this system is kept — after the fact, against the repo. Before an agent's first prompt the working tree's change-set is fingerprinted; after its last send (including JSON retries and gate corrections) it is fingerprinted again. Any path that appeared, vanished, or changed is attributed to that agent.
+`modules/use-cases/enforce-permissions.ts` keeps it, the same way every other claim in this system is kept — after the fact, against the repo. Before an agent's first prompt the working tree's change-set is fingerprinted; after its last send (including JSON corrections) it is fingerprinted again. Any path that appeared, vanished, or changed is attributed to that agent.
 
 Comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
 
@@ -240,7 +265,7 @@ The prefix exists because Activities and Stages share a namespace. A bare `accep
 
 **If the extension registers a tool, name that tool in the agent's `tools` list too** — `--tools` filters extension tools exactly like builtins, so an unnamed extension tool is silently unavailable no matter that the extension loaded fine. See [Extension tools must be named explicitly](#extension-tools-must-be-named-explicitly) above. Extensions that only shape output or add flags (no tool registration) need no `tools` change.
 
-## `routing:` — what agents load, what `verify` runs
+## `routing:` — what agents load, what the `checks` gate runs
 
 The one section that may name a skill path or a checker command. Nothing in `<pi-crust>/runtime/modules/`, `<pi-crust>/runtime/stages/` and `<pi-crust>/runtime/lifecycles/`, or `<pi-crust>/runtime/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
 
@@ -294,7 +319,7 @@ Without the rebase, a root-relative path handed to a command running in a subdir
 
 ### Declaring nothing is not the same as passing
 
-A `verify` activity run where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
+A `checks` gate where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
 
 | Changed paths | Matched checks | Verdict                                                |
 | ------------- | -------------- | ------------------------------------------------------ |
@@ -372,11 +397,11 @@ Because the flag lives on the Activity, a local layer can hide one without chang
 ```yaml
 # crust.activities.local.yaml
 activities:
-  - name: security-researcher
+  - name: security-research
     hidden: true
 ```
 
-The menu lists the work rather than the performer: a registry entry is named for who does it (`planner`), and the thing you pick is what gets done (`plan`). An Activity is hidden through the performer the registry binds each step to.
+The menu lists exactly what the registry registers. There is no second namespace of performers to bridge: an entry is named for the work, and the work IS the agent.
 
 There is no `steps` block. It held an `order` and a `hidden` list, and both are gone — presentation order is the registry's order, and hiding is a property of the Activity. Execution order comes from the Lifecycle, or from the list given to `--steps`.
 

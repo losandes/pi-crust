@@ -103,8 +103,6 @@ export interface ActivityRun {
   owner: string | null;
   description: string | null;
   status: ActivityRunStatus | null;
-  attempt: number | null;
-  retries: number | null;
   error: string | null;
   started_at: string | null;
   ended_at: string | null;
@@ -137,7 +135,6 @@ export interface Envelope {
   payload_json: string | null;
   /** SQLite integer boolean. */
   valid: number | null;
-  attempt: number | null;
   created_at: string | null;
 }
 
@@ -145,7 +142,6 @@ export interface GateResult {
   id: number;
   run_id: string;
   activity_run_id: string | null;
-  attempt: number | null;
   gate: string | null;
   /** SQLite integer boolean. */
   passed: number | null;

@@ -1,29 +1,54 @@
 import { expect, test } from 'bun:test'
 import type { TRoundRecord } from './dispute-ledger'
 import { renderReport } from './dispute-report'
+import { crustConfigSchema } from '../typedefs/config'
 import {
   loopAgents,
   loopApplies,
-  MAX_REVISE_ROUNDS,
   outcomeReason,
+  reviserFor,
   trailingReview,
 } from './revise-loop'
 
+const cfg = crustConfigSchema.parse({
+  activities: [
+    {
+      name: 'build',
+      output: 'buildOutput',
+      purpose: 'Implement the plan and report every changed file',
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+    },
+    {
+      name: 'test',
+      output: 'buildOutput',
+      purpose: 'Write the tests that would prove the request was implemented',
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+    },
+    {
+      name: 'review',
+      output: 'reviewOutput',
+      purpose: 'Confirm that what was built is what was asked for',
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+    },
+  ],
+})
+
 test(
   [
-    'given use-cases/revise-loop::MAX_REVISE_ROUNDS',
-    'when the bound is read',
-    'it should be two, because a third round of an unsettled argument is worse value than escalating',
+    'given use-cases/revise-loop::reviserFor',
+    'when a chain wrote something before it was reviewed',
+    'it should revise with the Activity that wrote it, not with a registry entry of its own',
   ].join(', '),
   () => {
-    // given
-    const bound = MAX_REVISE_ROUNDS
+    // given — `revise` left the registry: no Lifecycle names it, and an
+    // entry nothing can name is an entry that drifts
+    const given = ['plan', 'test', 'build', 'review']
 
     // when
-    const actual = bound
+    const actual = reviserFor(cfg, given)
 
-    // then
-    expect(actual).toEqual(2)
+    // then — the LAST writer, which is the work the review ruled on
+    expect(actual?.name).toEqual('build')
   },
 )
 
@@ -37,9 +62,9 @@ test(
     // given
     const chains = [
       ['plan', 'build', 'review'],
-      ['build', 'verify', 'code-review'],
-      ['build', 'verify'],
-      ['review', 'commit'],
+      ['build', 'test', 'code-review'],
+      ['build', 'test'],
+      ['review', 'document'],
     ]
 
     // when
@@ -54,17 +79,17 @@ test(
   [
     'given use-cases/revise-loop::loopAgents',
     'when a chain ends in a review it never built for',
-    'it should add the builder, so a roster without one fails before anything spawns',
+    'it should add the reviser, so a roster without one fails before anything spawns',
   ].join(', '),
   () => {
     // given
-    const chains = [['review'], ['build', 'verify']]
+    const chains = [['review'], ['build', 'test']]
 
     // when
-    const actual = chains.map(loopAgents)
+    const actual = chains.map((names) => loopAgents(cfg, names))
 
     // then
-    expect(actual).toEqual([['builder'], []])
+    expect(actual).toEqual([['build'], []])
     expect(loopApplies(['review'])).toEqual(true)
   },
 )
@@ -96,7 +121,8 @@ test(
         'side added evidence — see handoff/disputes.md',
     )
     expect(actual[1]).toEqual(
-      'the reviewer never approved after 2 revise round(s) — see handoff/disputes.md',
+      'the reviewer never approved, and the revising activity has no ' +
+        'attempts left — see handoff/disputes.md',
     )
     expect(actual[2]).toEqual(params.fallback)
   },

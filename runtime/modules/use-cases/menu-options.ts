@@ -8,31 +8,25 @@
  * A menu that offers a chain nobody can run by any other route is worse
  * than no menu.
  *
- * So: lifecycles come from `crust.lifecycles.yaml`, and the order is the
- * order of the file. Something that exists is offered; something offered
- * exists.
+ * So: lifecycles come from `crust.lifecycles.yaml` and Activities from
+ * `crust.activities.yaml`, each in the order of its file. Something that
+ * exists is offered; something offered exists.
  *
- * A registry entry is named for the PERFORMER — `planner`, `builder` — and
- * the runnable unit is named for the WORK — `plan`, `build`. They are not
- * the same name, and the menu's values become `--steps`, so the menu lists
- * the work. `hidden` is declared on the performer and applies to the work it
- * owns, which is the only place a team can say it today; the two will have
- * to be reconciled when the orchestration model lands, and this is the seam
- * where that shows.
+ * An entry is named for the WORK — `plan`, `build` — because that is what a
+ * Lifecycle names and what the menu's values become. There is no second
+ * namespace of performers to bridge any more: the Activity IS the agent.
  */
 
 import type { TActivityConfig } from '../typedefs/activity'
 import { activityOrder, type TLifecycleConfig } from '../typedefs/lifecycle'
-import { STEP_NAMES } from '../typedefs/step'
-import { performerOf } from './steps'
 
 /**
  * The Planners, which are capabilities rather than Activities.
  *
- * Triage recommends a lifecycle and stops. The Operator recommends one and
- * runs it. Both decide what should happen, so neither is something a person
- * picks alongside the work — and neither is configurable, which is why this
- * list is here rather than in a file a team edits.
+ * Triage recommends a chain and stops. The Operator recommends one and runs
+ * it. Both decide what should happen, so neither is something a person picks
+ * alongside the work — and neither can be added by configuration, which is
+ * why this list is here rather than in a file a team edits.
  *
  * The Composer is absent deliberately: it executes a plan it is handed, and
  * the menu IS the thing that hands it one.
@@ -44,11 +38,6 @@ export const PLANNERS = [
   },
 ] as const
 
-const PLANNER_NAMES: readonly string[] = [
-  ...PLANNERS.map((planner) => planner.name),
-  'triage',
-]
-
 export type TMenuOption = Readonly<{
   value: string
   label: string
@@ -58,27 +47,6 @@ export type TMenuOption = Readonly<{
 /** `@` a lifecycle, `!` a planner, bare an activity. */
 export const LIFECYCLE_MARK = '@'
 export const PLANNER_MARK = '!'
-
-/** What a step is for, taken from the performer the registry binds it to. */
-const purposeOf = (
-  activities: readonly TActivityConfig[],
-  step: string,
-): string =>
-  activities.find((activity) => activity.name === performerOf(step))?.purpose ?? ''
-
-/**
- * A step is hidden when the Activity that performs it is.
- *
- * A step with no performer — the deterministic ones, `verify` and `commit` —
- * is never hidden: there is no Activity to carry the flag, and a check a
- * team cannot hide is not a gap worth inventing a second mechanism for.
- */
-const isHidden = (
-  activities: readonly TActivityConfig[],
-  step: string,
-): boolean =>
-  activities.find((activity) => activity.name === performerOf(step))?.hidden ??
-  false
 
 /** Lifecycles first, then planners, then the work a person may pick. */
 export const menuOptions = (
@@ -95,13 +63,13 @@ export const menuOptions = (
     label: `${planner.name} — let it choose`,
     detail: planner.summary,
   })),
-  ...STEP_NAMES.filter(
-    (step) => !(PLANNER_NAMES.includes(step) || isHidden(activities, step)),
-  ).map((step) => ({
-    value: step,
-    label: `  ${step}`,
-    detail: purposeOf(activities, step),
-  })),
+  ...activities
+    .filter((activity) => !activity.hidden)
+    .map((activity) => ({
+      value: activity.name,
+      label: `  ${activity.name}`,
+      detail: activity.purpose,
+    })),
 ]
 
 /**
@@ -120,6 +88,12 @@ export const exclusiveCount = (
 export const chosenPlanner = (chosen: readonly string[]): string =>
   chosen
     .filter((choice) => choice.startsWith(PLANNER_MARK))
+    .map((choice) => choice.slice(1))[0] ?? ''
+
+/** The lifecycle chosen, or '' when Activities were picked by hand. */
+export const chosenLifecycle = (chosen: readonly string[]): string =>
+  chosen
+    .filter((choice) => choice.startsWith(LIFECYCLE_MARK))
     .map((choice) => choice.slice(1))[0] ?? ''
 
 /**

@@ -187,7 +187,7 @@ export class PiCrustDb {
     const activityRunRows = this.db
       .query<ActivityRun, string[]>(
         `SELECT activity_run_id, run_id, seq, name, kind, owner, description, status,
-                attempt, retries, error, started_at, ended_at
+                error, started_at, ended_at
            FROM activity_runs WHERE run_id IN (${placeholders}) ORDER BY seq, rowid`,
       )
       .all(...ids);
@@ -239,7 +239,7 @@ export class PiCrustDb {
     return this.db
       .query<ActivityRun, [string]>(
         `SELECT activity_run_id, run_id, seq, name, kind, owner, description, status,
-                attempt, retries, error, started_at, ended_at
+                error, started_at, ended_at
            FROM activity_runs WHERE run_id = ? ORDER BY seq, rowid`,
       )
       .all(runId);
@@ -409,7 +409,7 @@ export class PiCrustDb {
     return this.db
       .query<Envelope, [string]>(
         `SELECT envelope_id, run_id, activity_run_id, agent, output_type, payload_json,
-                valid, attempt, created_at
+                valid, created_at
            FROM envelopes WHERE run_id = ? ORDER BY created_at, rowid`,
       )
       .all(runId);
@@ -419,7 +419,7 @@ export class PiCrustDb {
     const checks = this.optionalColumn("gate_results", "checks_json");
     return this.db
       .query<GateResult, [string]>(
-        `SELECT id, run_id, activity_run_id, attempt, gate, passed, violations_json,
+        `SELECT id, run_id, activity_run_id, gate, passed, violations_json,
                 ${checks}, created_at
            FROM gate_results WHERE run_id = ? ORDER BY id`,
       )

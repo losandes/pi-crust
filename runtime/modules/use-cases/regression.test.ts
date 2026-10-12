@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { TRegressionRecord } from './regression'
 import { regressionVerdict, timesReturnedTo } from './regression'
 
-const chain = ['identify', 'conceptualize', 'poc', 'build', 'verify']
+const chain = ['identify', 'conceptualize', 'design', 'build', 'review']
 
 const verdict = (
   fields: Partial<Parameters<typeof regressionVerdict>[0]>,
@@ -12,7 +12,7 @@ const verdict = (
     names: chain,
     askedAt: 2,
     history: [],
-    maxReturnsPerStage: 1,
+    attemptsLeft: 1,
     ...fields,
   })
 
@@ -64,7 +64,7 @@ test(
   ].join(', '),
   () => {
     // given a chain composed without `design`
-    const request = { activity: 'design', because: 'the schema is wrong' }
+    const request = { activity: 'deploy', because: 'the schema is wrong' }
 
     // when
     const actual = verdict({ request })
@@ -98,21 +98,21 @@ test(
 test(
   [
     'given use-cases/regression::regressionVerdict',
-    'when a stage has already been returned to once',
-    'it should stop rather than pay for a second lap',
+    'when the destination has no attempts left in this run',
+    'it should stop rather than pay for a lap nothing is budgeted for',
   ].join(', '),
   () => {
-    // given
+    // given — a lap IS an Activity Run of the destination, so it comes out
+    // of that instance's `attempts`, like a gate retry and a revision
     const history: readonly TRegressionRecord[] = [
       { from: 'build', to: 'conceptualize', because: 'first time' },
     ]
     const request = { activity: 'conceptualize', because: 'still wrong' }
 
     // when
-    const actual = verdict({ request, history })
+    const actual = verdict({ request, history, attemptsLeft: 0 })
 
-    // then — two laps over one stage is a disagreement no agent settles, and
-    // each lap costs every stage in between
+    // then
     expect(actual.kind).toBe('exhausted')
     expect(actual.kind === 'exhausted' ? actual.reason : '').toContain(
       'still wrong',
@@ -130,8 +130,8 @@ test(
     // given
     const history: readonly TRegressionRecord[] = [
       { from: 'build', to: 'design', because: 'a' },
-      { from: 'poc', to: 'conceptualize', because: 'b' },
-      { from: 'verify', to: 'design', because: 'c' },
+      { from: 'build', to: 'conceptualize', because: 'b' },
+      { from: 'review', to: 'design', because: 'c' },
     ]
 
     // when

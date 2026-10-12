@@ -35,10 +35,10 @@ That prints the path to pass and who is in it, in one read:
 
 ```text
 .pi-crust/config/crust.config.yaml
-    planner     fireworks/accounts/fireworks/models/kimi-k3
-    builder     google/gemini-3.6-flash (inherited)
+    plan        fireworks/accounts/fireworks/models/kimi-k3
+    build       google/gemini-3.6-flash (inherited)
 .pi-crust/config/crust.frontier.config.yaml
-    planner     anthropic/claude-opus-5
+    plan        anthropic/claude-opus-5
 ```
 
 Read those from disk every time. Rosters are the engineer's to add, rename, and retune, so a name you remember from a doc is a guess.
@@ -49,7 +49,7 @@ They will rarely say `--config`. Treat any of these as naming a roster, then res
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | "run it on the frontier config", "use the frontier roster" | the roster file whose name matches                                                                                                                                |
 | "run this with the big models", "use the sota roster"      | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
-| "have opus plan this one"                                  | a roster whose planner is that model; if none exists, say so rather than editing the config mid-request                                                           |
+| "have opus plan this one"                                  | a roster whose `plan` Activity is that model; if none exists, say so rather than editing the config mid-request                                                           |
 | nothing about models at all                                | the default, `.pi-crust/config/crust.config.yaml`                                                                                                                 |
 
 `--config` takes the path directly, and `CRUST_CONFIG` stands in for it when the flag is absent — whether a workflow is launched through the justfile or run with `bun` directly. The flag wins over the variable:
@@ -59,30 +59,30 @@ bun <pi-crust>/runtime/lifecycles/<name>.ts "<prompt>" --config .pi-crust/config
 CRUST_CONFIG=.pi-crust/config/crust.frontier.config.yaml just <recipe> "<prompt>"
 ```
 
-`--scope` says what the judging steps judge: `verify`, `review`, `code-review` and `document` all read it.
+`--scope` says what the judging Activities judge: `review`, `code-review` and `document` all read it, and so does `just crust verify`.
 
 ```bash
 just crust code-review "the stats refactor" --scope HEAD~3..HEAD    # a range
-just crust verify "pre-PR sweep" --scope main                        # since a ref
+just crust verify --scope main                                       # since a ref
 just crust code-review "the gateway" --scope apps/gateway            # a directory, however old
-just crust verify "the lib" --scope 'lib/**/*.ts'                    # a glob
+just crust verify --scope 'lib/**/*.ts'                              # a glob
 ```
 
 Omit it and they read the uncommitted working tree, as they always have. `--base` is the old name and still works; it became `--scope` when a directory stopped being the base of anything. A ref wins when a branch and a directory share a name.
 
-A path scope changes what rule 12 means: every file in scope must be covered by a `routing.checks` rule, not merely the files that changed. Pointing `verify` at a directory and getting a pass tells you the directory conforms, which is the point of pointing it there.
+A path scope changes what rule 12 means: every file in scope must be covered by a `routing.checks` rule, not merely the files that changed. Pointing the checks at a directory and getting a pass tells you the directory conforms, which is the point of pointing them there.
 
 `--stream` prints each agent's thinking and prose in the terminal as it arrives. Off by default, because an unattended run that writes a model's reasoning to stdout buries the one line that said what went wrong. Everything it prints is recorded either way — the visualizer's reading pane shows the same narration after the fact, and `raw_output.jsonl` holds the full text.
 
-`--deliver` decides how a chain hands over its work, and it does not sign by default.
+Committing is a property of each Activity, not a mode of the run. An Activity that declares `commit: true` in `crust.activities.yaml` lands its own change once every gate on it has passed, in the words its envelope carried — so a chain with several writing Activities produces several commits rather than one squashed one at the end.
 
-| Mode                 | What lands                                                                          |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `branch` *(default)* | an unsigned commit on `crust/<run-id>`, your branch untouched                       |
-| `patch`              | everything staged and written to `<session>/<run-id>.patch`; nothing enters history |
-| `commit`             | today's behaviour, for a run you are sitting with                                   |
+`--commit false` turns committing off for a whole run, whatever the registry says. There is no `--commit true`: a flag granting a permission the configuration withheld would make a run behave in a way nobody reading the registry could predict.
 
-An unattended run that signs as you puts your name on work no human read. It is also the failure that killed a finished run at its last step: `git commit` waited sixty seconds for a signing touch nobody was there to give.
+```bash
+just crust sdlc "add a /health endpoint" --commit false   # leave everything in the working tree
+```
+
+An Activity that was not committing and moved `HEAD` anyway is reported as a permission breach, like any other overstep. No prompt asks an agent to commit, but a prompt is advice.
 
 Two things that bite:
 
@@ -97,13 +97,13 @@ Every step of a workflow also runs on its own, which is what an engineer usually
 
 ```bash
 just crust code-review "the /health work"        # just the conventions review
-just crust verify "pre-PR sweep"                 # just the declared checks
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps build,verify,review
+just crust verify                                # just the declared checks, no run at all
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps test,build,review
 ```
 
-`compose` takes any ordered subset of `prompt, scout, plan, test, build, verify, review, code-review, revise, commit, document`, repeats allowed (`build,verify,build,verify` — the second becomes `build_2`). An unknown name exits 2 and lists the valid ones.
+`compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,review,build,review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
 
-A chain whose LAST step is `review` or `code-review` ends in the bounded revise loop: the blocking findings go back to the builder, the reviewer rules again, at most twice. That applies to a lone `just crust review` as much as to `sdlc`, so a roster without a builder fails up front. Name `revise` yourself (`--steps review,revise`) when you want one pass and no re-review.
+A chain whose LAST Activity is `review` or `code-review` ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, the reviewer rules again, and the bound is that Activity's `attempts`. That applies to a lone `just crust review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
 
 Still prefer a composed chain when the work is real: a lone `build` has nothing checking it. Single steps are for a narrow ask, or for picking a stopped run up by hand.
 
@@ -140,7 +140,7 @@ The trace db is `.pi-crust/data/crust.db`. It is WAL, so reads never block the r
 ```bash
 # where the run stands
 sqlite3 .pi-crust/data/crust.db \
-  "select seq, name, kind, owner, status, attempt from activity runs where run_id='a1b2c3d4' order by seq;"
+  "select seq, name, kind, owner, status from activity_runs where run_id='a1b2c3d4' order by seq;"
 
 # the live tail — cursor on rowid, same query the visualizer polls
 sqlite3 .pi-crust/data/crust.db \
@@ -148,7 +148,7 @@ sqlite3 .pi-crust/data/crust.db \
 
 # why a activity run failed
 sqlite3 .pi-crust/data/crust.db \
-  "select attempt, gate, passed, checks_json from gate_results where run_id='a1b2c3d4';"
+  "select activity_run_id, gate, passed, checks_json from gate_results where run_id='a1b2c3d4';"
 
 # session-level status
 sqlite3 .pi-crust/data/crust.db \

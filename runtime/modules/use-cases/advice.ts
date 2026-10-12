@@ -8,7 +8,6 @@
  */
 
 import type { TRunState } from '../typedefs/run-state'
-import { isStepName } from '../typedefs/step'
 
 /** The envelope field the chain lives in, as the trace recorded it. */
 const chainOf = (state: TRunState): readonly string[] =>
@@ -20,7 +19,6 @@ const chainOf = (state: TRunState): readonly string[] =>
         ? steps.filter((step): step is string => typeof step === 'string')
         : []
     })
-    .filter(isStepName)
 
 /**
  * A prompt safe to sit inside double quotes in a shell.

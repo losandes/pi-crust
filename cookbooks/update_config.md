@@ -1,13 +1,13 @@
 # Update Config
 
-Add or retune agents in `crust.config.yaml`.
+Add or retune Activities in `crust.activities.yaml`, and the roster-wide defaults and routing in `crust.config.yaml`.
 
 ## Retune model or thinking
 
 Edit the agent's entry in place:
 
 ```yaml
-  - name: builder
+  - name: build
     model: google/gemini-3.6-flash   # ALWAYS provider/model-id
     thinking: high                   # was medium
 ```
@@ -21,8 +21,8 @@ Thinking levels are Pi's reasoning effort: `off | minimal | low | medium | high 
 ## Recolor an agent's lane
 
 ```yaml
-  - name: builder
-    color: "#22d3ee"      # hex; the starter roster ships violet/cyan/amber/green
+  - name: build
+    color: cyan           # a theme role; the registry ships violet/cyan/amber/green
 ```
 
 Purely cosmetic and safe to change mid-project: the color rides the `agent_start` event and the `agent_sessions` row, so the visualizer picks it up on the next run without touching past sessions. Omit the key to let the UI's fallback palette choose.
@@ -38,7 +38,7 @@ defaults:
   tools: [read, bash, edit, write, grep, find, ls]
 
 activities:
-  - name: reviewer
+  - name: review
     tools:                # explicit list wins over defaults
       - read
       - grep
@@ -70,7 +70,7 @@ Entries are pi extension **file paths**, passed through as `pi -e <path>`, appli
 **Adding a tool-registering extension is a two-part edit.** The extension path goes in `harness_engineering`, *and* the tool name it registers goes in that agent's `tools` list:
 
 ```yaml
-  - name: reviewer
+  - name: review
     harness_engineering:
       - .pi/extensions/ast_query.ts     # registers tool: ast_query
     tools:
@@ -84,20 +84,19 @@ Entries are pi extension **file paths**, passed through as `pi -e <path>`, appli
 
 Skip the second half and it fails silently: extension loaded, run green, tool never available to the model. Extensions that only shape output or register flags — no new tool — need no `tools` change.
 
-## Add a new agent
+## Add a new Activity
 
-Three steps, all required — skipping any one fails `validateAgents()` at workflow startup, before anything spawns:
+Two steps, and then it is runnable. There is no third edit anywhere in the package — that is the whole point of the registry being configuration.
 
-1. **Prompts.** Create `<pi-crust>/runtime/prompt-engineering/{name}/system.md` (Purpose + Instructions — the agent's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
-2. **Config entry.** Name, purpose, prompt refs, plus anything that differs from `defaults`.
-3. **An output type.** Every agent call parses against a concrete zod schema in `modules/typedefs/`. If none of `planOutput`, `buildOutput`, `scoutOutput`, `reviewOutput`, `documentOutput` fits the new agent's report, add one — see `update_modules.md`. The user prompt's `Report` section must show exactly that JSON shape.
+1. **Prompts.** Create `.pi-crust/prompt-engineering/{name}/system.md` (Purpose + Instructions — the Activity's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
+2. **Registry entry** in `crust.activities.yaml`. Name it for the WORK, give it a `purpose`, its prompt refs, its `writes`, and the work half: `output`, `gates`, and `attempts` or `commit` where the defaults are wrong. An `output` or a gate the package does not publish is refused at load, listing what it does publish — so a typo costs a second, not a run.
 
-Then name the agent in a workflow's `REQUIRED_AGENTS` and call it.
+Then name it in `--steps`, or in a Stage in `crust.lifecycles.yaml`. If none of the published envelope specs fits its report, add one — see `update_modules.md` — and the user prompt's `Report` section must show exactly that shape.
 
 ## Rules that do not bend
 
-- a Lifecycle names **Activities**, and the registry binds each to an agent; nothing outside the config names a model. Swapping a model is a config edit and touches no code.
-- One agent, one prompt, one purpose. If an entry needs two purposes, it is two agents.
-- Output types never appear in config — they live at the call site, paired with the user prompt.
+- a Lifecycle names **Activities**, and an Activity IS its agent; nothing outside the configuration names a model. Swapping a model is a config edit and touches no code.
+- One Activity, one prompt, one purpose. If an entry needs two purposes, it is two Activities.
+- A **Planner** is not an Activity. `operator` and `triage` live under `planners:`, a Lifecycle cannot name them, and configuration can tune them but never add a third.
 
 Full spec: `references/config.md`.

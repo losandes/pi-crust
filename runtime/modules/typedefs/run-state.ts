@@ -12,7 +12,6 @@ import type { TEventPayload } from './trace'
 export type TGateOutcome = Readonly<{
   gate: string
   activityRun: string
-  attempt: number
   passed: boolean
   violations: readonly string[]
   checks: readonly TGateCheck[]
@@ -23,7 +22,6 @@ export type TEnvelopeRecord = Readonly<{
   agent: string
   output_type: string
   valid: boolean
-  attempt: number
   payload: Readonly<Record<string, unknown>>
 }>
 
@@ -48,7 +46,6 @@ export type TActivityRunState = Readonly<{
   owner: string
   description: string
   status: string
-  attempt: number
   error: string | undefined
   started_at: string | undefined
   ended_at: string | undefined
@@ -71,7 +68,7 @@ export type TRunState = Readonly<{
   completed: readonly string[]
   /** first activityRun, in seq order, whose latest record is not success */
   resume_from: string | undefined
-  /** failed gates, newest attempt per gate, newest activityRun first */
+  /** failed gates, newest Activity Run per gate, newest activityRun first */
   failed_gates: readonly TGateOutcome[]
   envelopes: readonly TEnvelopeRecord[]
 }>

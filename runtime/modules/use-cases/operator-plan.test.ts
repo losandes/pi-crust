@@ -29,6 +29,22 @@ const contextOf = (
     prompt: '',
     baseline: '',
     outcomes: [],
+    feedback: [],
+    /*
+     * The registry a plan is checked against is the one the RUN loaded, so
+     * a chain naming an Activity this repository no longer offers is
+     * dropped rather than replayed into a usage error.
+     */
+    run: {
+      cfg: {
+        activities: [
+          { name: 'plan' },
+          { name: 'test' },
+          { name: 'build' },
+          { name: 'review' },
+        ],
+      },
+    },
   }) as unknown as TStepContext
 
 test(
@@ -39,13 +55,13 @@ test(
   ].join(' '),
   () => {
     // given
-    const ctx = contextOf('operator', envelope(['identify', 'plan', 'build']))
+    const ctx = contextOf('operator', envelope(['plan', 'test', 'build']))
 
     // when
     const chain = plannedChain(ctx)
 
     // then
-    expect(chain).toEqual(['identify', 'plan', 'build'])
+    expect(chain).toEqual(['plan', 'test', 'build'])
   },
 )
 

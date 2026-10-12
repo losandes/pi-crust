@@ -1,1 +1,0 @@
-TODO: Build a plan for refactoring the just tasks and visualizer as necessary to reflect the changes we made in ./completed/REFACTOR-OPEN-CLOSED.md, ./completed/REFACTOR-DAG.md, ./completed/REFACTOR-DAG-TASKS.md.

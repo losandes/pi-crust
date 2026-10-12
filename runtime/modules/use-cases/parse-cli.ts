@@ -14,8 +14,6 @@ export type TCliArgs = Readonly<{
   prompt: string
   config: string
   runId: string | undefined
-  /** `prompt.ts` only: which agent answers */
-  agent: string | undefined
   /**
    * What the judging steps judge: a ref, a range, a directory, or a glob.
    *
@@ -40,13 +38,18 @@ export type TCliArgs = Readonly<{
    */
   approveAfter: string | undefined
   /**
-   * `commit` only: 'branch' (default), 'patch', or 'commit'.
+   * `--commit false`, and nothing else.
    *
-   * The default signs nothing. An unattended run that commits as you puts
-   * your name on work no human read, and the signing prompt it needs is the
-   * thing most likely to kill the run at the last step.
+   * Delivery is a property of each Activity: one that declares
+   * `commit: true` lands its own change once its gates pass. This flag only
+   * SUBTRACTS — there is no `--commit true`, because a flag granting a
+   * permission the registry withheld would make a run behave in a way
+   * nobody reading the registry could predict.
+   *
+   * It takes a value rather than being a bare switch, so it joins the
+   * value-flag list; a bare flag would consume the prompt as its value.
    */
-  deliver: string | undefined
+  commit: string | undefined
   /**
    * Echo each agent's thinking and prose to the terminal as it arrives.
    *
@@ -68,13 +71,12 @@ export type TCliArgs = Readonly<{
 const FLAGS = [
   '--config',
   '--run-id',
-  '--agent',
   '--base',
   '--scope',
   '--steps',
   '--lifecycle',
   '--approve-after',
-  '--deliver',
+  '--commit',
   '--trust-level',
 ] as const
 
@@ -85,11 +87,33 @@ const BOOLEAN_FLAGS = ['--resume', '--stream'] as const
 
 const usage = (script: string): string =>
   `usage: bun ${script} "<prompt or path/to/prompt.md>" ` +
-  '[--config <path>] [--run-id <id>] [--agent <name>] ' +
+  '[--config <path>] [--run-id <id>] [--commit false] ' +
   '[--scope <ref|range|path|glob>] ' +
   '[--steps plan,build,verify] [--approve-after identify,design] ' +
   '[--resume]\n' +
   'env: CRUST_CONFIG overrides the config path; --config still wins.'
+
+/**
+ * `--commit` accepts one value, and it is `false`.
+ *
+ * `--commit true` is refused rather than accepted-and-ignored: somebody
+ * typing it believes it grants something, and silence would let them believe
+ * it worked. Committing is declared per Activity in the registry.
+ */
+export const commitFlag = (value: string | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined
+  }
+  if (value !== 'false') {
+    throw new Error(
+      `--commit takes only 'false' (got '${value}'). Committing is declared ` +
+        'per Activity in crust.activities.yaml; the flag can only take it ' +
+        'away, never grant it.',
+    )
+  }
+
+  return value
+}
 
 export const parseCli = (
   argv: readonly string[],
@@ -149,13 +173,12 @@ export const parseCli = (
     prompt,
     config: flags.get('--config') ?? configPathFromEnv() ?? DEFAULT_CONFIG_PATH,
     runId: flags.get('--run-id'),
-    agent: flags.get('--agent'),
     base: flags.get('--scope') ?? flags.get('--base'),
     resume: booleans.has('--resume'),
     steps: flags.get('--steps'),
     lifecycle: flags.get('--lifecycle'),
     approveAfter: flags.get('--approve-after'),
-    deliver: flags.get('--deliver'),
+    commit: commitFlag(flags.get('--commit')),
     stream: booleans.has('--stream'),
     trustLevel: flags.get('--trust-level'),
   }
@@ -165,7 +188,7 @@ export const parseCli = (
  * What every workflow's `main` takes: the CLI, with the prompt resolved.
  *
  * One object rather than four loose parameters — `prompt`, `config`, `runId`,
- * `agent`, `base`, `resume` and `steps` is past the four-param rule, and a
+ * `base`, `resume` and `steps` is past the four-param rule, and a
  * positional list that long is where a caller silently passes `config` as
  * `runId`.
  */

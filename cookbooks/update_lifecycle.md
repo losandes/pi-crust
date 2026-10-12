@@ -6,7 +6,7 @@ Change `.pi-crust/config/crust.lifecycles.yaml`. Nothing is generated from it an
 
 ```yaml
       - name: implement
-        activities: [test, build, verify]
+        activities: [test, build]
 ```
 
 In a serial Stage, position is execution order. The Activity must exist in `crust.activities.yaml`; a name the registry does not have is dropped when the plan is built, which is silent — so check the registry rather than the run.
@@ -39,9 +39,9 @@ When part of a Stage must be gated separately, or must not run concurrently with
 
 ```yaml
       - name: implement
-        activities: [test, build]
-      - name: verify
-        activities: [verify]
+        activities: [test]
+      - name: deliver
+        activities: [build]
 ```
 
 Splitting changes nothing about execution order in a serial chain — the Activities run in the same sequence either way. What it changes is what `--approve-after stage:<name>` can address, and what a reader understands the progression to be.

@@ -8,15 +8,14 @@
 import { inboxSince } from '../data/inbox'
 import { join, resolve } from 'node:path'
 import { ensureDir, writeText } from '../data/files'
-import { changedFiles, untrackedFiles } from '../data/git'
+import { changedFiles, isRepo, rev, untrackedFiles } from '../data/git'
 import { newId } from '../data/ids'
 import * as piAgent from '../data/pi-agent'
 import { render, savePrompt } from '../data/prompt-files'
 import { snapshotTree } from '../data/working-tree'
 import type { TAgentConfig } from '../typedefs/config'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
-import type { TAgentCall, TGate } from '../typedefs/gate'
-import { violationsOf } from '../typedefs/gate'
+import type { TAgentCall } from '../typedefs/gate'
 import type { TActivityRun } from '../typedefs/activity-run'
 import type { TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
@@ -35,15 +34,26 @@ import { steeringBlock } from './steer'
 import { stepCatalogue } from './step-catalogue'
 import { matchingSkills } from './route-by-path'
 
+/**
+ * What a gate said about the LAST attempt, appended to this one's prompt.
+ *
+ * Appended rather than rendered from a placeholder, for the reason steering
+ * is: a `{{feedback}}` variable would be opt-in, and an Activity whose
+ * prompt forgot the placeholder would run again knowing nothing about why
+ * its first attempt was rejected — the same call, at the same price, with
+ * the same result.
+ */
+export const feedbackBlock = (violations: readonly string[]): string =>
+  violations.length === 0
+    ? ''
+    : '\n\n## What failed last time\n\n' +
+      'Your previous attempt was rejected by this repository\'s gates:\n\n' +
+      `${violations.map((one) => `- ${one}`).join('\n')}\n\n` +
+      'Fix every one of them. They are checked again, the same way, when ' +
+      'you are done.'
+
 /** continue-with-correction attempts for malformed JSON */
 export const JSON_FIX_ATTEMPTS = 2
-
-export class GateFailure extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'GateFailure'
-  }
-}
 
 const agentSessionId = (run: TRun, agent: TAgentConfig): string => {
   const entry = run.agentMap()[agent.name]
@@ -127,21 +137,13 @@ const persistEnvelope = (
   agentName: string,
   spec: TEnvelopeSpec<TEnvelopeBase>,
   envelope: TEnvelopeBase | undefined,
-  attempt: number,
   valid: boolean,
   raw = '',
 ): void => {
   const payloadJson = envelope
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify({ raw: raw.slice(-2000) })
-  run.tracer.envelopeRow(
-    activityRun,
-    agentName,
-    spec.name,
-    payloadJson,
-    valid,
-    attempt,
-  )
+  run.tracer.envelopeRow(activityRun, agentName, spec.name, payloadJson, valid)
   if (envelope) {
     writeText(
       join(run.sessionDir, agentName, 'envelope.json'),
@@ -150,7 +152,6 @@ const persistEnvelope = (
           agent_name: agentName,
           purpose: resolveAgent(run.cfg, agentName).purpose,
           output_type: spec.name,
-          attempt,
           ...envelope,
         },
         null,
@@ -193,7 +194,6 @@ const parseWithRetries = (
         activityRun.params.owner,
         spec,
         settled.data,
-        round,
         true,
       )
       return { envelope: settled.data, attempt: round }
@@ -205,7 +205,6 @@ const parseWithRetries = (
       activityRun.params.owner,
       spec,
       undefined,
-      round,
       false,
       result.text,
     )
@@ -229,32 +228,6 @@ const parseWithRetries = (
   }
   return attempt(first, 1)
 }
-
-const runGates = (
-  run: TRun,
-  activityRun: TActivityRun,
-  gates: readonly TGate[],
-  envelope: TEnvelopeBase,
-  gateAttempt: number,
-): readonly string[] =>
-  gates.flatMap((gate) => {
-    const report = gate.check(envelope, run)
-    const found = violationsOf(report)
-    run.tracer.gateRow(activityRun, gate.name, report, gateAttempt)
-    run.tracer.event({
-      run_id: run.runId,
-      activity_run_id: activityRun.activity_run_id,
-      type: found.length > 0 ? 'gate_fail' : 'gate_pass',
-      name: gate.name,
-      payload: {
-        attempt: gateAttempt,
-        violations: found,
-        checks: report.checks,
-      },
-    })
-    run.console.gateResult(gate.name, report)
-    return found
-  })
 
 /**
  * What a workflow calls inside an agent activityRun. Valid in that activityRun only — a
@@ -280,7 +253,6 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   const agent = resolveAgent(run.cfg, activityRun.params.owner)
   const agentDir = ensureDir(join(run.sessionDir, agent.name))
   const spec = call.outputType as unknown as TEnvelopeSpec<TEnvelopeBase>
-  const gates = call.gates ?? []
 
   // What this agent is being asked to reason about, as paths. A caller that
   // already knows (a reviewer handed the builder's envelope) says so; otherwise
@@ -355,7 +327,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
      * nobody reads, and the alternative is a conditional here that knows
      * which agent is which.
      */
-    step_catalogue: stepCatalogue(run.cfg.agents),
+    step_catalogue: stepCatalogue(run.cfg.activities),
     /*
      * The dial, in words, to every agent.
      *
@@ -378,7 +350,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    */
   const userText = `${render(agent.prompt_engineering.user, variables)}${steeringBlock(
     readSteering(run.contextHandoffDir),
-  )}`
+  )}${feedbackBlock(call.feedback ?? [])}`
   savePrompt(join(agentDir, 'prompts'), 'system.md', systemText)
   savePrompt(join(agentDir, 'prompts'), 'user.md', userText)
 
@@ -496,12 +468,20 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     return result
   }
 
-  // What the tree looked like before this agent got its hands on it. Every send
-  // in this activityRun — first prompt, JSON retries, gate corrections — is measured
-  // against this one baseline.
+  // What the tree looked like before this agent got its hands on it. Every
+  // send in this activityRun — first prompt, JSON retries — is measured against
+  // this one baseline.
   const treeBefore = snapshotTree(run.repoRoot)
+  /*
+   * And where history was, so a commit this Activity was not asked to make is
+   * caught. No prompt asks an agent to commit, but a prompt is advice:
+   * without this, `--commit false` would stop the engine while leaving an
+   * agent free to commit with `bash`, and the run would be reported as having
+   * made no commits while carrying one.
+   */
+  const headBefore = isRepo() ? rev('HEAD') : ''
 
-  const first = await parseWithRetries(
+  const parsed = parseWithRetries(
     run,
     activityRun,
     spec,
@@ -509,38 +489,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     send,
   )
 
-  // claim gates — violations flow back into the SAME session as corrections
-  const settleGates = async (
-    parsed: TParsed,
-    round: number,
-  ): Promise<TParsed> => {
-    const violations = runGates(run, activityRun, gates, parsed.envelope, round)
-    if (violations.length === 0) {
-      return parsed
-    }
-    if (round > activityRun.params.retries) {
-      throw new GateFailure(
-        `${agent.name} failed gates after ${round} attempt(s):\n- ` +
-          violations.join('\n- '),
-      )
-    }
-    run.updateActivityRun(activityRun.activity_run_id, { attempt: round })
-    run.console.retry(
-      agent.name,
-      round,
-      activityRun.params.retries,
-      `${violations.length} gate violation(s)`,
-    )
-    const corrected = await send(
-      `Your previous response failed validation:\n- ${violations.join('\n- ')}` +
-        '\n\nFix these problems, then re-emit ONLY your Report JSON.',
-    )
-    return settleGates(
-      await parseWithRetries(run, activityRun, spec, corrected, send),
-      round + 1,
-    )
-  }
-  const { envelope } = await settleGates(first, 1)
+  const { envelope } = await parsed
 
   // Permission is checked after every send is done, and before the envelope is
   // accepted: an agent does not get to report success on an activity run in which it
@@ -549,7 +498,11 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     enforcePermissions(
       run,
       agent,
-      treeBefore,
+      {
+        tree: treeBefore,
+        head: headBefore,
+        committing: call.committing === true,
+      },
       /*
        * Resolved from the roster rather than carried: a cohort is Activity
        * names, and what enforcement needs is what those Activities declared.

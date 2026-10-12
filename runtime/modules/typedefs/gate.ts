@@ -44,14 +44,33 @@ export const reportPassed = (report: TGateReport): boolean =>
   violationsOf(report).length === 0
 
 /**
- * A gate: `gate(envelope, run) -> TGateReport`.
+ * A gate: `gate(envelope, run, changedPaths) -> TGateReport`.
  *
  * `name` is carried on the record rather than read off the function, because
  * the db stores it and a minified or wrapped function has no useful name.
+ *
+ * The signature widened when the repository's checks became a gate. Every
+ * other gate is a pure predicate over an envelope and ignores the rest;
+ * `checks` runs commands, and a command needs to know which repository and
+ * which paths it is being run about. One signature, because two kinds of
+ * gate would mean two registries and two places to declare one.
  */
 export type TGate = Readonly<{
   name: string
-  check: (envelope: TEnvelopeBase, run: TRun) => TGateReport
+  check: (
+    envelope: TEnvelopeBase,
+    run: TRun,
+    changedPaths: readonly string[],
+  ) => TGateReport
+  /**
+   * Whether this gate may only be judged once nothing else is writing.
+   *
+   * A pure predicate over an envelope can be evaluated the moment the
+   * envelope exists. A gate that reads the working tree cannot: inside a
+   * concurrent Stage a sibling may still be writing to it, so this one waits
+   * for the Stage boundary.
+   */
+  readsTree?: boolean
 }>
 
 /** One agent invocation: prompt in, typed envelope out, gates verified. */
@@ -71,7 +90,23 @@ export type TAgentCall<TEnvelope extends TEnvelopeBase = TEnvelopeBase> =
     upstream?: readonly TUpstream[]
     /** agents running alongside this one, for attributing writes by path */
     cohort?: readonly string[]
-    gates?: readonly TGate[]
+    /**
+     * What a gate said about this Activity's last attempt.
+     *
+     * Gates are judged by the driver now, not inside the call, because a
+     * failed gate re-runs the Activity as its own Activity Run rather than
+     * correcting it in place. The violations travel here so the second
+     * attempt knows what the first got wrong.
+     */
+    feedback?: readonly string[]
+    /**
+     * Whether this Activity is going to have its change committed.
+     *
+     * Enforcement needs it: a moved `HEAD` is a breach when the Activity was
+     * not committing, and "was not committing" is the EFFECTIVE value —
+     * under `--commit false` that includes Activities declaring `commit: true`.
+     */
+    committing?: boolean
     /**
      * The paths this call is about, for `routing.skills`.
      *

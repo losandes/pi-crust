@@ -6,7 +6,10 @@ import {
   activityConfigSchema,
   activityNamed,
   activityPatchFileSchema,
+  DEFAULT_ATTEMPTS,
   mergeActivities,
+  PLANNER_NAMES,
+  plannerFaults,
 } from './activity'
 
 /**
@@ -322,5 +325,54 @@ test(
 
     // then
     expect(actual.success).toBe(true)
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::activityConfigSchema',
+    'when an entry says nothing about the work half',
+    'it should default to two attempts, no gates, no commit and the generic envelope',
+  ].join(', '),
+  () => {
+    /*
+     * given — two, including the first, because the failure modes a budget
+     * governs are correlated: one bad input expresses itself as a gate
+     * failure, then a revision, then a regression.
+     */
+    const given = {
+      name: 'spike',
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+    }
+
+    // when
+    const actual = activityConfigSchema.parse(given)
+
+    // then
+    expect(actual.attempts).toEqual(DEFAULT_ATTEMPTS)
+    expect(actual.attempts).toEqual(2)
+    expect(actual.commit).toEqual(false)
+    expect(actual.gates).toEqual([])
+    expect(actual.output).toEqual('genericOutput')
+    expect(actual.input).toEqual('upstream')
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::plannerFaults',
+    'when the Planners are exactly the set the engine knows',
+    'it should find nothing wrong, which is what lets a team tune them',
+  ].join(', '),
+  () => {
+    // given
+    const given = [{ name: 'operator' }, { name: 'triage' }]
+
+    // when
+    const actual = plannerFaults(given)
+
+    // then
+    expect(actual).toEqual([])
+    expect(PLANNER_NAMES).toEqual(['operator', 'triage'])
   },
 )

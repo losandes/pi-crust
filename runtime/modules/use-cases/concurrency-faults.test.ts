@@ -1,10 +1,12 @@
 import { expect, test } from 'bun:test'
-import type { TAgentConfig } from '../typedefs/config'
+import type { TActivityConfig } from '../typedefs/activity'
 import type { TLifecycleConfig } from '../typedefs/lifecycle'
 import { concurrencyFaults, patternsOverlap } from './concurrency-faults'
 
-const agent = (name: string, writes: readonly string[]): TAgentConfig =>
-  ({ name, writes }) as unknown as TAgentConfig
+const activityWriting = (
+  name: string,
+  writes: readonly string[],
+): TActivityConfig => ({ name, writes }) as unknown as TActivityConfig
 
 const lifecycle = (
   strategy: 'serial' | 'concurrent',
@@ -14,9 +16,6 @@ const lifecycle = (
   description: '',
   stages: [{ name: 'accept', strategy, activities: [...activities] }],
 })
-
-/** Every activity is performed by the agent of the same name, here. */
-const performerOf = (activity: string): string => activity
 
 test(
   [
@@ -32,10 +31,9 @@ test(
     const actual = concurrencyFaults(
       given,
       [
-        agent('review', ['{handoff}/review.md']),
-        agent('code-review', ['{handoff}/code_review.md']),
+        activityWriting('review', ['{handoff}/review.md']),
+        activityWriting('code-review', ['{handoff}/code_review.md']),
       ],
-      performerOf,
     )
 
     // then
@@ -57,10 +55,9 @@ test(
     const actual = concurrencyFaults(
       given,
       [
-        agent('review', ['{handoff}/plan.md']),
-        agent('code-review', ['{handoff}/plan.md']),
+        activityWriting('review', ['{handoff}/plan.md']),
+        activityWriting('code-review', ['{handoff}/plan.md']),
       ],
-      performerOf,
     )
 
     // then
@@ -83,8 +80,7 @@ test(
     // when
     const actual = concurrencyFaults(
       given,
-      [agent('build', ['*']), agent('review', ['{handoff}/review.md'])],
-      performerOf,
+      [activityWriting('build', ['*']), activityWriting('review', ['{handoff}/review.md'])],
     )
 
     // then
@@ -105,8 +101,7 @@ test(
     // when
     const actual = concurrencyFaults(
       given,
-      [agent('build', ['*']), agent('review', ['*'])],
-      performerOf,
+      [activityWriting('build', ['*']), activityWriting('review', ['*'])],
     )
 
     // then

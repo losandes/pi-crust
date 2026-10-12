@@ -4,9 +4,20 @@ import { violationsOf } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'
 import { stepsValid } from './plan-gates'
 
-// stepsValid reads only the envelope; the run is in the signature for gates
-// that shell out, and is never touched here.
-const anyRun = {} as TRun
+/*
+ * The registry is the run's, because Activities are configuration: what
+ * exists is whatever `crust.activities.yaml` turned out to hold.
+ */
+const anyRun = {
+  cfg: {
+    activities: [
+      { name: 'identify' },
+      { name: 'conceptualize' },
+      { name: 'plan' },
+      { name: 'build' },
+    ],
+  },
+} as unknown as TRun
 
 const planOf = (steps: readonly unknown[]): TEnvelopeBase =>
   ({
@@ -25,14 +36,14 @@ test(
   ].join(' '),
   () => {
     // given
-    const envelope = planOf(['identify', 'plan', 'build', 'verify'])
+    const envelope = planOf(['identify', 'plan', 'build'])
 
     // when
-    const report = stepsValid.check(envelope, anyRun)
+    const report = stepsValid.check(envelope, anyRun, [])
 
     // then
     expect(violationsOf(report)).toEqual([])
-    expect(report.checks).toHaveLength(4)
+    expect(report.checks).toHaveLength(3)
   },
 )
 
@@ -47,12 +58,12 @@ test(
     const envelope = planOf(['identify', 'analyse', 'build'])
 
     // when
-    const report = stepsValid.check(envelope, anyRun)
+    const report = stepsValid.check(envelope, anyRun, [])
 
     // then
     const violations = violationsOf(report)
     expect(violations).toHaveLength(1)
-    expect(violations[0]).toContain('not a pi-crust step')
+    expect(violations[0]).toContain('not an Activity this repository offers')
     expect(violations[0]).toContain('conceptualize')
   },
 )
@@ -60,18 +71,18 @@ test(
 test(
   [
     'given use-cases/gates::stepsValid',
-    'when the plan contains another operator',
-    'it should refuse, because the second would replan the first chain',
+    'when the plan contains a Planner',
+    'it should refuse, because a Planner cannot plan a Planner',
   ].join(' '),
   () => {
     // given
     const envelope = planOf(['operator', 'build'])
 
     // when
-    const report = stepsValid.check(envelope, anyRun)
+    const report = stepsValid.check(envelope, anyRun, [])
 
     // then
-    expect(violationsOf(report)[0]).toContain('cannot plan an operator')
+    expect(violationsOf(report)[0]).toContain('cannot plan a ')
   },
 )
 
@@ -86,7 +97,7 @@ test(
     const envelope = planOf([])
 
     // when
-    const report = stepsValid.check(envelope, anyRun)
+    const report = stepsValid.check(envelope, anyRun, [])
 
     // then
     expect(violationsOf(report)[0]).toContain('no steps planned')
@@ -104,7 +115,7 @@ test(
     const envelope = planOf([7, { step: 'build' }])
 
     // when
-    const report = stepsValid.check(envelope, anyRun)
+    const report = stepsValid.check(envelope, anyRun, [])
 
     // then
     expect(violationsOf(report)[0]).toContain('no steps planned')

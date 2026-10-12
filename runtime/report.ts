@@ -27,7 +27,7 @@
  * can never disagree about which activityRuns are already done.
  */
 
-import { isStepName } from './modules/typedefs/step'
+import { isPlannerName } from './modules/typedefs/activity'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
@@ -120,7 +120,7 @@ const MARKS: Readonly<Record<string, string>> = {
 }
 
 const gateLines = (gate: TGateOutcome): readonly string[] => [
-  paint(`    gate ${gate.gate} failed (attempt ${gate.attempt})`, 'red'),
+  paint(`    gate ${gate.gate} failed`, 'red'),
   ...gate.violations.map((violation) => `      - ${violation}`),
 ]
 
@@ -134,7 +134,7 @@ const gateLines = (gate: TGateOutcome): readonly string[] => [
  */
 export const resumeCommand = (state: TRunState): string => {
   const workflow = (state.lifecycle.split(' + ').at(-1) || 'sdlc').trim()
-  const folder = isStepName(workflow) ? 'stages' : 'lifecycles'
+  const folder = isPlannerName(workflow) ? 'stages' : 'lifecycles'
   const request = state.request.replaceAll('"', '\\"').split('\n')[0] ?? ''
   return (
     `bun .pi-crust/${folder}/${workflow}.ts --run-id ${state.run_id} --resume ` +

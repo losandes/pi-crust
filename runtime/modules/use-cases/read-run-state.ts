@@ -50,7 +50,6 @@ const asArray = <TItem>(json: string | null): readonly TItem[] => {
 const gateOutcome = (row: TTraceGateRow, activityRunName: string): TGateOutcome => ({
   gate: row.gate,
   activityRun: activityRunName,
-  attempt: row.attempt,
   passed: row.passed === 1,
   violations: asArray<string>(row.violations_json),
   checks: asArray<TGateCheck>(row.checks_json),
@@ -75,7 +74,6 @@ const activityRunState = (row: TTraceActivityRunRow, rows: TTraceRows): TActivit
   owner: row.owner,
   description: row.description ?? '',
   status: row.status,
-  attempt: row.attempt ?? 0,
   error: row.error ?? undefined,
   started_at: row.started_at ?? undefined,
   ended_at: row.ended_at ?? undefined,
@@ -105,7 +103,6 @@ const envelopeRecords = (
     agent: row.agent,
     output_type: row.output_type,
     valid: row.valid === 1,
-    attempt: row.attempt,
     payload: asObject(row.payload_json),
   }))
 

@@ -25,7 +25,6 @@ import { join } from 'node:path'
 import { monotonicMs, nowIso } from '../data/clock'
 import { ensureDir, writeText } from '../data/files'
 import { operatorEnv } from '../data/operator-env'
-import type { TVerifyOutput } from '../typedefs/envelope'
 import type {
   TQualityCheckResult,
   TQualityCheckSpec,
@@ -60,20 +59,25 @@ const checkDir = (run: TRun, name: string): string => {
   )
 }
 
-export const runCheck = (
+/**
+ * One command, run. No run, no trace, no session.
+ *
+ * Split out so the same commands can be run from `just crust verify`, which
+ * has none of those things and wants only the exit status. The `checks` gate
+ * wraps this with the trace events a run expects.
+ */
+export const runCommand = (
   spec: TQualityCheckSpec,
-  run: TRun,
+  params: Readonly<{ repoRoot: string; outputArtifact: string; note?: (line: string) => void }>,
 ): TQualityCheckResult => {
-  const activityRun = run.activityRuns().at(-1)
-  const outputArtifact = join(checkDir(run, spec.name), 'command.log')
+  const note = params.note ?? (() => undefined)
   const command = quoteArgv(spec.argv)
   const [binary, ...args] = spec.argv
 
-  run.console.note(`check ${spec.name}: ${command}`)
-  const startedAt = nowIso()
+  note(`check ${spec.name}: ${command}`)
   const clock = monotonicMs()
   const completed = spawnSync(binary ?? '', args, {
-    cwd: spec.cwd === '' ? run.repoRoot : join(run.repoRoot, spec.cwd),
+    cwd: spec.cwd === '' ? params.repoRoot : join(params.repoRoot, spec.cwd),
     env: { ...operatorEnv() },
     encoding: 'utf8',
     timeout: spec.timeoutSeconds * 1000,
@@ -96,31 +100,16 @@ export const runCheck = (
 
   const duration = (monotonicMs() - clock) / 1000
   writeText(
-    outputArtifact,
+    params.outputArtifact,
     `$ ${command}\nexit: ${returncode}\nduration_seconds: ${duration.toFixed(3)}\n` +
       `\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}\n`,
   )
   const passed = returncode === 0
-  run.tracer.event({
-    run_id: run.runId,
-    activity_run_id: activityRun?.activity_run_id ?? '',
-    type: 'tool_call',
-    name: `quality:${spec.name}`,
-    payload: {
-      area: spec.area,
-      operation: spec.operation,
-      command,
-      returncode,
-      passed,
-      output_artifact: outputArtifact,
-    },
-    started_at: startedAt,
-    ended_at: nowIso(),
-  })
-  run.console.note(
+  note(
     `quality ${spec.name}: ${passed ? 'passed' : 'failed'} ` +
       `(exit ${returncode}, ${duration.toFixed(1)}s)`,
   )
+
   return {
     name: spec.name,
     area: spec.area,
@@ -129,9 +118,40 @@ export const runCheck = (
     returncode,
     passed,
     durationSeconds: duration,
-    outputArtifact,
+    outputArtifact: params.outputArtifact,
     outputTail: `${stdout}${stderr}`.slice(-TAIL_CHARS),
   }
+}
+
+export const runCheck = (
+  spec: TQualityCheckSpec,
+  run: TRun,
+): TQualityCheckResult => {
+  const activityRun = run.activityRuns().at(-1)
+  const startedAt = nowIso()
+  const result = runCommand(spec, {
+    repoRoot: run.repoRoot,
+    outputArtifact: join(checkDir(run, spec.name), 'command.log'),
+    note: (line) => run.console.note(line),
+  })
+  run.tracer.event({
+    run_id: run.runId,
+    activity_run_id: activityRun?.activity_run_id ?? '',
+    type: 'tool_call',
+    name: `quality:${spec.name}`,
+    payload: {
+      area: spec.area,
+      operation: spec.operation,
+      command: result.command,
+      returncode: result.returncode,
+      passed: result.passed,
+      output_artifact: result.outputArtifact,
+    },
+    started_at: startedAt,
+    ended_at: nowIso(),
+  })
+
+  return result
 }
 
 /** A failing check, in the words of the command that failed. */
@@ -180,45 +200,4 @@ export const runVerification = (
     failures: checks.filter((check) => !check.passed).map(failureOf),
     artifacts: checks.map((check) => check.outputArtifact),
   }
-}
-
-/**
- * The result as an envelope, with a summary that tells the three outcomes apart.
- *
- * Agents hand each other typed envelopes and this returns one, so a failing
- * check reaches the next agent through exactly the door an agent's own report
- * would use. Only the step knows the difference.
- */
-export const verificationEnvelope = (
-  result: TQualityResult,
-  changedCount: number,
-): TVerifyOutput => {
-  const base: TVerifyOutput = {
-    status: result.passed ? 'success' : 'fail',
-    summary: result.passed
-      ? `verification: all ${result.checks.length} check(s) passed`
-      : `verification: ${result.failures.length} of ${result.checks.length} check(s) failed`,
-    artifacts: [...result.artifacts],
-    notes_for_next_agent: result.passed
-      ? ''
-      : 'Fix every failure below. The output is verbatim from the command — ' +
-        'trust it over any summary.',
-    passed: result.passed,
-    failures: [...result.failures],
-  }
-  if (changedCount === 0) {
-    return {
-      ...base,
-      summary: 'verification: nothing changed, no checks apply',
-    }
-  }
-  if (result.checks.length === 0) {
-    return {
-      ...base,
-      summary:
-        `verification: ${changedCount} path(s) changed but no ` +
-        'routing.checks matched them',
-    }
-  }
-  return base
 }

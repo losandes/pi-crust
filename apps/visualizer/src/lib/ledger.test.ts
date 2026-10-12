@@ -12,7 +12,6 @@ const envelope = (
   output_type: 'ContextEnvelope',
   payload_json: JSON.stringify(over.payload),
   valid: 1,
-  attempt: 0,
   created_at: null,
   ...over,
 })
@@ -177,7 +176,7 @@ test(
 test(
   [
     'given lib/ledger::activityRunLedger',
-    'when a activityRun was retried and only the later attempt validated',
+    'when a activityRun had its JSON corrected and only the later one validated',
     'it should read the valid envelope rather than the rejected one',
   ].join(', '),
   () => {
@@ -187,13 +186,11 @@ test(
       envelope({
         envelope_id: 'bad',
         valid: 0,
-        attempt: 0,
         payload: { decisions: [{ decision: 'rejected', rationale: '' }] },
       }),
       envelope({
         envelope_id: 'good',
         valid: 1,
-        attempt: 1,
         payload: { decisions: [{ decision: 'accepted', rationale: 'evidence' }] },
       }),
     ]

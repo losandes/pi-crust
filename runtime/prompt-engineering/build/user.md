@@ -44,7 +44,7 @@ You are revising. Every item in `blocking` gets exactly one of two answers, and 
 
 Two things you do not get to decide:
 
-- A finding a declared check decides — anything `verify` runs — may not be disputed. Fix it. Exit status is not a matter of opinion.
+- A finding a declared check decides — anything the `checks` gate runs — may not be disputed. Fix it. Exit status is not a matter of opinion.
 - Whether the argument has gone on long enough. Do not re-argue a finding you already disputed with the same evidence: the harness counts repeats and ends the loop, so saying it louder costs a round and changes nothing.
 
 ## When this activity run is a POC

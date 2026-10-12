@@ -8,65 +8,23 @@
  *
  * Every step is runnable on its own (`bun .pi-crust/stages/<step>.ts`), and
  * `compose.ts` runs any ordered subset of them.
+ *
+ * A step's NAME is an Activity's name, and Activities are configuration:
+ * there is no union of them here any more, and no registry in TypeScript for
+ * a name to be checked against. "Is this a real Activity" is answered at
+ * load, by the loader, against `crust.activities.yaml` / which is the price
+ * of a team being able to add one.
  */
 
 import type { TEnvelopeBase } from './envelope'
+import type { TGate } from './gate'
 import type { TActivityRunParams } from './activity-run'
 import type { TActivityRunHandle, TRun } from './run'
-
-export const STEP_NAMES = [
-  'prompt',
-  'scout',
-  /*
-   * The research disciplines. Each establishes what is TRUE in its own
-   * subject and decides nothing: they exist because "find out" and "decide"
-   * are different jobs, and a stage asked to do both will quietly do the
-   * second while appearing to do the first.
-   */
-  'technical-research',
-  'ux-research',
-  'domain-research',
-  'security-research',
-  'data-research',
-  /* Turns validated needs into something an engineer can build without
-   * inventing UX decisions. Not research: it decides. */
-  'ux-design',
-  /* Chooses the chain itself, and performs none of it. */
-  'operator',
-  /*
-   * The same choice, handed back instead of executed.
-   *
-   * Separate from `operator` rather than a flag on it, because what a step
-   * DOES is how this system is read: a reader looking at a trace can see
-   * that nothing after this one was going to run, without knowing which
-   * flags the run was started with.
-   */
-  'triage',
-  'identify',
-  'diagnose',
-  'conceptualize',
-  'plan',
-  'design',
-  'poc',
-  'test',
-  'build',
-  'verify',
-  'review',
-  'code-review',
-  'revise',
-  'commit',
-  'document',
-] as const
-
-export type TStepName = (typeof STEP_NAMES)[number]
-
-export const isStepName = (name: string): name is TStepName =>
-  (STEP_NAMES as readonly string[]).includes(name)
 
 /** What a step is handed. Folded forward by `runSteps`, never mutated. */
 /** One upstream result, with the Activity that produced it. */
 export type TUpstream = Readonly<{
-  step: TStepName
+  step: string
   envelope: TEnvelopeBase
 }>
 
@@ -82,7 +40,7 @@ export type TStepContext = Readonly<{
    * cannot answer "is this a verdict", and a consumer that asks it gets a
    * confident lie. The driver knows; it now says.
    */
-  previousStep: TStepName | undefined
+  previousStep: string | undefined
   /**
    * Every Activity the preceding Unit produced, with its name.
    *
@@ -120,11 +78,20 @@ export type TStepContext = Readonly<{
    * Keeping the outcomes lets a caller exclude exactly what it is re-asking.
    */
   outcomes: readonly TStepOutcome[]
+  /**
+   * What a gate said about this Activity's LAST attempt, fed back to it.
+   *
+   * Empty on a first attempt. A gate failure re-runs the Activity rather
+   * than correcting it in place, so the violations have to travel with the
+   * context / otherwise the second attempt is the first attempt again, at
+   * the same price and with the same result.
+   */
+  feedback: readonly string[]
 }>
 
 /** One step's verdict on its own criterion. */
 export type TStepOutcome = Readonly<{
-  step: TStepName
+  step: string
   accepted: boolean
 }>
 
@@ -136,7 +103,7 @@ export const allAccepted = (outcomes: readonly TStepOutcome[]): boolean =>
  * Every step held EXCEPT the named ones.
  *
  * What the revise loop needs: the verdicts it is about to re-ask are set
- * aside, and everything else — a red `verify`, say — stays decisive.
+ * aside, and everything else — a failed `checks` gate, say — stays decisive.
  */
 export const acceptedExcluding = (
   outcomes: readonly TStepOutcome[],
@@ -151,49 +118,61 @@ export type TStepResult = Readonly<{
   /**
    * Did THIS step's own criterion hold?
    *
-   * Not the same question as "did the activityRun run". A verify activityRun that ran the
-   * suite did its job even when the suite came back red: the activityRun succeeds and
-   * `accepted` is false, which is what `finish(accepted:)` settles.
+   * Not the same question as "did the activityRun run". A review that ruled
+   * against the work did its job: the Activity Run succeeds and `accepted`
+   * is false, which is what `finish(accepted:)` settles.
    */
   accepted: boolean
 }>
 
 export type TStep = Readonly<{
-  name: TStepName
+  /** the Activity, as a Lifecycle names it */
+  name: string
+  /** this occurrence of it: `build`, `build_2` — what a budget is kept per */
+  instance: string
   params: TActivityRunParams
   /** agent names this step needs, checked before anything spawns */
   requires: readonly string[]
+  /**
+   * What this Activity's envelope must survive, as the registry declared it.
+   *
+   * Carried on the step rather than applied inside the agent call, because
+   * the driver is what decides WHEN a gate is judged: a gate that reads the
+   * working tree waits for the Stage boundary, where a pure one does not.
+   */
+  gates: readonly TGate[]
+  /** Activity Runs of this instance the run may spend, the first included */
+  attempts: number
+  /** commit this Activity's own change once its gates have passed */
+  commit: boolean
   execute: (ctx: TStepContext, handle: TActivityRunHandle) => Promise<TStepResult>
   replay: (ctx: TStepContext) => Promise<TStepResult>
 }>
 
 /** Per-call-site knobs. `instance` disambiguates a repeated step. */
 export type TStepOptions = Readonly<{
-  /** `prompt`: which agent answers */
-  agent: string
-  /** `verify`, `review`, `code-review`, `document`: the ref or range judged; '' is the working tree */
+  /** the ref or range a judging Activity rules on; '' is the working tree */
   base: string
-  /**
-   * `commit`: how the work is handed over — 'branch', 'patch', or 'commit'.
-   *
-   * 'branch' by default, because an unattended run must not sign as the
-   * developer, and because the signing prompt is the thing most likely to
-   * kill a run at its last step with the work already finished.
-   */
-  deliver: string
   /** 1 for the first occurrence; 2+ suffixes the activityRun name (`build_2`) */
   instance: number
+  /**
+   * Whether committing is permitted at all in this run.
+   *
+   * `--commit false` subtracts; there is no `--commit true`. A flag that
+   * granted a permission the registry withheld would make a run behave in a
+   * way nobody reading the registry could predict.
+   */
+  committing: boolean
 }>
 
 export const DEFAULT_STEP_OPTIONS: TStepOptions = {
-  agent: 'builder',
   // '' and not 'main': a step must be able to tell "no --base was given" from
   // "--base main was given", and only `document` falls back to main.
   base: '',
-  deliver: 'branch',
   instance: 1,
+  committing: true,
 }
 
 /** `build`, `build_2`, `build_3` … so a composed chain can repeat a step. */
-export const stepActivityRunName = (name: TStepName, instance: number): string =>
+export const stepActivityRunName = (name: string, instance: number): string =>
   instance <= 1 ? name : `${name}_${instance}`

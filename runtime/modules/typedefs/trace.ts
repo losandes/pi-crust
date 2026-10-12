@@ -87,13 +87,11 @@ export type TTracer = Readonly<{
     outputType: string,
     payloadJson: string,
     valid: boolean,
-    attempt: number,
   ) => void
   gateRow: (
     activityRun: TActivityRun,
     gate: string,
     report: TGateReport,
-    attempt: number,
   ) => void
   agentSessionRow: (
     runId: string,

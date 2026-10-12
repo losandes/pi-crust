@@ -19,7 +19,7 @@
  * can reproduce.
  */
 
-import type { TAgentConfig } from '../typedefs/config'
+import type { TActivityConfig } from '../typedefs/activity'
 import type {
   TLifecycleConfig,
   TLifecycleFault,
@@ -101,9 +101,7 @@ const collisions = (
  */
 export const concurrencyFaults = (
   lifecycle: TLifecycleConfig,
-  agents: readonly TAgentConfig[],
-  /** Activity name to the agent that performs it */
-  performerOf: (activity: string) => string | undefined,
+  activities: readonly TActivityConfig[],
 ): readonly TLifecycleFault[] =>
   lifecycle.stages
     .filter((stage) => stage.strategy === 'concurrent')
@@ -111,11 +109,18 @@ export const concurrencyFaults = (
       collisions(
         lifecycle.name,
         stage.name,
-        stage.activities.flatMap((activity) => {
-          const performer = performerOf(activity)
-          const agent = agents.find((one) => one.name === performer)
+        stage.activities.flatMap((name) => {
+          /*
+           * The Activity's own declaration, with no performer to look up:
+           * an Activity IS an agent, so "what may this write" is a question
+           * about the entry a Lifecycle named rather than about a second
+           * registry that had to agree with it.
+           */
+          const activity = activities.find((one) => one.name === name)
 
-          return agent === undefined ? [] : [{ activity, writes: agent.writes }]
+          return activity === undefined
+            ? []
+            : [{ activity: name, writes: activity.writes ?? ['*'] }]
         }),
       ),
     )

@@ -1,18 +1,14 @@
 import { expect, test } from 'bun:test'
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import {
-  LIFECYCLES,
   OPERATORS,
-  STEP_CHOICES,
-  isNamedLifecycle,
   justArgv,
   resumeArgvFor,
   runArgv,
-  scriptFor,
   shellLine,
 } from './compose-request'
 
-const SDLC_STEPS = LIFECYCLES[0]?.steps ?? []
+const SDLC_STEPS = ['plan', 'test', 'build', 'review']
 
 const request = (over: Partial<Parameters<typeof runArgv>[0]> = {}) =>
   runArgv({
@@ -24,48 +20,11 @@ const request = (over: Partial<Parameters<typeof runArgv>[0]> = {}) =>
     // a request where nothing was chosen, and a literal here would start
     // emitting --trust-level the day the default moves.
     trustLevel: TRUST_DEFAULT,
-    delivery: 'branch',
+    commit: true,
     approveAfter: '',
     stream: false,
     ...over,
   })
-
-test(
-  [
-    'given use-cases/compose-request::scriptFor',
-    'when the chosen steps are exactly a named lifecycle',
-    'it should run that lifecycle, so the trace records the name not a chain',
-  ].join(' '),
-  () => {
-    // given
-    const steps = SDLC_STEPS
-
-    // when
-    const script = scriptFor(steps)
-
-    // then
-    expect(script).toBe('.pi-crust/lifecycles/sdlc.ts')
-    expect(isNamedLifecycle(steps)).toBe(true)
-  },
-)
-
-test(
-  [
-    'given use-cases/compose-request::scriptFor',
-    'when the steps match a lifecycle but in a different order',
-    'it should compose, because order is what a chain MEANS',
-  ].join(' '),
-  () => {
-    // given
-    const reversed = SDLC_STEPS.toReversed()
-
-    // when
-    const script = scriptFor(reversed)
-
-    // then
-    expect(script).toBe('.pi-crust/lifecycles/compose.ts')
-  },
-)
 
 test(
   [
@@ -83,8 +42,10 @@ test(
     // then
     expect(argv).toEqual([
       'bun',
-      '.pi-crust/lifecycles/sdlc.ts',
+      '.pi-crust/lifecycles/compose.ts',
       'add a /health endpoint',
+      '--lifecycle',
+      'sdlc',
     ])
   },
 )
@@ -97,14 +58,14 @@ test(
   ].join(' '),
   () => {
     // given
-    const steps = ['build', 'plan', 'verify']
+    const steps = ['build', 'plan', 'test']
 
-    // when
-    const argv = request({ steps })
+    // when — a hand-picked list is not a Lifecycle, named or otherwise
+    const argv = request({ steps, lifecycle: '' })
 
     // then
     expect(argv).toContain('.pi-crust/lifecycles/compose.ts')
-    expect(argv[argv.indexOf('--steps') + 1]).toBe('build,plan,verify')
+    expect(argv[argv.indexOf('--steps') + 1]).toBe('build,plan,test')
   },
 )
 
@@ -129,14 +90,14 @@ test(
 test(
   [
     'given use-cases/compose-request::runArgv',
-    'when trust, delivery, an approval point and streaming are all set',
+    'when trust, committing, an approval point and streaming are all set',
     'it should carry every one of them',
   ].join(' '),
   () => {
     // given
     const answers = {
       trustLevel: 100,
-      delivery: 'patch' as const,
+      commit: false,
       approveAfter: 'plan',
       stream: true,
     }
@@ -146,7 +107,7 @@ test(
 
     // then
     expect(argv.join(' ')).toContain('--trust-level 100')
-    expect(argv.join(' ')).toContain('--deliver patch')
+    expect(argv.join(' ')).toContain('--commit false')
     expect(argv.join(' ')).toContain('--approve-after plan')
     expect(argv).toContain('--stream')
   },
@@ -362,20 +323,18 @@ test(
 
 test(
   [
-    'given use-cases/compose-request::STEP_CHOICES',
-    'when a person is offered the steps to pick from',
-    'it should not offer an operator among them, as that answers the whole question',
+    'given use-cases/compose-request::OPERATORS',
+    'when a person is offered something to pick',
+    'it should name the Planner separately, as it answers the whole question',
   ].join(' '),
   () => {
     // given
-    const offered = STEP_CHOICES
+    const given = OPERATORS
 
     // when
-    const names = OPERATORS.map((operator) => operator.name)
+    const names = given.map((operator) => operator.name)
 
     // then
     expect(names).toContain('operator')
-    expect(offered).not.toContain('operator')
-    expect(offered).toContain('plan')
   },
 )

@@ -97,11 +97,15 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 /**
  * The envelope a activityRun produced, preferring the one that validated.
  *
- * A retried activityRun writes one row per attempt, and an invalid attempt is a
- * record of the correction loop rather than of what the step held. Latest
- * valid wins; if none validated, the latest row is still better than nothing,
- * because a reader asking "what did this step decide" is better served by a
- * rejected answer than by a blank panel.
+ * A activityRun that had its JSON corrected writes one row per correction, and
+ * an invalid one is a record of that loop rather than of what the step held.
+ * The latest valid wins; if none validated, the latest row is still better
+ * than nothing, because a reader asking "what did this step decide" is
+ * better served by a rejected answer than by a blank panel.
+ *
+ * Rows arrive in insertion order, so the last of them is the latest. There
+ * is no `attempt` column to sort by any more: a re-executed Activity is its
+ * own Activity Run, with its own id, and its envelopes hang off that.
  */
 const envelopeFor = (
   activityRunId: string,
@@ -110,13 +114,7 @@ const envelopeFor = (
   const mine = envelopes.filter((row) => row.activity_run_id === activityRunId)
   const valid = mine.filter((row) => row.valid === 1)
   const pool = valid.length > 0 ? valid : mine
-  return pool.reduce<Envelope | undefined>(
-    (best, row) =>
-      best === undefined || (row.attempt ?? 0) >= (best.attempt ?? 0)
-        ? row
-        : best,
-    undefined,
-  )
+  return pool.at(-1)
 }
 
 /** Questions this activity-run's run-time events say were answered by the step itself. */

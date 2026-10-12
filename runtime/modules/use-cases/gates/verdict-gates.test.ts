@@ -32,7 +32,7 @@ test(
     })
 
     // when
-    const actual = verdictConsistent.check(envelope, anyRun)
+    const actual = verdictConsistent.check(envelope, anyRun, [])
 
     // then
     expect(reportPassed(actual)).toEqual(true)
@@ -59,7 +59,7 @@ test(
     })
 
     // when
-    const actual = verdictConsistent.check(envelope, anyRun)
+    const actual = verdictConsistent.check(envelope, anyRun, [])
 
     // then
     expect(violationsOf(actual)).toEqual([
@@ -83,7 +83,7 @@ test(
     })
 
     // when
-    const actual = verdictConsistent.check(envelope, anyRun)
+    const actual = verdictConsistent.check(envelope, anyRun, [])
 
     // then
     expect(violationsOf(actual)).toEqual([
@@ -103,7 +103,7 @@ test(
     const envelope = review({ approved: false, blocking: [], findings: [] })
 
     // when
-    const actual = verdictConsistent.check(envelope, anyRun)
+    const actual = verdictConsistent.check(envelope, anyRun, [])
 
     // then
     expect(violationsOf(actual)).toEqual([

@@ -65,7 +65,7 @@ documentOutputSchema = envelopeBaseSchema.extend({
 
 There is no test output type: running the repository's checks is a `kind: 'code'` activity run, and its `TQualityResult` reaches the next agent as a `VerifyOutput` built by `verificationEnvelope`.
 
-Two of these are adapters rather than agent reports — code shaped as an envelope so an agent can be handed a deterministic result through the same door: `verifyOutput` (a lint/test block's result) and `changesOutput` (a captured `git diff`, from `changesAsEnvelope`). The consuming agent cannot tell the difference, which is the point.
+One of these is an adapter rather than an agent report — code shaped as an envelope so an agent can be handed a deterministic result through the same door: `changesOutput`, a captured `git diff` from `changesAsEnvelope`, which is what an Activity declaring `input: changes` is handed. The consuming agent cannot tell the difference, which is the point.
 
 The envelope is a **manifest of claims**. Gates verify those claims after the fact — declared artifacts exist and are non-empty, declared changes appear in the diff, declared tests actually pass. See `cookbooks/update_modules.md`.
 
@@ -85,7 +85,7 @@ const plan = await activity run(planParams, (ph) =>
 
 The user prompt asks for the shape; the schema enforces it. They always travel as a pair, which is what lets one agent serve many calls — same system prompt, different user prompt + output type per call site. Output types live in code, never in `crust.config.yaml`.
 
-**Parse failure is not a restart.** If the response doesn't parse or doesn't validate, the harness re-prompts the **same session** with a correction naming the required fields — bounded by `JSON_FIX_ATTEMPTS` in `execute-agent.ts` (2). Gate violations use the identical mechanism, bounded instead by the activity run's `retries`. A cold restart would throw away the context that produced the near-miss.
+**Parse failure is not a restart.** If the response doesn't parse or doesn't validate, the harness re-prompts the **same session** with a correction naming the required fields — bounded by `JSON_FIX_ATTEMPTS` in `execute-agent.ts` (2). Gate violations do NOT: a failed gate re-runs the Activity as its own Activity Run, with the violations in its prompt, bounded by the Activity's `attempts`. A cold restart would throw away the context that produced the near-miss.
 
 In v1 there is no separate continue call to make: `data/pi-agent.ts` passes `--session-id`, which pi treats as create-or-continue, so running an agent and continuing it are the same call with the same id. Before parsing, the harness also tolerates a fenced `json` code block or prose wrapped around the object — but the prompt still asks for bare JSON, and every failed attempt is persisted as an invalid envelope row.
 
@@ -196,6 +196,6 @@ This matters because of what used to happen when it did not. A activity run whos
 Two rules hold this together:
 
 - **A skipped activity run opens no new activity run row.** The trace already holds the successful one; a second would corrupt the completed set the next resume reads, and the reporter and resume would start to disagree.
-- **A code activity run's verdict is not its status.** A verify activity run that ran a red suite succeeded at its job. Replay reads `{passed, failures}` from what the activity run recorded, never from `status === 'success'`.
+- **An Activity Run's verdict is not its status.** A review that ruled against the work succeeded at its job; what failed is the work. `finish(accepted:)` settles the run, and the Activity Run stays green.
 
 A missing `envelope.json` on a replayed agent activity run is an error naming the exact path and both ways forward — drop `--resume`, or run that step alone. It is never a silent `previous: undefined`.

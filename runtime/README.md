@@ -51,30 +51,32 @@ The skill carries cookbooks for each of those and will load only the one your re
 ```bash
 just crust demo                                  # two cheap read-only runs, end to end
 just crust plan "add a /health endpoint"         # one step, by name
-just crust sdlc "add a /health endpoint"         # plan → test → build → verify → review → code-review
+just crust sdlc "add a /health endpoint"         # identify → … → build → review → code-review
 just crust report                                # where the last run got to
 just crust sessions                              # what just happened
 ```
 
-Eleven steps run on their own — `prompt`, `scout`, `plan`, `test`, `build`, `verify`, `review`, `code-review`, `revise`, `commit`, `document` — and `compose` runs any ordered subset of them:
+Every Activity `config/crust.activities.yaml` registers runs on its own, and `compose` runs any ordered subset of them:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps build,verify,code-review
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --steps test,build,code-review
 ```
 
-A chain whose last step is `review` or `code-review` ends in a bounded revise loop: the blocking findings go back to the builder, who fixes each or disputes it with evidence, and the reviewer rules again — at most twice. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
+The list is that file's, not this package's: add an entry and it is runnable, delete one and the capability is gone. A name nothing registers is refused before anything spawns, with the list of what was available.
 
-`verify`, `review` and `code-review` also take `--base <ref|range>`, so committed work can be judged:
+A chain whose last Activity is `review` or `code-review` ends in a bounded revise loop: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's own `attempts`, the same budget a failed gate and a regression spend from. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
+
+`review` and `code-review` take `--scope <ref|range>`, so committed work can be judged, and the repository's own checks run on their own with no Lifecycle at all:
 
 ```bash
-just crust verify "pre-PR sweep" --base main...HEAD
+just crust code-review "the /health work" --scope main...HEAD
+just crust verify                                # routing.checks, for what you changed
 ```
 
 The raw form, which every recipe wraps:
 
 ```bash
-just crust prompt --agent scout "say hello"
-bun <pi-crust>/runtime/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
+bun <pi-crust>/runtime/lifecycles/compose.ts requests/health.md --lifecycle sdlc --run-id a1b2c3d4
 ```
 
 The prompt is inline text or a path to a file. `--run-id` is optional on every workflow: given one, the run joins that session and each agent resumes its existing context window; omitted, a fresh id is minted and printed.
@@ -82,7 +84,7 @@ The prompt is inline text or a path to a file. `--run-id` is optional on every w
 A run that stopped is picked up rather than restarted. `just crust report` names the activity run it stopped at and prints the command that continues it:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
+bun <pi-crust>/runtime/lifecycles/compose.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
 `--resume` works on every workflow and skips the activity runs already recorded successful for that session.
@@ -91,11 +93,11 @@ bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2
 
 | Change                                                      | File                                             |
 | ----------------------------------------------------------- | ------------------------------------------------ |
-| What an agent is told                                       | `prompt-engineering/<agent>/{system.md,user.md}` |
-| Which model an agent runs, what it may write                | `config/crust.config.yaml`                       |
-| Which checks `verify` runs, and which skills an agent loads | `config/crust.config.yaml`, under `routing:`     |
-| The fallback lint / typecheck / build commands              | `modules/use-cases/run-checks.ts`                |
-| A lifecycle's steps                                         | `lifecycles/<name>.ts`                           |
+| What an Activity is told                                        | `prompt-engineering/<activity>/{system.md,user.md}` |
+| Which model an Activity runs, what it may write                 | `config/crust.activities.yaml`                      |
+| What an Activity answers with, what gates it, how often it may run again, whether it commits | `config/crust.activities.yaml`     |
+| Which commands the `checks` gate runs, and which skills an Activity loads | `config/crust.config.yaml`, under `routing:` |
+| A Lifecycle's Stages and Activities                             | `config/crust.lifecycles.yaml`                      |
 
 **Edit prompts here, never inside the skill.** `prompt-engineering/` is the user-owned home for them; the copies in the skill are templates for the next repository, and changing those does nothing for this one.
 

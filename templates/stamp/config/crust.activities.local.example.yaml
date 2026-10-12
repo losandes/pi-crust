@@ -34,7 +34,7 @@
 activities:
   # Override one Activity, and only the keys you name. Its purpose, prompts,
   # tools and writes boundary stay as the repository has them.
-  - name: builder
+  - name: build
     model: anthropic/claude-opus-5
     thinking: high
 
@@ -45,34 +45,55 @@ activities:
 
   # Colour is a theme role, never a hex: each theme decides what `cyan` looks
   # like, so a lane stays legible in light and high-contrast too.
-  - name: reviewer
+  - name: review
     color: cyan
 
   # Keep one out of the `just crust please` menu, for work you never pick by
   # hand. HIDDEN, not disabled: a Lifecycle, a Planner, or an explicit
   # --steps still runs it. Hiding is a preference about a menu.
-  - name: security-researcher
+  - name: security-research
     hidden: true
 
   # Replace one prompt and keep the other. A nested object merges, so this
   # leaves the team's user prompt exactly as it was.
-  - name: planner
+  - name: plan
     prompt_engineering:
-      system: prompt-engineering/planner/system.md
+      system: prompt-engineering/plan/system.md
 
   # Narrow what an Activity may reach. The list REPLACES the team's, which is
   # the only way to take a tool away.
-  - name: documenter
+  - name: document
     tools:
       - read
       - write
 
-  # Something only you run. Any keys are allowed, and nothing references it
-  # until you name it in --steps or in a Lifecycle.
+  # Spend less on something that keeps failing its gates for a reason no
+  # second attempt is going to fix, or more on something worth another go.
+  # The first run is an attempt, so `attempts: 1` means no retry at all.
+  - name: test
+    attempts: 1
+
+  # Stop a committing Activity from committing on YOUR machine, without
+  # changing what the team ships. The reverse is available too, and is the
+  # one thing `--commit` cannot do: the flag only ever subtracts.
+  - name: document
+    commit: false
+
+  # Something only you run. `output` and `gates` name what the package
+  # publishes; leave them out and you get `genericOutput` with no gates.
+  # Nothing references it until you name it in --steps or in a Lifecycle.
   - name: spike
     model: anthropic/claude-haiku-4-5
     purpose: Answer one throwaway question without touching the repository.
+    output: researchOutput
+    gates: [artifactsExist]
     prompt_engineering:
       system: prompt-engineering/spike/system.md
       user: prompt-engineering/spike/user.md
     writes: ["{handoff}/spike.md"]   # the one document it leaves behind
+
+# A Planner is tuned here the same way, and cannot be added or removed: the
+# set is operator and triage, and a name that is not one of them is refused.
+planners:
+  - name: triage
+    model: anthropic/claude-haiku-4-5

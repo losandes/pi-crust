@@ -36,8 +36,10 @@ test(
   () => {
     // given — the regression this test exists for: `hidden` reached nothing,
     // and an empty list of hidden things looks exactly like a working filter.
-    // `security-researcher` performs the `security-research` step.
-    const given = [activity('security-researcher', { hidden: true })]
+    const given = [
+      activity('plan'),
+      activity('security-research', { hidden: true }),
+    ]
 
     // when
     const actual = menuOptions(given, []).map((option) => option.value)
@@ -52,31 +54,30 @@ test(
   [
     'given use-cases/menu-options::menuOptions',
     'when the menu lists the work',
-    'it should offer step names, because its values become --steps',
+    'it should offer the Activity names, because its values become --steps',
   ].join(', '),
   () => {
-    // given — a registry entry is named for the performer, a step for the
-    // work, and the menu feeds the runner
-    const given = [activity('planner'), activity('builder')]
+    // given — an entry is named for the work, and the menu feeds the runner
+    const given = [activity('plan'), activity('build')]
 
     // when
     const actual = menuOptions(given, []).map((option) => option.value)
 
     // then
-    expect(actual).toContain('plan')
-    expect(actual).not.toContain('planner')
+    expect(actual).toEqual(['!operator', '  plan'.trim(), 'build'])
   },
 )
 
 test(
   [
     'given use-cases/menu-options::menuOptions',
-    'when a planner is also registered as an activity',
-    'it should appear once, as a planner rather than as work to pick',
+    'when the registry holds only work',
+    'it should still offer the Planner, because a Planner is not configurable',
   ].join(', '),
   () => {
-    // given
-    const given = [activity('operator'), activity('triage')]
+    // given — Planners live under `planners:` and are never Activities, so
+    // nothing a team writes under `activities:` can add or remove one
+    const given = [activity('plan')]
 
     // when
     const actual = menuOptions(given, []).map((option) => option.value)
@@ -97,7 +98,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = menuOptions([activity('planner')], [sdlc])
+    const given = menuOptions([activity('plan')], [sdlc])
 
     // when
     const actual = given[0]

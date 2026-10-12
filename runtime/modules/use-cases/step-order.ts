@@ -7,54 +7,12 @@
  * for all produced a different rule — list order — from the same screen.
  * Two orderings from one menu, neither of them stated.
  *
- * Now selection is a set, and order is a separate, stated thing: a default in
- * the config, overridable per developer, with an explicit reorder for the
- * runs where it matters.
+ * Now selection is a set, and order is a separate, stated thing: the order
+ * `crust.activities.yaml` declares, with an explicit reorder for the runs
+ * where it matters. The canonical order is the registry's own, because the
+ * registry is the only thing that records a sequence — so nothing else can
+ * drift out of step with the Activities that exist.
  */
-
-import { isStepName, STEP_NAMES } from '../typedefs/step'
-
-/**
- * The full running order, given what the config asked for.
- *
- * Listed steps take the SLOTS that listed steps occupy in the built-in
- * order, filled in the sequence the config gave. Everything unlisted stays
- * exactly where it was.
- *
- * That rule is what makes a short config safe. `order: [design, plan]` swaps
- * those two and moves nothing else — whereas the obvious implementation,
- * "listed first then the rest", would silently relegate the twenty steps you
- * did not mention, and a partial list is what people actually write.
- */
-export const effectiveOrder = (
-  configured: readonly string[] = [],
-  canonical: readonly string[] = STEP_NAMES,
-): readonly string[] => {
-  const wanted = configured.filter(
-    (name, index) =>
-      isStepName(name) &&
-      canonical.includes(name) &&
-      configured.indexOf(name) === index,
-  )
-  if (wanted.length === 0) return canonical
-
-  const slots = new Set(wanted)
-  /*
-   * Walk the built-in order; every slot a listed step occupies is refilled
-   * from the configured sequence, in turn.
-   *
-   * Counted rather than consumed from a queue: `shift` would mutate, and
-   * counting the slots already passed says the same thing while leaving the
-   * configured list the single immutable source of what goes where.
-   */
-  return canonical.map((name, index) => {
-    if (!slots.has(name)) return name
-    const filled = canonical
-      .slice(0, index)
-      .filter((earlier) => slots.has(earlier)).length
-    return wanted[filled] ?? name
-  })
-}
 
 /**
  * Sort a selection into the running order.

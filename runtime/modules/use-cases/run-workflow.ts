@@ -18,7 +18,9 @@
 
 import { runLink, visualizerIsUp } from '../data/visualizer'
 import { isRepo, rev, shortSha } from '../data/git'
-import type { TStepContext } from '../typedefs/step'
+import type { TStepContext, TStepOptions } from '../typedefs/step'
+import type { TAttemptLedger } from './attempts'
+import type { TPiCrustConfig } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
 import type { TGateReason } from './human-gate'
 import {
@@ -26,7 +28,9 @@ import {
   resumeInvocation,
   writeDecisionRequest,
 } from './human-gate'
+import { attemptLedger } from './attempts'
 import { loadConfigWithNotes } from './load-config'
+import { readRunState } from './read-run-state'
 import type { TWorkflowArgs } from './parse-cli'
 import { loopAgents, runReviseLoop } from './revise-loop'
 import { selfAnsweredIn } from './human-gate'
@@ -50,6 +54,31 @@ export const NOT_ACCEPTED =
   'not approved. The activityRuns all ran; the work is what did not pass.'
 
 /**
+ * What this session has already spent, by instance name.
+ *
+ * A budget that reset on resume would be no budget at all: a run that
+ * exhausted an Activity could be restarted into the same wall forever.
+ * Superseded rows are excluded, because they are the ones a person steered
+ * — human-directed re-execution is not an attempt.
+ */
+const spentAlready = (
+  cfg: TPiCrustConfig,
+  runId: string | undefined,
+): readonly string[] => {
+  if (runId === undefined) {
+    return []
+  }
+  const state = readRunState(cfg.observability.db, runId)
+
+  return (state?.activityRuns ?? [])
+    .filter(
+      (activityRun) =>
+        activityRun.kind === 'agent' && activityRun.status !== 'superseded',
+    )
+    .map((activityRun) => activityRun.name)
+}
+
+/**
  * HEAD before this run commits anything, for the documenter's diff.
  *
  * Only pinned when a step needs it: a repository with no commit yet cannot
@@ -68,14 +97,15 @@ const pinBaseline = (names: readonly string[]): string =>
 const runPlannedChain = async (
   run: TRun,
   planned: readonly string[],
-  options: Readonly<Record<string, string>>,
+  options: Readonly<Partial<TStepOptions>>,
   ctx: TStepContext,
   args: TWorkflowArgs,
   trust: number,
+  ledger: TAttemptLedger,
 ): Promise<TStepContext | undefined> => {
-  const steps = resolveSteps(planned, options)
+  const steps = resolveSteps(planned, run.cfg, options)
   validateAgents(run.cfg, [
-    ...new Set([...requiredAgents(steps), ...loopAgents(planned)]),
+    ...new Set([...requiredAgents(steps), ...loopAgents(run.cfg, planned)]),
   ])
   run.console.note(chainNote(planned))
 
@@ -120,16 +150,17 @@ const runPlannedChain = async (
   }
 
   let stopped: TWaiting | undefined
-  const after = await runSteps(
+  const after = await runSteps({
     run,
     steps,
-    ctx,
-    parseApproveAfter(args.approveAfter),
-    (waiting) => {
+    start: ctx,
+    approveAfter: parseApproveAfter(args.approveAfter),
+    onWaiting: (waiting) => {
       stopped = waiting
     },
     trust,
-  )
+    ledger,
+  })
   return stopped === undefined ? after : undefined
 }
 
@@ -140,17 +171,23 @@ export const runWorkflow = async (
   const names = plannedNames(plan)
   const loaded = loadConfigWithNotes(args.config)
   const cfg = loaded.config
-  const options = {
-    ...(args.agent === undefined ? {} : { agent: args.agent }),
+  const options: Readonly<Partial<TStepOptions>> = {
     ...(args.base === undefined ? {} : { base: args.base }),
-    ...(args.deliver === undefined ? {} : { deliver: args.deliver }),
+    committing: args.commit !== 'false',
   }
-  const steps = resolveSteps(names, options)
-  // The loop can spawn the builder even when the named chain never does, so
+  const steps = resolveSteps(names, cfg, options)
+  // The loop can spawn the reviser even when the named chain never does, so
   // its agent is validated here rather than discovered halfway through.
   validateAgents(cfg, [
-    ...new Set([...requiredAgents(steps), ...loopAgents(names)]),
+    ...new Set([...requiredAgents(steps), ...loopAgents(cfg, names)]),
   ])
+  /*
+   * One budget for the whole run, seeded from what this session already
+   * spent. A resume must not refill it — the work it is resuming is the
+   * work that spent it — while the replays a resume performs cost nothing,
+   * because they execute nothing.
+   */
+  const ledger = attemptLedger(spentAlready(cfg, args.runId))
   const trust = trustLevel(args.trustLevel)
   const run = startSession(cfg, args.runId, {
     resume: args.resume,
@@ -224,21 +261,23 @@ export const runWorkflow = async (
       cohort: [],
       baseline,
       outcomes: [],
+      feedback: [],
     }
     // `let` is deliberate and contained: the callback fires inside the fold,
     // and threading an out-parameter through every step for one optional
     // outcome would be worse than a single assignment nothing else can see.
     let waiting: TWaiting | undefined
-    const ctx = await runUnits(
+    const ctx = await runUnits({
       run,
-      unitsFrom(plan, steps),
+      units: unitsFrom(plan, steps),
       start,
-      parseApproveAfter(args.approveAfter),
-      (stopped) => {
+      approveAfter: parseApproveAfter(args.approveAfter),
+      onWaiting: (stopped) => {
         waiting = stopped
       },
       trust,
-    )
+      ledger,
+    })
     if (waiting !== undefined) {
       return finishWaiting(run, waiting.path)
     }
@@ -260,7 +299,7 @@ export const runWorkflow = async (
     const after =
       planned.length === 0
         ? ctx
-        : await runPlannedChain(run, planned, options, ctx, args, trust)
+        : await runPlannedChain(run, planned, options, ctx, args, trust, ledger)
     if (after === undefined) {
       return finishWaiting(run, run.contextHandoffDir)
     }
@@ -270,6 +309,7 @@ export const runWorkflow = async (
       options,
       ctx: after,
       fallbackReason: NOT_ACCEPTED,
+      ledger,
     })
 
     /*

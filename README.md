@@ -6,7 +6,7 @@ Run a structured SDLC of autonomous, specialist AI agents in your repo. Watch it
 
 Four problems, and none of them is "write better code than a developer working with an agent directly".
 
-**An agent follows a process differently every time.** You agree on plan, build, verify, review — and then it is followed approximately. A step gets skipped because the change looked small; a suite is reported passing from a run three edits ago. Nothing stops it, because the process lives in prose that a model interprets.
+**An agent follows a process differently every time.** You agree on plan, build, test, review — and then it is followed approximately. A step gets skipped because the change looked small; a suite is reported passing from a run three edits ago. Nothing stops it, because the process lives in prose that a model interprets.
 
 **A claim and a fact are indistinguishable in prose.** "All 97 files are correct" reads the same whether anything was checked. This is the failure that costs the most and shows the least.
 
@@ -36,42 +36,42 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 
 ### The SDLC stages
 
-| Stage | Step | Owner |
-|---|---|---|
-| 1.1 Evaluate | `scout` | scout |
-| 1.2 Identify | `identify` | analyst |
-| 1.3 Conceptualize | `conceptualize` | solutions-architect |
-| 2.0 POC | `poc` — `de-risk` or `compose` | builder |
-| 2.1 Plan | `plan` | planner |
-| 2.2 Design | `design` | technical-architect |
-| 2.3 Build | `test`, `build`, `verify` | tester, builder, code |
-| 3.1 Verify | `review`, `code-review` | reviewer, code-reviewer |
-| 3.2 Launch | `commit`, `document` + a human | code, documenter |
+| Stage | Activity |
+|---|---|
+| 1.1 Evaluate | `scout` |
+| 1.2 Identify | `identify` |
+| 1.3 Conceptualize | `conceptualize` |
+| 2.1 Plan | `plan` |
+| 2.2 Design | `design` |
+| 2.3 Build | `test-tdd` or `test`, `build` — and the `checks` gate, which runs your own commands |
+| 3.1 Verify | `review`, `code-review` |
+| 3.2 Launch | `document` + a human; an Activity with `commit: true` lands its own change |
 
-### Other steps
+An Activity is named for the work and IS its agent: one entry in `crust.activities.yaml` says who performs it (model, tools, writes, prompts) and what the work is (`output`, `gates`, `attempts`, `commit`). Add an entry and it is runnable; delete one and the capability is gone. Nothing in the package holds a list of them.
 
-The lifecycle above is a structured set of steps. There are many more available steps, and you can run any combination in any order.
+### Other Activities
+
+The lifecycle above is a structured set of Activities. The registry ships more, and you can run any combination in any order — or add your own.
 
 **Research, when the problem is that nobody knows yet.** Each discipline establishes what is true in its own subject and decides nothing — "find out" and "decide" are different jobs, and a stage asked to do both will quietly do the second while appearing to do the first.
 
-| Step | Owner | Establishes |
-|---|---|---|
-| `technical-research` | technical-researcher | what is technically true, feasible, and supported by evidence |
-| `domain-research` | domain-researcher | an accurate model of the domain and the rules that govern it |
-| `ux-research` | ux-researcher | what users need, experience, understand, and struggle with |
-| `security-research` | security-researcher | how this could fail, be misused, or be attacked |
-| `data-research` | data-researcher | what the empirical evidence says, and what it cannot say |
+| Activity | Establishes |
+|---|---|
+| `technical-research` | what is technically true, feasible, and supported by evidence |
+| `domain-research` | an accurate model of the domain and the rules that govern it |
+| `ux-research` | what users need, experience, understand, and struggle with |
+| `security-research` | how this could fail, be misused, or be attacked |
+| `data-research` | what the empirical evidence says, and what it cannot say |
 
 **The rest.**
 
-| Step | Owner | For |
-|---|---|---|
-| `diagnose` | diagnostician | reproducing a reported behaviour and naming its cause, with evidence. The first step of `bugfix` |
-| `ux-design` | ux-designer | turning validated needs into an interface specification somebody can implement. Decides, so it is not research |
-| `operator` | operator | choosing the chain, then running it in the same trace |
-| `advisor` | advisor | the same choice, handed back as a command. Nothing runs |
-| `prompt` | whichever agent you name | one agent, one question, inside the trace. The escape hatch |
-| `revise` | builder | repairing work a reviewer rejected. Nothing invokes it directly; the loop does |
+| Activity | For |
+|---|---|
+| `diagnose` | reproducing a reported behaviour and naming its cause, with evidence. The first Activity of `bugfix` |
+| `ux-design` | turning validated needs into an interface specification somebody can implement. Decides, so it is not research |
+| `document` | writing up what the diff shows, from the run's own baseline |
+
+Two more are **Planners** rather than Activities: `operator` chooses the chain and runs it in the same trace, `triage` chooses the same chain and hands it back as a command. A Lifecycle cannot name either — they are what chooses a Lifecycle — and configuration can tune them but never add a third.
 
 ### Running one
 
@@ -84,13 +84,13 @@ just crust please                          # answer questions, get the command
 just crust sdlc "<what you want>"          # the whole lifecycle, nine agent calls
 just crust bugfix "<...>"                  # a reported bug, from symptom to fix
 just crust de-risk "<...>"                 # prove the risky part before building it
-just crust compose "<...>" --steps plan,build,verify
+just crust compose "<...>" --steps plan,test,build
 just crust operator "<...>"                # it chooses the steps, then runs them
 just crust code-review "<...>" --scope apps/gateway
 just crust report <run-id>                 # where it got to, and what finishes it
 ```
 
-Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the judging steps judge), `--approve-after identify,design` (stop for you after those stages), `--deliver branch|patch|commit`, `--resume` with `--run-id`.
+Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the judging Activities judge), `--approve-after identify,design` (stop for you after those stages), `--commit false` (land nothing; committing is otherwise declared per Activity), `--resume` with `--run-id`.
 
 ### Getting the most out of it
 
@@ -98,9 +98,9 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 
 **Gate the decisions that are expensive to get wrong.** `--approve-after` is opt-in and the run exits rather than blocking, so a gate costs you nothing until you answer it. Two escalations happen without being asked for: a consequential unresolved question, and a second regression to the same stage.
 
-**Read the plan before the build runs.** `just crust plan` then `just crust compose --run-id <id> --steps build,verify` is cheaper than discovering a bad plan at review.
+**Read the plan before the build runs.** `just crust plan` then `just crust compose --run-id <id> --steps build` is cheaper than discovering a bad plan at review.
 
-**Declare your checks.** `routing.checks` is where `verify` gets its commands, and a path that matches no rule fails rather than passing quietly. The convention checkers belong here: a violation caught by a command costs nothing, and the same violation caught by a reviewer costs a build-sized call.
+**Declare your checks.** `routing.checks` is where the `checks` gate gets its commands, and a path that matches no rule fails rather than passing quietly. The convention checkers belong here: a violation caught by a command costs nothing, and the same violation caught by a reviewer costs a build-sized call.
 
 **Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each step.
 

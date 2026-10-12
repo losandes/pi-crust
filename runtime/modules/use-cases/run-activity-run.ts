@@ -33,7 +33,6 @@ const openActivityRun = (run: TRun, params: TActivityRunParams): TActivityRun =>
     seq,
     params,
     status: 'running',
-    attempt: 0,
     error: undefined,
     started_at: nowIso(),
     ended_at: undefined,

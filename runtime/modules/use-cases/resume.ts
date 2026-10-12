@@ -93,7 +93,6 @@ export const skipIfDone = <TResult>(
     seq: 0,
     params,
     status: 'success',
-    attempt: 0,
     error: undefined,
     started_at: undefined,
     ended_at: undefined,

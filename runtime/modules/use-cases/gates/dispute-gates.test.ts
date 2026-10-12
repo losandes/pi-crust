@@ -37,7 +37,7 @@ test(
     const envelope = build([])
 
     // when
-    const actual = disputesSupported.check(envelope, runWith(['lint']))
+    const actual = disputesSupported.check(envelope, runWith(['lint']), [])
 
     // then
     expect(reportPassed(actual)).toEqual(true)
@@ -62,7 +62,7 @@ test(
     ])
 
     // when
-    const actual = disputesSupported.check(envelope, runWith(['lint']))
+    const actual = disputesSupported.check(envelope, runWith(['lint']), [])
 
     // then
     expect(reportPassed(actual)).toEqual(true)
@@ -87,7 +87,7 @@ test(
     ])
 
     // when
-    const actual = disputesSupported.check(envelope, runWith(['lint']))
+    const actual = disputesSupported.check(envelope, runWith(['lint']), [])
 
     // then
     expect(violationsOf(actual)).toEqual([
@@ -108,7 +108,7 @@ test(
     const envelope = build([{ finding: '  ', evidence: 'src/a.ts:1' }])
 
     // when
-    const actual = disputesSupported.check(envelope, runWith(['lint']))
+    const actual = disputesSupported.check(envelope, runWith(['lint']), [])
 
     // then
     expect(violationsOf(actual)).toEqual([
@@ -133,7 +133,7 @@ test(
     ])
 
     // when
-    const actual = disputesSupported.check(envelope, runWith(['typecheck']))
+    const actual = disputesSupported.check(envelope, runWith(['typecheck']), [])
 
     // then
     expect(violationsOf(actual)).toEqual([

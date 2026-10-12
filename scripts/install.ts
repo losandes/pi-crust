@@ -274,7 +274,7 @@ const main = (): number => {
   say('  4. just crust observe       # the trace UI, needs bun')
   say('\n  no just? the raw form of step 2 is:')
   say(
-    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/lifecycles/compose.ts" "say hello" --agent scout --steps prompt',
+    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/lifecycles/compose.ts" "list the top-level directories in this repo" --steps scout',
   )
   say(
     '\n  read .pi-crust/prompt-engineering/README.md — it explains what is yours here.',

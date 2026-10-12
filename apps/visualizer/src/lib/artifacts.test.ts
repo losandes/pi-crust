@@ -24,7 +24,6 @@ const envelope = (
     output_type: 'Output',
     payload_json: JSON.stringify(payload),
     valid,
-    attempt: 1,
     created_at: '2026-10-06T00:00:00Z',
   }) as Envelope
 

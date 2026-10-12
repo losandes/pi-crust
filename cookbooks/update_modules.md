@@ -116,7 +116,7 @@ Rules that keep gates honest:
 
 - **Verify claims, never predict.** File names and counts are unknowable before the agent finishes; gates check what the envelope declared.
 - **Quantity as properties, not counts.** "at least one artifact", "ALL declared paths exist" — never `artifacts.length === 3`.
-- **Record checks, don't throw.** The harness feeds the derived violations back into the same session as a correction — context intact, bounded by the activity run's `retries` — and traces every check, passed or failed, to `gate_results.checks_json` and the `gate_pass`/`gate_fail` event payload.
+- **Record checks, don't throw.** The harness feeds the derived violations back to the Activity as a new Activity Run — the same coding-agent session, so the context is intact, bounded by the Activity's `attempts` — and traces every check, passed or failed, to `gate_results.checks_json` and the `gate_pass`/`gate_fail` event payload.
 - **Check every item, even after one fails.** Don't early-return on the first problem; the agent fixes more per correction round when it sees every failure at once, and the trace shows the full picture.
 - **Don't gate the ungateable.** Plan quality and code taste are a reviewer agent's job or a human's.
 

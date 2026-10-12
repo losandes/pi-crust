@@ -18,8 +18,8 @@ Location comes from `db` in `crust.observe.yaml`, default `.pi-crust/data/crust.
 | `agent_start`        | a coding agent is spawned or resumed for `callAgent(run, ph, {...})`                                                                                                                   |
 | `tool_call`          | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
 | `handoff`            | an envelope crosses from one agent to the next                                                                                                                                         |
-| `gate_pass`          | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations`                                                                          |
-| `gate_fail`          | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations`                                                                                         |
+| `gate_pass`          | a gate found no failed checks — payload carries `checks` (the evidence) and an empty `violations`                                                                          |
+| `gate_fail`          | a gate found at least one failed check — payload carries `checks` and `violations`                                                                                         |
 | `log`                | an explicit `ph.log(...)` from the workflow script                                                                                                                                     |
 | `agent_end`          | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
 | `activity_run_end`   | the block exits; carries the resolved status                                                                                                                                           |
@@ -27,7 +27,7 @@ Location comes from `db` in `crust.observe.yaml`, default `.pi-crust/data/crust.
 
 `parent_id` nests spans, so an agent activity run expands into its tool-call spans in the UI.
 
-**Spend is itemised per activity run.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the activity run made, so a activity run that retried on a bad envelope or a failed gate shows what all its attempts cost, not just the last one. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
+**Spend is itemised per activity run.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the activity run made, so a activity run that re-prompted on a bad envelope shows what all of them cost, not just the last. A gate failure is a new Activity Run with its own row, so its spend sits beside the one it followed rather than folded into it. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
 
 `reasoning_tokens` is the thinking share and is **inside** `output_tokens`, not a fifth component — measured across every session on disk, reasoning never exceeds output and the four components always reconcile to the total. It bills at the output rate, so the panel nests it under output rather than adding it. Runs predating the breakdown have no `usage` key at all; the lump `cost` and the event's own `tokens` still stand, and the UI says so rather than rendering zeroes.
 
@@ -39,7 +39,7 @@ Two caveats worth knowing. Pi adds an *estimate* for any messages trailing the l
 
 **Gates record evidence, not just a verdict.** A gate returns one `{item, ok, note}` check per thing it looked at, and `violations` are derived from the failed ones. Both land in `gate_results` (`checks_json` + `violations_json`) and in the `gate_pass`/`gate_fail` payload, so a green gate can answer *what did you verify* — `{"item": "…/plan.md", "ok": true, "note": "exists, 454B"}` — rather than only *did it pass*. Rows written before this existed have `checks_json` NULL; treat that as "no evidence recorded", not "nothing checked".
 
-The gate event payload carries `attempt` too, so the `gate_results` table and the event stream are equivalent sources — a live consumer can group gate results per correction round from events alone, without a second query.
+The gate event payload carries `activity_run_id` too, so the `gate_results` table and the event stream are equivalent sources — a live consumer can group gate results by the Activity Run that produced them from events alone, without a second query.
 
 **A `tool_call` is the one event that spans time**, so it fills both `started_at` and `ended_at` on the row — the tool's real start and return. Every other type is a point in time: `started_at` is when it was recorded and `ended_at` stays NULL. Lay tool calls out on a time axis from those columns, never by parsing `payload_json` (`duration_ms` is in the payload too, as pi's own number, but it is a convenience, not the source for layout).
 
@@ -63,7 +63,6 @@ activity runs (
   seq           INTEGER,
   name TEXT, kind TEXT, owner TEXT, description TEXT,
   status        TEXT DEFAULT 'fail',   -- success must be earned
-  attempt       INTEGER DEFAULT 0, retries INTEGER DEFAULT 0,
   error         TEXT,
   started_at    TEXT, ended_at TEXT
 );
@@ -89,7 +88,6 @@ envelopes (
   output_type   TEXT,              -- name of the data_types model it parsed against
   payload_json  TEXT,
   valid         INTEGER,
-  attempt       INTEGER,
   created_at    TEXT
 );
 
@@ -97,7 +95,6 @@ gate_results (
   id            INTEGER PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
   activity_run_id      TEXT REFERENCES activity runs,
-  attempt       INTEGER,
   gate          TEXT,
   passed        INTEGER,
   violations_json TEXT,             -- derived: the failed checks, as "item: note"
@@ -193,11 +190,11 @@ Exit codes, because an agent will branch on them:
       "seq": 3, "activity_run_id": "a1b2c3d4_03_build",
       "name": "build", "kind": "agent", "owner": "builder",
       "description": "Implement the plan exactly",
-      "status": "fail", "attempt": 2,
-      "error": "builder failed gates after 2 attempt(s)",
+      "status": "fail",
+      "error": "build failed its gates and has no attempts left",
       "started_at": "…", "ended_at": "…",
       "gates": [
-        { "gate": "diffMatchesClaims", "activity run": "build", "attempt": 2,
+        { "gate": "diffMatchesClaims", "activity run": "build",
           "passed": false, "violations": ["src/a.ts: not in the diff"],
           "checks": [{ "item": "src/a.ts", "ok": false, "note": "not in the diff" }] }
       ],
@@ -209,7 +206,7 @@ Exit codes, because an agent will branch on them:
   "failed_gates": [ … ],
   "envelopes": [
     { "activity run": "build", "agent": "builder", "output_type": "BuildOutput",
-      "valid": true, "attempt": 2, "payload": { … } }
+      "valid": true, "payload": { … } }
   ]
 }
 ```
@@ -224,9 +221,13 @@ Three fields carry the weight:
 
 `--resume` reads this same function (`readRunState`). There is one answer to "what is already done", and both callers read it, so the report and the resumed run cannot disagree.
 
-## One envelope row per attempt
+## An attempt is an Activity Run
 
-An envelope is persisted the moment it PARSES, not after its gates pass. A gate-corrected activity run therefore writes one `envelopes` row per attempt, and the accepted envelope is the highest-attempt row with `valid = 1`. That is more rows than earlier versions wrote, and it is the point: a activity run whose gate failed terminally used to lose both the row and `envelope.json`, so a later activity run resuming the session had nothing to read — the agent's work was on disk and its report was not.
+There is no `attempt` column, on any table. A re-executed Activity — a gate failure, a revise round, a regression — opens its own `activity_runs` row, so the thing being budgeted and the thing being recorded are the same thing. A build that retried twice shows three rows rather than one row with `attempt=3` in a column nobody read, and the row it replaced is marked `superseded` rather than rewritten.
+
+`latestByName` already selects the highest `seq` per name, so resume needs no change: the latest record per name is the one that counts.
+
+An envelope is still persisted the moment it PARSES, not after its gates pass, so one Activity Run can write several `envelopes` rows when its JSON had to be corrected in session. The accepted one is the latest valid row for that Activity Run.
 
 ## Narration
 

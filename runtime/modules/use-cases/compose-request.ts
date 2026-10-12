@@ -12,49 +12,7 @@
  * never touches a terminal.
  */
 
-import { STEP_NAMES } from '../typedefs/step'
 import { TRUST_DEFAULT } from '../typedefs/trust'
-
-/** A chain that earned its own script, with the steps it runs. */
-export type TLifecycle = Readonly<{
-  name: string
-  summary: string
-  steps: readonly string[]
-}>
-
-/**
- * The named lifecycles, in the order a menu should offer them.
- *
- * `sdlc` is first and selected by default because it is the whole job; the
- * others are deliberate narrowings of it.
- */
-export const LIFECYCLES: readonly TLifecycle[] = [
-  {
-    name: 'sdlc',
-    summary: 'the whole thing — understand, decide, plan, build, review',
-    steps: [
-      'identify',
-      'conceptualize',
-      'design',
-      'plan',
-      'test',
-      'build',
-      'verify',
-      'review',
-      'code-review',
-    ],
-  },
-  {
-    name: 'bugfix',
-    summary: 'a reported bug — reproduce it, diagnose it, fix it, prove it',
-    steps: ['identify', 'diagnose', 'test', 'build', 'verify', 'review'],
-  },
-  {
-    name: 'de-risk',
-    summary: 'prove the risky part before committing to the build',
-    steps: ['identify', 'conceptualize', 'design', 'poc'],
-  },
-]
 
 /**
  * An agent that chooses the chain instead of being given one.
@@ -77,13 +35,6 @@ export const OPERATORS: readonly TOperator[] = [
     summary: 'it picks the smallest chain that can produce the outcome',
   },
 ]
-
-const OPERATOR_NAMES: readonly string[] = OPERATORS.map(
-  (operator) => operator.name,
-)
-
-export const DELIVERIES = ['branch', 'patch', 'commit'] as const
-export type TDelivery = (typeof DELIVERIES)[number]
 
 /** What a trust level means, phrased as the thing it changes. */
 export type TTrustChoice = Readonly<{
@@ -135,6 +86,7 @@ export const TRUST_CHOICES: readonly TTrustChoice[] = [
  * the answer is "none".
  */
 export type TRunRequest = Readonly<{
+  /** the Lifecycle chosen by name, or '' when Activities were picked */
   lifecycle: string
   /**
    * The operator chosen, or '' when the chain was named rather than chosen.
@@ -147,7 +99,14 @@ export type TRunRequest = Readonly<{
   steps: readonly string[]
   prompt: string
   trustLevel: number
-  delivery: TDelivery
+  /**
+   * Whether the Activities that declare `commit: true` may commit.
+   *
+   * There is no way to say yes to one that did not declare it: the flag
+   * only subtracts, so a run can never do something nobody reading the
+   * registry could have predicted.
+   */
+  commit: boolean
   approveAfter: string
   stream: boolean
 }>
@@ -160,34 +119,14 @@ export type TResumeRequest = Readonly<{
 }>
 
 /**
- * Which script runs a set of steps.
- *
- * A selection that exactly matches a named lifecycle runs that lifecycle, not
- * `compose` with the same list spelled out: the trace then records `sdlc`
- * rather than an anonymous chain that happens to look like it, and a run is
- * searchable by the name the person had in mind.
- */
-export const scriptFor = (steps: readonly string[]): string => {
-  const named = LIFECYCLES.find(
-    (lifecycle) =>
-      lifecycle.steps.length === steps.length &&
-      lifecycle.steps.every((step, index) => step === steps[index]),
-  )
-  return named === undefined
-    ? '.pi-crust/lifecycles/compose.ts'
-    : `.pi-crust/lifecycles/${named.name}.ts`
-}
-
-/** True when these steps are exactly a named lifecycle. */
-export const isNamedLifecycle = (steps: readonly string[]): boolean =>
-  !scriptFor(steps).endsWith('compose.ts')
-
-/**
  * The argv for a new run.
  *
- * `--steps` is passed only for `compose`, because a named lifecycle owns its
- * own list and accepting an overriding one would make two sources of truth
- * for what a run did.
+ * Three shapes, because there are three ways to say what should happen: a
+ * Planner chooses it, a Lifecycle names it, or the Activities are listed.
+ * A chosen Lifecycle is passed BY NAME rather than flattened into `--steps`,
+ * so the trace records `sdlc` rather than an anonymous chain that happens to
+ * look like it, and a run stays searchable by the name the person had in
+ * mind.
  *
  * Defaults are OMITTED rather than written out. A command line that states
  * every value cannot be read for intent — the whole point of seeing the
@@ -196,23 +135,27 @@ export const isNamedLifecycle = (steps: readonly string[]): boolean =>
 export const runArgv = (request: TRunRequest): readonly string[] => {
   const chosen = request.operator !== ''
   /*
-   * An operator run carries NO `--steps`, and not merely because none were
-   * chosen: the two together are refused by the stage itself, since one asks
-   * it to choose the chain and the other names it.
+   * A planner run carries NO `--steps` and no `--lifecycle`, and not merely
+   * because none were chosen: the two together are refused by the stage
+   * itself, since one asks it to choose the chain and the other names it.
    */
   const script = chosen
     ? `.pi-crust/stages/${request.operator}.ts`
-    : scriptFor(request.steps)
-  const composed = !chosen && script.endsWith('compose.ts')
+    : '.pi-crust/lifecycles/compose.ts'
+
   return [
     'bun',
     script,
     request.prompt,
-    ...(composed ? ['--steps', request.steps.join(',')] : []),
+    ...(chosen
+      ? []
+      : request.lifecycle !== ''
+        ? ['--lifecycle', request.lifecycle]
+        : ['--steps', request.steps.join(',')]),
     ...(request.trustLevel === TRUST_DEFAULT
       ? []
       : ['--trust-level', String(request.trustLevel)]),
-    ...(request.delivery === 'branch' ? [] : ['--deliver', request.delivery]),
+    ...(request.commit ? [] : ['--commit', 'false']),
     ...(request.approveAfter === ''
       ? []
       : ['--approve-after', request.approveAfter]),
@@ -239,19 +182,6 @@ export const shellLine = (argv: readonly string[]): string =>
   argv
     .map((part) => (/^[\w.,/=:-]+$/.test(part) ? part : JSON.stringify(part)))
     .join(' ')
-
-/**
- * Steps a menu can offer, in the order the lifecycle runs them.
- *
- * Operators are steps as far as the runner is concerned — that is how an
- * operator's activityRun executes at all — but they are not steps as far as a
- * PERSON choosing is concerned, so they are offered separately and never in
- * this list. Leaving `operator` here let it be ticked alongside `plan`,
- * which is two answers to one question.
- */
-export const STEP_CHOICES: readonly string[] = STEP_NAMES.filter(
-  (name) => !OPERATOR_NAMES.includes(name),
-)
 
 /**
  * The same command as a `just` recipe.

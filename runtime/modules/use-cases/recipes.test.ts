@@ -1,17 +1,41 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isStepName } from '../typedefs/step'
+import { activitiesFileSchema } from '../typedefs/activity'
 
 /**
  * The recipes and the step registry have to agree, and nothing else makes
  * them.
  *
  * An Activity used to be a file, so a recipe naming one that did not exist
- * failed at the shell with a missing path. Now a recipe names a step in a
- * flag, and a stale name reaches the runner as a usage error at the moment
+ * failed at the shell with a missing path. Now a recipe names an Activity in
+ * a flag, and a stale name reaches the runner as a usage error at the moment
  * somebody runs it — which is late, and only for the one recipe they tried.
+ *
+ * Checked against the SHIPPED registry, which is the thing a stamp installs:
+ * Activities are configuration, so "does this recipe name something real"
+ * is a question about `crust.activities.yaml`, not about this package.
  */
+const shippedActivities = (): readonly string[] =>
+  activitiesFileSchema
+    .parse(
+      Bun.YAML.parse(
+        readFileSync(
+          join(
+            import.meta.dir,
+            '..',
+            '..',
+            '..',
+            'templates',
+            'stamp',
+            'config',
+            'crust.activities.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    )
+    .activities.map((one) => one.name)
 const recipes = () =>
   readFileSync(
     join(import.meta.dir, '..', '..', 'crust.just'),
@@ -29,14 +53,15 @@ test(
   [
     'given use-cases/recipes',
     'when the justfile names a step',
-    'it should be a step the registry has',
+    'it should be an Activity the shipped registry has',
   ].join(', '),
   () => {
     // given
     const given = stepFlags(recipes())
 
     // when
-    const actual = given.filter((name) => !isStepName(name))
+    const offered = shippedActivities()
+    const actual = given.filter((name) => !offered.includes(name))
 
     // then
     expect(given.length).toBeGreaterThan(0)

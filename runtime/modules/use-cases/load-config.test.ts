@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadConfig, parseConfig, resolveAgent } from './load-config'
+import { resolveSteps } from './steps'
 
 const ROSTER = `
 defaults:
@@ -16,8 +17,8 @@ agents:
     thinking: high
     writes: [specs/]
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/planner/system.md
-      user: .pi-crust/prompt-engineering/planner/user.md
+      system: .pi-crust/prompt-engineering/plan/system.md
+      user: .pi-crust/prompt-engineering/plan/user.md
   - name: scout
     writes: []
     tools: [read]
@@ -233,5 +234,150 @@ test(
       backend: 4600,
       frontend: 4601,
     })
+  },
+)
+
+const ACTIVITIES = `
+activities:
+  - name: plan
+    output: planOutput
+    gates: [artifactsExist]
+    purpose: Turn the request into an implementable plan
+    writes: ['{handoff}/plan.md']
+    prompt_engineering:
+      system: prompt-engineering/plan/system.md
+      user: prompt-engineering/plan/user.md
+planners:
+  - name: operator
+    purpose: Choose the smallest chain that can produce the outcome
+    writes: ['{handoff}/plan.md']
+    prompt_engineering:
+      system: prompt-engineering/operator/system.md
+      user: prompt-engineering/operator/user.md
+  - name: triage
+    purpose: Choose the chain and hand it back as a command
+    writes: ['{handoff}/plan.md']
+    prompt_engineering:
+      system: prompt-engineering/triage/system.md
+      user: prompt-engineering/triage/user.md
+`
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a team adds an Activity in a LOCAL layer only',
+    'it should be registered, resolvable and runnable without editing this package',
+  ].join(', '),
+  () => {
+    /*
+     * given — this is the whole point of the registry being configuration.
+     * Before it, a team could add an agent and never reach it: nothing bound
+     * a step to it.
+     */
+    const path = stamped({
+      'crust.config.yaml': 'defaults:\n  data_dir: .pi-crust/data\n',
+      'crust.activities.yaml': ACTIVITIES,
+      'crust.activities.local.yaml': `
+activities:
+  - name: spike
+    output: researchOutput
+    gates: [artifactsExist]
+    attempts: 1
+    purpose: Answer one throwaway question without touching the repository
+    writes: ['{handoff}/spike.md']
+    prompt_engineering:
+      system: prompt-engineering/spike/system.md
+      user: prompt-engineering/spike/user.md
+`,
+    })
+
+    // when
+    const cfg = loadConfig(path)
+    const actual = resolveSteps(['plan', 'spike'], cfg)
+
+    // then — registered, on the roster, and resolved into something runnable
+    expect(cfg.activities.map((one) => one.name)).toEqual(['plan', 'spike'])
+    expect(cfg.agents.map((one) => one.name)).toContain('spike')
+    expect(actual.map((step) => step.params.owner)).toEqual(['plan', 'spike'])
+    expect(actual[1]?.attempts).toEqual(1)
+    expect(actual[1]?.gates.map((gate) => gate.name)).toEqual(['artifacts_exist'])
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a local layer tunes a Planner',
+    'it should take the override and keep the Planner the engine knows',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'defaults: {}\n',
+      'crust.activities.yaml': ACTIVITIES,
+      'crust.activities.local.yaml':
+        'planners:\n  - name: triage\n    model: anthropic/claude-haiku-4-5\n',
+    })
+
+    // when
+    const actual = loadConfig(path)
+
+    // then
+    expect(actual.planners.map((one) => one.name)).toEqual([
+      'operator',
+      'triage',
+    ])
+    expect(
+      actual.planners.find((one) => one.name === 'triage')?.model,
+    ).toEqual('anthropic/claude-haiku-4-5')
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a file puts something under planners: that is not a Planner',
+    'it should refuse, because configuration cannot add one',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'defaults: {}\n',
+      'crust.activities.yaml': `${ACTIVITIES}
+  - name: strategist
+    purpose: Choose the chain, differently
+    writes: []
+    prompt_engineering:
+      system: s.md
+      user: u.md
+`,
+    })
+
+    // when
+    const actual = () => loadConfig(path)
+
+    // then
+    expect(actual).toThrow(/'strategist' is under planners: and is not a Planner/)
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a Planner has no entry at all',
+    'it should refuse, because configuration cannot remove one either',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'defaults: {}\n',
+      'crust.activities.yaml': ACTIVITIES.split('- name: triage')[0] ?? '',
+    })
+
+    // when
+    const actual = () => loadConfig(path)
+
+    // then
+    expect(actual).toThrow(/planner 'triage' has no entry/)
   },
 )

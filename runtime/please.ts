@@ -27,10 +27,7 @@ import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { TRUST_DEFAULT } from './modules/typedefs/trust'
-import type { TDelivery } from './modules/use-cases/compose-request'
 import {
-  DELIVERIES,
-  isNamedLifecycle,
   justArgv,
   resumeArgvFor,
   runArgv,
@@ -43,6 +40,7 @@ import {
   loadLifecycles,
 } from './modules/use-cases/load-lifecycles'
 import {
+  chosenLifecycle,
   chosenPlanner,
   exclusiveCount,
   expandChoices,
@@ -159,8 +157,8 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
    */
   const configPath = configPathFromEnv() ?? DEFAULT_CONFIG_PATH
   const cfg = loadConfig(configPath)
-  const lifecycles = loadLifecycles(lifecyclesBeside(configPath), cfg.agents)
-  const options = menuOptions(cfg.agents, lifecycles)
+  const lifecycles = loadLifecycles(lifecyclesBeside(configPath), cfg)
+  const options = menuOptions(cfg.activities, lifecycles)
 
   const chosen = await askMenuChoice('what should it do?', options, {
     multiple: true,
@@ -245,20 +243,27 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
   )
   if (trust === undefined) return undefined
 
-  const delivery = await askOne('how should it hand the work over?', [
+  /*
+   * Delivery is a property of each Activity now, so the only question left
+   * is whether this run may commit at all. There is no option to make an
+   * Activity commit that did not declare it: a flag granting a permission
+   * the registry withheld would make a run nobody could predict from the
+   * registry.
+   */
+  const commit = await askOne('may it commit as it goes?', [
     {
-      value: 'branch',
-      label: 'branch',
-      detail: 'a branch you can look at before anything merges',
+      value: 'yes',
+      label: 'yes',
+      detail:
+        'each committing Activity lands its own change, in its own words, once its gates pass',
     },
-    { value: 'patch', label: 'patch', detail: 'a diff, applied to nothing' },
     {
-      value: 'commit',
-      label: 'commit',
-      detail: 'committed where you are — only when you already trust the chain',
+      value: 'no',
+      label: 'no',
+      detail: 'nothing is committed; the work is left in the working tree',
     },
   ])
-  if (delivery === undefined) return undefined
+  if (commit === undefined) return undefined
 
   /*
    * Not asked when an operator is choosing: its steps do not exist yet, so a
@@ -286,13 +291,17 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
   if (stream === undefined) return undefined
 
   return runArgv({
-    lifecycle: isNamedLifecycle(steps) ? 'named' : 'compose',
+    /*
+     * A reordered selection is no longer the Lifecycle it came from, so it
+     * is passed as the list it has become. Anything else would run an order
+     * the person explicitly changed away from.
+     */
+    lifecycle: chosen.reorder ? '' : chosenLifecycle(chosenSteps),
     operator,
     steps,
     prompt,
     trustLevel: Number(trust),
-    delivery: (DELIVERIES.find((each) => each === delivery) ??
-      'branch') as TDelivery,
+    commit: commit === 'yes',
     approveAfter,
     stream: stream === 'yes',
   })

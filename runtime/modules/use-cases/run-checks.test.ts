@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
-import { runVerification, verificationEnvelope } from './run-checks'
+import { runVerification } from './run-checks'
 
 /** `runVerification` reads only the config in the two no-command cases. */
 const runWith = (routing: Readonly<Record<string, unknown>>): TRun =>
@@ -25,7 +25,7 @@ test(
     // then
     expect(actual.passed).toEqual(true)
     expect(actual.checks).toEqual([])
-    expect(verificationEnvelope(actual, 0).summary).toContain('nothing changed')
+    expect(actual.failures).toEqual([])
   },
 )
 
@@ -49,8 +49,5 @@ test(
     // then
     expect(actual.passed).toEqual(false)
     expect(actual.failures[0]).toContain('no routing.checks matched')
-    expect(verificationEnvelope(actual, 1).summary).toContain(
-      'no routing.checks matched them',
-    )
   },
 )

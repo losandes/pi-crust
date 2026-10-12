@@ -28,7 +28,6 @@ test(
         agent_name: 'builder',
         purpose: 'implement',
         output_type: 'BuildOutput',
-        attempt: 2,
         status: 'success',
         summary: 'built it',
         changed_files: ['src/a.ts'],

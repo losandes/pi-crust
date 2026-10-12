@@ -42,18 +42,14 @@ default:
 
 # start here: two cheap read-only runs, end to end
 demo:
-    @echo "1/2  prompt: one agent, one prompt"
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} --agent scout "reply with a one-line summary of this repo" --steps prompt
-    @echo "\n2/2  scout: read-only recon"
+    @echo "1/2  scout: read-only recon"
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --steps scout
+    @echo "\n2/2  identify: the outcome and how success is recognised"
+    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "state the outcome a newcomer to this repo would want from it, and how they would know they had it" --steps identify
     @echo "\nboth done. now run:  just crust sessions    (or: just crust observe)"
 
 # ── run a stage, or a whole lifecycle ───────────────────────────────────────
 # Args pass straight through: "<prompt or path/to/prompt.md>" [--run-id X]
-
-# one agent, one prompt: just crust prompt "summarize this repo"
-prompt *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps prompt
 
 # read-only recon: just crust scout "where is auth handled"
 scout *ARGS:
@@ -75,10 +71,6 @@ conceptualize *ARGS:
 design *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps design
 
-# 2.0 answer one hypothesis cheaply: just crust poc "..."
-poc *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps poc
-
 # plan only: just crust plan "add a /health endpoint"
 plan *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps plan
@@ -91,9 +83,12 @@ test *ARGS:
 build *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps build
 
-# run the checks the changed paths select: just crust verify "pre-PR sweep"
+# Runs the commands routing.checks selects for what you changed, with no
+# Lifecycle, no agent and no session. The same checks run as the `checks`
+# gate inside a run; this is them on their own, for a pre-PR sweep.
+# run the checks the changed paths select: just crust verify
 verify *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps verify
+    @bun "{{crust}}/checks.ts" --config {{config}} "$@"
 
 # is it what was asked for: just crust review "add a /health endpoint"
 review *ARGS:
@@ -103,15 +98,11 @@ review *ARGS:
 code-review *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps code-review
 
-# land the working tree: just crust commit "the /health work"
-commit *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps commit
-
 # write it up from the diff: just crust document "the /health work"
 document *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --steps document
 
-# plan, test, build, verify, review, code-review: just crust sdlc "add a /health endpoint"
+# the whole lifecycle, identify through code-review: just crust sdlc "add a /health endpoint"
 sdlc *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle sdlc
 
@@ -123,7 +114,7 @@ de-risk *ARGS:
 bugfix *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@" --lifecycle bugfix
 
-# any ordered subset: just crust compose "..." --steps plan,build,verify
+# any ordered subset: just crust compose "..." --steps plan,test,build
 compose *ARGS:
     bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@"
 
@@ -200,7 +191,7 @@ sessions:
 
 # activity run status in sequence: just crust activity-runs <run_id>
 activity-runs RUN_ID:
-    @sqlite3 {{db}} "select seq, name, kind, owner, status, attempt from activity_runs where run_id='{{RUN_ID}}' order by seq;"
+    @sqlite3 {{db}} "select seq, name, kind, owner, status from activity_runs where run_id='{{RUN_ID}}' order by seq;"
 
 # the live event tail: just crust tail <run_id>
 tail RUN_ID:

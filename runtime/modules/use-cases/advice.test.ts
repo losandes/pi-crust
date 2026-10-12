@@ -22,7 +22,7 @@ const state = (
     resume_from: undefined,
     failed_gates: [],
     envelopes: [
-      { activityRun: 'triage', agent, output_type: 'OperatorPlanOutput', valid, attempt: 1, payload },
+      { activityRun: 'triage', agent, output_type: 'OperatorPlanOutput', valid, payload },
     ],
   }) as TRunState
 
@@ -51,13 +51,16 @@ test(
 test(
   [
     'given use-cases/advice::adviceCommand',
-    'when the chain contains a name that is not a step',
+    'when the chain holds something that is not a string',
     'it should drop it rather than print a command that cannot run',
   ].join(', '),
   () => {
-    // given — the gate catches this first, but the trace can also hold a
-    // chain written by an older factory whose steps have since been renamed
-    const chosen = state({ steps: ['scout', 'teleport', 'design'] })
+    /*
+     * given — which names are real is the loader's question now, not this
+     * one's: Activities are configuration, and a reporter holding its own
+     * list would disagree with the registry the next run reads.
+     */
+    const chosen = state({ steps: ['scout', 7, 'design'] })
 
     // when
     const actual = adviceCommand(chosen, 'x')

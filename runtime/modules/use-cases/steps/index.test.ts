@@ -1,94 +1,117 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_STEP_OPTIONS, STEP_NAMES } from '../../typedefs/step'
+import { crustConfigSchema } from '../../typedefs/config'
+import type { TPiCrustConfig } from '../../typedefs/config'
+import { DEFAULT_STEP_OPTIONS } from '../../typedefs/step'
 import { requiredAgents, resolveSteps } from './index'
 
+const prompts = { system: 'p/system.md', user: 'p/user.md' }
+
+const anActivity = (
+  name: string,
+  extra: Readonly<Record<string, unknown>> = {},
+) => ({
+  name,
+  purpose: `Do the ${name} work and report it`,
+  prompt_engineering: prompts,
+  writes: [`{handoff}/${name}.md`],
+  ...extra,
+})
+
+const aConfig = (
+  activities: readonly Readonly<Record<string, unknown>>[],
+): TPiCrustConfig =>
+  crustConfigSchema.parse({
+    activities,
+    agents: activities,
+    planners: [
+      { name: 'operator', purpose: 'Choose the chain', prompt_engineering: prompts, writes: [] },
+      { name: 'triage', purpose: 'Choose the chain and hand it back', prompt_engineering: prompts, writes: [] },
+    ],
+  })
+
 test(
   [
     'given use-cases/steps::resolveSteps',
-    'when every step name is asked for',
-    'it should resolve each one to an activity run of the right kind and owner',
+    'when the registry declares an Activity',
+    'it should own its activity run itself, because an Activity IS an agent',
   ].join(', '),
   () => {
     // given
-    const names = [...STEP_NAMES]
-
-    // when
-    const actual = resolveSteps(names)
-
-    // then
-    expect(actual.map((step) => step.params.name)).toEqual(names)
-    expect(
-      actual.map((step) => `${step.params.kind}:${step.params.owner}`),
-    ).toEqual([
-      'agent:builder',
-      'agent:scout',
-      'agent:technical-researcher',
-      'agent:ux-researcher',
-      'agent:domain-researcher',
-      'agent:security-researcher',
-      'agent:data-researcher',
-      'agent:ux-designer',
-      'agent:operator',
-      // the same choice, handed back rather than executed
-      'agent:triage',
-      'agent:analyst',
-      'agent:diagnostician',
-      'agent:solutions-architect',
-      'agent:planner',
-      'agent:technical-architect',
-      'agent:builder',
-      'agent:tester',
-      'agent:builder',
-      'code:checks',
-      'agent:reviewer',
-      'agent:code-reviewer',
-      'agent:builder',
-      'code:git',
-      'agent:documenter',
+    const given = aConfig([
+      anActivity('plan', { output: 'planOutput', gates: ['artifactsExist'] }),
+      anActivity('build', {
+        output: 'buildOutput',
+        gates: ['diffMatchesClaims', 'checks'],
+        attempts: 3,
+        commit: true,
+      }),
     ])
+
+    // when
+    const actual = resolveSteps(['plan', 'build'], given)
+
+    // then — no performer to bridge to: the Activity is the owner
+    expect(actual.map((step) => `${step.params.kind}:${step.params.owner}`)).toEqual([
+      'agent:plan',
+      'agent:build',
+    ])
+    expect(actual[1]?.gates.map((gate) => gate.name)).toEqual([
+      'diff_matches_claims',
+      'checks',
+    ])
+    expect(actual[1]?.attempts).toEqual(3)
+    expect(actual[1]?.commit).toEqual(true)
   },
 )
 
 test(
   [
     'given use-cases/steps::resolveSteps',
-    'when no --base was given',
-    'it should default to the empty selector so a step can tell that apart from --base main',
+    'when a run was started with --commit false',
+    'it should take committing away from an Activity that declared it',
   ].join(', '),
   () => {
     // given
-    const names = ['document']
+    const given = aConfig([
+      anActivity('build', { output: 'buildOutput', commit: true }),
+    ])
 
     // when
-    const actual = resolveSteps(names)
+    const actual = resolveSteps(['build'], given, { committing: false })
 
     // then
-    expect(actual[0]?.params.owner).toEqual('documenter')
-    // document compensates with `ctx.baseline || options.base || 'main'`, so
-    // its behaviour is unchanged; verify/review/code-review need the ''.
-    expect(DEFAULT_STEP_OPTIONS.base).toEqual('')
+    expect(actual[0]?.commit).toEqual(false)
   },
 )
 
 test(
   [
     'given use-cases/steps::resolveSteps',
-    'when a step is named more than once',
-    'it should number the repeats so their activityRun names stay unique',
+    'when an Activity is named more than once',
+    'it should number the repeats, which is what each budget is kept against',
   ].join(', '),
   () => {
     // given
-    const names = ['build', 'verify', 'build', 'verify']
+    const given = aConfig([
+      anActivity('build', { output: 'buildOutput' }),
+      anActivity('review', { output: 'reviewOutput' }),
+    ])
 
     // when
-    const actual = resolveSteps(names)
+    const actual = resolveSteps(['build', 'review', 'build', 'review'], given)
 
     // then
-    expect(actual.map((step) => step.params.name)).toEqual([
+    expect(actual.map((step) => step.instance)).toEqual([
       'build',
-      'verify',
+      'review',
       'build_2',
-      'verify_2',
+      'review_2',
+    ])
+    expect(actual.map((step) => step.name)).toEqual([
+      'build',
+      'review',
+      'build',
+      'review',
     ])
   },
 )
@@ -96,16 +119,16 @@ test(
 test(
   [
     'given use-cases/steps::resolveSteps',
-    'when a name is not a step',
-    'it should throw and list the names that are',
+    'when a name is not an Activity this repository offers',
+    'it should throw and list the ones that are',
   ].join(', '),
   () => {
     // given
-    const names = ['plan', 'deploy']
+    const given = aConfig([anActivity('plan', { output: 'planOutput' })])
 
     // when, then
-    expect(() => resolveSteps(names)).toThrow(
-      /unknown step\(s\): deploy[\s\S]*code-review/,
+    expect(() => resolveSteps(['plan', 'deploy'], given)).toThrow(
+      /unknown activity\(s\): deploy[\s\S]*offers plan/,
     )
   },
 )
@@ -113,36 +136,54 @@ test(
 test(
   [
     'given use-cases/steps::resolveSteps',
-    'when the prompt step is pointed at another agent',
-    'it should own its activityRun with that agent and say so in the description',
+    'when a Planner is resolved',
+    'it should carry the gate the engine owns rather than one a team declared',
   ].join(', '),
   () => {
     // given
-    const names = ['prompt']
+    const given = aConfig([anActivity('plan', { output: 'planOutput' })])
 
     // when
-    const actual = resolveSteps(names, { agent: 'scout' })
+    const actual = resolveSteps(['operator'], given)
 
     // then
-    expect(actual[0]?.params.owner).toEqual('scout')
-    expect(actual[0]?.params.description).toContain('scout')
+    expect(actual[0]?.params.owner).toEqual('operator')
+    expect(actual[0]?.gates.map((gate) => gate.name)).toEqual(['steps_valid'])
+    expect(actual[0]?.commit).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/steps::resolveSteps',
+    'when no --scope was given',
+    'it should default to the empty selector so a step can tell that apart from --scope main',
+  ].join(', '),
+  () => {
+    // given, when, then
+    expect(DEFAULT_STEP_OPTIONS.base).toEqual('')
   },
 )
 
 test(
   [
     'given use-cases/steps::requiredAgents',
-    'when a chain uses one agent twice and a code step',
-    'it should name each agent once and the code step not at all',
+    'when a chain names one Activity twice',
+    'it should name each agent once, so validation does not repeat itself',
   ].join(', '),
   () => {
     // given
-    const steps = resolveSteps(['build', 'verify', 'build', 'review'])
+    const given = aConfig([
+      anActivity('build', { output: 'buildOutput' }),
+      anActivity('review', { output: 'reviewOutput' }),
+    ])
 
     // when
-    const actual = requiredAgents(steps)
+    const actual = requiredAgents(
+      resolveSteps(['build', 'review', 'build'], given),
+    )
 
     // then
-    expect(actual).toEqual(['builder', 'reviewer'])
+    expect(actual).toEqual(['build', 'review'])
   },
 )

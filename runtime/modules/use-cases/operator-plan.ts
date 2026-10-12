@@ -26,7 +26,6 @@
 import { plannedNames } from './gates'
 import { narrowEnvelope, operatorPlanOutput } from '../typedefs/envelope'
 import type { TStepContext } from '../typedefs/step'
-import { isStepName } from '../typedefs/step'
 
 /**
  * The chain an operator activityRun chose, or nothing when this run had no operator.
@@ -41,7 +40,15 @@ export const plannedChain = (ctx: TStepContext): readonly string[] => {
   if (ctx.previousStep !== 'operator') return []
   const plan = narrowEnvelope(operatorPlanOutput, ctx.previous)
   if (plan === undefined) return []
-  return plannedNames(plan).filter(isStepName)
+  /*
+   * Checked against the registry the RUN loaded, not against a union in
+   * this package: Activities are configuration now, and a trace written
+   * before a team removed one would otherwise replay a chain this
+   * repository can no longer run.
+   */
+  const offered = ctx.run.cfg.activities.map((one) => one.name)
+
+  return plannedNames(plan).filter((name) => offered.includes(name))
 }
 
 /**

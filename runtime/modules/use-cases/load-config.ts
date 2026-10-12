@@ -8,6 +8,7 @@ import {
   activitiesFileSchema,
   activityPatchFileSchema,
   mergeActivities,
+  plannerFaults,
 } from '../typedefs/activity'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema, DEFAULT_CONFIG_PATH } from '../typedefs/config'
@@ -40,10 +41,8 @@ const asRecord = (value: unknown): TRawRecord =>
 export const resolveConfig = (document: unknown): TPiCrustConfig => {
   const raw = asRecord(document)
   const defaults = asRecord(raw.defaults)
-  const agents = Array.isArray(raw.agents) ? raw.agents : []
-  const merged = {
-    ...raw,
-    agents: agents.map((agent) => {
+  const inherit = (entries: unknown): readonly unknown[] =>
+    (Array.isArray(entries) ? entries : []).map((agent) => {
       const entry = asRecord(agent)
       const inherited = Object.fromEntries(
         INHERITED.filter((key) => key in defaults && !(key in entry)).map(
@@ -55,7 +54,12 @@ export const resolveConfig = (document: unknown): TPiCrustConfig => {
         ...inherited,
         ...entry,
       }
-    }),
+    })
+  const merged = {
+    ...raw,
+    agents: inherit(raw.agents),
+    activities: inherit(raw.activities),
+    planners: inherit(raw.planners),
   }
   return crustConfigSchema.parse(merged)
 }
@@ -85,23 +89,43 @@ export type TLoadedConfig = Readonly<{
  * reorders — and a registry sharing a file with observability settings is a
  * file nobody can review.
  */
-const activitiesBeside = (configPath: string): readonly unknown[] => {
+type TRegistryFile = Readonly<{
+  activities: readonly unknown[]
+  planners: readonly unknown[]
+}>
+
+const EMPTY_REGISTRY: TRegistryFile = { activities: [], planners: [] }
+
+const activitiesBeside = (configPath: string): TRegistryFile => {
   const path = join(dirname(configPath), 'crust.activities.yaml')
   if (!fileExists(path)) {
-    return []
+    return EMPTY_REGISTRY
   }
-  const base = activitiesFileSchema.parse(
-    Bun.YAML.parse(readText(path)),
-  ).activities
+  const base = activitiesFileSchema.parse(Bun.YAML.parse(readText(path)))
   const localPath = path.replace(/\.yaml$/, '.local.yaml')
+  if (!fileExists(localPath)) {
+    return base
+  }
+  const local = activityPatchFileSchema.parse(
+    Bun.YAML.parse(readText(localPath)),
+  )
 
-  return fileExists(localPath)
-    ? mergeActivities(
-        base as unknown as readonly Record<string, unknown>[],
-        activityPatchFileSchema.parse(Bun.YAML.parse(readText(localPath)))
-          .activities,
-      )
-    : base
+  return {
+    activities: mergeActivities(
+      base.activities as unknown as readonly Record<string, unknown>[],
+      local.activities,
+    ),
+    /*
+     * A local layer tunes a Planner the same way it tunes an Activity, and
+     * cannot add one: `plannerFaults` is checked on the MERGED list, so a
+     * local entry naming something that is not a Planner is refused here
+     * rather than quietly becoming a fourth Planner nothing can reach.
+     */
+    planners: mergeActivities(
+      base.planners as unknown as readonly Record<string, unknown>[],
+      local.planners,
+    ),
+  }
 }
 
 /**
@@ -139,12 +163,31 @@ export const loadConfigWithNotes = (
   path: string = DEFAULT_CONFIG_PATH,
 ): TLoadedConfig => {
   const document = Bun.YAML.parse(readText(path))
-  const activities = activitiesBeside(path)
+  const registry = activitiesBeside(path)
   const observability = observabilitySettings(path)
+  const faults = plannerFaults(
+    registry.planners as readonly Readonly<{ name: string }>[],
+  )
+  if (registry.activities.length > 0 && faults.length > 0) {
+    throw new Error(
+      `the Planner configuration cannot run:\n- ${faults.join('\n- ')}`,
+    )
+  }
+  /*
+   * The roster is the two lists together, because an Activity IS an agent.
+   * `agents` keeps its name and its shape so that resolving an owner,
+   * enforcing a writes boundary and rendering a prompt stay one code path.
+   */
+  const roster = [...registry.activities, ...registry.planners]
   const withAgents =
-    activities.length === 0
+    roster.length === 0
       ? document
-      : { ...(document as object), agents: activities }
+      : {
+          ...(document as object),
+          agents: roster,
+          activities: registry.activities,
+          planners: registry.planners,
+        }
   const base =
     Object.keys(observability).length === 0
       ? withAgents

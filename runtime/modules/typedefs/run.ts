@@ -93,7 +93,6 @@ export type TRun = Readonly<{
     activityRunId: string,
     patch: Readonly<{
       status?: TActivityRunStatus
-      attempt?: number
       error?: string
       ended_at?: string
     }>,
