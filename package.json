@@ -1,0 +1,33 @@
+{
+  "name": "pi-crust",
+  "version": "0.1.0",
+  "description": "Run a structured SDLC of autonomous, specialist AI agents in your repo",
+  "type": "module",
+  "scripts": {
+    "postinstall": "cd apps/visualizer && bun install",
+    "// LINT": "==============================LINT==============================",
+    "lint": "biome check src",
+    "lint:fix": "biome check src --fix",
+    "// TEST": "==============================TEST==============================",
+    "test": "bun test",
+    "test:with-logs": "bun test --verbose",
+    "test:ci": "CLAUDECODE=1 bun test --verbose",
+    "test:claude": "CLAUDECODE=1 bun test --verbose --bail",
+    "test:coverage": "CLAUDECODE=1 bun test --coverage",
+    "test:watch": "bun test --watch"
+  },
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "node": ">=24.8.0",
+    "bun": ">=1.3.14"
+  },
+  "dependencies": {
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.12",
+    "@types/bun": "1.3.12",
+    "markdownlint-cli2": "^0.23.3",
+    "typescript": "5.9.3"
+  }
+}
