@@ -39,6 +39,48 @@ defaults:
     - .pi-crust/config/
     - .env*
     - '**/.env*'
+
+  # What happens when a tool call reaches one of those paths, and what happens
+  # when it reaches a GITIGNORED one. Four verbs, and only four:
+  #
+  #   block   refused BEFORE the call runs. Nothing is read, nothing is
+  #           written, the agent is told why, and the refusal is reported.
+  #   stop    it happened; the run ends at that Activity, loudly.
+  #   warn    it happened; reported with every other warning; the run goes on.
+  #   allow   not governed. A path nobody wants governed should leave the list.
+  #
+  # There is no `revert`, and there will not be one. Undoing a write assumes
+  # pi-crust knows whose write it was, and a developer editing the same branch
+  # while a run works is indistinguishable from an agent in a diff. What it
+  # cannot attribute, it reports.
+  #
+  # `block` is the shipped default for a protected path because the other
+  # three describe an exposure that has already happened: for a credentials
+  # file that is no protection at all, since the bytes are already in a
+  # model's context, in its session on disk, and possibly in a provider's
+  # logs. Read and write are separate questions — for a secret, reading is the
+  # dangerous half.
+  protected:
+    read: block
+    write: block
+
+  # Gitignored paths, minus this run's own session runtime under data_dir.
+  # Reading a generated file is ordinary work — a build output, a lockfile, a
+  # local fixture — so blocking it would break real work for no gain. Writing
+  # one produces work that is not in the repository, so no diff, no review and
+  # no commit will ever show it. Membership is decided by git, never by a
+  # second implementation of .gitignore matching.
+  ignored:
+    read: warn
+    write: block
+
+  # LIMIT, stated where the policy is declared: `bash` is best-effort only.
+  # `read`, `write` and `edit` carry a structured path and are matched
+  # exactly. A shell command is a string, and `cat .env`, `grep -r KEY .` and
+  # `env > dump` are not reliably distinguishable from legitimate work. The
+  # obvious spellings are matched and the rest are not, so if a path MUST NOT
+  # leak, do not give that Activity `bash` — a partial defence described as
+  # protection is worse than none.
   data_dir: .pi-crust/data         # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
 
 # What this repository offers — the Activities and the Lifecycles — is in

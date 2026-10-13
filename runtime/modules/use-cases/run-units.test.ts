@@ -10,6 +10,7 @@ import type { TRun } from '../typedefs/run'
 import type { TActivity, TActivityContext } from '../typedefs/runnable-activity'
 import type { TUnit } from '../typedefs/unit'
 import { createRun } from './create-run'
+import { observedPayload, PATHS_TOUCHED } from './observed-paths'
 import { runUnits } from './run-activities'
 
 /** Where this run's events land, so a test can read what it recorded. */
@@ -305,6 +306,14 @@ const gatedStep = (
     passOn: number
     attempts?: number
     commit?: boolean
+    /**
+     * What this Activity Run is OBSERVED to change, as `executeAgent` records
+     * it for a real agent. A commit is built from this and nothing else, so a
+     * fixture that does not record it is a fixture that changed nothing.
+     */
+    touches?: readonly string[]
+    /** what it CLAIMS it changed \u2014 a report, never the evidence */
+    claims?: readonly string[]
   }>,
 ): TActivity =>
   ({
@@ -328,12 +337,31 @@ const gatedStep = (
     ],
     attempts: params.attempts ?? 2,
     commit: params.commit ?? false,
-    execute: (ctx: TActivityContext) => {
+    execute: (
+      ctx: TActivityContext,
+      handle: Readonly<{ activityRun: Readonly<{ activity_run_id: string }> }>,
+    ) => {
       // biome-ignore lint/plugin/no-array-mutation: counting executions is the test
       params.runs.push(name)
       // biome-ignore lint/plugin/no-array-mutation: recording what it was told is the test
       params.feedbackSeen.push([...ctx.feedback])
       const summary = params.runs.length >= params.passOn ? 'green' : 'red'
+      if (params.touches !== undefined) {
+        ctx.run.tracer.event({
+          run_id: ctx.run.runId,
+          activity_run_id: handle.activityRun.activity_run_id,
+          type: 'log',
+          name: PATHS_TOUCHED,
+          payload: observedPayload({
+            activity: name,
+            activityRunId: handle.activityRun.activity_run_id,
+            agent: name,
+            touched: params.touches,
+            dirtyBefore: [],
+            claimed: params.claims ?? params.touches,
+          }),
+        })
+      }
 
       return Promise.resolve({
         previous: { status: 'success', summary },
@@ -450,6 +478,10 @@ const aRepo = (): string => {
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'tester@example.com')
   git('config', 'user.name', 'tester')
+  // Signing is the operator's business, not this fixture's: a machine that
+  // signs through an agent hangs a non-interactive `git commit` for a minute
+  // and then fails, which reads as a broken test rather than a broken prompt.
+  git('config', 'commit.gpgsign', 'false')
   writeFileSync(join(dir, 'README.md'), 'before\n')
   git('add', '-A')
   git('commit', '-qm', 'first')
@@ -466,8 +498,8 @@ test(
   async () => {
     /*
      * given — delivery is a property of the Activity, not a mode of the
-     * run: `--deliver branch|patch|commit` all performed one `commitAll` at
-     * the END of the chain, so a large body of work arrived squashed
+     * run: `--deliver branch|patch|commit` all committed the whole working
+     * tree at the END of the chain, so a large body of work arrived squashed
      * whichever was chosen.
      */
     const dir = aRepo()
@@ -476,7 +508,13 @@ test(
     const feedbackSeen: string[][] = []
     const given = [
       unit('implement', 'serial', [
-        gatedStep('build', { runs, feedbackSeen, passOn: 2, commit: true }),
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 2,
+          commit: true,
+          touches: ['README.md'],
+        }),
       ]),
     ]
     const was = process.cwd()
@@ -502,5 +540,250 @@ test(
     expect(
       eventsOf(run).filter((event) => event.name === 'committed'),
     ).toHaveLength(1)
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when a file was dirty before the run and no Activity touched it',
+    'it should be left dirty and uncommitted, because it is not the run’s',
+  ].join(', '),
+  async () => {
+    /*
+     * given — `git add -A` swept every uncommitted file in the repository
+     * into the first Activity declaring `commit: true`, under a message
+     * describing something else. A developer who commits before every run
+     * never saw it; one who does not lost the ability to tell their work
+     * from the factory's.
+     */
+    const dir = aRepo()
+    const run = aRun()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          commit: true,
+          touches: ['src.ts'],
+        }),
+      ]),
+    ]
+    const was = process.cwd()
+    process.chdir(dir)
+
+    // when — the developer's own edit is in the tree the whole time
+    try {
+      writeFileSync(join(dir, 'README.md'), 'mine, in progress\n')
+      writeFileSync(join(dir, 'src.ts'), 'export const x = 1\n')
+      await runUnits({ run, units: given, start: contextFor(run) })
+    } finally {
+      process.chdir(was)
+    }
+
+    // then — committed what the Activity wrote, and nothing else
+    const committed = execFileSync(
+      'git',
+      ['show', '--name-only', '--pretty=format:', 'HEAD'],
+      { cwd: dir, encoding: 'utf8' },
+    ).trim()
+    const dirty = execFileSync('git', ['status', '--porcelain'], {
+      cwd: dir,
+      encoding: 'utf8',
+    })
+    expect(committed).toEqual('src.ts')
+    expect(dirty).toContain('README.md')
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toEqual(
+      'mine, in progress\n',
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when an Activity wrote to a file that was already dirty',
+    'it should commit it, and say which paths went in',
+  ].join(', '),
+  async () => {
+    /*
+     * given — refusing any file that was dirty before the run sounds safer
+     * and is worse: a developer who starts a run to finish something they
+     * began by hand would watch the Activity's own work go uncommitted. An
+     * Activity may pull a dirty file into scope by WORKING on it; it may not
+     * pull one in by running near it.
+     */
+    const dir = aRepo()
+    const run = aRun()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          commit: true,
+          touches: ['README.md'],
+        }),
+      ]),
+    ]
+    const was = process.cwd()
+    process.chdir(dir)
+
+    // when
+    try {
+      writeFileSync(join(dir, 'README.md'), 'started by hand, finished here\n')
+      await runUnits({ run, units: given, start: contextFor(run) })
+    } finally {
+      process.chdir(was)
+    }
+
+    // then
+    const committed = eventsOf(run).find(
+      (event) => event.name === 'committed',
+    )?.payload as Readonly<{ paths: readonly string[] }> | undefined
+    expect(
+      execFileSync('git', ['status', '--porcelain'], {
+        cwd: dir,
+        encoding: 'utf8',
+      }),
+    ).toEqual('')
+    expect(committed?.paths).toEqual(['README.md'])
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when an Activity changed a path it never reported',
+    'it should warn, spend no attempt, open no gate, and still succeed',
+  ].join(', '),
+  async () => {
+    /*
+     * given — the overwhelmingly common cause is a developer typing in their
+     * own repository while the run works. A run that halted every time
+     * somebody saved a file would be unusable in the tree they are in.
+     */
+    const run = aRun()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          touches: ['src/add.ts'],
+          claims: [],
+        }),
+      ]),
+    ]
+
+    // when
+    await runUnits({ run, units: given, start: contextFor(run) })
+
+    // then
+    const warning = eventsOf(run).find(
+      (event) => event.name === 'tree_warning',
+    )?.payload as Readonly<{ paths: readonly string[]; kind: string }>
+    expect(warning).toMatchObject({ kind: 'unexpected', paths: ['src/add.ts'] })
+    expect(runs).toEqual(['build'])
+    expect(run.activityRuns().map((one) => one.status)).toEqual(['success'])
+    expect(
+      eventsOf(run).filter((event) => event.name === 'human_gate_open'),
+    ).toHaveLength(0)
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when two Activities of one concurrent Stage both saw a path nobody claimed',
+    'it should raise one warning for the Stage rather than one each',
+  ].join(', '),
+  async () => {
+    // given
+    const run = aRun()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('accept', 'concurrent', [
+        gatedStep('review', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          touches: ['notes.md'],
+          claims: [],
+        }),
+        gatedStep('code-review', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          touches: ['notes.md'],
+          claims: [],
+        }),
+      ]),
+    ]
+
+    // when
+    await runUnits({ run, units: given, start: contextFor(run) })
+
+    // then
+    const warnings = eventsOf(run).filter(
+      (event) => event.name === 'tree_warning',
+    )
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.payload).toMatchObject({
+      paths: ['notes.md'],
+      activities: ['review', 'code-review'],
+    })
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::sessionFinished',
+    'when a run raised a warning early and then kept going',
+    'it should still say so when the last Activity has finished',
+  ].join(', '),
+  async () => {
+    /*
+     * given — a warning raised by the second of nine Activities is a line in
+     * the middle of a long run, and nobody scrolls back to it.
+     */
+    const run = aRun()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const log: string[] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          touches: ['src/add.ts'],
+          claims: [],
+        }),
+      ]),
+      unit('accept', 'serial', [timedActivity('review', log, 1)]),
+    ]
+
+    // when
+    await runUnits({ run, units: given, start: contextFor(run) })
+    run.console.sessionFinished(true, 0, 0, 'crust.db')
+
+    // then
+    const printed = eventsOf(run)
+      .map((event) =>
+        String((event.payload as Readonly<{ message?: string }>)?.message ?? ''),
+      )
+      .join('\n')
+    expect(printed).toContain('1 unexplained change(s) during this run')
+    expect(printed).toContain('src/add.ts')
+    expect(printed).toContain('pi-crust cannot tell')
   },
 )

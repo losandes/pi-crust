@@ -21,6 +21,7 @@ const state = (
     completed: [],
     resume_from: undefined,
     failed_gates: [],
+    warnings: [],
     envelopes: [
       { activityRun: 'triage', agent, output_type: 'OperatorPlanOutput', valid, payload },
     ],

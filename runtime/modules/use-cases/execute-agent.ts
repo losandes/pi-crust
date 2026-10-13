@@ -21,11 +21,13 @@ import type { TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../typedefs/run'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
-import {
-  enforcePermissions,
-  handoffDocument,
-  PermissionBreach,
-} from './enforce-permissions'
+import { enforcePermissions, handoffDocument } from './enforce-permissions'
+import { armPolicy, refusalsIn, stopMessage } from './path-policy-run'
+import { refusalLine } from './path-policy'
+import { observedPayload, PATHS_TOUCHED } from './observed-paths'
+import type { TTreeWarning } from '../typedefs/warning'
+import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
+import { buildOutput, narrowEnvelope } from '../typedefs/envelope'
 import { extractJson } from './extract-json'
 import { resolveAgent } from './load-config'
 import { trustStance } from '../typedefs/trust'
@@ -54,6 +56,12 @@ export const feedbackBlock = (violations: readonly string[]): string =>
 
 /** continue-with-correction attempts for malformed JSON */
 export const JSON_FIX_ATTEMPTS = 2
+
+/**
+ * The extension every agent is given, which refuses a governed path before
+ * the tool runs. Named relative to the package, like every other reference.
+ */
+export const PATH_POLICY_EXTENSION = 'harness-engineering/path-policy.ts'
 
 const agentSessionId = (run: TRun, agent: TAgentConfig): string => {
   const entry = run.agentMap()[agent.name]
@@ -253,6 +261,21 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   const agent = resolveAgent(run.cfg, activityRun.params.owner)
   const agentDir = ensureDir(join(run.sessionDir, agent.name))
   const spec = call.outputType as unknown as TEnvelopeSpec<TEnvelopeBase>
+  /*
+   * The path policy, armed before anything spawns.
+   *
+   * Loaded into EVERY agent rather than declared per roster entry: a
+   * protection an Activity can decline by saying nothing is not a
+   * protection. It is the only check in this system that runs before the
+   * call instead of after it, which is the only way to answer for a secret
+   * — bytes that have been read cannot be unread.
+   */
+  const policy = armPolicy(
+    run.cfg,
+    run.repoRoot,
+    agentDir,
+    activityRun.activity_run_id,
+  )
 
   // What this agent is being asked to reason about, as paths. A caller that
   // already knows (a reviewer handed the builder's envelope) says so; otherwise
@@ -312,7 +335,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     skills:
       skills.length > 0
         ? skills.join('\n')
-        : '(none pre-loaded \u2014 every skill in this repository is still ' +
+        : '(none pre-loaded — every skill in this repository is still ' +
           'discoverable, and you are expected to reach for the ones that apply)',
     changed_files: changedPaths.length > 0 ? changedPaths.join('\n') : '(none)',
     // What the call is ABOUT, which is not always what is in the working tree:
@@ -444,9 +467,13 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
          * relative to ITS cwd, which is the repository being worked on, and
          * the extensions ship with the package rather than with the stamp.
          */
-        extensions: agent.harness_engineering.map(resolveReference),
+        extensions: [
+          resolveReference(PATH_POLICY_EXTENSION),
+          ...agent.harness_engineering.map(resolveReference),
+        ],
         skills,
         cwd: run.repoRoot,
+        env: policy.env,
       },
       {
         onEvent: forwardEvents.observe,
@@ -496,55 +523,140 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
 
   const { envelope } = await parsed
 
-  // Permission is checked after every send is done, and before the envelope is
-  // accepted: an agent does not get to report success on an activity run in which it
-  // wrote somewhere it was not allowed to.
-  const enforced = safeParseSettlement(() =>
-    enforcePermissions(
-      run,
-      agent,
-      {
-        tree: treeBefore,
-        head: headBefore,
-        committing: call.committing === true,
-      },
-      /*
-       * Resolved from the roster rather than carried: a cohort is Activity
-       * names, and what enforcement needs is what those Activities declared.
-       * A name the roster does not have contributes nothing, which is right
-       * — an unknown agent cannot be made responsible for a path.
-       */
-      (call.cohort ?? []).flatMap((name) => {
-        const sibling = run.cfg.agents.find((one) => one.name === name)
+  // What the Activity Run did to the repository, read after every send is
+  // done: the agent is finished, so the tree it leaves is the one to compare.
+  // Observed, never acted on — see enforce-permissions for why nothing here
+  // puts a file back.
+  const observed = enforcePermissions(
+    run,
+    agent,
+    {
+      tree: treeBefore,
+      head: headBefore,
+      committing: call.committing === true,
+    },
+    /*
+     * Resolved from the roster rather than carried: a cohort is Activity
+     * names, and what enforcement needs is what those Activities declared.
+     * A name the roster does not have contributes nothing, which is right
+     * — an unknown agent cannot be made responsible for a path.
+     */
+    (call.cohort ?? []).flatMap((name) => {
+      const sibling = run.cfg.agents.find((one) => one.name === name)
 
-        return sibling === undefined ? [] : [sibling]
-      }),
-    ),
+      return sibling === undefined ? [] : [sibling]
+    }),
   )
-  if (enforced.status === 'error') {
-    if (enforced.error instanceof PermissionBreach) {
-      run.tracer.event({
-        run_id: run.runId,
-        activity_run_id: activityRun.activity_run_id,
-        type: 'error',
-        name: 'permission_breach',
-        payload: {
-          agent: agent.name,
-          error: enforced.error.message,
-          writes: agent.writes ?? null,
-          protected_files: run.cfg.defaults.protected_files,
-        },
-      })
-    }
-    throw enforced.error
-  }
-  if (enforced.data.length > 0) {
+  /*
+   * The observation, filed whole: what changed, what was already changing,
+   * and what the Activity said it changed. The commit scope reads the first,
+   * and the comparison that raises a warning needs all three.
+   */
+  if (observed.touched.length > 0) {
     run.tracer.event({
       run_id: run.runId,
       activity_run_id: activityRun.activity_run_id,
       type: 'log',
-      name: 'paths_touched',
-      payload: { agent: agent.name, paths: enforced.data },
+      name: PATHS_TOUCHED,
+      payload: observedPayload({
+        activity: activityRun.params.name,
+        activityRunId: activityRun.activity_run_id,
+        agent: agent.name,
+        touched: observed.touched,
+        dirtyBefore: observed.dirtyBefore,
+        claimed: narrowEnvelope(buildOutput, envelope)?.changed_files ?? [],
+      }),
+    })
+  }
+  /*
+   * Every governed call this agent made, as the extension recorded it.
+   *
+   * `block` already happened inside the harness — nothing was read and
+   * nothing was written, which is what makes it the only verb that
+   * protects. `warn` and `stop` let the call run, so the run answers for
+   * them here: both are reported, and `stop` ends the Activity.
+   */
+  const refusals = refusalsIn(policy.refusals)
+  if (refusals.length > 0) {
+    const refusal: TTreeWarning = {
+      kind: 'refusal',
+      activities: [activityRun.params.name],
+      activityRunIds: [activityRun.activity_run_id],
+      stage: activityRun.params.name,
+      paths: refusals.map(refusalLine),
+      note: `${agent.name} reached ${refusals.length} governed path(s)`,
+    }
+    run.console.note(
+      `${activityRun.params.name}: ${refusals.length} tool call(s) governed ` +
+        'by the path policy',
+    )
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun.activity_run_id,
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload(refusal),
+    })
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun.activity_run_id,
+      type: 'log',
+      name: 'path_policy',
+      payload: { agent: agent.name, refusals },
+    })
+  }
+  const stopped = refusals.filter((one) => one.verb === 'stop')
+  if (stopped.length > 0) {
+    throw new Error(stopMessage(agent.name, stopped))
+  }
+
+  /*
+   * An overstep is reported, not punished and never undone.
+   *
+   * It used to abort the activity run, which was only worth doing because the
+   * abort came with a rollback — and the rollback is what had to go: it
+   * assumed every change in the window was the agent's, which is false
+   * whenever a developer is working in the same tree. Detection is unchanged
+   * and the record is unchanged; the response is a sentence a person reads.
+   */
+  const overstep: TTreeWarning | undefined =
+    observed.overstepped.length === 0 && observed.committed.length === 0
+      ? undefined
+      : {
+          kind: 'overstep',
+          activities: [activityRun.params.name],
+          activityRunIds: [activityRun.activity_run_id],
+          stage: activityRun.params.name,
+          paths: observed.overstepped,
+          note: [
+            `${agent.name} is ${observed.scope}`,
+            ...observed.committed,
+          ].join(' · '),
+        }
+  if (overstep !== undefined) {
+    run.console.note(
+      `${activityRun.params.name}: ${overstep.paths.length} path(s) outside ` +
+        `what ${agent.name} declared it writes — reported, not reverted`,
+    )
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun.activity_run_id,
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload(overstep),
+    })
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun.activity_run_id,
+      type: 'error',
+      name: 'permission_breach',
+      payload: {
+        agent: agent.name,
+        paths: overstep.paths,
+        note: overstep.note,
+        writes: agent.writes ?? null,
+        protected_files: run.cfg.defaults.protected_files,
+      },
     })
   }
 

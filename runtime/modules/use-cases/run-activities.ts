@@ -32,6 +32,8 @@ import {
   regressionCause,
 } from './attempts'
 import { commitActivity } from './deliver'
+import { observationsIn, unexpectedWarnings } from './observed-paths'
+import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
 import type { TGateReason } from './human-gate'
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import {
@@ -334,6 +336,52 @@ const recordUnreached = (
 }
 
 /**
+ * Say what changed during this Unit that nobody accounted for.
+ *
+ * At the Unit boundary rather than inside the agent call, for two reasons: a
+ * concurrent Stage must raise ONE warning rather than one per sibling saying
+ * the same thing about the same path, and only the driver knows the Stage.
+ *
+ * It is a warning and not a gate. A gate stops the run and asks, which is
+ * right for a question only a person can answer about the work and wrong
+ * here: the overwhelmingly common cause is a developer typing in their own
+ * repository, which is a supported way to work rather than an incident. A run
+ * that halted every time somebody saved a file would be unusable in the tree
+ * they are actually in.
+ *
+ * So it spends no attempt, opens no gate, and fails nothing. It is recorded,
+ * and the surfaces that report a run read it back at the end.
+ */
+const noteUnexpectedChanges = (
+  run: TRun,
+  unit: TUnit,
+  ran: readonly TRan[],
+): void => {
+  const instances = new Set(ran.map((one) => one.activity.instance))
+  const warnings = unexpectedWarnings({
+    stage: unit.stage,
+    concurrent: unit.strategy === 'concurrent',
+    observations: observationsIn(run).filter((observed) =>
+      instances.has(observed.activity),
+    ),
+  })
+  for (const warning of warnings) {
+    run.console.note(
+      `${warning.paths.length} unexpected change(s) during ` +
+        `'${warning.stage}' — pi-crust cannot tell whose they are, and ` +
+        'changed nothing back',
+    )
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: warning.activityRunIds[0] ?? '',
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload(warning),
+    })
+  }
+}
+
+/**
  * Report upstream Activities that disagree, rather than quietly picking one.
  *
  * Two Activities in one Stage can accept and reject the same work — that is
@@ -416,6 +464,7 @@ export const runUnits = (params: TRunUnitsParams): Promise<TActivityContext> => 
       ledger,
     )
     noteDisagreement(run, unit, ran)
+    noteUnexpectedChanges(run, unit, ran)
 
     const upstream: readonly TUpstream[] = ran.flatMap((one) =>
       one.result.previous === undefined

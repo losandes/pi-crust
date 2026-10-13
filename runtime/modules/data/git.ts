@@ -82,20 +82,57 @@ export const repoRoot = (): string => {
   return walk(start) ?? start
 }
 
-/** Stage the working tree and commit it. Returns the new short sha. */
-export const commitAll = (message: string): string => {
+/** A commit that happened, and what went into it. `sha: ''` means it did not. */
+export type TCommit = Readonly<{
+  sha: string
+  paths: readonly string[]
+}>
+
+/**
+ * Stage exactly these paths and commit them.
+ *
+ * Returns the new short sha and the paths that went in, or an empty sha when
+ * nothing of them was left to stage.
+ *
+ * `git add -A` is what this replaces, and the difference is the whole point:
+ * `-A` stages the repository, so the first Activity declaring `commit: true`
+ * swept up every unrelated file a developer had in progress, under a message
+ * describing something else, attributed to a run that did not write it.
+ * Nothing warned, and the only evidence was inside the commit.
+ *
+ * `--` separates the paths from anything git might read as a revision: a file
+ * and a branch can share a name, and git resolves that in favour of the
+ * revision. A path that no longer exists is staged as a deletion, which is
+ * correct — an Activity that deleted a file it was permitted to delete did
+ * that on purpose.
+ *
+ * An empty staged set is not an error. An Activity whose gates passed without
+ * leaving anything behind has done its job.
+ */
+export const commitPaths = (
+  message: string,
+  paths: readonly string[],
+): TCommit => {
   if (!isRepo()) {
     throw new Error(
       'not a git repository — a commit activityRun needs one. Run `git init` in the ' +
         'repo root (and make a first commit) before running a workflow that commits.',
     )
   }
-  git('add', '-A')
-  if (!git('status', '--porcelain')) {
-    throw new Error('nothing to commit — the preceding activityRuns changed no files')
+  if (paths.length === 0) {
+    return { sha: '', paths: [] }
   }
-  git('commit', '-m', message)
-  return git('rev-parse', '--short', 'HEAD')
+  git('add', '--', ...paths)
+  // What the index actually holds, which is the record worth reporting: a
+  // path the Activity rewrote back to its committed content stages nothing,
+  // and a path it deleted stages a deletion.
+  const staged = lines(git('diff', '--cached', '--name-only', '--', ...paths))
+  if (staged.length === 0) {
+    return { sha: '', paths: [] }
+  }
+  git('commit', '-m', message, '--', ...paths)
+
+  return { sha: git('rev-parse', '--short', 'HEAD'), paths: staged }
 }
 
 /**
@@ -204,6 +241,16 @@ export const diffCounts = (
 
 export const diffText = (base: string): string => git('diff', base)
 
-/** Discard a tracked file's uncommitted changes. Returns true on success. */
-export const checkoutPath = (path: string, cwd: string): boolean =>
-  run(['checkout', '--', path], cwd).status === 0
+/*
+ * There is no `checkoutPath` here, and there must not be one.
+ *
+ * It discarded a tracked file's uncommitted changes when an agent was thought
+ * to have written outside its allowlist. `git checkout --` has no undo: the
+ * content was not in a commit, not in the index and not in a stash, so a
+ * wrong guess about whose edit it was destroyed work with no way back. The
+ * guess was wrong whenever a developer was typing in the same tree, which is
+ * a supported way to use this tool.
+ *
+ * A developer can run `git checkout` themselves, knowing what they are
+ * discarding. pi-crust cannot know, so pi-crust reports.
+ */

@@ -71,7 +71,7 @@ Three capabilities are not configurable and cannot be removed: **Triage** recomm
 
    Everything else in `.pi-crust/` is yours and belongs in the repository.
 
-6. **Git repo** — a chain that ends in a commit activity run calls `commitAll`, which throws if the cwd is not a git repository. Run `git init` and make a first commit before using any chain that ends in `commit`. `document.ts` needs one too: it measures the change with `git diff` against a base ref (`main` by default, `--base` to override).
+6. **Git repo** — an Activity that declares `commit: true` stages the paths it was observed to change and commits them, which throws if the cwd is not a git repository. Run `git init` and make a first commit before using any chain that ends in `commit`. `document.ts` needs one too: it measures the change with `git diff` against a base ref (`main` by default, `--base` to override).
 7. **Smoke test** — `just crust demo` runs two cheap read-only workflows back to back, or run the smallest workflow directly:
 
 ```bash

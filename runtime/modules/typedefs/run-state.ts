@@ -8,6 +8,7 @@
 
 import type { TGateCheck } from './gate'
 import type { TEventPayload } from './trace'
+import type { TTreeWarning } from './warning'
 
 export type TGateOutcome = Readonly<{
   gate: string
@@ -71,6 +72,14 @@ export type TRunState = Readonly<{
   resume_from: string | undefined
   /** failed gates, newest Activity Run per gate, newest activityRun first */
   failed_gates: readonly TGateOutcome[]
+  /**
+   * What the run could not attribute, and what the path policy refused.
+   *
+   * Reported rather than acted on: pi-crust cannot tell an agent's write from
+   * a developer's save in the same branch, so it names what it saw and leaves
+   * the tree alone. Empty for a run that saw nothing worth saying.
+   */
+  warnings: readonly TTreeWarning[]
   envelopes: readonly TEnvelopeRecord[]
 }>
 

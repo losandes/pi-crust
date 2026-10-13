@@ -37,6 +37,7 @@ import {
   errorMessage,
   safeParseSettlement,
 } from './modules/typedefs/settlement'
+import { renderWarnings } from './modules/typedefs/warning'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
 import {
@@ -198,11 +199,21 @@ export const renderReport = (
           `${paint('resume from:', 'bold')} ${state.resume_from}`,
           `  ${resumeCommand(state, invocation)}`,
         ]
+  /*
+   * What the run saw and could not attribute, reported here as well as in the
+   * terminal that ran it. A developer asking a finished run what happened is
+   * usually not the person who watched it happen.
+   */
+  const warnings = renderWarnings(state.warnings)
+
   return [
     box('run', header, state.resume_from === undefined ? 'green' : 'yellow'),
     '',
     ...(activityRuns.length > 0 ? activityRuns : ['  (no activityRuns recorded)']),
     '',
+    ...(warnings.length > 0
+      ? [...warnings.map((line) => paint(line, 'yellow')), '']
+      : []),
     ...tail,
   ].join('\n')
 }

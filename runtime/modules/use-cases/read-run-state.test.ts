@@ -6,6 +6,9 @@ import { createTracer } from '../data/trace-db'
 import type { TActivityRun, TActivityRunStatus } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TTracer } from '../typedefs/trace'
+import type { TRunState } from '../typedefs/run-state'
+import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
+import { renderReport } from '../../report'
 import { latestLogPayload, readRunState } from './read-run-state'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-run-state-'))
@@ -152,5 +155,55 @@ test(
 
     // then
     expect(actual).toEqual({ passed: false, failures: ['lint: exited 1'] })
+  },
+)
+
+test(
+  [
+    'given use-cases/read-run-state::readRunState',
+    'when a run warned about a change it could not attribute',
+    'it should carry that warning into the state the reporter prints',
+  ].join(', '),
+  () => {
+    /*
+     * given — a developer asking a finished run what happened is usually not
+     * the person who watched it happen, so the terminal cannot be the only
+     * surface that says it.
+     */
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    session(tracer, 'aaaa1111', [[1, 'build', 'success']])
+    tracer.event({
+      run_id: 'aaaa1111',
+      activity_run_id: 'aaaa1111_01_build',
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload({
+        kind: 'unexpected',
+        activities: ['build'],
+        activityRunIds: ['aaaa1111_01_build'],
+        stage: 'implement',
+        paths: ['src/add.ts'],
+        note: '',
+      }),
+    })
+    tracer.close()
+
+    // when
+    const actual = readRunState(dbPath, 'aaaa1111')
+
+    // then
+    expect(actual?.warnings).toEqual([
+      {
+        kind: 'unexpected',
+        activities: ['build'],
+        activityRunIds: ['aaaa1111_01_build'],
+        stage: 'implement',
+        paths: ['src/add.ts'],
+        note: '',
+      },
+    ])
+    expect(renderReport(actual as TRunState)).toContain('src/add.ts')
   },
 )

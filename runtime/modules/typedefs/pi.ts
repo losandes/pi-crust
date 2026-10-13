@@ -24,6 +24,16 @@ export type TPiRequest = Readonly<{
   skills: readonly string[]
   /** set from run.repoRoot — the codebase root agents work in */
   cwd: string
+  /**
+   * Variables added to the operator’s own environment for this call.
+   *
+   * The only channel an extension has: pi loads one by PATH and takes no
+   * arguments, so a policy computed per run reaches it as a file named by a
+   * variable. ADDED rather than replacing, because an agent is meant to see
+   * exactly what the operator sees — their PATH, their toolchains, their
+   * globally installed packages.
+   */
+  env?: Readonly<Record<string, string>>
 }>
 
 /**

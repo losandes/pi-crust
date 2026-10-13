@@ -2,9 +2,6 @@
  * Fingerprinting the working tree — what permission enforcement compares.
  */
 
-import { unlinkSync } from 'node:fs'
-import { join } from 'node:path'
-import { safeParseSettlement } from '../typedefs/settlement'
 import { gitOutput } from './git'
 
 export type TTreeSnapshot = Readonly<Record<string, string>>
@@ -38,13 +35,13 @@ export const snapshotTree = (repoRoot: string): TTreeSnapshot => {
   return Object.fromEntries([...tracked, ...untracked])
 }
 
-/** Delete an untracked file the agent introduced. */
-export const deletePath = (
-  repoRoot: string,
-  path: string,
-): Readonly<{ deleted: boolean; reason: string }> => {
-  const settled = safeParseSettlement(() => unlinkSync(join(repoRoot, path)))
-  return settled.status === 'ok'
-    ? { deleted: true, reason: '' }
-    : { deleted: false, reason: settled.error.message }
-}
+/*
+ * There is no `deletePath` here, and there must not be one.
+ *
+ * It existed to unlink an untracked file an agent was thought to have
+ * introduced, and "thought to have" is the whole problem: a developer
+ * creating a file in their own tree while a run works is indistinguishable
+ * from an agent doing it, and deleting the wrong one leaves nothing to
+ * recover from — no commit, no stash, no index entry. The tree is the
+ * developer's; pi-crust reports what it sees in it.
+ */

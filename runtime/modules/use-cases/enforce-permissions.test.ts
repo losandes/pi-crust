@@ -1,9 +1,18 @@
 import { expect, test } from 'bun:test'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema } from '../typedefs/config'
+import { snapshotTree } from '../data/working-tree'
+import type { TRun } from '../typedefs/run'
 import {
   changedPaths,
   commitBreach,
+  declaredBy,
+  enforcePermissions,
   handoffDocument,
   matchesPattern,
   permitted,
@@ -394,5 +403,145 @@ test(
 
     // then
     expect(actual).toEqual([])
+  },
+)
+
+/** A repository with one commit, so a working-tree diff has a HEAD to be against. */
+const aRepo = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'crust-permissions-'))
+  const git = (...args: readonly string[]) =>
+    execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main')
+  git('config', 'user.email', 'tester@example.com')
+  git('config', 'user.name', 'tester')
+  git('config', 'commit.gpgsign', 'false')
+  writeFileSync(join(dir, 'README.md'), 'committed\n')
+  git('add', '-A')
+  git('commit', '-qm', 'first')
+
+  return dir
+}
+
+const runIn = (dir: string, cfg: TPiCrustConfig): TRun =>
+  ({
+    cfg,
+    repoRoot: dir,
+    contextHandoffDir: join(dir, '.pi-crust/data/sessions/abc/context_handoff'),
+  }) as unknown as TRun
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when an agent changed a tracked file outside its writes',
+    'it should report the overstep and leave the new content exactly as it is',
+  ].join(', '),
+  () => {
+    /*
+     * given — this used to run `git checkout --` on the path, which has no
+     * undo: the content was not in a commit, not in the index and not in a
+     * stash. The guess about whose edit it was is wrong whenever a developer
+     * is typing in the same tree, which is a supported way to work.
+     */
+    const dir = aRepo()
+    const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
+    const before = snapshotTree(dir)
+    writeFileSync(join(dir, 'README.md'), 'changed while the run worked\n')
+
+    // when
+    const actual = enforcePermissions(
+      runIn(dir, cfg),
+      agentNamed(cfg, 'reviewer'),
+      { tree: before, head: '', committing: false },
+    )
+
+    // then — named, and still on disk
+    expect(actual.overstepped).toEqual(['README.md'])
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toEqual(
+      'changed while the run worked\n',
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when a file nobody declared appeared while an agent ran',
+    'it should report it and never delete it',
+  ].join(', '),
+  () => {
+    // given — an untracked file used to be unlinked on sight
+    const dir = aRepo()
+    const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
+    const before = snapshotTree(dir)
+    writeFileSync(join(dir, 'notes.md'), 'mine\n')
+
+    // when
+    const actual = enforcePermissions(
+      runIn(dir, cfg),
+      agentNamed(cfg, 'reviewer'),
+      { tree: before, head: '', committing: false },
+    )
+
+    // then
+    expect(actual.overstepped).toEqual(['notes.md'])
+    expect(existsSync(join(dir, 'notes.md'))).toEqual(true)
+    expect(readFileSync(join(dir, 'notes.md'), 'utf8')).toEqual('mine\n')
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when a concurrent sibling declared the path that changed',
+    'it should leave it out of what this Activity will commit',
+  ].join(', '),
+  () => {
+    /*
+     * given — attribution between siblings is a question of WHERE, not WHEN:
+     * each one's diff contains the other's writes, and a commit scope built
+     * from the window would carry a neighbour's half-written file.
+     */
+    const dir = aRepo()
+    const cfg = configWith([
+      { name: 'reviewer', writes: ['reviews/'] },
+      { name: 'code-reviewer', writes: ['code-reviews/'] },
+    ])
+    const before = snapshotTree(dir)
+    mkdirSync(join(dir, 'reviews'))
+    mkdirSync(join(dir, 'code-reviews'))
+    writeFileSync(join(dir, 'reviews/mine.md'), 'mine\n')
+    writeFileSync(join(dir, 'code-reviews/theirs.md'), 'theirs\n')
+
+    // when
+    const actual = enforcePermissions(
+      runIn(dir, cfg),
+      agentNamed(cfg, 'reviewer'),
+      { tree: before, head: '', committing: false },
+      [agentNamed(cfg, 'code-reviewer')],
+    )
+
+    // then — the sibling's declared path is neither this Activity's to commit
+    // nor its overstep to answer for
+    expect(actual.touched).toEqual(['reviews/mine.md'])
+    expect(actual.overstepped).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::declaredBy',
+    'when a sibling says it writes anywhere',
+    'it should own nothing, because ownership has to be narrower than permission',
+  ].join(', '),
+  () => {
+    // given — an unrestricted neighbour would otherwise own the whole tree,
+    // and this Activity would commit none of its own work
+    const given = ['*']
+
+    // when
+    const actual = declaredBy('src/server.ts', given)
+
+    // then
+    expect(actual).toEqual(false)
   },
 )

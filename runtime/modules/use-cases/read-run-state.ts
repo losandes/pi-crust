@@ -30,6 +30,8 @@ import type {
 } from '../typedefs/run-state'
 import { safeParseSettlement, settledOr } from '../typedefs/settlement'
 import type { TEventPayload } from '../typedefs/trace'
+import type { TTreeWarning } from '../typedefs/warning'
+import { WARNING_EVENT, warningFromPayload } from '../typedefs/warning'
 
 const asObject = (json: string | null): Readonly<Record<string, unknown>> =>
   settledOr(
@@ -94,6 +96,23 @@ export const latestByName = (
       ),
   )
 
+/**
+ * Every warning the run filed, in the order it filed them.
+ *
+ * From the events rather than recomputed: the comparison that raises a
+ * warning needs three sets that only existed while the Activity Run was
+ * happening, and a reporter that tried to rebuild it later would be reading a
+ * tree that has moved on since.
+ */
+const warningsIn = (rows: TTraceRows): readonly TTreeWarning[] =>
+  rows.events
+    .filter((event) => event.type === 'log' && event.name === WARNING_EVENT)
+    .flatMap((event) => {
+      const warning = warningFromPayload(asObject(event.payload_json))
+
+      return warning === undefined ? [] : [warning]
+    })
+
 const envelopeRecords = (
   rows: TTraceRows,
   activityRunName: (activityRunId: string | null) => string,
@@ -143,6 +162,7 @@ export const readRunState = (
       .flatMap((activityRun) => activityRun.gates)
       .filter((gate) => !gate.passed)
       .toReversed(),
+    warnings: warningsIn(rows),
     envelopes: envelopeRecords(rows, (activityRunId) =>
       activityRunId === null ? '' : (names.get(activityRunId) ?? ''),
     ),

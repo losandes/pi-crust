@@ -75,6 +75,44 @@ export const agentConfigSchema = z.object({
 })
 export type TAgentConfig = Readonly<z.infer<typeof agentConfigSchema>>
 
+/**
+ * What happens when a governed path is reached for.
+ *
+ *   block   refused before the call runs. Nothing is read, nothing is
+ *           written. The agent is told, and the refusal is reported.
+ *   stop    it happened; the run ends at that Activity, loudly.
+ *   warn    it happened; reported with every other warning; the run continues.
+ *   allow   not governed at all.
+ *
+ * There is deliberately no `revert`. Undoing a write assumes pi-crust knows
+ * whose write it was, and a developer working in the same branch is
+ * indistinguishable from an agent in a diff. `block` is the verb that
+ * protects rather than reports, which is why it is the shipped default: the
+ * other three describe an exposure that has already happened, and for a
+ * credentials file that is no protection at all — the bytes are in a model's
+ * context, in its session on disk, and possibly in a provider's logs.
+ */
+export const PATH_POLICY_VERBS = ['block', 'stop', 'warn', 'allow'] as const
+export type TPathPolicyVerb = (typeof PATH_POLICY_VERBS)[number]
+
+const policyVerb = (fallback: TPathPolicyVerb) =>
+  z
+    .enum(PATH_POLICY_VERBS, {
+      error: (issue) =>
+        `${String(issue.input)} is not a path policy. Use one of: ` +
+        `${PATH_POLICY_VERBS.join(', ')}.`,
+    })
+    .default(fallback)
+
+/** Read and write are separate questions: for a credentials file, reading is
+ * the dangerous half, and for a generated file writing is. */
+const pathPolicySchema = (read: TPathPolicyVerb, write: TPathPolicyVerb) =>
+  z.object({ read: policyVerb(read), write: policyVerb(write) })
+
+export type TPathPolicy = Readonly<
+  z.infer<ReturnType<typeof pathPolicySchema>>
+>
+
 export const configDefaultsSchema = z.object({
   coding_agent: z.enum(CODING_AGENTS).default('pi'),
   model: z.string().default(DEFAULT_MODEL),
@@ -92,6 +130,29 @@ export const configDefaultsSchema = z.object({
   // installer now deletes on sight — a default defending paths that cannot
   // exist reads as protection and provides none.
   protected_files: z.array(z.string()).default(['.pi-crust/config/']),
+  /**
+   * What a tool call reaching one of `protected_files` gets.
+   *
+   * Blocked both ways by default, because this is the only mechanism that
+   * protects rather than reports. The after-the-fact check cannot see these
+   * paths at all in the case they are most wanted for: `snapshotTree` is a
+   * diff plus untracked files, so a gitignored `.env` never appears in it,
+   * and a write to it was invisible — no breach, no report, nothing.
+   */
+  protected: pathPolicySchema('block', 'block').prefault({}),
+  /**
+   * What a tool call reaching a GITIGNORED path gets, `data_dir` excepted.
+   *
+   * Warned on read and blocked on write, which is a different answer from
+   * `protected` because it is a different question. Reading a generated file
+   * is ordinary work — a build output, a lockfile, a local fixture — and
+   * blocking it would break real work for no gain. Writing one produces work
+   * that is not in the repository, so no diff, no review and no commit will
+   * ever show it.
+   *
+   * Membership is decided by git rather than by re-implementing `.gitignore`.
+   */
+  ignored: pathPolicySchema('warn', 'block').prefault({}),
   data_dir: z.string().default(DEFAULT_DATA_DIR),
 })
 export type TConfigDefaults = Readonly<z.infer<typeof configDefaultsSchema>>

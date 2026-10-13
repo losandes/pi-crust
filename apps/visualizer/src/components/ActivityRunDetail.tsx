@@ -44,6 +44,8 @@ import { NarrationPane } from './NarrationPane'
 import { RunControls } from './RunControls'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
+import { TreeWarnings } from './TreeWarnings'
+import { warningsFor } from '../lib/warnings'
 import styles from './ActivityRunDetail.module.css'
 
 const NUM = new Intl.NumberFormat('en-US')
@@ -390,6 +392,15 @@ export const ActivityRunDetail = ({
         to where they were.
       */}
       <div className={active === 'highlights' ? styles.highlights : styles.hidden}>
+        {/*
+          What changed during this Activity Run that it did not account for,
+          and what the path policy refused it. Beside the decisions rather
+          than among the events: both are things a reader is owed about the
+          Activity, and neither is something the run is waiting on.
+        */}
+        <TreeWarnings
+          warnings={warningsFor(events, activityRun.activity_run_id)}
+        />
         <DecisionLedger ledger={ledger} />
         {artifacts.length > 0 && (
           <section className={styles.documents}>

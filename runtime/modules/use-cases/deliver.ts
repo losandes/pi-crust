@@ -1,8 +1,8 @@
 /**
  * Delivery is a property of an Activity, not a mode of the run.
  *
- * `--deliver branch|patch|commit` is gone. All three performed one
- * `commitAll` at the END of the chain, so a large body of work arrived
+ * `--deliver branch|patch|commit` is gone. All three committed the whole
+ * working tree at the END of the chain, so a large body of work arrived
  * squashed whichever was chosen — the limitation was the shape of the activity,
  * not the mode. An Activity that declares `commit: true` commits its own
  * change the moment its gates have passed, so granularity follows the chain:
@@ -15,9 +15,10 @@
  * nobody reading the registry could predict.
  */
 
-import { commitAll, isDirty } from '../data/git'
+import { commitPaths } from '../data/git'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
+import { touchedBy } from './observed-paths'
 
 export const commitMessage = (
   run: TRun,
@@ -34,7 +35,24 @@ export const commitMessage = (
 }
 
 /**
- * Commit what this Activity produced, in its own words.
+ * Commit what this Activity produced, in its own words and nothing else.
+ *
+ * The scope is what the Activity Run was OBSERVED to change, not what the
+ * working tree happens to hold and not what the envelope claimed. Both of
+ * the alternatives are wrong in a way that costs somebody their work:
+ *
+ *   * the tree sweeps up every uncommitted file a developer had in progress,
+ *     under a message describing something else;
+ *   * the claim is a report an Activity writes about itself, and the gate
+ *     that reads it only checks that each claimed file EXISTS. An Activity
+ *     that under-reported would leave its own work uncommitted for the next
+ *     Activity to commit under the wrong message, and one that over-reported
+ *     would commit somebody else's.
+ *
+ * A path that was already dirty when the run started and that this Activity
+ * DID write to is in scope, deliberately: a developer who starts a run to
+ * finish something they began by hand would otherwise watch the Activity's
+ * own work go uncommitted with no way to say "yes, that one too".
  *
  * Returns the sha, or '' when there was nothing to commit — which is not a
  * failure. An Activity whose gates passed without it changing a tracked file
@@ -47,20 +65,25 @@ export const commitActivity = (
   activityRunId: string,
   envelope: TEnvelopeBase | undefined,
 ): string => {
-  if (!isDirty()) {
+  const message = commitMessage(run, envelope)
+  const { sha, paths } = commitPaths(message, touchedBy(run, instance))
+  if (sha === '') {
     run.console.note(`${instance}: nothing to commit`)
 
     return ''
   }
-  const message = commitMessage(run, envelope)
-  const sha = commitAll(message)
-  run.console.note(`${instance} committed ${sha}: ${message.split('\n')[0]}`)
+  run.console.note(
+    `${instance} committed ${sha} (${paths.length} file(s)): ` +
+      `${message.split('\n')[0]}`,
+  )
   run.tracer.event({
     run_id: run.runId,
     activity_run_id: activityRunId,
     type: 'log',
     name: 'committed',
-    payload: { activity: instance, sha, message },
+    // The paths, not just the count: a commit of six files and a commit of
+    // sixty are otherwise indistinguishable without leaving the terminal.
+    payload: { activity: instance, sha, message, paths },
   })
 
   return sha

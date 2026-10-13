@@ -744,7 +744,10 @@ export const run = async (
   const child = Bun.spawn({
     cmd,
     cwd: request.cwd,
-    env: { ...operatorEnv() },
+    // The operator's own environment, plus whatever this call adds to it:
+    // an extension is loaded by path and takes no arguments, so a per-run
+    // policy reaches it as a variable naming a file.
+    env: { ...operatorEnv(), ...(request.env ?? {}) },
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',

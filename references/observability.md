@@ -204,6 +204,11 @@ Exit codes, because an agent will branch on them:
   "completed": ["request", "plan"],
   "resume_from": "build",
   "failed_gates": [ … ],
+  "warnings": [
+    { "kind": "unexpected", "activities": ["build"],
+      "activityRunIds": ["a1b2c3d4_03_build"], "stage": "implement",
+      "paths": ["src/add.ts"], "note": "" }
+  ],
   "envelopes": [
     { "activity run": "build", "agent": "builder", "output_type": "BuildOutput",
       "valid": true, "payload": { … } }
@@ -215,6 +220,7 @@ Three fields carry the weight:
 
 - **`completed`** — activity run names whose LATEST record is `success`. A session that ran `build` twice and failed the second time does not list `build`; the latest record per name wins, which is what makes resume correct across a joined session.
 - **`resume_from`** — the first activity run, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every activity run succeeded and there is nothing to resume.
+- **`warnings`** — what the run saw and could not attribute, read back from its own `tree_warning` events. `unexpected` is a path that changed during an Activity Run which was not already dirty and which the Activity did not report; `overstep` is a path outside what the Activity declared it writes; `refusal` is a tool call the path policy governed. None of them failed anything and none of them was undone — pi-crust cannot tell an agent's write from a developer's save in the same branch, so it names what it saw and leaves the tree alone. Empty for a run that saw nothing worth saying.
 - **`logs[].name`** — the event name, not just the payload. The console echoes every printed line as a `log` too, so a code activity run files its verdict under `step_result` and replay asks for it by that name. "The activity run's last log" is usually a human sentence.
 
 `error`, `ended_at`, `started_at` and `resume_from` are omitted when absent — `JSON.stringify` drops undefined keys. Read them as optional.

@@ -21,6 +21,11 @@ import { reportPassed, violationsOf } from '../typedefs/gate'
 import type { TActivityRun } from '../typedefs/activity-run'
 import type { TConsole } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
+import {
+  renderWarnings,
+  WARNING_EVENT,
+  warningFromPayload,
+} from '../typedefs/warning'
 
 const thousands = (value: number): string => value.toLocaleString('en-US')
 
@@ -56,6 +61,28 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
         return
       }
       finished = true
+      /*
+       * Everything this run could not attribute, said once at the end.
+       *
+       * Read back from the trace rather than accumulated here: a warning
+       * raised by the second of nine Activities is still owed to the reader
+       * when the ninth finishes, and a line in the middle of a long run is a
+       * line nobody scrolls back to.
+       *
+       * Before the summary panel, not after, because the panel is the last
+       * word on the run and a warning under it reads as a footnote.
+       */
+      for (const line of renderWarnings(
+        tracer
+          .eventsNamed(runId, WARNING_EVENT)
+          .flatMap((payload) => {
+            const warning = warningFromPayload(payload)
+
+            return warning === undefined ? [] : [warning]
+          }),
+      )) {
+        emit(line, 'warn', line === '' ? '' : paint(line, 'yellow'))
+      }
       const passed = results.filter((status) => status === 'success').length
       const status = ok ? paint('✓ success', 'green') : paint('✗ fail', 'red')
       const rows = [

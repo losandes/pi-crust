@@ -1,5 +1,5 @@
 /**
- * What an agent may CHANGE, enforced in code after the fact.
+ * What an agent may CHANGE, observed in code after the fact.
  *
  * `tools:` is a capability list, not a sandbox, and two holes make it
  * unenforceable on its own:
@@ -14,17 +14,25 @@
  * So permission is verified the way every other claim in this system is — after
  * the fact, against the repo itself. `snapshotTree()` fingerprints the working
  * tree's change-set before an agent runs; `enforcePermissions()` compares it
- * afterwards and fails the activityRun if the agent touched anything outside its
- * allowlist.
+ * afterwards and REPORTS what changed outside the allowlist.
  *
  * Comparing change-sets, rather than watching for writes, is what catches the
  * `git checkout` case: a path that was modified before the agent ran and is
  * clean afterwards has been reverted, and a reversion is a modification.
  * Appearing, disappearing, and changing all count.
  *
- * A breach is NOT a gate violation. Gates are for work an agent can be asked to
- * redo; a breach cannot be corrected by re-prompting, because the write already
- * happened. It aborts the activityRun and names every offending path.
+ * What it does NOT do is undo anything, and that is the point of this module
+ * now. It used to `git checkout --` a tracked file and unlink an untracked
+ * one, on the theory that everything which changed while an agent ran was the
+ * agent's. That theory is false for a developer working in the same branch,
+ * which is a supported way to use this tool: observed once as a developer's
+ * uncommitted edit to crust.config.yaml being discarded with no stash, no
+ * commit and no way back. Detection is unchanged; the response is a report.
+ *
+ * A report is not a gate violation either. Gates are for work an agent can be
+ * asked to redo; this already happened, and re-prompting cannot unhappen it.
+ * The paths worth defending are defended before the call instead, by the path
+ * policy — which knows whose call it was.
  *
  * Two keys drive it, both in crust.config.yaml:
  *     defaults.protected_files   paths no agent may touch unless it names them
@@ -32,19 +40,11 @@
  */
 
 import { resolve } from 'node:path'
-import { checkoutPath, isRepo, rev } from '../data/git'
+import { isRepo, rev } from '../data/git'
 import type { TTreeSnapshot } from '../data/working-tree'
-import { deletePath, snapshotTree } from '../data/working-tree'
+import { snapshotTree } from '../data/working-tree'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
-
-/** An agent modified a path it was not permitted to modify. */
-export class PermissionBreach extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'PermissionBreach'
-  }
-}
 
 /** Every path whose state differs — appeared, vanished, or was rewritten. */
 export const changedPaths = (
@@ -202,35 +202,6 @@ export const permitted = (
   return agent.writes.includes('*')
 }
 
-/**
- * Undo one unauthorized change. Returns a word describing what happened.
- *
- * Only changes the agent INTRODUCED are undone. A path that was already dirty
- * when the agent started is left exactly as it is: the operator had uncommitted
- * work there, and discarding it to tidy up would be the same harm this module
- * exists to prevent, committed by the cleanup instead of the agent.
- */
-export const rollBack = (
-  repoRoot: string,
-  path: string,
-  before: TTreeSnapshot,
-  after: TTreeSnapshot,
-): string => {
-  if (path in before) {
-    // Already dirty beforehand. If it is gone from the diff now, the agent
-    // reverted an engineer's uncommitted work and the content is not ours to
-    // reconstruct — say so loudly rather than pretend it was handled.
-    return path in after
-      ? 'left as-is (was already modified)'
-      : 'REVERTED-BY-AGENT (uncommitted work lost, cannot restore)'
-  }
-  if (after[path] === 'untracked') {
-    const removed = deletePath(repoRoot, path)
-    return removed.deleted ? 'deleted' : `could not delete (${removed.reason})`
-  }
-  return checkoutPath(path, repoRoot) ? 'rolled back' : 'could not roll back'
-}
-
 const scopeOf = (agent: TAgentConfig, cfg: TPiCrustConfig): string => {
   if (agent.writes.includes('*')) {
     return `barred from ${cfg.defaults.protected_files.join(', ')}`
@@ -240,16 +211,6 @@ const scopeOf = (agent: TAgentConfig, cfg: TPiCrustConfig): string => {
     : `limited to ${agent.writes.join(', ')}`
 }
 
-/**
- * Compare the tree against `before`; undo and throw if the agent overstepped.
- *
- * Returns the paths it legitimately changed, so the trace records what an agent
- * actually touched rather than only what it claimed in its envelope.
- *
- * Detection alone would leave the repo holding the unauthorized change while
- * reporting a failure, so anything the agent introduced outside its allowlist
- * is rolled back before the activityRun dies. What it cannot undo, it names.
- */
 /**
  * Where the repository was before an Activity touched it.
  *
@@ -287,6 +248,44 @@ export const commitBreach = (before: TRepoBefore): readonly string[] => {
       ]
 }
 
+/**
+ * What one Activity Run did to the repository, as facts rather than a verdict.
+ *
+ * It used to be a throw and a list of paths. The throw is gone — an overstep
+ * no longer kills the chain, because the response that made killing it worth
+ * doing (undoing the write) is the thing that had to go. What is left is a
+ * record, and the surfaces that print it.
+ */
+export type TPermissionReport = Readonly<{
+  /**
+   * Every path this Activity Run was observed to change, minus any path a
+   * concurrent sibling declared. What a commit is built from.
+   */
+  touched: readonly string[]
+  /** the subset it had no permission to change */
+  overstepped: readonly string[]
+  /** the agent's permission, in words, for the report that names the overstep */
+  scope: string
+  /** a moved `HEAD` under an Activity that was not committing, as a sentence */
+  committed: readonly string[]
+  /** paths already dirty when this Activity Run started — never its doing */
+  dirtyBefore: readonly string[]
+}>
+
+/**
+ * Does one of these patterns NAME this path?
+ *
+ * Deliberately not `permitted`: that answers "may this agent change it",
+ * which `writes: ['*']` makes true of everything and which the session
+ * runtime makes true for every agent. Ownership between concurrent siblings
+ * has to be narrower than permission, or an unrestricted neighbour would own
+ * the whole tree and this Activity would commit none of its own work.
+ */
+export const declaredBy = (path: string, writes: readonly string[]): boolean =>
+  writes
+    .filter((pattern) => pattern !== '*')
+    .some((pattern) => matchesPattern(path, pattern))
+
 export const enforcePermissions = (
   run: TRun,
   agent: TAgentConfig,
@@ -310,31 +309,29 @@ export const enforcePermissions = (
    * so the ordinary case is unchanged.
    */
   siblings: readonly TAgentConfig[] = [],
-): readonly string[] => {
+): TPermissionReport => {
   const before = repoBefore.tree
   const after = snapshotTree(run.repoRoot)
   const touched = changedPaths(before, after)
-  const committed = commitBreach(repoBefore)
   const resolveFor = (one: TAgentConfig): readonly string[] =>
     resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)
   const writes = resolveFor(agent)
   const theirs = (path: string): boolean =>
-    siblings.some((one) => permitted(path, one, run.cfg, resolveFor(one)))
-  const breaches = touched.filter(
-    (path) => !(permitted(path, agent, run.cfg, writes) || theirs(path)),
-  )
-  if (breaches.length === 0 && committed.length === 0) {
-    return touched
-  }
+    siblings.some((one) => declaredBy(path, resolveFor(one)))
 
-  const detail = [
-    ...breaches.map(
-      (path) => `  - ${path} — ${rollBack(run.repoRoot, path, before, after)}`,
+  return {
+    /*
+     * A sibling's declared path is a sibling's work, and this Activity must
+     * not carry it: this set goes on to decide what the Activity COMMITS,
+     * and a commit of a neighbour's half-written file is the concurrent
+     * spelling of `git add -A`.
+     */
+    touched: touched.filter((path) => !theirs(path)),
+    overstepped: touched.filter(
+      (path) => !(permitted(path, agent, run.cfg, writes) || theirs(path)),
     ),
-    ...committed.map((note) => `  - ${note}`),
-  ].join('\n')
-  throw new PermissionBreach(
-    `${agent.name} is ${scopeOf(agent, run.cfg)} but overstepped ` +
-      `${breaches.length + committed.length} time(s):\n${detail}`,
-  )
+    scope: scopeOf(agent, run.cfg),
+    committed: commitBreach(repoBefore),
+    dirtyBefore: Object.keys(before).toSorted(),
+  }
 }

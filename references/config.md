@@ -57,7 +57,9 @@ planners:                                 # closed set: operator and triage
 | `color`               | hex string            | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette.                                                                                                                                                                         |
 | `harness_engineering` | list[string]          | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks).                                                                                                                                                                                                           |
 | `tools`               | list[string]          | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable.                                                                                                                                                                                 |
-| `protected_files`     | list[string]          | Paths **no** agent may modify unless it names them in its own `writes`. Default: `<pi-crust>/runtime/modules/`, `.pi-crust/config/`, `<pi-crust>/runtime/stages/`, `<pi-crust>/runtime/lifecycles/` — an agent must not be able to edit the machinery that decides whether its work passed. |
+| `protected_files`     | list[string]          | Paths **no** agent may touch unless it names them in its own `writes`. Shipped default: `.pi-crust/config/`, `.env*`, `**/.env*` — an agent must not be able to edit the machinery that decides whether its work passed, nor read a credentials file. `*` does not cross `/` and `**` does, so an env file needs both spellings. |
+| `protected`           | `{read, write}`       | What a tool call reaching one of `protected_files` gets, per direction. `block` \| `stop` \| `warn` \| `allow`. Default `block` both ways. Enforced BEFORE the call by the path-policy extension, which is why it is the only mechanism here that protects rather than reports. |
+| `ignored`             | `{read, write}`       | The same four verbs for GITIGNORED paths, with this run's own `data_dir` exempt. Default `warn` on read, `block` on write: reading a generated file is ordinary work, while writing one produces output no diff, review or commit will ever show. Membership is git's answer (`git check-ignore`), never a second implementation of `.gitignore`. |
 | `data_dir`            | path                  | Runtime home. Sessions land at `{data_dir}/sessions/{run_id}/{agent_name}/`. Default `.pi-crust/data`.                                                                                                                                                                                      |
 
 ### `observability`
@@ -101,7 +103,7 @@ themes:
 | `color`                                                             | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                                                                          |
 | `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `writes`                                                            | **yes**  | What this agent may modify **in the repo**, and where its own document goes. Enforced after every call. `['*']` = unrestricted (still barred from `protected_files`). `[]` = modifies nothing. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, `{handoff}` expands to this run's context_handoff directory, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **Required** — omitting it used to mean *unrestricted*, so the widest permission was the one granted by saying nothing. |
+| `writes`                                                            | **yes**  | What this agent may modify **in the repo**, and where its own document goes. Observed after every call and REPORTED, never reverted. `['*']` = unrestricted (still barred from `protected_files`). `[]` = modifies nothing. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, `{handoff}` expands to this run's context_handoff directory, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **Required** — omitting it used to mean *unrestricted*, so the widest permission was the one granted by saying nothing. |
 
 ### The work half of an Activity
 
@@ -167,23 +169,31 @@ Other consequences worth knowing:
 
 **Resolution order:** an agent's own `tools` list wins; an agent that omits the key inherits `defaults.tools`; if neither is set, `tools` stays `None` and all tools are usable. An empty list is not "all tools" — it is a tool-less agent, and it will stall.
 
-## Write permissions — `writes` and `protected_files`
+## Write permissions — `writes`, `protected_files`, and the path policy
 
 `tools` cannot express a safety boundary, because two of the tools are general purpose. `bash` runs anything, including `git checkout`, which discards an engineer's uncommitted work; `write` reaches any path, not only the one report file an agent was granted it for. So "this agent changes nothing" is a claim a tool list can state but never keep.
 
-`modules/use-cases/enforce-permissions.ts` keeps it, the same way every other claim in this system is kept — after the fact, against the repo. Before an agent's first prompt the working tree's change-set is fingerprinted; after its last send (including JSON corrections) it is fingerprinted again. Any path that appeared, vanished, or changed is attributed to that agent.
+Two mechanisms keep what can be kept, and the difference between them is **attribution**.
 
-Comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
+**Before the call, for a path the policy governs.** `harness-engineering/path-policy.ts` is loaded into every agent pi-crust spawns and answers pi's `tool_call` event, which can refuse a call before it runs. `defaults.protected` governs anything matching `protected_files`; `defaults.ignored` governs anything git ignores, with this run's `data_dir` exempt. This is the only enforcement in the system that is sound, because it is the only question where pi-crust knows WHOSE action it is: a tool call belongs to the agent that issued it. It is also the only one that can protect rather than report — a secret that has been read cannot be unread, and the after-the-fact check cannot see `.env` at all, since a change-set is a diff plus untracked files and a gitignored path never appears in either.
 
-A breach is not a gate violation. Gates are for work an agent can be asked to redo; a write has already happened, so re-prompting fixes nothing. Instead:
+`bash` is covered best-effort only, and that limit is stated in the shipped config beside the policy: `read`, `write` and `edit` carry a structured path and are matched exactly, while a shell command is a string and `cat .env`, `grep -r KEY .` and `env > dump` are not reliably distinguishable from legitimate work. If a path must not leak, do not give that Activity `bash`.
 
-1. every unauthorized change the agent **introduced** is rolled back — tracked files with `git checkout --`, untracked files by deletion;
-2. a path that was **already dirty** before the agent ran is left untouched. The operator had uncommitted work there, and discarding it to tidy up would be the same harm this module exists to prevent;
-3. the activity run fails and names every path with what happened to it.
+**After the call, for `writes`.** `modules/use-cases/enforce-permissions.ts` fingerprints the working tree's change-set before an agent's first prompt and again after its last send, including JSON corrections. Any path that appeared, vanished, or changed is attributed to that agent — and comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
+
+What it does with that is report it. A breach is not a gate violation — gates are for work an agent can be asked to redo, and a write has already happened — and it is no longer a rollback either:
+
+1. nothing is reverted, deleted, restored or checked out, ever. The attribution is unsound: a developer editing the same branch while a run works is a supported way to use this tool, and `git checkout --` on their uncommitted edit has no undo. Observed once, on a developer's uncommitted `crust.config.yaml`;
+2. the paths are named, in the terminal at the end of the run, in `just crust report`, and in the visualizer, as a warning that says pi-crust cannot tell whose change it was;
+3. the Activity Run still succeeds. The run continues, and the tree is yours to settle.
+
+The same reporting covers the other direction: a path that changed during an Activity Run, was not already dirty, and was not in the Activity's own `changed_files` is named too. That comparison is what a commit is NOT built from — a commit carries only what the Activity was observed to change, so a developer's unrelated work in progress is never swept into it.
 
 ```yaml
 defaults:
-  protected_files: [<pi-crust>/runtime/modules/, .pi-crust/config/, <pi-crust>/runtime/stages/, <pi-crust>/runtime/lifecycles/]
+  protected_files: ['.pi-crust/config/', '.env*', '**/.env*']
+  protected: { read: block, write: block }   # block | stop | warn | allow
+  ignored:   { read: warn,  write: block }   # whatever .gitignore says, minus data_dir
 
 activities:
   - name: builder
