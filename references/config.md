@@ -201,7 +201,7 @@ activities:
   - name: scout
     writes: ["{handoff}/scout_findings.md"]   # its findings, and nothing else
   - name: planner
-    writes: [specs/]
+    writes: ["{handoff}/plan.md"]   # the plan, and nothing in the repository
   - name: documenter
     writes: [app_docs/, docs/, "**/*.md", "*.md"]
 ```

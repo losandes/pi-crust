@@ -28,13 +28,9 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Plan the work described in `prompt`.
 
-1. Write the full plan to `{{output_document}}` — this is the copy the builder reads. Use the structure in your system prompt: Objective, numbered Requirements, Target state once, Out of scope, Work with what proves each change, Rationale last. The builder executes it; a sentence it cannot act on is noise competing with one it can.
-2. Copy that file into the repo under `specs/`:
-   - **List `specs/` before you pick the name.** A session that plans more than once reuses its `<run_id>`, so the obvious name may already be taken.
-   - Base name: `specs/<run_id>_<slug>.md`, where `<run_id>` is the session directory name inside `context_handoff_dir` (`.../sessions/<run_id>/context_handoff`) and `<slug>` is two to four kebab-case words naming the work.
-   - If a file with that name already exists, use `specs/<run_id>_<slug>_v2.md`, then `_v3`, and so on until the name is free. **Never overwrite an existing spec** — the earlier plan is the record of what was asked for then.
-   - **Copy it, do not retype it.** One bash call does the whole step: `mkdir -p specs && cp "{{output_document}}" "specs/<run_id>_<slug>.md"` Writing the plan a second time through `write` re-emits every line you already wrote, which costs the whole document again in output tokens and lets the two copies drift.
-3. Emit your `Report` JSON, declaring BOTH paths in `artifacts`.
+1. Write the full plan to `{{output_document}}` — this is the plan, and the only copy of it. Use the structure in your system prompt: Objective, numbered Requirements, Target state once, Out of scope, Work with what proves each change, Rationale last. The builder executes it; a sentence it cannot act on is noise competing with one it can.
+2. Write it ONCE, and leave the repository alone. Do not copy the plan into `specs/`, `docs/`, or anywhere else in the working tree: a second copy drifts from the first, costs the whole document again, and lands in somebody's diff as a change nobody asked for. The run keeps the plan in the handoff directory, where the trace and the interface already read it from.
+3. Emit your `Report` JSON, declaring that path in `artifacts`.
 
 ## Report
 
@@ -66,7 +62,7 @@ Respond with ONLY valid JSON matching `PlanOutput` — no prose before or after:
   "objective_met": { "met": true, "evidence": "<how you know you did your job>" },
   "status": "success",
   "summary": "<one sentence describing the plan>",
-  "artifacts": ["{{output_document}}", "specs/<run_id>_<slug>.md"],
+  "artifacts": ["{{output_document}}"],
   "commit_message": "<imperative one-line git subject for committing THIS PLAN DOCUMENT, not the work it describes — e.g. 'Add spec for the /health endpoint'>",
   "notes_for_next_agent": "<what the builder must know>"
 }
@@ -82,6 +78,6 @@ Do not pad them. One real assumption beats six restatements of the task.
 
 `regress_to` is how you send the run BACKWARDS when evidence has invalidated earlier work. `{ "activity": "", "because": "" }` means no regression and is the ordinary answer. Name an activity only when continuing would mean compensating for something that is now wrong — and name the EARLIEST activity affected, not the one before you. `because` carries the evidence, not an opinion. An activity can be returned to once; the second request goes to the developer instead.
 
-Both `artifacts` entries are the paths you ACTUALLY wrote, `_v2` suffix and all. Gates open these files — a name you meant to use fails them.
+Every `artifacts` entry is a path you ACTUALLY wrote. Gates open these files — a name you meant to use fails them.
 
 {{trust_stance}}

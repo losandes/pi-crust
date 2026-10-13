@@ -206,9 +206,8 @@ activities:
       user: prompt-engineering/plan/user.md
     harness_engineering:
       - harness-engineering/subagents.ts      # registers the four subagent_* tools below
-    writes:                        # the plan is the only thing it may leave in the repo
+    writes:                        # the plan, and nothing in the repository itself
       - "{handoff}/plan.md"        # .pi-crust/data/sessions/{session_id}/context_handoff/
-      - specs/
     tools:                         # full recon + write for plan.md; no edit — the planner never touches repo files
       - bash
       - edit
