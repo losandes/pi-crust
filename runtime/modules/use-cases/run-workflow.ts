@@ -193,6 +193,9 @@ export const runWorkflow = async (
     resume: args.resume,
     stream: args.stream,
     trust,
+    // What the run was asked for, so the session says `sdlc` rather than
+    // `compose` — the script that happened to run it.
+    lifecycle: args.lifecycle,
   })
   /*
    * From here the session row says `running`, so every exit has to say

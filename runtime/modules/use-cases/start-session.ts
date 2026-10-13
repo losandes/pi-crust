@@ -40,9 +40,22 @@ const finalizeWhenKilled = (run: TRun): void => {
   }
 }
 
-/** The workflow's own name, for `sessions.lifecycle`. */
+/** The script's own name — the fallback for `sessions.lifecycle`. */
 const workflowName = (): string =>
   basename(process.argv[1] ?? 'crust').replace(/\.ts$/, '')
+
+/**
+ * What `sessions.lifecycle` says, which is what every surface calls this run.
+ *
+ * The script name alone was wrong for the one script most runs go through:
+ * `compose.ts` runs whatever it was asked to run, so every `--lifecycle sdlc`
+ * and every `--activities plan,build` read as `compose` — the same word for
+ * all of them, naming the mechanism rather than the work. A named Lifecycle
+ * says its own name; a chain spelled out at the call site has no name to
+ * give, so it keeps the script's.
+ */
+export const sessionLifecycle = (lifecycle: string | undefined): string =>
+  lifecycle === undefined || lifecycle === '' ? workflowName() : lifecycle
 
 export type TSessionOptions = Readonly<{
   /** skip activityRuns already recorded successful for this run_id */
@@ -51,6 +64,8 @@ export type TSessionOptions = Readonly<{
   stream?: boolean
   /** how much the agents may decide for themselves, 0-100 */
   trust?: number
+  /** the Lifecycle this run was asked for, when it was asked for by name */
+  lifecycle?: string | undefined
 }>
 
 /**
@@ -118,7 +133,7 @@ export const startSession = (
     stream: options.stream ?? false,
     trust: options.trust ?? TRUST_DEFAULT,
   })
-  tracer.sessionStart(id, run.engineer, workflowName())
+  tracer.sessionStart(id, run.engineer, sessionLifecycle(options.lifecycle))
   // Where the work is happening, not where the observer is. One UI can watch
   // several working trees at once, and a run that cannot name its own tree is
   // a run the reader cannot act on.
