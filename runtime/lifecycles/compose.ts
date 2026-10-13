@@ -28,13 +28,15 @@
  * per permutation. A chain worth repeating earns its own script — a two-line
  * one, listing the same activity names — but a chain you want once lives here.
  *
- * Repeats are allowed and meaningful: `--activities build,review,build,review`
+ * Repeats are allowed and meaningful: `--activities build,outcome-review,build,outcome-review`
  * is a fix loop written out longhand, and the second occurrence becomes
  * `build_2` — which is also the instance its attempt budget is kept against.
  *
- * One bounded loop comes for free: a chain whose LAST Activity is `review` or
- * `code-review` feeds the blocking findings back to the Activity that wrote
- * the work and re-reviews, bounded by that Activity's `attempts`.
+ * One bounded loop comes for free: a chain that ENDS in reviewing Activities
+ * — any whose registry entry declares `output: reviewOutput`, under whatever
+ * name a team gave them — feeds their blocking findings back to the Activity
+ * that wrote the work and re-asks every one of them, bounded by that
+ * Activity's `attempts`.
  */
 
 import {

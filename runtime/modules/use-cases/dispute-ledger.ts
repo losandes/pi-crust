@@ -64,22 +64,48 @@ const evidenceFor = (
   return normalise(match?.evidence ?? '')
 }
 
-/** One review round, reduced to the text the repeat count turns on. */
+/**
+ * The evidence the first reviewer to attach any gave for one finding.
+ *
+ * A finding two reviewers both raised is one finding: the loop asks whether
+ * it MOVED between rounds, and reading two answers for it would make the
+ * question unanswerable.
+ */
+const evidenceIn = (
+  reviews: readonly TReviewOutput[],
+  blocking: string,
+): string =>
+  reviews.map((review) => evidenceFor(review, blocking)).find(Boolean) ?? ''
+
+/**
+ * One review round, reduced to the text the repeat count turns on.
+ *
+ * A round re-asks every review the chain ended in, so a record folds all of
+ * their verdicts: one record per round, whether one reviewer ruled or three.
+ * Counting a round per reviewer would make two reviewers look like a
+ * disagreement progressing when neither had moved.
+ */
 export const roundRecord = (
   params: Readonly<{
     round: number
-    review: TReviewOutput
+    reviews: readonly TReviewOutput[]
     revise: TBuildOutput | undefined
   }>,
 ): TRoundRecord => {
   // `blocking` is the authority on what is blocking; `findings` only supplies
   // the evidence for it.
-  const blocking = params.review.blocking.map(normalise).filter(Boolean)
+  const blocking = [
+    ...new Set(
+      params.reviews.flatMap((review) =>
+        review.blocking.map(normalise).filter(Boolean),
+      ),
+    ),
+  ]
   return {
     round: params.round,
     blocking,
     evidence: Object.fromEntries(
-      blocking.map((item) => [item, evidenceFor(params.review, item)]),
+      blocking.map((item) => [item, evidenceIn(params.reviews, item)]),
     ),
     disputes: Object.fromEntries(
       (params.revise?.disputes ?? []).map((dispute) => [

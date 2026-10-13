@@ -103,7 +103,7 @@ bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,
 
 `compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
 
-A chain whose LAST Activity is `review` or `code-review` ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, the reviewer rules again, and the bound is that Activity's `attempts`. That applies to a lone `--activities review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
+A chain that ENDS in reviewing Activities — any whose entry in `crust.activities.yaml` declares `output: reviewOutput` — ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, every reviewer the chain ended in rules again, and the bound is that Activity's `attempts`. A chain ending in `outcome-review + code-review` re-asks both. That applies to a lone `--activities outcome-review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
 
 Still prefer a composed chain when the work is real: a lone `build` has nothing checking it. A single Activity is for a narrow ask, or for picking a stopped run up by hand.
 

@@ -46,7 +46,7 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 │       ├── deliver.ts           an Activity commits its own change, in its own words
 │       ├── activities/          one Activity made runnable, and the Planners
 │       ├── run-activities.ts    fold a context through an ordered chain
-│       ├── revise-loop.ts       the bounded loop a chain ending in a review gets
+│       ├── revise-loop.ts       the bounded loop a chain ending in reviews gets
 │       ├── dispute-ledger.ts    counts repeated findings, so neither agent does
 │       ├── select-range.ts      --scope: which change the reviews judge
 │       ├── run-workflow.ts      the body every workflow shares
@@ -103,7 +103,7 @@ Three things are NOT Activities, deliberately:
 - **The repository's checks** — a known command is the `checks` gate, declared per Activity. It used to be a `verify` Activity producing a verdict nothing read.
 - **Delivery** — an Activity with `commit: true` lands its own change once its gates pass, so granularity follows the chain. `--commit false` turns it off for a whole run; there is no flag that turns it on.
 
-A chain whose LAST Activity is `review` or `code-review` gets the bounded revise loop from `use-cases/revise-loop.ts`: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.
+A chain that ENDS in reviewing Activities — any declaring `output: reviewOutput` — gets the bounded revise loop from `use-cases/revise-loop.ts`, which re-asks all of them each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.
 
 ## Envelopes
 

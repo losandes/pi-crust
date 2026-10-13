@@ -64,7 +64,7 @@ bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,
 
 The list is that file's, not this package's: add an entry and it is runnable, delete one and the capability is gone. A name nothing registers is refused before anything spawns, with the list of what was available.
 
-A chain whose last Activity is `review` or `code-review` ends in a bounded revise loop: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's own `attempts`, the same budget a failed gate and a regression spend from. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
+A chain that ends in reviewing Activities — any whose registry entry declares `output: reviewOutput` — ends in a bounded revise loop, and every one of them is re-asked each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's own `attempts`, the same budget a failed gate and a regression spend from. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
 
 `review` and `code-review` take `--scope <ref|range>`, so committed work can be judged, and the repository's own checks run on their own with no Lifecycle at all:
 

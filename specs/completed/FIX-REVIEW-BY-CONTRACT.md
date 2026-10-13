@@ -53,10 +53,21 @@ This changes how the loop recognises a review and which verdicts acceptance sets
 The discriminator, stated once. Where this and the prose in section 1 disagree, section 1 governs.
 
 ```ts
-/** Does this Activity rule on a change somebody else made? */
-const judges = (cfg: TPiCrustConfig, name: string): boolean =>
-  cfg.activities.find((one) => one.name === name)?.output ===
-  reviewOutput.name
+/**
+ * Does this Activity rule on a change somebody else made?
+ *
+ * Resolved through `envelopeNamed`, because an entry names the CATALOGUE KEY
+ * (`reviewOutput`) while the spec's own `name` is `ReviewOutput`. Comparing
+ * the two strings is always false — which is how `reviserFor` has been
+ * silently falling through to its `build` fallback since it was written.
+ */
+const judges = (cfg: TPiCrustConfig, name: string): boolean => {
+  const activity = cfg.activities.find((one) => one.name === name)
+
+  return (
+    activity !== undefined && envelopeNamed(activity.output) === reviewOutput
+  )
+}
 
 /**
  * The reviews a chain ends in: the longest suffix of judging Activities.

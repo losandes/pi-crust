@@ -49,7 +49,7 @@ test(
     const review = repeated
 
     // when
-    const actual = roundRecord({ round: 1, review, revise: undefined })
+    const actual = roundRecord({ round: 1, reviews: [review], revise: undefined })
 
     // then
     expect(actual.blocking).toEqual(['the handler is unguarded'])
@@ -68,10 +68,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, review: repeated, revise: undefined })
+    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
     const second = roundRecord({
       round: 2,
-      review: repeated,
+      reviews: [repeated],
       revise: revise({ changed_files: [] }),
     })
 
@@ -91,20 +91,22 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, review: repeated, revise: undefined })
+    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
     const second = roundRecord({
       round: 2,
-      review: review({
-        approved: false,
-        blocking: ['The handler is unguarded.'],
-        findings: [
-          {
-            requirement: 'the handler is unguarded',
-            met: false,
-            evidence: 'src/server.ts:91',
-          },
-        ],
-      }),
+      reviews: [
+        review({
+          approved: false,
+          blocking: ['The handler is unguarded.'],
+          findings: [
+            {
+              requirement: 'the handler is unguarded',
+              met: false,
+              evidence: 'src/server.ts:91',
+            },
+          ],
+        }),
+      ],
       revise: revise({ changed_files: [] }),
     })
 
@@ -124,10 +126,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, review: repeated, revise: undefined })
+    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
     const second = roundRecord({
       round: 2,
-      review: repeated,
+      reviews: [repeated],
       revise: revise({
         changed_files: [],
         disputes: [
@@ -155,10 +157,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, review: repeated, revise: undefined })
+    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
     const second = roundRecord({
       round: 2,
-      review: repeated,
+      reviews: [repeated],
       revise: revise({ changed_files: ['src/server.ts'] }),
     })
 

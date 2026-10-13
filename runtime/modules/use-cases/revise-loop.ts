@@ -1,10 +1,12 @@
 /**
  * The bounded revise loop: a chain that ends in a review answers it.
  *
- * Any chain whose last activity is `review` or `code-review` feeds the blocking
- * findings back to the builder as a `revise` activityRun, re-reviews, and stops —
- * approved, deadlocked, or out of rounds. It is the activity library's loop now,
- * not one workflow's hand-written control flow.
+ * A chain that ends in reviewing Activities — any whose registry entry
+ * declares `output: reviewOutput`, whatever a team named them — feeds their
+ * blocking findings back to the builder as a `revise` activityRun, re-asks
+ * every one of them, and stops: approved, deadlocked, or out of rounds. It is
+ * the activity library's loop now, not one workflow's hand-written control
+ * flow.
  *
  * Bounded by the `revise` instance's own attempt budget, which is the
  * reviser's `attempts` — the same ceiling a gate failure and a regression
@@ -35,9 +37,15 @@ import { writeText } from '../data/files'
 import type { TActivityConfig } from '../typedefs/activity'
 import type { TPiCrustConfig } from '../typedefs/config'
 import type { TReviewOutput } from '../typedefs/envelope'
-import { buildOutput, narrowEnvelope, reviewOutput } from '../typedefs/envelope'
+import {
+  buildOutput,
+  envelopeNamed,
+  narrowEnvelope,
+  reviewOutput,
+} from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import type { TActivity, TActivityContext, TActivityOptions } from '../typedefs/runnable-activity'
+import type { TActivityOutcome } from '../typedefs/runnable-activity'
 import { acceptedExcluding, allAccepted, DEFAULT_ACTIVITY_OPTIONS } from '../typedefs/runnable-activity'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger, reviseCause } from './attempts'
@@ -50,23 +58,11 @@ import {
   writeLedger,
 } from './dispute-ledger'
 import { disputesSupported } from './gates'
-import { runActivities } from './run-activities'
+import { runActivities, runUnits } from './run-activities'
 import { agentActivity, runnableActivities } from './activities'
 
 /** The Activity Run name every round of the loop runs under. */
 export const REVISE = 'revise'
-
-/**
- * Activities that end in a verdict the loop can answer.
- *
- * `review` is kept beside `outcome-review` because the name is configuration:
- * the shipped registry renamed its outcome reviewer, and a repository whose
- * `crust.activities.local.yaml` or own chain still says `review` would
- * otherwise lose the loop silently — the chain would run and simply never
- * send findings back.
- */
-export const REVIEW_STEPS = ['outcome-review', 'review', 'code-review'] as const
-
 
 export type TLoopOutcome =
   | 'not-applicable'
@@ -81,15 +77,58 @@ export type TReviseLoopResult = Readonly<{
   reason: string
 }>
 
-/** The review activity a chain ends in, or '' when it does not end in one. */
-export const trailingReview = (names: readonly string[]): string => {
-  const last = names.at(-1) ?? ''
-  return (REVIEW_STEPS as readonly string[]).includes(last) ? last : ''
+/**
+ * Does this Activity rule on a change somebody else made?
+ *
+ * The registry answers, never a list of names kept here. An Activity is a
+ * review because its entry declares `output: reviewOutput` — the same
+ * evidence `envelopeAccepted` already trusts to decide whether a rejection
+ * counts, and configuration rather than code, so a team that names its
+ * reviewer anything at all keeps the loop.
+ *
+ * Resolved through `envelopeNamed` rather than compared to `reviewOutput.name`:
+ * an entry names the CATALOGUE KEY (`reviewOutput`) and the spec's own name is
+ * `ReviewOutput`, so comparing the two strings is always false.
+ *
+ * The payload cannot answer this: `reviewOutputSchema` parses a build
+ * envelope and fills `approved: false` from its default, so sniffing the
+ * shape would read "not approved" off work that was never judged.
+ */
+const judges = (cfg: TPiCrustConfig, name: string): boolean => {
+  const activity = cfg.activities.find((one) => one.name === name)
+
+  return (
+    activity !== undefined && envelopeNamed(activity.output) === reviewOutput
+  )
+}
+
+/**
+ * The reviews a chain ends in: the longest suffix of judging Activities.
+ *
+ * A suffix rather than every review in the chain, because a chain may review,
+ * build again and review again — the earlier verdict belongs to work that has
+ * since changed, and is not the question this loop re-asks. Empty when the
+ * chain does not end in a review, which is what settles `not-applicable`.
+ *
+ * The whole suffix rather than its last entry, because acceptance sets aside
+ * exactly what the loop re-asks: the shipped `accept` Stage holds two
+ * reviewers, and discarding a verdict nobody revisited is how a run came back
+ * green over a live rejection.
+ */
+export const trailingReviews = (
+  names: readonly string[],
+  cfg: TPiCrustConfig,
+): readonly string[] => {
+  const from = names.findLastIndex((name) => !judges(cfg, name)) + 1
+
+  return names.slice(from)
 }
 
 /** Does a chain of these names get the loop at all? */
-export const loopApplies = (names: readonly string[]): boolean =>
-  trailingReview(names) !== ''
+export const loopApplies = (
+  names: readonly string[],
+  cfg: TPiCrustConfig,
+): boolean => trailingReviews(names, cfg).length > 0
 
 /**
  * The Activity that answers a review, and the prompts the round runs with.
@@ -120,7 +159,7 @@ export const loopAgents = (
   cfg: TPiCrustConfig,
   names: readonly string[],
 ): readonly string[] => {
-  const reviser = loopApplies(names) ? reviserFor(cfg, names) : undefined
+  const reviser = loopApplies(names, cfg) ? reviserFor(cfg, names) : undefined
 
   return reviser === undefined ? [] : [reviser.name]
 }
@@ -176,37 +215,100 @@ export const outcomeReason = (
 }
 
 /**
- * The verdict a context carries, or a refusal to invent one.
+ * Every verdict the trailing group handed back, for the round record.
  *
- * A loop that reaches here without a review envelope has been composed wrong
- * (`--activities build,review` is what earns it), and guessing an empty verdict
- * would send the builder to revise against nothing.
+ * `upstream` carries one envelope per Activity of the Stage that just ran,
+ * which is where a concurrent `accept` Stage leaves both reviews. A group
+ * member that ran in an EARLIER Stage is not in it — a chain spelled out as
+ * `build,outcome-review,code-review` is three Stages — so its findings reach
+ * the loop in the round that re-asks it rather than in the opening record.
+ * Its verdict is never missed, because acceptance reads the outcomes.
  */
-const reviewOf = (ctx: TActivityContext): TReviewOutput => {
-  const review = reviewFrom(ctx)
-  if (review === undefined) {
-    throw new Error(
-      'revise loop: the activity before it produced no review envelope \u2014 ' +
-        'the loop only applies to a chain ending in review or code-review',
-    )
-  }
-  return review
+const reviewsIn = (
+  ctx: TActivityContext,
+  group: readonly string[],
+): readonly TReviewOutput[] => {
+  const carried = ctx.upstream.filter((one) => group.includes(one.activity))
+  const envelopes =
+    carried.length > 0
+      ? carried.map((one) => one.envelope)
+      : group.includes(ctx.previousStep ?? '') && ctx.previous !== undefined
+        ? [ctx.previous]
+        : []
+
+  return envelopes.flatMap((envelope) => {
+    const review = narrowEnvelope(reviewOutput, envelope)
+
+    return review === undefined ? [] : [review]
+  })
 }
 
 /**
- * The review a context carries, or undefined when the last activity was not one.
+ * The verdicts a context carries, or a refusal to invent one.
  *
- * The activity name is the discriminator, not the payload: `reviewOutputSchema`
- * accepts a build envelope and fills `approved: false` from its default, so
- * sniffing the shape would read "not approved" off work that was never judged.
+ * A loop that reaches here with no review envelope at all has been composed
+ * wrong, and guessing an empty verdict would send the builder to revise
+ * against nothing.
  */
-const reviewFrom = (ctx: TActivityContext): TReviewOutput | undefined =>
-  (REVIEW_STEPS as readonly string[]).includes(ctx.previousStep ?? '')
-    ? narrowEnvelope(reviewOutput, ctx.previous)
-    : undefined
+const reviewsOf = (
+  ctx: TActivityContext,
+  group: readonly string[],
+): readonly TReviewOutput[] => {
+  const reviews = reviewsIn(ctx, group)
+  if (reviews.length === 0) {
+    throw new Error(
+      'revise loop: the Stage before it produced no review envelope — the ' +
+        'loop only applies to a chain ending in an Activity whose registry ' +
+        'entry declares `output: reviewOutput`',
+    )
+  }
 
-const approvedOf = (ctx: TActivityContext): boolean =>
-  reviewFrom(ctx)?.approved === true
+  return reviews
+}
+
+/**
+ * Did every re-asked review approve?
+ *
+ * Read from the outcomes rather than from the envelopes, because an outcome
+ * exists for every member whether or not its envelope is still reachable,
+ * and because `envelopeAccepted` already decided what approval means for a
+ * review contract. One rejection in the group opens another round: a group
+ * is approved when nobody in it is still saying no.
+ *
+ * The LAST outcome per member, because a member re-asked by a previous round
+ * has more than one.
+ */
+export const groupApproved = (
+  outcomes: readonly TActivityOutcome[],
+  group: readonly string[],
+): boolean =>
+  group.every(
+    (name) =>
+      outcomes.findLast((outcome) => outcome.activity === name)?.accepted ===
+      true,
+  )
+
+const approvedOf = (
+  ctx: TActivityContext,
+  group: readonly string[],
+): boolean => groupApproved(ctx.outcomes, group)
+
+/**
+ * The group re-asked, as an Activity Run name and the instance it runs under.
+ *
+ * Numbered past what the chain itself already spent on each member, so a
+ * re-ask is `code-review_2` rather than a second `code-review` sharing one
+ * instance — which is also the budget each is kept against.
+ */
+export const reAskedInstances = (
+  names: readonly string[],
+  group: readonly string[],
+  attempt: number,
+): readonly Readonly<{ name: string; instance: number }>[] =>
+  group.map((name) => ({
+    name,
+    instance: names.filter((one) => one === name).length + attempt,
+  }))
 
 type TLoopState = Readonly<{
   ctx: TActivityContext
@@ -232,8 +334,8 @@ export const runReviseLoop = (
 ): Promise<TReviseLoopResult> => {
   const ledger = params.ledger ?? attemptLedger()
   const reviser = reviserFor(run.cfg, params.names)
-  const reviewName = trailingReview(params.names)
-  if (reviewName === '' || reviser === undefined) {
+  const group = trailingReviews(params.names, run.cfg)
+  if (group.length === 0 || reviser === undefined) {
     return Promise.resolve({
       ctx: params.ctx,
       outcome: 'not-applicable',
@@ -255,8 +357,14 @@ export const runReviseLoop = (
     return {
       ctx: state.ctx,
       outcome,
-      accepted: acceptedExcluding(state.ctx.outcomes, REVIEW_STEPS) &&
-        outcome === 'approved',
+      /*
+        * Exactly the verdicts this loop re-asks are set aside, and no
+        * others. A rejection nobody revisited stays decisive: excluding it
+        * would report a run accepted over a reviewer that is still saying
+        * no.
+        */
+      accepted:
+        acceptedExcluding(state.ctx.outcomes, group) && outcome === 'approved',
       reason: outcomeReason(outcome, {
         unmoved: unmoved.length,
         reportPath,
@@ -265,20 +373,26 @@ export const runReviseLoop = (
     }
   }
 
-  if (approvedOf(params.ctx)) {
+  if (approvedOf(params.ctx, group)) {
     return Promise.resolve({
       ctx: params.ctx,
       outcome: 'approved',
-      accepted: acceptedExcluding(params.ctx.outcomes, REVIEW_STEPS),
+      accepted: acceptedExcluding(params.ctx.outcomes, group),
       reason: params.fallbackReason,
     })
   }
 
+  /** The group, re-asked: one Activity Run each, numbered past the chain's. */
+  const reAsked = (attempt: number): readonly TActivity[] =>
+    reAskedInstances(params.names, group, attempt).flatMap((one) =>
+      runnableActivities([one.name], run.cfg, {
+        ...params.options,
+        instance: one.instance,
+      }),
+    )
+
   // The chain's own review is round 1; it had no revise before it. A resumed
   // run reads the rounds back rather than re-deriving them from envelopes.
-  const reviewsSoFar = params.names.filter(
-    (name) => name === reviewName,
-  ).length
   const persisted = readLedger(run)
   const opening: TLoopState = {
     ctx: params.ctx,
@@ -288,7 +402,7 @@ export const runReviseLoop = (
         : [
             roundRecord({
               round: 1,
-              review: reviewOf(params.ctx),
+              reviews: reviewsOf(params.ctx, group),
               revise: undefined,
             }),
           ],
@@ -309,7 +423,14 @@ export const runReviseLoop = (
 
       return settle(state, 'exhausted', [])
     }
-    const blocking = reviewFrom(state.ctx)?.blocking ?? []
+    /*
+     * Every re-asked reviewer's findings, in one round. A builder told about
+     * the first reviewer's list and then, a round later, about the second's
+     * pays twice for one disagreement it could have answered at once.
+     */
+    const blocking = [
+      ...new Set(reviewsIn(state.ctx, group).flatMap((one) => one.blocking)),
+    ]
     run.console.note(
       `revise round ${attempt} (${ledger.remaining(REVISE, reviser.attempts)} ` +
         `attempt(s) left): ${blocking.length} blocking`,
@@ -335,26 +456,37 @@ export const runReviseLoop = (
       ledger,
     })
     const revise = narrowEnvelope(buildOutput, revised.previous)
-    const reviewed = await runActivities({
+    /*
+     * One Unit, so every member of the group judges the SAME context — the
+     * revise that just ran — rather than the member before it. Serial within
+     * the Unit: they are re-asked in the order the chain named them, and a
+     * concurrent Unit here would attribute writes by declarations this loop
+     * never validated as a Stage.
+     */
+    const reviewed = await runUnits({
       run,
-      activities: runnableActivities([reviewName], run.cfg, {
-        ...params.options,
-        instance: reviewsSoFar + attempt,
-      }),
+      units: [
+        {
+          stage: REVISE,
+          strategy: 'serial' as const,
+          activities: reAsked(attempt),
+          endsStage: true,
+        },
+      ],
       start: { ...revised, feedback: [] },
       ledger,
     })
 
     const record = roundRecord({
       round: attempt + 1,
-      review: reviewOf(reviewed),
+      reviews: reviewsOf(reviewed, group),
       revise,
     })
     const rounds = [...state.rounds, record]
     writeLedger(run, rounds)
     const next: TLoopState = { ctx: reviewed, rounds }
 
-    if (approvedOf(reviewed)) {
+    if (approvedOf(reviewed, group)) {
       return settle(next, 'approved', [])
     }
     const unmoved = unmovedFindings(

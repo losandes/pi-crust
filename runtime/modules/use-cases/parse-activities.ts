@@ -3,14 +3,14 @@
  *
  * `--steps a,b,c` could only ever mean one serial Stage, so the one thing a
  * Lifecycle can express that a command line could not was concurrency: a
- * chain ending in `review` and `code-review` — the one concurrent Stage the
+ * chain ending in `outcome-review` and `code-review` — the one concurrent Stage the
  * shipped Lifecycles have — ran them one after the other and said nothing.
  * Writing a file to get a grouping you can describe in four characters is the
  * gap this closes.
  *
  * The grammar is one flag and two separators:
  *
- *     --activities plan,build,test,review+code-review
+ *     --activities plan,build,test,outcome-review+code-review
  *
  * `,` ends a Stage. `+` joins Activities into ONE concurrent Stage. A run of
  * consecutive single-name groups folds into one serial Stage, so the old

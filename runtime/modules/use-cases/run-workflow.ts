@@ -11,9 +11,9 @@
  * control flow that a list of names cannot express. Those keep their own `main`
  * and call `skipIfDone` per activityRun.
  *
- * One loop is no longer among them. A chain ending in `review` or `code-review`
- * gets the bounded revise loop here, so the generalisation is the activity
- * library's rather than one workflow's.
+ * One loop is no longer among them. A chain ending in Activities that declare
+ * `output: reviewOutput` gets the bounded revise loop here, so the
+ * generalisation is the activity library's rather than one workflow's.
  */
 
 import { runLink, visualizerIsUp } from '../data/visualizer'
