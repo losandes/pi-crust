@@ -20,11 +20,28 @@ const KINDS: readonly TTreeWarning['kind'][] = [
 
 export const TreeWarnings = ({
   warnings,
-}: Readonly<{ warnings: readonly TTreeWarning[] }>) => {
+  standalone = false,
+}: Readonly<{
+  warnings: readonly TTreeWarning[]
+  /**
+   * On the page itself rather than inside a column that owns its gutter.
+   *
+   * Same arrangement as the decision request, and for the same reason: the
+   * Activity screen renders this inside a padded column, so a horizontal
+   * margin baked into the panel would double there, and the session page has
+   * no padding of its own, so without one the panel runs to the edge of the
+   * window while every card beside it does not.
+   */
+  standalone?: boolean
+}>) => {
   if (warnings.length === 0) return undefined
 
   return (
-    <div className={styles.panel}>
+    <div
+      className={
+        standalone ? `${styles.panel} ${styles.standalone}` : styles.panel
+      }
+    >
       {KINDS.map((kind) => {
         const group = warnings.filter((warning) => warning.kind === kind)
         if (group.length === 0) return undefined

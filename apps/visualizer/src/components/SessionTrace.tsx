@@ -466,7 +466,7 @@ export const SessionTrace = ({
             repository, and a warning raised by the second of nine
             Activities is still the answer when the ninth has finished.
           */}
-          <TreeWarnings warnings={warningsIn(events)} />
+          <TreeWarnings warnings={warningsIn(events)} standalone />
           <DecisionRequest
             runId={runId}
             status={session.status ?? ''}
