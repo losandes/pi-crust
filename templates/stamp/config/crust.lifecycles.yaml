@@ -40,7 +40,7 @@ lifecycles:
         activities: [plan, design, test-tdd, build]
       - name: accept
         strategy: concurrent
-        activities: [review, code-review]
+        activities: [outcome-review, code-review]
 
   - name: sdlc
     description: >-
@@ -55,7 +55,7 @@ lifecycles:
         activities: [plan, design, build, test]
       - name: accept
         strategy: concurrent
-        activities: [review, code-review]
+        activities: [outcome-review, code-review]
 
   - name: discover
     description: >-
@@ -74,7 +74,7 @@ lifecycles:
         activities: [test-tdd, build]
       - name: accept
         strategy: concurrent
-        activities: [review, code-review]
+        activities: [outcome-review, code-review]
 
   - name: deliver
     description: >-
@@ -85,7 +85,7 @@ lifecycles:
         activities: [build, test]
       - name: accept
         strategy: concurrent
-        activities: [review, code-review]
+        activities: [outcome-review, code-review]
 
   - name: bugfix
     description: >-
@@ -100,7 +100,7 @@ lifecycles:
         activities: [plan, test-tdd, build]
       - name: accept
         strategy: concurrent
-        activities: [review, code-review]
+        activities: [outcome-review, code-review]
 
   - name: de-risk
     description: >-

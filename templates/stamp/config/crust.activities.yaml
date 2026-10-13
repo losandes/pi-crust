@@ -194,6 +194,18 @@ activities:
       user: prompt-engineering/identify/user.md
     writes: ['{handoff}/identify.md'] # .pi-crust/data/sessions/{session_id}/context_handoff/
 
+  - name: outcome-review
+    output: reviewOutput
+    gates: [artifactsExist, verdictConsistent]
+    model: openai/gpt-5.6-terra
+    thinking: high
+    color: lime
+    purpose: Confirm that what was built is what was asked for; change nothing.
+    prompt_engineering:
+      system: prompt-engineering/outcome-review/system.md
+      user: prompt-engineering/outcome-review/user.md
+    writes: ['{handoff}/outcome_review.md'] # .pi-crust/data/sessions/{session_id}/context_handoff/
+
   - name: plan
     output: planOutput
     gates: [artifactsExist, filesNonEmpty]
@@ -217,18 +229,6 @@ activities:
       - subagent_continue
       - subagent_list
       - subagent_remove
-
-  - name: review
-    output: reviewOutput
-    gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-5.6-terra
-    thinking: high
-    color: lime
-    purpose: Confirm that what was built is what was asked for; change nothing.
-    prompt_engineering:
-      system: prompt-engineering/review/system.md
-      user: prompt-engineering/review/user.md
-    writes: ['{handoff}/review.md'] # .pi-crust/data/sessions/{session_id}/context_handoff/
 
   - name: scout
     output: scoutOutput

@@ -56,8 +56,16 @@ import { agentActivity, runnableActivities } from './activities'
 /** The Activity Run name every round of the loop runs under. */
 export const REVISE = 'revise'
 
-/** Activities that end in a verdict the loop can answer. */
-export const REVIEW_STEPS = ['review', 'code-review'] as const
+/**
+ * Activities that end in a verdict the loop can answer.
+ *
+ * `review` is kept beside `outcome-review` because the name is configuration:
+ * the shipped registry renamed its outcome reviewer, and a repository whose
+ * `crust.activities.local.yaml` or own chain still says `review` would
+ * otherwise lose the loop silently — the chain would run and simply never
+ * send findings back.
+ */
+export const REVIEW_STEPS = ['outcome-review', 'review', 'code-review'] as const
 
 
 export type TLoopOutcome =

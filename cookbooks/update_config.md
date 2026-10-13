@@ -38,7 +38,7 @@ defaults:
   tools: [read, bash, edit, write, grep, find, ls]
 
 activities:
-  - name: review
+  - name: outcome-review
     tools:                # explicit list wins over defaults
       - read
       - grep
@@ -70,7 +70,7 @@ Entries are pi extension **file paths**, passed through as `pi -e <path>`, appli
 **Adding a tool-registering extension is a two-part edit.** The extension path goes in `harness_engineering`, *and* the tool name it registers goes in that agent's `tools` list:
 
 ```yaml
-  - name: review
+  - name: outcome-review
     harness_engineering:
       - .pi/extensions/ast_query.ts     # registers tool: ast_query
     tools:

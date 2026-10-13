@@ -223,7 +223,7 @@ test(
       'design',
       'build',
       'test',
-      'review',
+      'outcome-review',
       'code-review',
     ])
   },

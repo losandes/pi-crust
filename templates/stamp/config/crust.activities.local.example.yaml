@@ -45,7 +45,7 @@ activities:
 
   # Colour is a theme role, never a hex: each theme decides what `cyan` looks
   # like, so a lane stays legible in light and high-contrast too.
-  - name: review
+  - name: outcome-review
     color: cyan
 
   # Keep one out of the `just crust please` menu, for work you never pick by

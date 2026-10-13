@@ -36,9 +36,9 @@ The two directories are not the same kind of thing, and the table should not pre
 ```text
 | Lifecycle | Chain | Use when |
 |---|---|---|
-| tdd | identify → conceptualize → plan → design → test-tdd → build → review → code-review | the tests should be written before the thing they prove |
-| sdlc | identify → conceptualize → plan → design → build → test → review → code-review | the work starts from a wish and its shape is not obvious |
-| bugfix | diagnose → plan → test → build → review → code-review | the work starts from a symptom somebody reported |
+| tdd | identify → conceptualize → plan → design → test-tdd → build → outcome-review → code-review | the tests should be written before the thing they prove |
+| sdlc | identify → conceptualize → plan → design → build → test → outcome-review → code-review | the work starts from a wish and its shape is not obvious |
+| bugfix | diagnose → plan → test → build → outcome-review → code-review | the work starts from a symptom somebody reported |
 | de-risk | identify → plan → build | the expensive question is whether the approach works at all |
 | run | whatever `--activities` names | you know exactly which Activities you want |
 
@@ -98,7 +98,7 @@ The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are 
 | 2.1 Plan          | `plan`                    | what to build, in what order, proven how                  |
 | 2.2 Design        | `design`                  | how it physically exists here, observability included     |
 | 2.3 Build         | `test-tdd` or `test`, `build` | what would prove it, and the work; the `checks` gate rules on it |
-| 3.1 Verify        | `review`, `code-review`   | is it what was asked for; does it conform                 |
+| 3.1 Verify        | `outcome-review`, `code-review` | is it what was asked for; does it conform                 |
 | 3.2 Launch        | `document` + a human      | handing a reviewable change to the person who launches it |
 
 An Activity is named for the WORK, and IS its agent: `crust.activities.yaml` holds both halves of it — the model, tools, writes and prompts that say who performs it, and the `output`, `gates`, `attempts` and `commit` that say what the work is. There is no second registry and no performer to bridge to.

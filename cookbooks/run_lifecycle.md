@@ -98,10 +98,10 @@ Every Activity also runs on its own, which is what an engineer usually wants whe
 ```bash
 just crust run "the /health work" --activities code-review   # just the conventions review
 just crust verify                                # just the declared checks, no run at all
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,review
+bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,outcome-review
 ```
 
-`compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,review,build,review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
+`compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
 
 A chain whose LAST Activity is `review` or `code-review` ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, the reviewer rules again, and the bound is that Activity's `attempts`. That applies to a lone `--activities review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
 
