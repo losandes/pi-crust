@@ -1,0 +1,126 @@
+# Every Lifecycle this repository offers.
+#
+# A Lifecycle is the progression of an objective. It holds Stages; a Stage
+# holds Activities. Activities themselves are registered in
+# crust.activities.yaml — named here, defined there, so the same Activity
+# appears in as many Lifecycles as you like.
+#
+# Stages run in the order they are declared. A Stage says how its own
+# Activities run, and a serial Stage is a SEQUENCE — which is why `deliver`
+# holds five Activities rather than being split into five Stages. Grouping is
+# not how independence is expressed; `strategy` is.
+#
+#
+#   strategy: serial      one after another, in the order listed (the default)
+#   strategy: concurrent  all at once, because they do not depend on each other
+#
+# `concurrent` is a claim, not a grouping. It says these Activities can run
+# against the same working tree at the same time without reading each other's
+# half-finished work, and it is enforced: a concurrent Stage whose Activities
+# declare overlapping `writes` is refused at load.
+#
+# Which is why `accept` is the only concurrent Stage here. A reviewer and a
+# code-reviewer both read the finished diff and both write only their own
+# findings file, so neither can see the other's work in progress. Everything
+# else in these chains needs what came before it.
+#
+# Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
+
+lifecycles:
+  - name: tdd
+    description: >-
+      The whole lifecycle, identify through code-review with test-driven
+      development: success criteria written before the build.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, conceptualize]
+      - name: deliver
+        strategy: serial
+        activities: [plan, design, test-tdd, build]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: sdlc
+    description: >-
+      The whole lifecycle, identify through code-review. Success criteria
+      written after the build.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, conceptualize]
+      - name: deliver
+        strategy: serial
+        activities: [plan, design, build, test]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: discover
+    description: >-
+      The product lifecycle: identify, conceptualize, plan.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, conceptualize, plan]
+
+  - name: deliver-tdd
+    description: >-
+      The engineering lifecycle: test-first, build, and review.
+    stages:
+      - name: deliver-tdd
+        strategy: serial
+        activities: [test-tdd, build]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: deliver
+    description: >-
+      The engineering lifecycle: build, test, and review.
+    stages:
+      - name: deliver
+        strategy: serial
+        activities: [build, test]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: ship
+    description: >-
+      The engineering lifecycle: plan, build, and review.
+    stages:
+      - name: ship
+        strategy: serial
+        activities: [plan, build]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: bugfix
+    description: >-
+      Fix a reported bug, start to finish. Reproduction comes first and gates the
+      rest.
+    stages:
+      - name: diagnose
+        strategy: serial
+        activities: [diagnose]
+      - name: deliver
+        strategy: serial
+        activities: [plan, test-tdd, build]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: de-risk
+    description: >-
+      Learn, disprove, de-risk. Evaluate a concept to determine its feasibility
+      and learn through experimentation.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify]
+      - name: prove
+        strategy: serial
+        activities: [plan, build]

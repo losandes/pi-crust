@@ -26,6 +26,7 @@
 #
 # Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
 
+
 lifecycles:
   - name: tdd
     description: >-
@@ -69,7 +70,7 @@ lifecycles:
     description: >-
       The engineering lifecycle: test-first, build, and review.
     stages:
-      - name: deliver
+      - name: deliver-tdd
         strategy: serial
         activities: [test-tdd, build]
       - name: accept
@@ -83,6 +84,17 @@ lifecycles:
       - name: deliver
         strategy: serial
         activities: [build, test]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+
+  - name: ship
+    description: >-
+      The engineering lifecycle: plan, build, and review.
+    stages:
+      - name: ship
+        strategy: serial
+        activities: [plan, build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]

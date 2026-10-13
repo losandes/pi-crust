@@ -96,3 +96,7 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+# crust runtime
+.pi-crust/config/*.local.yaml
+.pi-crust/prompt-engineering/example/
