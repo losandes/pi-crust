@@ -65,7 +65,7 @@ activities:
   - name: code-review
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-5.6-terra
+    # model: openai/gpt-5.6-terra
     thinking: high
     color: indigo
     purpose: Judge the change against this repository's ratified conventions, through its own review skill.
@@ -150,7 +150,7 @@ activities:
     gates: [artifactsExist, filesNonEmpty]
     input: changes                       # the run's own diff, not the activity before it
     commit: true                         # the write-up lands in its own commit
-    model: openai/gpt-5.6-luna
+    # model: openai/gpt-5.6-luna
     color: blue
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:
@@ -197,7 +197,7 @@ activities:
   - name: outcome-review
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-5.6-terra
+    # model: openai/gpt-5.6-terra
     thinking: high
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -209,7 +209,8 @@ activities:
   - name: plan
     output: planOutput
     gates: [artifactsExist, filesNonEmpty]
-    model: fireworks/accounts/fireworks/models/kimi-k3
+    model: anthropic/claude-opus-5
+    # model: fireworks/accounts/fireworks/models/kimi-k3
     thinking: high
     color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
