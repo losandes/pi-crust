@@ -58,6 +58,8 @@ export type TActivityRunState = Readonly<{
 export type TRunState = Readonly<{
   run_id: string
   lifecycle: string
+  /** --name, verbatim; '' when none was given */
+  name: string
   request: string
   status: string
   engineer: string

@@ -13,6 +13,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import type { PiCrustDb } from "./db.ts";
+import { handoffDirFor } from "./handoff.ts";
 import { WorkspaceRegistry } from "./registry.ts";
 import { BUILTIN_THEMES, workspaceThemes } from "./themes.ts";
 import {
@@ -324,7 +325,17 @@ const server = Bun.serve({
       const runId = param(req, "run_id");
       const owner = forRun(req, runId);
       const detail = owner?.sessionDetail(runId);
-      if (detail) return json(detail);
+      if (detail && owner) {
+        /*
+         * Computed here, not in `db.ts`: the db connection is readonly SQL
+         * and must stay that way, and this is the one field on
+         * `SessionDetail` that reads the filesystem instead of a row.
+         */
+        return json({
+          ...detail,
+          handoff_dir: resolve(handoffDirFor(owner.sessionsDir, runId)),
+        });
+      }
       /*
        * A run REFUSED at load has no session row and never will — a
        * concurrent Stage with overlapping `writes` is the case this exists
@@ -642,11 +653,7 @@ const server = Bun.serve({
       const db = forRun(req, runId);
       if (!db) return notFound(`no session ${runId}`);
 
-      const dir = resolve(db.sessionsDir, runId, "context_handoff");
-      // Defense in depth: the segment check already forbids traversal.
-      if (!dir.startsWith(db.sessionsDir + sep)) {
-        return json({ error: "invalid path" } satisfies ApiError, 400);
-      }
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
 
       const file = Bun.file(join(dir, "decision-request.md"));
       /*
@@ -681,10 +688,7 @@ const server = Bun.serve({
       }
       const db = forRun(req, runId);
       if (!db) return notFound(`no session ${runId}`);
-      const dir = resolve(db.sessionsDir, runId, "context_handoff");
-      if (!dir.startsWith(db.sessionsDir + sep)) {
-        return json({ error: "invalid path" } satisfies ApiError, 400);
-      }
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
       return json(listHandoff(dir) satisfies HandoffFile[]);
     }),
 
@@ -696,7 +700,7 @@ const server = Bun.serve({
       }
       const db = forRun(req, runId);
       if (!db) return notFound(`no session ${runId}`);
-      const dir = resolve(db.sessionsDir, runId, "context_handoff");
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
       const file = resolve(dir, relative);
       /*
        * Containment is checked on the RESOLVED path rather than on the text

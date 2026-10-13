@@ -102,7 +102,7 @@ export const SessionTrace = ({
   workspace: string | undefined
 }>) => {
   const trace = useTrace(runId, workspace)
-  const { session, activityRuns, agents, events, nowMs } = trace
+  const { session, handoffDir, activityRuns, agents, events, nowMs } = trace
   const running = session?.status === 'running'
 
   const selectedActivityRun = activityRuns.find((p) => p.activity_run_id === activityRunId)
@@ -498,6 +498,7 @@ export const SessionTrace = ({
             session={session}
             runId={runId}
             workspace={workspace}
+            handoffDir={handoffDir}
             envelopes={trace.envelopes}
             events={events}
           />

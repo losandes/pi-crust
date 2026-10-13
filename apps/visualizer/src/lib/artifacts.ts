@@ -65,10 +65,30 @@ export type TArtifact = Readonly<{
 const SYSTEM_FILES = /^(decision-request|decision-answer|answers-.*)\.md$/
 
 /** `…/sessions/<run>/context_handoff/design.md` → `context_handoff/design.md`. */
-export const relativeToSession = (path: string, runId: string): string => {
+export const relativeToSession = (
+  path: string,
+  runId: string,
+  /**
+   * This run's handoff directory, resolved absolute by the server. When
+   * `--handoff` relocated it outside `sessions/<run>/`, a path under THIS
+   * directory collapses onto the same `context_handoff/<relative>` key the
+   * observed listing already uses — otherwise the same document would
+   * render as two cards, one reported and one observed.
+   */
+  handoffDir?: string,
+): string => {
   const marker = `/sessions/${runId}/`
   const at = path.indexOf(marker)
-  return at === -1 ? path : path.slice(at + marker.length)
+  if (at !== -1) {
+    return path.slice(at + marker.length)
+  }
+  if (handoffDir !== undefined && handoffDir !== '') {
+    const root = handoffDir.endsWith('/') ? handoffDir : `${handoffDir}/`
+    if (path.startsWith(root)) {
+      return `context_handoff/${path.slice(root.length)}`
+    }
+  }
+  return path
 }
 
 const nameOf = (path: string): string => path.split('/').at(-1) ?? path
@@ -129,6 +149,8 @@ export const observedByActivityRun = (
  */
 export const runArtifacts = (params: {
   runId: string
+  /** This run's handoff directory, resolved absolute by the server. */
+  handoffDir?: string
   envelopes: readonly Envelope[]
   events: readonly EventRow[]
   present: readonly HandoffFile[] | undefined
@@ -151,7 +173,7 @@ export const runArtifacts = (params: {
     if (envelope.valid !== 1) continue
     const payload = payloadOf(envelope)
     for (const raw of strings(payload.artifacts)) {
-      const path = relativeToSession(raw, params.runId)
+      const path = relativeToSession(raw, params.runId, params.handoffDir)
       add({
         path,
         name: nameOf(path),

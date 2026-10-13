@@ -91,7 +91,7 @@ just crust run "<...>" --activities code-review --scope apps/gateway
 just crust report <run-id>                 # where it got to, and what finishes it
 ```
 
-Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the judging Activities judge), `--approve-after identify,design` (stop for you after those stages), `--commit false` (land nothing; committing is otherwise declared per Activity), `--resume` with `--run-id`.
+Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the judging Activities judge), `--approve-after identify,design` (stop for you after those stages), `--commit false` (land nothing; committing is otherwise declared per Activity), `--resume` with `--run-id`, `--handoff specs/{session_id}` (move where this run's documents go), `--name "payments rewrite"` (a label shown instead of the lifecycle).
 
 ### Getting the most out of it
 

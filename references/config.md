@@ -233,7 +233,7 @@ Rule: **every entry in `harness_engineering` that registers a tool must have tha
 
 ## Where an Activity's document goes
 
-An Activity that produces a document names it in `writes`, with `{handoff}` standing for this run's context_handoff directory:
+An Activity that produces a document names it in `writes`, with `{handoff}` standing for this run's context_handoff directory. That directory is per-run, and defaults to `<data_dir>/sessions/<run_id>/context_handoff`; `--handoff <path>` on `just crust run` moves WHICH directory `{handoff}` resolves to for that one run, without changing how `writes:` spells the token — a `writes` entry you declare here never names the run's own id.
 
 ```yaml
   - name: reviewer

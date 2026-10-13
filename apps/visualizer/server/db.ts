@@ -171,7 +171,8 @@ export class PiCrustDb {
                 total_tokens, total_cost,
                 ${this.optionalColumn("sessions", "archived")},
                 ${this.optionalColumn("sessions", "workspace_root")},
-                ${this.optionalColumn("sessions", "branch")}
+                ${this.optionalColumn("sessions", "branch")},
+                ${this.optionalColumn("sessions", "name")}
            FROM sessions
           WHERE COALESCE(${this.hasColumn("sessions", "archived") ? "archived" : "0"}, 0) = 0
           ORDER BY started_at DESC, rowid DESC
@@ -226,7 +227,8 @@ export class PiCrustDb {
                 total_tokens, total_cost,
                 ${this.optionalColumn("sessions", "archived")},
                 ${this.optionalColumn("sessions", "workspace_root")},
-                ${this.optionalColumn("sessions", "branch")}
+                ${this.optionalColumn("sessions", "branch")},
+                ${this.optionalColumn("sessions", "name")}
            FROM sessions WHERE run_id = ?`,
       )
       .get(runId);
@@ -327,8 +329,13 @@ export class PiCrustDb {
     return byRun;
   }
 
-  /** Session + activityRuns + agents in one shot — L2 needs all three to draw lanes. */
-  sessionDetail(runId: string): SessionDetail | null {
+  /**
+   * Session + activityRuns + agents in one shot — L2 needs all three to draw
+   * lanes. `handoff_dir` is server-computed from the filesystem rather than a
+   * db column, so it is NOT this connection's to fill in: the route handler
+   * attaches it.
+   */
+  sessionDetail(runId: string): Omit<SessionDetail, "handoff_dir"> | null {
     const session = this.session(runId);
     if (!session) return null;
 

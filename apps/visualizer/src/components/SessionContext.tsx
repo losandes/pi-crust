@@ -49,12 +49,15 @@ export const SessionContext = ({
   session,
   runId,
   workspace,
+  handoffDir,
   envelopes,
   events,
 }: Readonly<{
   session: Session
   runId: string
   workspace: string | undefined
+  /** This run's handoff directory, resolved absolute by the server. */
+  handoffDir: string | undefined
   envelopes: readonly Envelope[]
   events: readonly EventRow[]
 }>) => {
@@ -66,8 +69,8 @@ export const SessionContext = ({
     [events, session.request],
   )
   const documents = useMemo(
-    () => runArtifacts({ runId, envelopes, events, present: handoff }),
-    [runId, envelopes, events, handoff],
+    () => runArtifacts({ runId, handoffDir, envelopes, events, present: handoff }),
+    [runId, handoffDir, envelopes, events, handoff],
   )
 
   return (

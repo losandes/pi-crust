@@ -93,6 +93,7 @@ export async function fetchSession(
   )) as SessionDetail
   return {
     session: detail.session,
+    handoff_dir: detail.handoff_dir ?? '',
     usage: detail.usage ?? { read: 0, written: 0 },
     activityRuns: detail.activityRuns ?? [],
     agents: detail.agents ?? [],

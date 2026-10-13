@@ -108,8 +108,18 @@ export const matchesPattern = (path: string, pattern: string): boolean => {
  * ability to record its work must not hang on a gitignore entry that someone
  * can delete or that a changed `data_dir` can outgrow.
  */
-export const alwaysWritable = (cfg: TPiCrustConfig): readonly string[] => [
+export const alwaysWritable = (
+  cfg: TPiCrustConfig,
+  /**
+   * This run's handoff directory. Granted alongside `data_dir` so a
+   * `--handoff` relocated outside `data_dir` does not turn a legitimate
+   * undeclared write in an agent's own handoff directory into a reported
+   * overstep.
+   */
+  handoffDir?: string,
+): readonly string[] => [
   `${cfg.defaults.data_dir.replace(/\/+$/, '')}/`,
+  ...(handoffDir === undefined ? [] : [`${handoffDir.replace(/\/+$/, '')}/`]),
 ]
 
 /**
@@ -123,23 +133,24 @@ export const alwaysWritable = (cfg: TPiCrustConfig): readonly string[] => [
 export const HANDOFF_TOKEN = '{handoff}'
 
 /**
- * An agent's declared paths, with `{handoff}` resolved against this run.
- *
- * Repo-relative, because that is what a tree snapshot reports. An absolute
- * handoff directory outside the repository resolves to a path no snapshot
- * will ever contain, which is correct: the agent is free to write there and
- * nothing in the repo changed.
+ * A handoff directory, spelled the way a tree snapshot would report it:
+ * repo-relative when it is inside the repository, absolute when it is not.
+ * An agent's declared paths resolve against this, with `{handoff}` filled
+ * in — and `alwaysWritable`'s grant widens to match, so a relocated handoff
+ * directory does not turn a legitimate undeclared write into an overstep.
  */
+const handoffRelativeTo = (repoRoot: string, handoffDir: string): string => {
+  const absolute = resolve(handoffDir)
+  const root = `${resolve(repoRoot)}/`
+  return absolute.startsWith(root) ? absolute.slice(root.length) : absolute
+}
+
 export const resolveWrites = (
   writes: readonly string[],
   repoRoot: string,
   handoffDir: string,
 ): readonly string[] => {
-  const absolute = resolve(handoffDir)
-  const root = `${resolve(repoRoot)}/`
-  const relative = absolute.startsWith(root)
-    ? absolute.slice(root.length)
-    : absolute
+  const relative = handoffRelativeTo(repoRoot, handoffDir)
 
   return writes.map((pattern) =>
     pattern.startsWith(HANDOFF_TOKEN)
@@ -177,8 +188,12 @@ export const permitted = (
   cfg: TPiCrustConfig,
   /** `{handoff}` already resolved; defaults to the agent's literal list */
   writes: readonly string[] = agent.writes,
+  /** this run's handoff directory; widens the always-writable grant to match */
+  handoffDir?: string,
 ): boolean => {
-  if (alwaysWritable(cfg).some((pattern) => matchesPattern(path, pattern))) {
+  if (
+    alwaysWritable(cfg, handoffDir).some((pattern) => matchesPattern(path, pattern))
+  ) {
     return true
   }
   // naming a path is what unlocks a protected one
@@ -328,7 +343,16 @@ export const enforcePermissions = (
      */
     touched: touched.filter((path) => !theirs(path)),
     overstepped: touched.filter(
-      (path) => !(permitted(path, agent, run.cfg, writes) || theirs(path)),
+      (path) =>
+        !(
+          permitted(
+            path,
+            agent,
+            run.cfg,
+            writes,
+            handoffRelativeTo(run.repoRoot, run.contextHandoffDir),
+          ) || theirs(path)
+        ),
     ),
     scope: scopeOf(agent, run.cfg),
     committed: commitBreach(repoBefore),

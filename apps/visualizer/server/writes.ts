@@ -29,6 +29,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { handoffDirFor } from "./handoff.ts";
 import type { ApiError } from "../shared/types.ts";
 
 export const TOKEN_HEADER = "x-crust-token";
@@ -208,7 +209,7 @@ export const recordDecision = (
   text: string,
   from: string,
 ): string => {
-  const handoff = join(sessionDir(dbPath, runId), "context_handoff");
+  const handoff = handoffDirFor(join(dirname(dbPath), "sessions"), runId);
   if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true });
   const body =
     action === "approve"

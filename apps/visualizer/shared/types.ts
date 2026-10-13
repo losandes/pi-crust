@@ -69,6 +69,8 @@ export interface Session {
    */
   workspace_root: string | null;
   branch: string | null;
+  /** --name, verbatim. Rendered instead of `lifecycle` when a session has one. */
+  name: string | null;
   /**
    * Which watched workspace this row came from — the label, not the path.
    *
@@ -276,6 +278,12 @@ export interface SessionUsage {
 
 export interface SessionDetail {
   session: Session;
+  /**
+   * This run's handoff directory, resolved absolute. Server-computed from
+   * the pointer `--handoff` may have written, never a database column —
+   * `session` never carries it.
+   */
+  handoff_dir: string;
   /** Derived from agent_end payloads, so historical runs have it too. */
   usage: SessionUsage;
   /** Ordered by seq. */

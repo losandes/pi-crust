@@ -48,7 +48,18 @@ export type TEventInput = Readonly<{
 export type TTracer = Readonly<{
   dbPath: string
   event: (input: TEventInput) => string
-  sessionStart: (runId: string, engineer: string, lifecycleName: string) => void
+  /**
+   * `name` sets `sessions.name`, it never appends: a label containing a
+   * literal ' + ' must not be split the way `lifecycle` is. Omitted or
+   * empty, an existing name is left untouched, so resuming a named run
+   * without repeating `--name` does not erase the label.
+   */
+  sessionStart: (
+    runId: string,
+    engineer: string,
+    lifecycleName: string,
+    name?: string,
+  ) => void
   /** The working tree and branch a run is executing in. */
   sessionWorkspace: (
     runId: string,

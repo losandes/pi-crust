@@ -19,6 +19,8 @@ const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
   commit: undefined,
   stream: false,
   trustLevel: undefined,
+  handoff: undefined,
+  name: undefined,
   ...over,
 })
 

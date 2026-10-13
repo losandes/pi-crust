@@ -145,6 +145,7 @@ export const readRunState = (
   return {
     run_id: rows.session.run_id,
     lifecycle: rows.session.lifecycle ?? '',
+    name: rows.session.name ?? '',
     request: rows.session.request ?? '',
     status: rows.session.status ?? '',
     engineer: rows.session.engineer ?? '',

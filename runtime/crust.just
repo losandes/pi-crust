@@ -75,6 +75,14 @@ run *ARGS:
 #     just crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume
 # `just crust report` prints that exact line for the run it describes.
 
+# --handoff <path> moves where this run's documents go. {session_id} (or
+# {run_id}, an exact synonym) expands to the run id; a relative path resolves
+# against the repository root. With no flag, nothing changes:
+#     just crust run "..." --lifecycle sdlc --handoff specs/{session_id}
+# --name <label> gives the run a label shown instead of the lifecycle on the
+# report, the `please` picker, and the visualizer:
+#     just crust run "..." --lifecycle sdlc --name "payments rewrite"
+
 # Runs the commands routing.checks selects for what you changed, with no
 # Lifecycle, no agent and no session. The same checks run as the `checks`
 # gate inside a run; this is them on their own, for a pre-PR sweep.

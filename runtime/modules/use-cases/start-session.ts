@@ -7,9 +7,10 @@
  */
 
 import { writeText } from '../data/files'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { engineerName } from '../data/engineer'
-import { currentBranch } from '../data/git'
+import { currentBranch, repoRoot } from '../data/git'
+import { recordedHandoffDir, writeHandoffPointer } from '../data/handoff-pointer'
 import { newId } from '../data/ids'
 import { createTracer } from '../data/trace-db'
 import { registerWorkspace } from '../data/workspace-registry'
@@ -17,6 +18,7 @@ import type { TPiCrustConfig } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import { createRun } from './create-run'
+import { isSharedHandoffDir, resolveHandoffDir } from './handoff-location'
 import { readRunState } from './read-run-state'
 
 const SIGNALS = [
@@ -66,6 +68,10 @@ export type TSessionOptions = Readonly<{
   trust?: number
   /** the Lifecycle this run was asked for, when it was asked for by name */
   lifecycle?: string | undefined
+  /** the raw --handoff value, unexpanded */
+  handoff?: string | undefined
+  /** the validated --name value */
+  name?: string | undefined
 }>
 
 /**
@@ -111,6 +117,42 @@ const completedActivityRuns = (
   return new Set(state.completed)
 }
 
+/**
+ * Where this run's handoff directory actually is, honouring an existing
+ * pointer over a fresh `--handoff` value.
+ *
+ * A resumed run's pointer WINS: resuming is how `resumeArgv` replays the
+ * original `--handoff` verbatim, so the ordinary case never trips this, and
+ * a `--handoff` that resolves to a different directory than the recorded
+ * pointer is refused rather than silently splitting one run's documents
+ * across two places.
+ */
+const resolvedHandoffDirFor = (
+  cfg: TPiCrustConfig,
+  runId: string,
+  sessionDir: string,
+  options: TSessionOptions,
+): string => {
+  const resolved = resolveHandoffDir({
+    repoRoot: resolve(repoRoot()),
+    dataDir: cfg.defaults.data_dir,
+    runId,
+    override: options.handoff,
+  })
+  const existing = recordedHandoffDir(sessionDir)
+  if (existing === undefined) {
+    return resolved
+  }
+  if (options.handoff !== undefined && resolved !== existing) {
+    throw new Error(
+      `--handoff resolves to ${resolved}, but '${runId}' already recorded ` +
+        `${existing} — a resume cannot split one run's documents across two ` +
+        'directories. Drop --handoff to keep the recorded one.',
+    )
+  }
+  return existing
+}
+
 export const startSession = (
   cfg: TPiCrustConfig,
   runId?: string,
@@ -120,6 +162,8 @@ export const startSession = (
     ? completedActivityRuns(cfg, runId)
     : new Set<string>()
   const id = runId || newId(8)
+  const sessionDir = join(cfg.defaults.data_dir, 'sessions', id)
+  const handoffDir = resolvedHandoffDirFor(cfg, id, sessionDir, options)
   const tracer = createTracer(
     cfg.observability.db,
     join(cfg.defaults.data_dir, 'sessions', id, 'events.jsonl'),
@@ -132,8 +176,17 @@ export const startSession = (
     resume,
     stream: options.stream ?? false,
     trust: options.trust ?? TRUST_DEFAULT,
+    handoffDir,
   })
-  tracer.sessionStart(id, run.engineer, sessionLifecycle(options.lifecycle))
+  if (recordedHandoffDir(sessionDir) === undefined) {
+    writeHandoffPointer(sessionDir, handoffDir)
+  }
+  tracer.sessionStart(
+    id,
+    run.engineer,
+    sessionLifecycle(options.lifecycle),
+    options.name,
+  )
   // Where the work is happening, not where the observer is. One UI can watch
   // several working trees at once, and a run that cannot name its own tree is
   // a run the reader cannot act on.
@@ -170,6 +223,12 @@ export const startSession = (
   )
   finalizeWhenKilled(run)
   run.console.sessionStarted(id, run.engineer)
+  if (isSharedHandoffDir(handoffDir, id)) {
+    run.console.note(
+      `handoff directory ${handoffDir} carries no run id — it is shared with ` +
+        'any other run pointed at it.',
+    )
+  }
   if (resume.size > 0) {
     run.console.note(
       `resuming: ${resume.size} activityRun(s) already successful — ` +

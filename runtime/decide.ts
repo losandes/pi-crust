@@ -22,6 +22,7 @@
 
 import { join } from 'node:path'
 import { fileExists, readText, writeText } from './modules/data/files'
+import { handoffDirFor } from './modules/data/handoff-pointer'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
@@ -139,7 +140,7 @@ export const main = async (argv: readonly string[]): Promise<number> => {
     return EXIT.USAGE
   }
 
-  const handoff = join(dataDir, 'sessions', args.runId, 'context_handoff')
+  const handoff = handoffDirFor(dataDir, args.runId)
   writeText(join(handoff, ANSWER_FILENAME), `${answerText(args).trim()}\n`)
 
   writeLine(

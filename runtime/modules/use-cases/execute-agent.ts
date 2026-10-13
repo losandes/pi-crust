@@ -269,12 +269,13 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * call instead of after it, which is the only way to answer for a secret
    * — bytes that have been read cannot be unread.
    */
-  const policy = armPolicy(
-    run.cfg,
-    run.repoRoot,
+  const policy = armPolicy({
+    cfg: run.cfg,
+    repoRoot: run.repoRoot,
+    handoffDir: run.contextHandoffDir,
     agentDir,
-    activityRun.activity_run_id,
-  )
+    activityRunId: activityRun.activity_run_id,
+  })
 
   // What this agent is being asked to reason about, as paths. A caller that
   // already knows (a reviewer handed the builder's envelope) says so; otherwise

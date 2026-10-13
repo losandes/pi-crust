@@ -17,6 +17,7 @@
 import { join, resolve } from 'node:path'
 import { fileExists, readText, writeText } from '../data/files'
 import type { TPiCrustConfig } from '../typedefs/config'
+import { repoRelative } from './path-policy'
 import type { TPathIntent, TPathSettings, TRefusal } from './path-policy'
 import { refusalLine } from './path-policy'
 
@@ -43,9 +44,11 @@ export const policyPaths = (
 export const settingsFor = (
   cfg: TPiCrustConfig,
   repoRoot: string,
+  handoffDir: string,
 ): TPathSettings => ({
   repoRoot: resolve(repoRoot),
   dataDir: cfg.defaults.data_dir.replace(/\/+$/, ''),
+  handoffDir: repoRelative(resolve(repoRoot), handoffDir),
   protectedFiles: cfg.defaults.protected_files,
   protectedPolicy: cfg.defaults.protected,
   ignoredPolicy: cfg.defaults.ignored,
@@ -59,16 +62,22 @@ export const settingsFor = (
  * must not have the first Activity's answer applied to the last.
  */
 export const armPolicy = (
-  cfg: TPiCrustConfig,
-  repoRoot: string,
-  agentDir: string,
-  activityRunId: string,
+  params: Readonly<{
+    cfg: TPiCrustConfig
+    repoRoot: string
+    handoffDir: string
+    agentDir: string
+    activityRunId: string
+  }>,
 ): Readonly<{ env: Readonly<Record<string, string>>; refusals: string }> => {
-  const paths = policyPaths(agentDir, activityRunId)
+  const paths = policyPaths(params.agentDir, params.activityRunId)
   writeText(
     paths.policy,
     `${JSON.stringify(
-      { ...settingsFor(cfg, repoRoot), refusalsPath: paths.refusals },
+      {
+        ...settingsFor(params.cfg, params.repoRoot, params.handoffDir),
+        refusalsPath: paths.refusals,
+      },
       null,
       2,
     )}\n`,

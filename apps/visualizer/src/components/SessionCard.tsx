@@ -256,8 +256,11 @@ export const SessionCard = ({
           {session.branch ?? session.workspace}
         </span>
       )}
-      <span className={styles.lifecycle} title={session.lifecycle ?? ''}>
-        {session.lifecycle ?? '—'}
+      <span
+        className={styles.lifecycle}
+        title={session.name ?? session.lifecycle ?? ''}
+      >
+        {session.name || session.lifecycle || '—'}
       </span>
       <span className={styles.request} title={session.request ?? ''}>
         {session.request}

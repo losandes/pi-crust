@@ -1,3 +1,4 @@
+import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -205,5 +206,80 @@ test(
       },
     ])
     expect(renderReport(actual as TRunState)).toContain('src/add.ts')
+  },
+)
+
+test(
+  [
+    "given ../../report::renderReport",
+    "when the state carries a --name",
+    "it should show the name on the workflow line and the lifecycle beneath it",
+  ].join(", "),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, "crust.db")
+    const tracer = createTracer(dbPath, join(dir, "events.jsonl"))
+    tracer.sessionStart("a1b2c3d4", "tester", "sdlc", "payments rewrite")
+    tracer.close()
+    const state = readRunState(dbPath, "a1b2c3d4") as TRunState
+
+    // when
+    const actual = renderReport(state)
+
+    // then
+    expect(actual).toContain("payments rewrite")
+    expect(actual).toContain("lifecycle:")
+    expect(actual).toContain("sdlc")
+  },
+)
+
+test(
+  [
+    'given use-cases/read-run-state::readRunState',
+    'when the database predates the sessions.name column',
+    'it should return name: \'\' rather than throw "no such column"',
+  ].join(', '),
+  () => {
+    // given — a db an older pi-crust wrote, before `name` existed
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const legacy = new Database(dbPath, { create: true })
+    legacy.run(
+      'CREATE TABLE sessions (run_id TEXT PRIMARY KEY, lifecycle TEXT, request TEXT,' +
+        ' status TEXT, engineer TEXT, started_at TEXT, ended_at TEXT,' +
+        ' total_tokens INTEGER, total_cost REAL)',
+    )
+    legacy.run(
+      "INSERT INTO sessions (run_id, lifecycle, status, engineer, started_at)" +
+        " VALUES ('a1b2c3d4', 'sdlc', 'success', 'tester', '2024-01-01T00:00:00.000Z')",
+    )
+    legacy.run(
+      'CREATE TABLE activity_runs (activity_run_id TEXT PRIMARY KEY, run_id TEXT,' +
+        ' seq INTEGER, name TEXT, kind TEXT, owner TEXT, description TEXT,' +
+        " status TEXT DEFAULT 'fail', error TEXT, started_at TEXT, ended_at TEXT)",
+    )
+    legacy.run(
+      'CREATE TABLE events (event_id TEXT PRIMARY KEY, run_id TEXT, activity_run_id TEXT,' +
+        ' parent_id TEXT, type TEXT, name TEXT, payload_json TEXT, tokens INTEGER,' +
+        ' started_at TEXT, ended_at TEXT)',
+    )
+    legacy.run(
+      'CREATE TABLE envelopes (envelope_id TEXT PRIMARY KEY, run_id TEXT,' +
+        ' activity_run_id TEXT, agent TEXT, output_type TEXT, payload_json TEXT,' +
+        ' valid INTEGER, created_at TEXT)',
+    )
+    legacy.run(
+      'CREATE TABLE gate_results (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT,' +
+        ' activity_run_id TEXT, gate TEXT, passed INTEGER, violations_json TEXT,' +
+        ' checks_json TEXT, created_at TEXT)',
+    )
+    legacy.close()
+
+    // when
+    const actual = readRunState(dbPath, 'a1b2c3d4')
+
+    // then
+    expect(actual?.name).toEqual('')
   },
 )

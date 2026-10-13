@@ -24,6 +24,7 @@ import { Database } from 'bun:sqlite'
 import { nowIso } from './modules/data/clock'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { appendSteering } from './modules/data/steering'
+import { handoffDirFor } from './modules/data/handoff-pointer'
 import { readRunState } from './modules/use-cases/read-run-state'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import {
@@ -96,12 +97,7 @@ const main = async (): Promise<number> => {
   }
   const superseding = activityRunsToSupersede(state.activityRuns, activity)
 
-  const handoffDir = resolve(
-    cfg.defaults.data_dir,
-    'sessions',
-    runId,
-    'context_handoff',
-  )
+  const handoffDir = handoffDirFor(cfg.defaults.data_dir, runId)
   const path = appendSteering(handoffDir, steeringEntry(activity, note, nowIso()))
 
   /*

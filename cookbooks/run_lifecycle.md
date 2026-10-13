@@ -91,6 +91,16 @@ Two things that bite:
 
 `--run-id` is optional on **every** workflow. Given one, the run joins that session if it exists or creates it pinned to exactly that id: same `sessions/{run_id}/` dirs, same `context_handoff/`, envelopes appended, and each agent resumes its existing coding-agent context window via `agent_map.json`. That is how you chain workflows — plan under one id, then build under the same id.
 
+`--handoff <path>` moves where THIS run's `context_handoff/` documents land, without moving `sessions/{run_id}/` itself — `events.jsonl`, `invocation.json` and the rest stay exactly where they are. `{session_id}` (or `{run_id}`, an exact synonym) expands to the run id in the value:
+
+```bash
+just crust run "the payments rewrite" --lifecycle sdlc --handoff specs/{session_id}
+```
+
+Omit it and the directory is exactly what it has always been: `<data_dir>/sessions/{run_id}/context_handoff`. A relative value resolves against the repository root, not the directory you ran the command from. A resumed run keeps the directory it started with; passing a DIFFERENT `--handoff` on resume is refused rather than splitting one run's documents across two places.
+
+`--name "<label>"` gives the run a label shown instead of the lifecycle name on `just crust report`, the `please` picker, and the visualizer's session card — useful when `--activities plan,build` would otherwise read as the script that ran it. The lifecycle is still recorded and still shown, one line further down on the report.
+
 ## Run one Activity, or any subset
 
 Every Activity also runs on its own, which is what an engineer usually wants when the ask is narrow:

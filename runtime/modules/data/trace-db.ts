@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   total_tokens  INTEGER DEFAULT 0, total_cost REAL DEFAULT 0,
   archived      INTEGER DEFAULT 0,  -- review triage, set by the UI; never by a run
   workspace_root TEXT,              -- the working tree this run ran in
-  branch        TEXT                -- the branch it was on when it started
+  branch        TEXT,               -- the branch it was on when it started
+  name          TEXT                -- --name, verbatim; display clips, storage does not
 );
 CREATE TABLE IF NOT EXISTS activity_runs (
   activity_run_id      TEXT PRIMARY KEY,
@@ -104,6 +105,7 @@ export const MIGRATIONS: ReadonlyArray<readonly [string, string, string]> = [
   ['sessions', 'archived', 'INTEGER DEFAULT 0'],
   ['sessions', 'workspace_root', 'TEXT'],
   ['sessions', 'branch', 'TEXT'],
+  ['sessions', 'name', 'TEXT'],
 ]
 
 /** Additive column migrations, so a db from an older pi-crust still opens. */
@@ -202,12 +204,21 @@ export const createTracer = (
     event,
 
     // ── sessions ────────────────────────────────────────────────────────────
-    sessionStart: (runId, engineer, lifecycleName) => {
+    sessionStart: (runId, engineer, lifecycleName, name) => {
       db.run(
         'INSERT INTO sessions (run_id, status, engineer, started_at) VALUES (?,?,?,?) ' +
           "ON CONFLICT(run_id) DO UPDATE SET status='running'",
         [runId, 'running', engineer, nowIso()],
       )
+      /*
+       * SET, never appended — unlike `lifecycle` below, a label containing a
+       * literal ' + ' must not be split on read. An absent or empty `name`
+       * leaves whatever is already there: a resume that omits the flag must
+       * not erase the label the run was given when it started.
+       */
+      if (name) {
+        db.run('UPDATE sessions SET name=? WHERE run_id=?', [name, runId])
+      }
       if (!lifecycleName) {
         return
       }

@@ -9,6 +9,7 @@ import { configPathFromEnv } from '../data/env-overrides'
 import { DEFAULT_CONFIG_PATH } from '../typedefs/config'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { RUN_RECIPE } from './recipe-line'
+import { runName } from './run-label'
 
 export type TCliArgs = Readonly<{
   /** inline text or a path to a prompt file */
@@ -73,6 +74,20 @@ export type TCliArgs = Readonly<{
    * and every such answer is reported at the end.
    */
   trustLevel: string | undefined
+  /**
+   * Where this run's handoff documents go.
+   *
+   * `{session_id}` (or `{run_id}`, an exact synonym) expands to the run id.
+   * A relative value resolves against the repository root. Absent, the
+   * directory is exactly what it has always been:
+   * `<data_dir>/sessions/<run_id>/context_handoff`.
+   */
+  handoff: string | undefined
+  /**
+   * A human label for this run, shown instead of the lifecycle name on the
+   * report, the `please` picker, and the visualizer's session card.
+   */
+  name: string | undefined
 }>
 
 /**
@@ -99,6 +114,8 @@ const FLAGS = [
   '--approve-after',
   '--commit',
   '--trust-level',
+  '--handoff',
+  '--name',
 ] as const
 
 // Flags that take NO value. The parser assumes every flag is followed by its
@@ -112,7 +129,8 @@ const usage = (recipe: string): string =>
   '  `just crust list` prints the Lifecycles and Activities this repo offers.\n' +
   '  optional: [--config <path>] [--run-id <id>] [--commit false] ' +
   '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
-  '[--trust-level 50] [--stream] [--resume]\n' +
+  '[--trust-level 50] [--stream] [--resume] ' +
+  '[--handoff <path/{session_id}>] [--name <label>]\n' +
   'env: CRUST_CONFIG overrides the config path; --config still wins.'
 
 /**
@@ -135,6 +153,20 @@ export const commitFlag = (value: string | undefined): string | undefined => {
   }
 
   return value
+}
+
+/**
+ * `--handoff` takes a path. An empty one is refused rather than treated as
+ * the default — typing the flag with nothing after it is a mistake, not a
+ * request to behave as if it were absent.
+ */
+export const handoffFlag = (value: string | undefined): string | undefined => {
+  if (value !== '') {
+    return value
+  }
+  throw new Error(
+    "--handoff takes a path (got ''). Drop the flag for the default directory.",
+  )
 }
 
 /**
@@ -242,6 +274,8 @@ export const parseCli = (
     commit: commitFlag(flags.get('--commit')),
     stream: booleans.has('--stream'),
     trustLevel: flags.get('--trust-level'),
+    handoff: handoffFlag(flags.get('--handoff')),
+    name: runName(flags.get('--name')),
   }
 }
 

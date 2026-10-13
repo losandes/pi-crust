@@ -21,6 +21,7 @@ const settings = (
 ): TPathSettings => ({
   repoRoot: '/repo',
   dataDir: '.pi-crust/data',
+  handoffDir: '',
   protectedFiles: ['.pi-crust/config/', '.env*', '**/.env*'],
   protectedPolicy: { read: 'block', write: 'block' },
   ignoredPolicy: { read: 'warn', write: 'block' },
@@ -258,7 +259,7 @@ const governing = (dir: string) => {
       data_dir: '.pi-crust/data',
     },
   })
-  const resolved = settingsFor(cfg, dir)
+  const resolved = settingsFor(cfg, dir, join(dir, '.pi-crust', 'data', 'sessions', 'test', 'context_handoff'))
 
   return (toolName: string, input: Record<string, unknown>): TGoverned =>
     governToolCall({
@@ -341,7 +342,13 @@ test(
     const cfg = crustConfigSchema.parse({ defaults: { data_dir: '.pi-crust/data' } })
 
     // when
-    const actual = armPolicy(cfg, dir, join(dir, 'agent'), 'run_01_build')
+    const actual = armPolicy({
+      cfg,
+      repoRoot: dir,
+      handoffDir: join(dir, '.pi-crust', 'data', 'sessions', 'run_01', 'context_handoff'),
+      agentDir: join(dir, 'agent'),
+      activityRunId: 'run_01_build',
+    })
 
     // then
     expect(actual.env.CRUST_PATH_POLICY).toEqual(
@@ -529,5 +536,77 @@ test(
     // then
     expect(actual).toContain('block read of .env by read')
     expect(actual).toContain('A blocked call never ran')
+  },
+)
+
+test(
+  [
+    'given use-cases/path-policy::decidePath',
+    'when --handoff relocated the directory outside data_dir, and it is gitignored',
+    'it should be ungoverned, the same exemption data_dir already gets',
+  ].join(', '),
+  () => {
+    /*
+     * given — a relocated handoff directory may still be gitignored, and
+     * without this exemption `ignored.write` would refuse an agent's own
+     * document.
+     */
+    const dir = aRepo()
+    writeFileSync(join(dir, '.gitignore'), 'dist/\n.pi-crust/data/\nspecs/\n')
+    const cfg = crustConfigSchema.parse({
+      defaults: { data_dir: '.pi-crust/data' },
+    })
+    const handoffDir = join(dir, 'specs', 'a1b2c3d4')
+    const resolved = settingsFor(cfg, dir, handoffDir)
+    const isIgnored = (path: string) =>
+      spawnSync('git', ['check-ignore', '--quiet', '--', path], {
+        cwd: dir,
+      }).status === 0
+
+    // when
+    const actual = decidePath({
+      path: join(handoffDir, 'plan.md'),
+      intent: 'write',
+      settings: resolved,
+      isIgnored,
+    })
+
+    // then
+    expect(actual.reason).toEqual('ungoverned')
+    expect(actual.verb).toEqual('allow')
+  },
+)
+
+test(
+  [
+    'given use-cases/path-policy::decidePath',
+    'when the same gitignored path is OUTSIDE the handoff directory',
+    'it should still be governed, which is what proves the exemption is not a blanket allow',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    writeFileSync(join(dir, '.gitignore'), 'dist/\n.pi-crust/data/\nspecs/\n')
+    const cfg = crustConfigSchema.parse({
+      defaults: { data_dir: '.pi-crust/data' },
+    })
+    const handoffDir = join(dir, 'specs', 'a1b2c3d4')
+    const resolved = settingsFor(cfg, dir, handoffDir)
+    const isIgnored = (path: string) =>
+      spawnSync('git', ['check-ignore', '--quiet', '--', path], {
+        cwd: dir,
+      }).status === 0
+
+    // when — a sibling run's directory, not this run's own
+    const actual = decidePath({
+      path: join(dir, 'specs', 'someone-elses-run', 'plan.md'),
+      intent: 'write',
+      settings: resolved,
+      isIgnored,
+    })
+
+    // then
+    expect(actual.reason).toEqual('ignored')
+    expect(actual.verb).toEqual(resolved.ignoredPolicy.write)
   },
 )

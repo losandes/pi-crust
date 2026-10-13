@@ -48,6 +48,8 @@ export type TPathSettings = Readonly<{
   repoRoot: string
   /** repo-relative, e.g. `.pi-crust/data` — this run's own runtime */
   dataDir: string
+  /** this run's handoff directory, repo-relative when inside the repo, else absolute */
+  handoffDir: string
   protectedFiles: readonly string[]
   protectedPolicy: TPathPolicy
   ignoredPolicy: TPathPolicy
@@ -82,6 +84,21 @@ export const underDataDir = (settings: TPathSettings, path: string): boolean =>
   path.startsWith(`${settings.dataDir.replace(/\/+$/, '')}/`)
 
 /**
+ * This run's own handoff directory, which may sit outside `data_dir` when
+ * `--handoff` relocated it. Exempted for the same reason `data_dir` is: an
+ * agent must always be able to write its own handoff document, and a path
+ * outside `data_dir` that is also gitignored would otherwise be refused by
+ * `ignored.write`.
+ */
+export const underHandoffDir = (
+  settings: TPathSettings,
+  path: string,
+): boolean =>
+  settings.handoffDir !== '' &&
+  (path === settings.handoffDir ||
+    path.startsWith(`${settings.handoffDir.replace(/\/+$/, '')}/`))
+
+/**
  * What happens to this call.
  *
  * `isIgnored` is passed in rather than computed here, because membership is
@@ -104,7 +121,7 @@ export const decidePath = (
     reason: 'ungoverned',
     verb: 'allow',
   }
-  if (underDataDir(params.settings, path)) {
+  if (underDataDir(params.settings, path) || underHandoffDir(params.settings, path)) {
     return ungoverned
   }
   if (

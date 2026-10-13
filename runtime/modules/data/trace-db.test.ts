@@ -199,3 +199,60 @@ test(
     })
   },
 )
+
+test(
+  [
+    'given data/trace-db::sessionStart',
+    'when a name is given',
+    'it should SET sessions.name, leaving lifecycle on its own column',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+
+    // when
+    tracer.sessionStart('a1b2c3d4', 'tester', 'quality', 'payments rewrite')
+    tracer.close()
+
+    // then
+    const db = new Database(dbPath, { readonly: true })
+    const row = db
+      .query<{ lifecycle: string; name: string | null }, []>(
+        'SELECT lifecycle, name FROM sessions',
+      )
+      .get()
+    db.close()
+    expect(row).toEqual({ lifecycle: 'quality', name: 'payments rewrite' })
+  },
+)
+
+test(
+  [
+    'given data/trace-db::sessionStart',
+    'when a second sessionStart carries no name',
+    'it should leave the recorded name untouched, so a resume that omits --name does not erase the label',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const first = createTracer(dbPath, join(dir, 'events.jsonl'))
+    first.sessionStart('a1b2c3d4', 'tester', 'quality', 'payments rewrite')
+    first.close()
+
+    // when — a resume that did not repeat --name
+    const second = createTracer(dbPath, join(dir, 'events.jsonl'))
+    second.sessionStart('a1b2c3d4', 'tester', 'document')
+    second.close()
+
+    // then
+    const db = new Database(dbPath, { readonly: true })
+    const row = db
+      .query<{ name: string | null }, []>('SELECT name FROM sessions')
+      .get()
+    db.close()
+    expect(row).toEqual({ name: 'payments rewrite' })
+  },
+)

@@ -26,12 +26,16 @@ export type TCreateRunParams = Readonly<{
   stream?: boolean
   /** how much the agents may decide for themselves, 0-100 */
   trust?: number
+  /** absolute; defaults to join(sessionDir, 'context_handoff') */
+  handoffDir?: string
 }>
 
 export const createRun = (params: TCreateRunParams): TRun => {
   const { cfg, runId, tracer, engineer } = params
   const sessionDir = ensureDir(join(cfg.defaults.data_dir, 'sessions', runId))
-  const contextHandoffDir = ensureDir(join(sessionDir, 'context_handoff'))
+  const contextHandoffDir = ensureDir(
+    params.handoffDir ?? join(sessionDir, 'context_handoff'),
+  )
   const agentMapPath = join(sessionDir, 'agent_map.json')
 
   let activityRuns: readonly TActivityRun[] = []

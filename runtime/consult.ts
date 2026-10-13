@@ -21,6 +21,7 @@ import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { Database } from 'bun:sqlite'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
+import { handoffDirFor } from './modules/data/handoff-pointer'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   consultArgv,
@@ -152,7 +153,7 @@ const main = async (): Promise<number> => {
   const own = ownedBy(db, activityRun.activity_run_id)
   db.close()
 
-  const handoffDir = resolve(dataDir, 'sessions', runId, 'context_handoff')
+  const handoffDir = handoffDirFor(dataDir, runId)
   const request: TConsultRequest = {
     runId,
     activityRunId: activityRun.activity_run_id,

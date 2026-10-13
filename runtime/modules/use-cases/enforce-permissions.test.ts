@@ -9,6 +9,7 @@ import { crustConfigSchema } from '../typedefs/config'
 import { snapshotTree } from '../data/working-tree'
 import type { TRun } from '../typedefs/run'
 import {
+  alwaysWritable,
   changedPaths,
   commitBreach,
   declaredBy,
@@ -543,5 +544,89 @@ test(
 
     // then
     expect(actual).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::alwaysWritable',
+    'when a handoff directory is passed',
+    'it should grant it alongside data_dir, not instead of it',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = crustConfigSchema.parse({ defaults: { data_dir: '.pi-crust/data' } })
+
+    // when
+    const actual = alwaysWritable(cfg, 'specs/abc/')
+
+    // then
+    expect(actual).toEqual(['.pi-crust/data/', 'specs/abc/'])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when --handoff relocated the directory outside data_dir, and an agent wrote there without declaring it',
+    'it should NOT be reported as an overstep, because recording its own work is a grant every agent gets',
+  ].join(', '),
+  () => {
+    // given — a relocated handoff directory is outside the data_dir grant
+    // unless alwaysWritable widens to match it
+    const dir = aRepo()
+    const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
+    const handoffDir = join(dir, 'specs', 'abc')
+    mkdirSync(handoffDir, { recursive: true })
+    const run = {
+      cfg,
+      repoRoot: dir,
+      contextHandoffDir: handoffDir,
+    } as unknown as TRun
+    const before = snapshotTree(dir)
+    writeFileSync(join(handoffDir, 'plan.md'), 'mine\n')
+
+    // when
+    const actual = enforcePermissions(run, agentNamed(cfg, 'reviewer'), {
+      tree: before,
+      head: '',
+      committing: false,
+    })
+
+    // then
+    expect(actual.touched).toContain('specs/abc/plan.md')
+    expect(actual.overstepped).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when the same agent writes somewhere else in the repository it never declared',
+    'it should still be reported, which is what proves the handoff grant is not a blanket allow',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
+    const handoffDir = join(dir, 'specs', 'abc')
+    mkdirSync(handoffDir, { recursive: true })
+    const run = {
+      cfg,
+      repoRoot: dir,
+      contextHandoffDir: handoffDir,
+    } as unknown as TRun
+    const before = snapshotTree(dir)
+    writeFileSync(join(dir, 'notes.md'), 'undeclared\n')
+
+    // when
+    const actual = enforcePermissions(run, agentNamed(cfg, 'reviewer'), {
+      tree: before,
+      head: '',
+      committing: false,
+    })
+
+    // then
+    expect(actual.overstepped).toEqual(['notes.md'])
   },
 )

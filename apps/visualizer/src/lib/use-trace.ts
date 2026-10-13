@@ -26,6 +26,8 @@ const SIDE_TABLE_TYPES = new Set([
 
 export type TTrace = Readonly<{
   session: Session | undefined
+  /** This run's handoff directory, resolved absolute by the server. */
+  handoffDir: string | undefined
   activityRuns: readonly ActivityRun[]
   agents: readonly AgentSession[]
   usage: SessionUsage
@@ -50,6 +52,7 @@ const EMPTY_USAGE: SessionUsage = { read: 0, written: 0 }
 export const useTrace = (runId: string, workspace?: string): TTrace => {
   const [trace, setTrace] = useState<TTrace>({
     session: undefined,
+    handoffDir: undefined,
     activityRuns: [],
     agents: [],
     usage: EMPTY_USAGE,
@@ -120,6 +123,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
       state.loaded = true
       setTrace((previous) => ({
         session: detail.session,
+        handoffDir: detail.handoff_dir,
         activityRuns: detail.activityRuns.toSorted(byStart),
         agents: detail.agents,
         usage: detail.usage,

@@ -27,6 +27,8 @@ test(
       commit: undefined,
       stream: false,
       trustLevel: undefined,
+      handoff: undefined,
+      name: undefined,
     })
   },
 )
@@ -64,6 +66,8 @@ test(
       commit: 'false',
       stream: false,
       trustLevel: undefined,
+      handoff: undefined,
+      name: undefined,
     })
   },
 )
@@ -226,5 +230,117 @@ test(
 
     // then
     expect(actual.prompt).toEqual('rename the --steps flag in the docs')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when --handoff and --name are given, in --flag value form',
+    'it should parse both',
+  ].join(', '),
+  () => {
+    // given
+    const argv = [
+      'do the thing',
+      '--handoff',
+      'specs/{session_id}',
+      '--name',
+      'payments rewrite',
+    ]
+
+    // when
+    const actual = parseCli(argv)
+
+    // then
+    expect(actual.handoff).toEqual('specs/{session_id}')
+    expect(actual.name).toEqual('payments rewrite')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when --handoff and --name are given, in --flag=value form',
+    'it should parse both',
+  ].join(', '),
+  () => {
+    // given
+    const argv = [
+      'do the thing',
+      '--handoff=specs/{run_id}',
+      '--name=payments rewrite',
+    ]
+
+    // when
+    const actual = parseCli(argv)
+
+    // then
+    expect(actual.handoff).toEqual('specs/{run_id}')
+    expect(actual.name).toEqual('payments rewrite')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when --name contains a newline',
+    'it should refuse at parse time, the same way an invalid --commit does',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['do the thing', '--name', 'two\nlines']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/newline/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when --handoff is given an empty value',
+    'it should refuse rather than silently fall back to the default',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['do the thing', '--handoff', '']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/--handoff takes a path/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when neither flag is given',
+    'it should leave both fields undefined',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['do the thing']
+
+    // when
+    const actual = parseCli(argv)
+
+    // then
+    expect(actual.handoff).toBeUndefined()
+    expect(actual.name).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when --handof (missing a letter) is given',
+    'it should still suggest --handoff',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['do the thing', '--handof', 'specs']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/did you mean --handoff/)
   },
 )

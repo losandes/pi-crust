@@ -10,6 +10,7 @@ const state = (
   ({
     run_id: 'a1b2c3d4',
     lifecycle: 'triage',
+    name: '',
     request: '',
     status: 'ok',
     engineer: 'tester',

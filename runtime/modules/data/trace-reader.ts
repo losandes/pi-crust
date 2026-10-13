@@ -21,6 +21,7 @@ export type TTraceSessionRow = Readonly<{
   ended_at: string | null
   total_tokens: number | null
   total_cost: number | null
+  name: string | null
 }>
 
 export type TTraceActivityRunRow = Readonly<{
@@ -70,25 +71,46 @@ export type TTraceRows = Readonly<{
   gates: readonly TTraceGateRow[]
 }>
 
-const SESSION_COLUMNS =
+const BASE_SESSION_COLUMNS =
   'run_id, lifecycle, request, status, engineer, started_at, ended_at, ' +
   'total_tokens, total_cost'
+
+/**
+ * `name` is a column a tracer ADDS by migration. This reader opens readonly
+ * and never migrates, so a database written before this column existed would
+ * throw "no such column: name" on every select — selecting it only when it
+ * is there, and substituting NULL otherwise, is the same guard the
+ * visualizer's `optionalColumn` already applies for every other migrated
+ * column.
+ */
+const hasNameColumn = (db: Database): boolean =>
+  db
+    .query<{ name: string }, []>('PRAGMA table_info(sessions)')
+    .all()
+    .some((row) => row.name === 'name')
+
+const sessionColumns = (db: Database): string =>
+  hasNameColumn(db)
+    ? `${BASE_SESSION_COLUMNS}, name`
+    : `${BASE_SESSION_COLUMNS}, NULL AS name`
 
 const readSession = (
   db: Database,
   runId: string | undefined,
-): TTraceSessionRow | undefined =>
-  runId === undefined
+): TTraceSessionRow | undefined => {
+  const columns = sessionColumns(db)
+  return runId === undefined
     ? db
         .query<TTraceSessionRow, []>(
-          `SELECT ${SESSION_COLUMNS} FROM sessions ORDER BY started_at DESC, rowid DESC LIMIT 1`,
+          `SELECT ${columns} FROM sessions ORDER BY started_at DESC, rowid DESC LIMIT 1`,
         )
         .get() || undefined
     : db
         .query<TTraceSessionRow, [string]>(
-          `SELECT ${SESSION_COLUMNS} FROM sessions WHERE run_id=?`,
+          `SELECT ${columns} FROM sessions WHERE run_id=?`,
         )
         .get(runId) || undefined
+}
 
 /**
  * Every row one session wrote, or `undefined` when there is no such session.

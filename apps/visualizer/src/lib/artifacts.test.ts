@@ -308,3 +308,52 @@ test(
     expect(actual).toEqual(['context_handoff/design.md', 'two.md'])
   },
 )
+
+test(
+  [
+    'given lib/artifacts::relativeToSession and runArtifacts',
+    'when a --handoff relocated the directory outside sessions/<run>/',
+    'it should collapse a reported artifact onto the same context_handoff/<name> key the observed listing uses',
+  ].join(', '),
+  () => {
+    // given — a relocated handoff directory never matches /sessions/<run>/,
+    // so without the handoffDir fallback this would render two cards
+    const relocatedDir = '/repo/specs/c35f2c7d'
+    const absolute = `${relocatedDir}/plan.md`
+
+    // when
+    const actual = relativeToSession(absolute, RUN, relocatedDir)
+
+    // then
+    expect(actual).toEqual('context_handoff/plan.md')
+  },
+)
+
+test(
+  [
+    'given lib/artifacts::runArtifacts',
+    'when a reported artifact is inside a relocated handoff directory, and the same file is also observed',
+    'it should produce exactly one artifact, not two',
+  ].join(', '),
+  () => {
+    // given
+    const relocatedDir = '/repo/specs/c35f2c7d'
+    const path = `${relocatedDir}/plan.md`
+
+    // when
+    const actual = runArtifacts({
+      runId: RUN,
+      handoffDir: relocatedDir,
+      envelopes: [envelope('a', `${RUN}_01_plan`, { artifacts: [path] })],
+      events: [],
+      present: [
+        { path: 'context_handoff/plan.md', title: '', bytes: 0, modified_at: '' },
+      ],
+    })
+
+    // then
+    expect(actual).toHaveLength(1)
+    expect(actual[0]?.path).toEqual('context_handoff/plan.md')
+    expect(actual[0]?.source).toEqual('reported')
+  },
+)

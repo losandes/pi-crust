@@ -38,6 +38,7 @@ import {
   safeParseSettlement,
 } from './modules/typedefs/settlement'
 import { renderWarnings } from './modules/typedefs/warning'
+import { displayLabel } from './modules/use-cases/run-label'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
 import {
@@ -179,7 +180,13 @@ export const renderReport = (
 ): string => {
   const header = [
     `${paint('run_id:', 'bold')} ${state.run_id}`,
-    `${paint('workflow:', 'bold')} ${state.lifecycle || '(unknown)'}`,
+    `${paint('workflow:', 'bold')} ${displayLabel(state.name, state.lifecycle || '(unknown)')}`,
+    /*
+     * A name shown instead of the lifecycle still leaves the lifecycle
+     * discoverable — the data stays in `sessions.lifecycle`, this just
+     * prints it one line down rather than letting it hide behind the label.
+     */
+    ...(state.name ? [`${paint('lifecycle:', 'bold')} ${state.lifecycle || '(unknown)'}`] : []),
     `${paint('status:', 'bold')} ${state.status}`,
     `${paint('engineer:', 'bold')} ${state.engineer}`,
     `${paint('tokens:', 'bold')} ${state.tokens.toLocaleString('en-US')}` +
