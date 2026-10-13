@@ -20,8 +20,10 @@
  * and no surface can drift from what was traced.
  */
 
+import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import type { TTreeWarning } from '../typedefs/warning'
+import { repoRelative } from './path-policy'
 
 /** The `log` event name the observation is filed under, and read back by. */
 export const PATHS_TOUCHED = 'paths_touched'
@@ -57,6 +59,39 @@ const strings = (value: unknown): readonly string[] =>
 
 const text = (value: unknown): string =>
   typeof value === 'string' ? value : ''
+
+/**
+ * What an Activity said it wrote — BOTH ways an envelope can say it.
+ *
+ * `changed_files` belongs to the writing contract and nothing else. Read
+ * alone, it makes every Activity with a different contract claim nothing: a
+ * Planner that wrote the plan it was asked for, declared it in `artifacts`,
+ * and left no other mark was reported as an unexplained change, which is a
+ * warning about the system working.
+ *
+ * `artifacts` is on every envelope, so the union is the honest reading of
+ * "what did this Activity say it produced". Both are still claims and neither
+ * decides what is committed — that stays with what was observed.
+ *
+ * Spellings are normalised to repo-relative, because the comparison is
+ * against git's answer: an agent may declare the absolute path it was handed
+ * for its handoff document, and `/…/plan.md` and `plan.md` must not read as
+ * two different files.
+ */
+export const claimedPaths = (
+  repoRoot: string,
+  envelope: TEnvelopeBase | undefined,
+): readonly string[] => {
+  if (envelope === undefined) {
+    return []
+  }
+  const declared = [
+    ...strings((envelope as Readonly<Record<string, unknown>>).changed_files),
+    ...envelope.artifacts,
+  ]
+
+  return [...new Set(declared.map((path) => repoRelative(repoRoot, path)))]
+}
 
 /**
  * One traced payload as an observation.

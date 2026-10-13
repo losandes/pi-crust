@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test'
+import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import { renderWarnings } from '../typedefs/warning'
 import type { TObservedPaths } from './observed-paths'
 import {
+  claimedPaths,
   observationsIn,
   observedPayload,
   PATHS_TOUCHED,
@@ -278,5 +280,57 @@ test(
 
     // then
     expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/observed-paths::claimedPaths',
+    'when the Activity declared its work in `artifacts` rather than `changed_files`',
+    'it should still count as claimed, so doing the job is not an unexplained change',
+  ].join(', '),
+  () => {
+    /*
+     * given — a Planner's contract has no `changed_files`. Reading that field
+     * alone made every path it wrote unaccounted for, which warned about the
+     * system working exactly as asked.
+     */
+    const given = {
+      artifacts: ['specs/aaaa1111_divide-function.md'],
+      summary: '',
+    } as unknown as TEnvelopeBase
+
+    // when
+    const actual = claimedPaths('/repo', given)
+
+    // then
+    expect(actual).toEqual(['specs/aaaa1111_divide-function.md'])
+  },
+)
+
+test(
+  [
+    'given use-cases/observed-paths::claimedPaths',
+    'when an artifact is declared by the absolute path the agent was handed',
+    'it should read as the repo-relative path git reports, not a second file',
+  ].join(', '),
+  () => {
+    // given
+    const given = {
+      changed_files: ['src/add.ts'],
+      artifacts: ['/repo/docs/notes.md', '/elsewhere/handoff/plan.md'],
+      summary: '',
+    } as unknown as TEnvelopeBase
+
+    // when
+    const actual = claimedPaths('/repo', given)
+
+    // then — outside the repository keeps its absolute spelling, which no
+    // path git reports can match, and that is the honest answer for it.
+    expect(actual).toEqual([
+      'src/add.ts',
+      'docs/notes.md',
+      '/elsewhere/handoff/plan.md',
+    ])
   },
 )

@@ -24,10 +24,9 @@ import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { enforcePermissions, handoffDocument } from './enforce-permissions'
 import { armPolicy, refusalsIn, stopMessage } from './path-policy-run'
 import { refusalLine } from './path-policy'
-import { observedPayload, PATHS_TOUCHED } from './observed-paths'
+import { claimedPaths, observedPayload, PATHS_TOUCHED } from './observed-paths'
 import type { TTreeWarning } from '../typedefs/warning'
 import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
-import { buildOutput, narrowEnvelope } from '../typedefs/envelope'
 import { extractJson } from './extract-json'
 import { resolveAgent } from './load-config'
 import { trustStance } from '../typedefs/trust'
@@ -564,7 +563,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
         agent: agent.name,
         touched: observed.touched,
         dirtyBefore: observed.dirtyBefore,
-        claimed: narrowEnvelope(buildOutput, envelope)?.changed_files ?? [],
+        claimed: claimedPaths(run.repoRoot, envelope),
       }),
     })
   }
