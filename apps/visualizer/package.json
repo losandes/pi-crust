@@ -11,7 +11,6 @@
     "build": "tsc --noEmit && vite build",
     "preview": "bun run server/index.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint .",
     "test": "bun test"
   },
   "dependencies": {
@@ -26,7 +25,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5",
-    "oxlint": "^1",
     "typescript": "^5.7.2",
     "vite": "^7"
   }
