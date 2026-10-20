@@ -13,11 +13,11 @@
  *   /subclear                              — clear all subagent widgets
  */
 
-import { StringEnum, type ThinkingLevel } from '@mariozechner/pi-ai'
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
-import { DynamicBorder } from '@mariozechner/pi-coding-agent'
-import { Container, Text } from '@mariozechner/pi-tui'
-import { Type } from '@sinclair/typebox'
+import { StringEnum, type ThinkingLevel } from '@earendil-works/pi-ai'
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { DynamicBorder } from '@earendil-works/pi-coding-agent'
+import { Container, Text } from '@earendil-works/pi-tui'
+import { Type } from 'typebox'
 
 /*
  * `require`, not `import`: a pi extension is loaded into a running host, and

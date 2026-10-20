@@ -13,7 +13,7 @@
 
 import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 
 // ── Theme assignments ──────────────────────────────────────────────────────
 //

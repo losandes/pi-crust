@@ -11,11 +11,14 @@
    */
   "include": ["."],
   /*
-   * `harness-engineering` is pi's, not ours. It imports @mariozechner/* —
-   * modules the pi host provides to an extension at run time and which are
-   * deliberately not dependencies of this tree. Checking it here would
-   * report thirty unresolvable imports forever, which is how a checker gets
-   * ignored. `data` is runtime output.
+   * `harness-engineering` is pi's, not ours. It imports @earendil-works/*
+   * and typebox — modules the pi host provides to an extension at run time
+   * and which are deliberately not dependencies of this tree. Checking it
+   * here would report thirty unresolvable imports forever, which is how a
+   * checker gets ignored. The cost of the exclusion is that a rename in the
+   * host's package names, as happened when pi moved off the @mariozechner
+   * scope, goes unreported until an extension fails to load. `data` is
+   * runtime output.
    */
   "exclude": ["node_modules", "data", "harness-engineering"],
   "compilerOptions": {
