@@ -57,7 +57,7 @@ Three capabilities are not configurable and cannot be removed: **Triage** recomm
 ## Post-install checklist
 
 1. **Env** — `cp .env.pi-crust.example .env`, then set `OPENROUTER_API_KEY` in `.env`. The installer does not create `.env` for you, and does not ignore it either; confirm your repository already does. (v1 runs Pi; `ANTHROPIC_API_KEY` / `CLAUDE_CODE_PATH` are only needed once Claude Code lands in v2.)
-2. **Dependencies** — `install.ts` runs `bun install` inside `.pi-crust/` for you (one package: `zod`). If that step reported a failure, run it yourself.
+2. **Dependencies** — nothing to install into `.pi-crust/`. The stamp is configuration and documents only; the runtime and its one dependency (`zod`) live in the pi-crust package, and an install removes any `package.json`, `bun.lock` or `node_modules` an older version left in the stamp.
 3. **Pi is installed and on PATH** — `pi --version`. Set `PI_PATH` in `.env` if it is not.
 4. **The model resolves** — the config's default `gemini-3.6-flash` must be a registered id in `~/.pi/agent/models.json`. Check with `pi --list-models` or read the file directly; see `references/config.md` for model resolution.
 5. **Gitignore** — `install.ts` appends three lines for you; confirm they landed:
