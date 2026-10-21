@@ -13,65 +13,60 @@
  *   /subclear                              — clear all subagent widgets
  */
 
-import { StringEnum, type ThinkingLevel } from '@earendil-works/pi-ai'
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { DynamicBorder } from '@earendil-works/pi-coding-agent'
-import { Container, Text } from '@earendil-works/pi-tui'
-import { Type } from 'typebox'
-
-/*
- * `require`, not `import`: a pi extension is loaded into a running host, and
- * the host decides the module system. The shapes below are the parts of
- * node's child_process and pi's extension context this file actually uses —
- * local types rather than `any`, because `any` here would hide a typo in a
- * callback name rather than a limitation of the host.
- */
-type TChildStream = Readonly<{
-  setEncoding: (encoding: string) => void
-  on: (event: string, listener: (chunk: string) => void) => void
-}>
-
-type TChild = Readonly<{
-  stdout?: TChildStream
-  stderr?: TChildStream
-  on: (event: string, listener: (code: number | null) => void) => void
-  kill: (signal?: string) => void
-  pid?: number
-}>
-
-type TSpawn = (
-  command: string,
-  args: readonly string[],
-  options?: Readonly<Record<string, unknown>>,
-) => TChild
-
-/** The slice of pi's extension context this extension touches. */
-type TPiCtx = Readonly<{
-  ui: Readonly<{
-    setWidget: (key: string, render: TWidgetRender) => void
-    removeWidget?: (key: string) => void
-  }>
-}>
-
-type TTheme = Readonly<Record<string, unknown>>
-type TTui = Readonly<Record<string, unknown>>
-type TWidgetRender = (tui: TTui, theme: TTheme) => unknown
-
-const { spawn } = require('node:child_process') as { spawn: TSpawn }
-
+import { type ChildProcess, spawn } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { applyExtensionDefaults } from './theme-map.ts'
+import { type ModelThinkingLevel, StringEnum } from '@earendil-works/pi-ai'
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+  ExtensionContext,
+  Theme,
+} from '@earendil-works/pi-coding-agent'
+import { DynamicBorder } from '@earendil-works/pi-coding-agent'
+import type { TUI } from '@earendil-works/pi-tui'
+import { Container, Text } from '@earendil-works/pi-tui'
+import { Type } from 'typebox'
+import { applyExtensionDefaults } from './theme-map'
+
+/*
+ * The host's own types, not local approximations of them.
+ *
+ * This file used to declare its own `TPiCtx`, `TTheme`, `TTui` and `TChild`,
+ * with `require('node:child_process')` to sidestep the module system, on the
+ * grounds that pi supplies these at run time and the repository cannot
+ * resolve them. It supplies them at run time either way; what the local
+ * shapes bought was that nothing ever compared them with the real thing, and
+ * they had drifted — `theme.fg` was `unknown`, `ctx.model` did not exist on
+ * the context at all, and `ThinkingLevel` was the one union that excludes
+ * `off` while the host hands back the one that includes it.
+ *
+ * `scripts/typecheck-harness.ts` checks this file against the pi actually
+ * installed on the machine, so these imports are typechecked without being
+ * dependencies of this repository.
+ */
 
 const FALLBACK_MODEL = 'openrouter/google/gemini-3.5-flash'
 const THINKING_OVERRIDES = ['low', 'medium', 'high', 'xhigh'] as const
 type ThinkingOverride = (typeof THINKING_OVERRIDES)[number]
 
 interface SpawnOptions {
-  model?: string
-  thinking?: ThinkingOverride
+  model?: string | undefined
+  thinking?: ThinkingOverride | undefined
 }
+
+/**
+ * A tool result carrying nothing but text.
+ *
+ * The host's `AgentToolResult` requires `details`, and none of these tools
+ * has structured detail to report. Said once here rather than eight times
+ * inline.
+ */
+const textResult = (text: string): AgentToolResult<undefined> => ({
+  content: [{ type: 'text', text }],
+  details: undefined,
+})
 
 interface SubState {
   id: number
@@ -83,8 +78,10 @@ interface SubState {
   sessionFile: string // persistent JSONL session path — used by /subcont to resume
   turnCount: number // increments each time /subcont continues this agent
   model: string
-  thinking: ThinkingLevel
-  proc?: TChild // active child ref (for kill on /subrm)
+  // The host's level, which includes `off`. `exactOptionalPropertyTypes`
+  // wants the `undefined` spelled out on an optional it is assigned.
+  thinking: ModelThinkingLevel
+  proc?: ChildProcess | undefined // active child ref (for kill on /subrm)
 }
 
 interface ParsedCommand {
@@ -160,7 +157,7 @@ function parseCommandOptions(input: string): ParsedCommand {
 export default function (pi: ExtensionAPI) {
   const agents: Map<number, SubState> = new Map()
   let nextId = 1
-  let widgetCtx: TPiCtx | undefined
+  let widgetCtx: ExtensionContext | undefined
 
   // ── Session file helpers ──────────────────────────────────────────────────
 
@@ -177,7 +174,7 @@ export default function (pi: ExtensionAPI) {
 
     for (const [id, state] of Array.from(agents.entries())) {
       const key = `sub-${id}`
-      widgetCtx?.ui.setWidget(key, (_tui: TTui, theme: TTheme) => {
+      widgetCtx?.ui.setWidget(key, (_tui: TUI, theme: Theme) => {
         const container = new Container()
         const borderFn = (s: string) => theme.fg('dim', s)
 
@@ -270,7 +267,7 @@ export default function (pi: ExtensionAPI) {
   function spawnAgent(
     state: SubState,
     prompt: string,
-    ctx: TPiCtx,
+    ctx: ExtensionContext,
     options: SpawnOptions = {},
   ): Promise<void> {
     const parentProvider = ctx.model?.provider?.trim()
@@ -349,9 +346,11 @@ export default function (pi: ExtensionAPI) {
         updateWidgets()
 
         const result = state.textChunks.join('')
+        // The host's notify takes info | warning | error; there is no
+        // success tier to report a finished agent with.
         ctx.ui.notify(
           `Subagent #${state.id} ${state.status} in ${Math.round(state.elapsed / 1000)}s`,
-          state.status === 'done' ? 'success' : 'error',
+          state.status === 'done' ? 'info' : 'error',
         )
 
         pi.sendMessage(
@@ -381,6 +380,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     name: 'subagent_create',
+    label: 'Subagent',
     description:
       'Spawn a background subagent. Thinking level is required and is the primary way to match the subagent to task complexity: low for lightweight/simple tasks, medium for routine tasks needing moderate reasoning, high for complex multi-step work, and xhigh for the hardest tasks or when accuracy and performance are critical. Unless the user explicitly requests a specific model, omit model and use the default inherited parent model. Returns immediately and delivers results as a follow-up message.',
     parameters: Type.Object({
@@ -424,19 +424,15 @@ export default function (pi: ExtensionAPI) {
         thinking: args.thinking,
       })
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Subagent #${id} spawned with ${state.model} (${state.thinking} thinking) and is running in background.`,
-          },
-        ],
-      }
+      return textResult(
+        `Subagent #${id} spawned with ${state.model} (${state.thinking} thinking) and is running in background.`,
+      )
     },
   })
 
   pi.registerTool({
     name: 'subagent_continue',
+    label: 'Subagent continue',
     description:
       'Continue an existing subagent conversation. Thinking level is required and is the primary way to match this turn to task complexity: low for lightweight/simple tasks, medium for routine tasks needing moderate reasoning, high for complex multi-step work, and xhigh for the hardest tasks or when accuracy and performance are critical. Unless the user explicitly requests a specific model, omit model and use the default inherited parent model. Returns immediately while it runs in the background.',
     parameters: Type.Object({
@@ -460,21 +456,10 @@ export default function (pi: ExtensionAPI) {
       widgetCtx = ctx
       const state = agents.get(args.id)
       if (!state) {
-        return {
-          content: [
-            { type: 'text', text: `Error: No subagent #${args.id} found.` },
-          ],
-        }
+        return textResult(`Error: No subagent #${args.id} found.`)
       }
       if (state.status === 'running') {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: Subagent #${args.id} is still running.`,
-            },
-          ],
-        }
+        return textResult(`Error: Subagent #${args.id} is still running.`)
       }
 
       state.status = 'running'
@@ -493,19 +478,15 @@ export default function (pi: ExtensionAPI) {
         thinking: args.thinking,
       })
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Subagent #${args.id} continuing with ${state.model} (${state.thinking} thinking) in background.`,
-          },
-        ],
-      }
+      return textResult(
+        `Subagent #${args.id} continuing with ${state.model} (${state.thinking} thinking) in background.`,
+      )
     },
   })
 
   pi.registerTool({
     name: 'subagent_remove',
+    label: 'Subagent remove',
     description:
       "Remove a specific subagent. Kills it if it's currently running.",
     parameters: Type.Object({
@@ -516,11 +497,7 @@ export default function (pi: ExtensionAPI) {
       widgetCtx = ctx
       const state = agents.get(args.id)
       if (!state) {
-        return {
-          content: [
-            { type: 'text', text: `Error: No subagent #${args.id} found.` },
-          ],
-        }
+        return textResult(`Error: No subagent #${args.id} found.`)
       }
 
       if (state.proc && state.status === 'running') {
@@ -529,23 +506,20 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setWidget(`sub-${args.id}`, undefined)
       agents.delete(args.id)
 
-      return {
-        content: [
-          { type: 'text', text: `Subagent #${args.id} removed successfully.` },
-        ],
-      }
+      return textResult(`Subagent #${args.id} removed successfully.`)
     },
   })
 
   pi.registerTool({
     name: 'subagent_list',
+    label: 'Subagent list',
     description:
       'List all active and finished subagents, showing their IDs, tasks, and status.',
     parameters: Type.Object({}),
     // biome-ignore lint/suspicious/useAwait: pi's tool API requires an async execute
     execute: async () => {
       if (agents.size === 0) {
-        return { content: [{ type: 'text', text: 'No active subagents.' }] }
+        return textResult('No active subagents.')
       }
 
       const list = Array.from(agents.values())
@@ -555,9 +529,7 @@ export default function (pi: ExtensionAPI) {
         )
         .join('\n')
 
-      return {
-        content: [{ type: 'text', text: `Subagents:\n${list}` }],
-      }
+      return textResult(`Subagents:\n${list}`)
     },
   })
   // ── /sub [--model <model>] [--thinking <level>] <task> ────────────────────
@@ -627,7 +599,7 @@ export default function (pi: ExtensionAPI) {
         return
       }
 
-      const num = Number.parseInt(idMatch[1], 10)
+      const num = Number.parseInt(idMatch[1] ?? '', 10)
       const parsed = parseCommandOptions(trimmed.slice(idMatch[0].length))
       if (parsed.error) {
         ctx.ui.notify(parsed.error, 'error')
@@ -739,8 +711,8 @@ export default function (pi: ExtensionAPI) {
       const msg =
         total === 0
           ? 'No subagents to clear.'
-          : `Cleared ${total} subagent${total !== 1 ? 's' : ''}${killed > 0 ? ` (${killed} killed)` : ''}.`
-      ctx.ui.notify(msg, total === 0 ? 'info' : 'success')
+          : `Cleared ${total} subagent${total === 1 ? '' : 's'}${killed > 0 ? ` (${killed} killed)` : ''}.`
+      ctx.ui.notify(msg, 'info')
     },
   })
 

@@ -29,11 +29,11 @@ import type {
   TPathSettings,
   TRefusal,
   TToolCall,
-} from '../modules/use-cases/path-policy.ts'
+} from '../modules/use-cases/path-policy'
 import {
   governToolCall,
   refusalMessage,
-} from '../modules/use-cases/path-policy.ts'
+} from '../modules/use-cases/path-policy'
 
 /** The slice of pi's extension API this file uses. */
 type TToolCallEvent = Readonly<{

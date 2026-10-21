@@ -109,8 +109,9 @@ export function applyExtensionTheme(
 function primaryExtensionName(): string | null {
   const argv = process.argv
   for (let i = 0; i < argv.length - 1; i++) {
-    if (argv[i] === '-e' || argv[i] === '--extension') {
-      return basename(argv[i + 1]).replace(/\.[^.]+$/, '')
+    const next = argv[i + 1]
+    if ((argv[i] === '-e' || argv[i] === '--extension') && next !== undefined) {
+      return basename(next).replace(/\.[^.]+$/, '')
     }
   }
   return null
