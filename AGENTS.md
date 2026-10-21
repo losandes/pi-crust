@@ -44,7 +44,10 @@ Run these from the repository root before claiming anything works:
 ```sh
 (cd runtime && bun test && bun x tsc --noEmit)
 (cd apps/visualizer && bun test && bun x tsc --noEmit && bun x vite build)
+bun scripts/typecheck-harness.ts
 ```
+
+`runtime/tsconfig.json` excludes `harness-engineering/`, so the first line does not check it. The third does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one.
 
 Then prove a stamp still matches its source, in a directory that is thrown away in the same breath:
 

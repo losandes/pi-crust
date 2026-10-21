@@ -14,6 +14,9 @@
  * at all — yields `undefined` rather than a guess. A caller that cannot find
  * the host has not learned that an import is broken; it has learned nothing,
  * and should say so instead of failing.
+ *
+ * `scripts/typecheck-harness.ts` is the caller: it points a TypeScript
+ * project at whatever this returns.
  */
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
@@ -53,15 +56,4 @@ export const piReleaseDir = (): string | undefined => {
   }
   const release = join(agentDir, 'install', 'releases', version)
   return existsSync(join(release, 'node_modules')) ? release : undefined
-}
-
-/** Whether `specifier` resolves from `dir`. No import is executed. */
-export const resolvesFrom = (specifier: string, dir: string): boolean => {
-  // biome-ignore lint/plugin/no-intermediate-try-catch: resolveSync throws for "not found", which is the answer being asked for
-  try {
-    Bun.resolveSync(specifier, dir)
-    return true
-  } catch {
-    return false
-  }
 }

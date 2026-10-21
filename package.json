@@ -16,8 +16,9 @@
     "test:coverage": "CLAUDECODE=1 bun test --coverage",
     "test:watch": "bun test --watch",
     "// TYPECHECK": "=======================TYPECHECK===========================",
-    "typecheck": "bun run typecheck:runtime && bun run typecheck:visualizer",
+    "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
     "typecheck:runtime": "cd runtime && bun x tsc --noEmit",
+    "typecheck:harness": "bun scripts/typecheck-harness.ts",
     "typecheck:visualizer": "cd apps/visualizer && bun x tsc --noEmit"
   },
   "packageManager": "bun@1.4.2",
