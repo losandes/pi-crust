@@ -49,7 +49,7 @@ bun scripts/typecheck-harness.ts
 
 `runtime/tsconfig.json` excludes `harness-engineering/`, so the first line does not check it. The third does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one.
 
-`apps/visualizer`'s suite also includes a browser-driven layout test (`SessionCard.layout.test.ts` and `SessionCard.layout.budget.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it those tests print a warning and skip rather than failing `bun test` — another skipped check, not a passed one. Run `bunx playwright install chromium` to make them run for real.
+`apps/visualizer`'s suite also includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing `bun test` — a skipped check, not a passed one. Run `bunx playwright install chromium` to make it run for real.
 
 Then prove a stamp still matches its source, in a directory that is thrown away in the same breath:
 
