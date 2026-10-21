@@ -56,7 +56,7 @@ const useCardEvents = (
       if (inflight.current) return
       inflight.current = true
       try {
-        const fresh: EventRow[] = []
+        let fresh: readonly EventRow[] = []
         let hasMore = true
         while (hasMore) {
           // Cursor pagination is inherently sequential: each request needs the
@@ -68,7 +68,7 @@ const useCardEvents = (
             workspace,
           )
           cursor.current = Math.max(cursor.current, page.cursor)
-          fresh.push(...page.events)
+          fresh = [...fresh, ...page.events]
           hasMore = page.has_more
         }
         if (live && fresh.length > 0) {
@@ -161,12 +161,12 @@ export const SessionCard = ({
 
   /** Per-agent rows: events attribute to an agent through their activity-run's owner. */
   const rows = useMemo<readonly TTimelineRow[]>(() => {
-    const owners: string[] = []
+    let owners: string[] = []
     const ownerByActivityRun = new Map<string, string>()
     for (const activityRun of session.activityRuns ?? []) {
       if (activityRun.kind !== 'agent' || !activityRun.owner) continue
       ownerByActivityRun.set(activityRun.activity_run_id, activityRun.owner)
-      if (!owners.includes(activityRun.owner)) owners.push(activityRun.owner)
+      if (!owners.includes(activityRun.owner)) owners = [...owners, activityRun.owner]
     }
     if (owners.length === 0) return []
 
@@ -224,12 +224,14 @@ export const SessionCard = ({
   const hiddenRowCount = overflowing ? rows.length - MIN_VISIBLE_ROWS : 0
 
   const tone = styles[session.status ?? '']
+  const classes = [
+    styles.card,
+    tone,
+    workspaceRole === undefined ? undefined : styles.withWorkspace,
+  ].filter((name): name is string => name !== undefined)
 
   return (
-    <a
-      className={tone === undefined ? styles.card : `${styles.card} ${tone}`}
-      href={hrefFor(session.run_id, undefined, session.workspace)}
-    >
+    <a className={classes.join(' ')} href={hrefFor(session.run_id, undefined, session.workspace)}>
       <button
         className={styles.archive}
         type="button"

@@ -25,6 +25,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5",
+    "playwright": "1.64.1",
     "typescript": "^5.7.2",
     "vite": "^7"
   }
