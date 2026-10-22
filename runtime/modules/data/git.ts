@@ -89,6 +89,41 @@ export type TCommit = Readonly<{
 }>
 
 /**
+ * Can `git add` match this path? Only if the working tree holds it, or the
+ * index does.
+ *
+ * `git add -- <path>` is fatal on a pathspec that matches neither, and that
+ * is exactly the state `git rm` leaves behind: it removes the file AND its
+ * index entry in one step. An Activity that deleted a tracked file the
+ * ordinary way therefore killed the run when the harness came to commit the
+ * paths it had been observed to touch.
+ *
+ * `existsSync` answers the working-tree half without a subprocess, and it is
+ * the half that covers an untracked new file — `ls-files` says no to that
+ * one, and skipping it would leave an Activity's new work uncommitted.
+ */
+const stageable = (path: string): boolean =>
+  existsSync(path) ||
+  run(['ls-files', '--error-unmatch', '--', path]).status === 0
+
+/**
+ * Does git hold anything for this path — working tree, index, or an
+ * already-staged change?
+ *
+ * A path whose deletion is staged is not stageable, but it still belongs in
+ * the commit: `git commit -- <path>` matches it and records the deletion. A
+ * path git has never heard of matches nothing anywhere, and passing it to
+ * `git commit` fails the entire commit with `error: pathspec ... did not
+ * match any file(s) known to git`.
+ *
+ * `diff --cached --quiet` exits 1 when there is a staged change and 0 when
+ * there is none, so 1 is the only answer meaning "git is holding something".
+ */
+const knownToGit = (path: string): boolean =>
+  stageable(path) ||
+  run(['diff', '--cached', '--quiet', '--', path]).status === 1
+
+/**
  * Stage exactly these paths and commit them.
  *
  * Returns the new short sha and the paths that went in, or an empty sha when
@@ -102,9 +137,11 @@ export type TCommit = Readonly<{
  *
  * `--` separates the paths from anything git might read as a revision: a file
  * and a branch can share a name, and git resolves that in favour of the
- * revision. A path that no longer exists is staged as a deletion, which is
- * correct — an Activity that deleted a file it was permitted to delete did
- * that on purpose.
+ * revision. A path that no longer exists is staged as a deletion only while
+ * the index still has an entry for it — a deletion the Activity already
+ * staged (via `git rm`) is carried to the commit rather than re-added, since
+ * `git add` cannot match a path with neither a working-tree file nor an index
+ * entry.
  *
  * An empty staged set is not an error. An Activity whose gates passed without
  * leaving anything behind has done its job.
@@ -122,15 +159,26 @@ export const commitPaths = (
   if (paths.length === 0) {
     return { sha: '', paths: [] }
   }
-  git('add', '--', ...paths)
+  const addable = paths.filter(stageable)
+  if (addable.length > 0) {
+    git('add', '--', ...addable)
+  }
+  // Everything git can still be asked about: a staged deletion is committed
+  // from here, and a path git never knew would fail the commit outright.
+  const committable = paths.filter(knownToGit)
+  if (committable.length === 0) {
+    return { sha: '', paths: [] }
+  }
   // What the index actually holds, which is the record worth reporting: a
   // path the Activity rewrote back to its committed content stages nothing,
   // and a path it deleted stages a deletion.
-  const staged = lines(git('diff', '--cached', '--name-only', '--', ...paths))
+  const staged = lines(
+    git('diff', '--cached', '--name-only', '--', ...committable),
+  )
   if (staged.length === 0) {
     return { sha: '', paths: [] }
   }
-  git('commit', '-m', message, '--', ...paths)
+  git('commit', '-m', message, '--', ...committable)
 
   return { sha: git('rev-parse', '--short', 'HEAD'), paths: staged }
 }
