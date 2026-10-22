@@ -18,6 +18,9 @@
     "esModuleInterop": true,
     "jsx": "react-jsx",
     "noEmit": true,
+    // Lets the repository root's tsconfig.json reference this project; see
+    // runtime/tsconfig.json's matching comment for why.
+    "composite": true,
 
     "baseUrl": ".",
     "paths": {

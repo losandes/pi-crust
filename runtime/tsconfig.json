@@ -34,6 +34,12 @@
     "module": "ES2022",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": false,
+    /*
+     * Lets the repository root's tsconfig.json reference this project, so a
+     * plain `bun x tsc --noEmit` run from the repository root (rather than
+     * `cd runtime &&`) type-checks it instead of finding no project at all.
+     */
+    "composite": true,
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
