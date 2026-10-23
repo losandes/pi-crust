@@ -14,7 +14,7 @@
  * called exactly once, by whoever owns the run.
  */
 
-import { errorMessage } from '../typedefs/settlement'
+import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { buildOutput, narrowEnvelope, regressionOf } from '../typedefs/envelope'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import { violationsOf } from '../typedefs/gate'
@@ -251,13 +251,31 @@ const settleGates = (
     const violations = judgeGates(run, entry.activity, envelope)
     if (violations.length === 0) {
       if (entry.activity.commit) {
-        commitActivity(
-          run,
-          entry.activity.instance,
-          handleIdOf(run, entry.activity.instance),
-          envelope,
-          unit.stage,
+        /*
+         * Settled, not called. `commitActivity` already contains the commit
+         * git refused; this contains everything AROUND it — the
+         * observed-paths lookup and the two trace writes, either of which
+         * can throw on a locked database. A commit is the last thing that
+         * should be able to end a chain whose gates have just passed, and
+         * "whatever failed in there" is the only rule that stays true as
+         * the inside of it changes.
+         */
+        const committed = safeParseSettlement(() =>
+          commitActivity(
+            run,
+            entry.activity.instance,
+            handleIdOf(run, entry.activity.instance),
+            envelope,
+            unit.stage,
+          ),
         )
+        if (committed.status === 'error') {
+          run.console.note(
+            `${entry.activity.instance}: commit step failed — ` +
+              `${errorMessage(committed.error).split('\n')[0] ?? ''} ` +
+              '(the work is in the tree; nothing was staged back)',
+          )
+        }
       }
 
       return entry

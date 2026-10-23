@@ -6,17 +6,27 @@ import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
+import { EXIT } from '../typedefs/run-state'
 import type { TRun } from '../typedefs/run'
 import type { TActivity, TActivityContext } from '../typedefs/runnable-activity'
+import type { TEventInput, TTracer } from '../typedefs/trace'
 import type { TUnit } from '../typedefs/unit'
+import { WARNING_EVENT } from '../typedefs/warning'
 import { createRun } from './create-run'
 import { observedPayload, PATHS_TOUCHED } from './observed-paths'
+import { finish } from './run-activity-run'
 import { runUnits } from './run-activities'
 
 /** Where this run's events land, so a test can read what it recorded. */
 const EVENTS = new WeakMap<object, string>()
 
-const aRun = (): TRun => {
+/**
+ * `tracerOverride` lets a test wrap the real tracer — delegating to it for
+ * everything except the one call it means to break — without copying this
+ * fixture. Every test that calls `aRun()` with no argument gets exactly the
+ * behaviour it always has.
+ */
+const aRun = (tracerOverride?: (tracer: TTracer) => TTracer): TRun => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-units-'))
   const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
   const run = createRun({
@@ -26,7 +36,7 @@ const aRun = (): TRun => {
       agents: [],
     }),
     runId: 'aaaa1111',
-    tracer,
+    tracer: tracerOverride === undefined ? tracer : tracerOverride(tracer),
     engineer: 'tester',
     resume: new Set<string>(),
   })
@@ -570,6 +580,82 @@ test(
     expect(
       activityRuns.every((one) => one.status === 'success'),
     ).toBe(true)
+
+    // then — the developer's actual complaint: `just crust run` exits 0
+    expect(
+      eventsOf(run).filter((event) => event.name === 'committed'),
+    ).toHaveLength(0)
+    expect(finish(run)).toBe(EXIT.SUCCESS)
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when the trace write that files the uncommitted warning itself throws',
+    'it should keep running the chain, with both Activity Runs successful',
+  ].join(', '),
+  async () => {
+    /*
+     * given — the same refused commit, but this time the failure is not
+     * `commitPaths` (already settled) — it is filing the `uncommitted`
+     * warning that reports it, standing in for a trace database a
+     * concurrent run has locked past its own busy_timeout.
+     */
+    const dir = aRepo()
+    withFailingPreCommit(dir)
+    const run = aRun((tracer) => ({
+      ...tracer,
+      event: (input: TEventInput): string => {
+        if (input.name === WARNING_EVENT) {
+          throw new Error('database is locked')
+        }
+
+        return tracer.event(input)
+      },
+    }))
+    const firstRuns: string[] = []
+    const secondRuns: string[] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs: firstRuns,
+          feedbackSeen: [],
+          passOn: 1,
+          commit: true,
+          touches: ['README.md'],
+        }),
+      ]),
+      unit('accept', 'serial', [
+        gatedStep('review', {
+          runs: secondRuns,
+          feedbackSeen: [],
+          passOn: 1,
+        }),
+      ]),
+    ]
+    const was = process.cwd()
+    process.chdir(dir)
+
+    // when
+    let result: unknown
+    try {
+      writeFileSync(join(dir, 'README.md'), 'after\n')
+      result = await runUnits({ run, units: given, start: contextFor(run) })
+    } finally {
+      process.chdir(was)
+    }
+
+    // then — the chain resolved despite the trace write throwing, the second
+    // Activity ran, and every Activity Run still reports success
+    expect(result).toBeDefined()
+    expect(firstRuns).toEqual(['build'])
+    expect(secondRuns).toEqual(['review'])
+    const activityRuns = run.activityRuns()
+    expect(
+      activityRuns.every((one) => one.status === 'success'),
+    ).toBe(true)
+    expect(finish(run)).toBe(EXIT.SUCCESS)
   },
 )
 
