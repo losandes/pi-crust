@@ -18,8 +18,8 @@ Location comes from `db` in `crust.observe.yaml`, default `.pi-crust/data/crust.
 | `agent_start`        | a coding agent is spawned or resumed for `callAgent(run, ph, {...})`                                                                                                                   |
 | `tool_call`          | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
 | `handoff`            | an envelope crosses from one agent to the next                                                                                                                                         |
-| `gate_pass`          | a gate found no failed checks — payload carries `checks` (the evidence) and an empty `violations`                                                                          |
-| `gate_fail`          | a gate found at least one failed check — payload carries `checks` and `violations`                                                                                         |
+| `gate_pass`          | a gate found no failed checks — payload carries `checks` (the evidence) and an empty `violations`                                                                                      |
+| `gate_fail`          | a gate found at least one failed check — payload carries `checks` and `violations`                                                                                                     |
 | `log`                | an explicit `ph.log(...)` from the workflow script                                                                                                                                     |
 | `agent_end`          | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
 | `activity_run_end`   | the block exits; carries the resolved status                                                                                                                                           |
@@ -216,11 +216,12 @@ Exit codes, because an agent will branch on them:
 }
 ```
 
-Three fields carry the weight:
+Four fields carry the weight:
 
 - **`completed`** — activity run names whose LATEST record is `success`. A session that ran `build` twice and failed the second time does not list `build`; the latest record per name wins, which is what makes resume correct across a joined session.
-- **`resume_from`** — the first activity run, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every activity run succeeded and there is nothing to resume.
-- **`warnings`** — what the run saw and could not attribute, read back from its own `tree_warning` events. `unexpected` is a path that changed during an Activity Run which was not already dirty and which the Activity did not report; `overstep` is a path outside what the Activity declared it writes; `refusal` is a tool call the path policy governed. None of them failed anything and none of them was undone — pi-crust cannot tell an agent's write from a developer's save in the same branch, so it names what it saw and leaves the tree alone. Empty for a run that saw nothing worth saying.
+- **`resume_from`** — the first activity run, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every RECORDED activity run succeeded — not necessarily that the run is finished, since a session that died between Activities has no row for the ones it never reached.
+- **`resumable`** — is there anything left to pick up, from the session's own status rather than from `resume_from`. `false` only for a session that finished successfully; a session that failed, was killed, or is waiting for a person is resumable even when `resume_from` is `undefined`, which is what lets `--resume` and this report pick up a run that died between Activities.
+- **`warnings`** — what the run saw and could not attribute, read back from its own `tree_warning` events. `unexpected` is a path that changed during an Activity Run which was not already dirty and which the Activity did not report; `overstep` is a path outside what the Activity declared it writes; `refusal` is a tool call the path policy governed; `uncommitted` is a commit git refused — an unlocked signing agent, a hook that exits non-zero. None of them failed anything and none of them was undone — pi-crust cannot tell an agent's write from a developer's save in the same branch, so it names what it saw and leaves the tree alone. Empty for a run that saw nothing worth saying.
 - **`logs[].name`** — the event name, not just the payload. The console echoes every printed line as a `log` too, so a code activity run files its verdict under `step_result` and replay asks for it by that name. "The activity run's last log" is usually a human sentence.
 
 `error`, `ended_at`, `started_at` and `resume_from` are omitted when absent — `JSON.stringify` drops undefined keys. Read them as optional.

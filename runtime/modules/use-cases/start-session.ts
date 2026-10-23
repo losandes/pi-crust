@@ -13,9 +13,11 @@ import { currentBranch, repoRoot } from '../data/git'
 import { recordedHandoffDir, writeHandoffPointer } from '../data/handoff-pointer'
 import { newId } from '../data/ids'
 import { createTracer } from '../data/trace-db'
+import { runHasLiveProcess } from '../data/trace-reader'
 import { registerWorkspace } from '../data/workspace-registry'
 import type { TPiCrustConfig } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
+import type { TRunState } from '../typedefs/run-state'
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import { createRun } from './create-run'
 import { isSharedHandoffDir, resolveHandoffDir } from './handoff-location'
@@ -75,12 +77,56 @@ export type TSessionOptions = Readonly<{
 }>
 
 /**
+ * Is there anything to pick up, and if not, why not — the pure rule a
+ * resume judges itself by.
+ *
+ * Testable with no database, no process, and no session: give it the state
+ * `readRunState` already computed and the answer to one liveness probe.
+ *
+ * `state.resumable` carries nearly the whole rule — a session's own status
+ * says whether it finished on its own terms, including the case a WAITING
+ * run used to fall through on: the thing it was waiting for was a person,
+ * and they have now answered, so `waiting` is resumable exactly as a `fail`
+ * is. The one thing a session's status cannot say on its own is whether a
+ * `running` session is still live or was `SIGKILL`ed with nothing left to
+ * close its rows — that needs the process table, which is why a `running`
+ * session is refused only when a live process is still found for it.
+ */
+export type TResumeVerdict = Readonly<{ ok: boolean; reason: string }>
+
+export const resumeVerdict = (
+  state: TRunState | undefined,
+  runId: string,
+  hasLiveProcess: boolean,
+): TResumeVerdict => {
+  if (state === undefined) {
+    return { ok: false, reason: `no session '${runId}' — nothing to resume` }
+  }
+  if (!state.resumable) {
+    return {
+      ok: false,
+      reason:
+        `'${runId}' finished successfully — nothing to resume. ` +
+        'Drop --run-id to start a new run.',
+    }
+  }
+  if (state.status === 'running' && hasLiveProcess) {
+    return {
+      ok: false,
+      reason:
+        `'${runId}' is still running — run \`just crust procs ${runId}\` to see ` +
+        'what is live, or wait for it to finish.',
+    }
+  }
+  return { ok: true, reason: '' }
+}
+
+/**
  * Which activityRuns this run must not do again.
  *
- * Read through `readRunState` — the reporter's function — so `just crust report`
- * and `--resume` cannot disagree. Resuming needs an run_id, because resuming an
- * unnamed session is resuming nothing; and a session with every activity run green has
- * nothing left to do, which is said out loud rather than silently re-run.
+ * Read through `readRunState` — the reporter's function — so `just crust
+ * report` and `--resume` cannot disagree. Resuming needs an run_id, because
+ * resuming an unnamed session is resuming nothing.
  */
 const completedActivityRuns = (
   cfg: TPiCrustConfig,
@@ -93,28 +139,13 @@ const completedActivityRuns = (
     )
   }
   const state = readRunState(cfg.observability.db, runId)
-  if (state === undefined) {
-    throw new Error(
-      `no session '${runId}' in ${cfg.observability.db} — nothing to resume`,
-    )
+  const hasLiveProcess =
+    state?.status === 'running' && runHasLiveProcess(cfg.observability.db, runId)
+  const verdict = resumeVerdict(state, runId, hasLiveProcess)
+  if (!verdict.ok) {
+    throw new Error(verdict.reason)
   }
-  /*
-   * A WAITING run always has something to do, even when every activity run it
-   * recorded succeeded: the thing it was waiting for was a person, and they
-   * have now answered. Refusing here left such a run `waiting` for ever —
-   * work finished, decision made, nothing to mark it done.
-   *
-   * `resume_from` cannot tell the difference on its own. It names the first
-   * RECORDED activityRun that is not successful, and a chain stopped at its first
-   * gate has not recorded the stages it never reached.
-   */
-  if (state.resume_from === undefined && state.status !== 'waiting') {
-    throw new Error(
-      `every activity run of '${runId}' already succeeded — nothing to resume. ` +
-        'Drop --run-id to start a new run.',
-    )
-  }
-  return new Set(state.completed)
+  return new Set((state as TRunState).completed)
 }
 
 /**

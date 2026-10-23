@@ -103,6 +103,64 @@ test(
 test(
   [
     'given use-cases/read-run-state::readRunState',
+    'when a run died between Activities, leaving every RECORDED Activity Run green',
+    'it should still say the session is resumable',
+  ].join(', '),
+  () => {
+    /*
+     * given — run fbf49583: a commit failed and killed the process before
+     * the next Activity ever opened a row. `resume_from` cannot see what it
+     * never recorded, so `resumable` has to come from the session's own
+     * status instead.
+     */
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    session(tracer, 'aaaa1111', [
+      [1, 'request', 'success'],
+      [2, 'plan', 'success'],
+    ])
+    tracer.sessionFinish('aaaa1111', false)
+    tracer.close()
+
+    // when
+    const actual = readRunState(dbPath, 'aaaa1111')
+
+    // then
+    expect(actual?.resume_from).toBeUndefined()
+    expect(actual?.resumable).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/read-run-state::readRunState',
+    'when a run finished successfully',
+    'it should say there is nothing left to resume',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    session(tracer, 'bbbb2222', [
+      [1, 'request', 'success'],
+      [2, 'build', 'success'],
+    ])
+    tracer.sessionFinish('bbbb2222', true)
+    tracer.close()
+
+    // when
+    const actual = readRunState(dbPath, 'bbbb2222')
+
+    // then
+    expect(actual?.resumable).toBe(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/read-run-state::readRunState',
     'when the database does not exist',
     'it should answer undefined rather than create one',
   ].join(', '),
@@ -231,6 +289,61 @@ test(
     expect(actual).toContain("payments rewrite")
     expect(actual).toContain("lifecycle:")
     expect(actual).toContain("sdlc")
+  },
+)
+
+test(
+  [
+    'given ../../report::renderReport',
+    'when a run died between Activities, leaving every RECORDED Activity Run green',
+    'it should still print the resume command, above a line saying the run did not finish',
+  ].join(', '),
+  () => {
+    // given — run fbf49583's exact shape: status fail, resume_from undefined
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    session(tracer, 'fbf49583', [
+      [1, 'request', 'success'],
+      [2, 'plan', 'success'],
+    ])
+    tracer.sessionFinish('fbf49583', false)
+    tracer.close()
+    const state = readRunState(dbPath, 'fbf49583') as TRunState
+
+    // when
+    const actual = renderReport(state)
+
+    // then
+    expect(actual).not.toContain('every activity run succeeded — nothing to resume')
+    expect(actual).toContain('did not finish')
+  },
+)
+
+test(
+  [
+    'given ../../report::renderReport',
+    'when a run finished successfully',
+    'it should print the green nothing-to-resume line',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    session(tracer, 'bbbb2222', [
+      [1, 'request', 'success'],
+      [2, 'build', 'success'],
+    ])
+    tracer.sessionFinish('bbbb2222', true)
+    tracer.close()
+    const state = readRunState(dbPath, 'bbbb2222') as TRunState
+
+    // when
+    const actual = renderReport(state)
+
+    // then
+    expect(actual).toContain('every activity run succeeded — nothing to resume')
   },
 )
 

@@ -163,3 +163,40 @@ export const readTrace = (
   db.close()
   return rows
 }
+
+/**
+ * Is any process this run started still believed alive?
+ *
+ * `ended_at IS NULL` is what `processesEndAll` and `processEnd` clear on
+ * their way out, so a row still open here is either genuinely running or was
+ * never closed because the run was `SIGKILL`ed — a signal nothing in this
+ * process can catch to tidy its own rows. `process.kill(pid, 0)` sends no
+ * signal and only asks whether the pid still answers, which is why it is
+ * safe to call on a pid this process does not own.
+ */
+export const runHasLiveProcess = (dbPath: string, runId: string): boolean => {
+  if (!fileExists(dbPath)) {
+    return false
+  }
+  const db = new Database(dbPath, { readonly: true })
+  db.run('PRAGMA busy_timeout=5000;')
+  const rows = db
+    .query<{ pid: number | null }, [string]>(
+      'SELECT pid FROM processes WHERE run_id=? AND ended_at IS NULL',
+    )
+    .all(runId)
+  db.close()
+
+  return rows.some((row) => {
+    if (row.pid === null) {
+      return false
+    }
+    // biome-ignore lint/plugin: a dead pid throwing ESRCH is this function's own answer, not a defect to propagate
+    try {
+      process.kill(row.pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  })
+}

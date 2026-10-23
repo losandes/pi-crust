@@ -16,6 +16,7 @@ const KINDS: readonly TTreeWarning['kind'][] = [
   'unexpected',
   'overstep',
   'refusal',
+  'uncommitted',
 ]
 
 export const TreeWarnings = ({

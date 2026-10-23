@@ -70,8 +70,33 @@ import { join, resolve } from 'node:path'
 import { repoRoot } from '../data/git'
 import { recordedHandoffDir } from '../data/handoff-pointer'
 import { crustConfigSchema } from '../typedefs/config'
+import type { TRunState } from '../typedefs/run-state'
 import { defaultHandoffDir } from './handoff-location'
-import { startSession } from './start-session'
+import { resumeVerdict, startSession } from './start-session'
+
+const stateWith = (
+  overrides: Partial<Pick<TRunState, 'status' | 'resume_from' | 'resumable'>>,
+): TRunState =>
+  ({
+    run_id: 'fbf49583',
+    lifecycle: 'ship',
+    name: '',
+    request: '',
+    status: 'fail',
+    engineer: 'tester',
+    started_at: undefined,
+    ended_at: undefined,
+    tokens: 0,
+    cost: 0,
+    activityRuns: [],
+    completed: [],
+    resume_from: undefined,
+    resumable: true,
+    failed_gates: [],
+    warnings: [],
+    envelopes: [],
+    ...overrides,
+  }) as TRunState
 
 const scratchConfig = () => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-start-session-'))
@@ -81,6 +106,7 @@ const scratchConfig = () => {
    * on every call. Pointed at a scratch file instead, so running this suite
    * never appends a tmp-directory entry to the developer's real registry.
    */
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
   process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
   return crustConfigSchema.parse({
     defaults: { data_dir: dataDir },
@@ -157,5 +183,112 @@ test(
         handoff: 'specs/{session_id}',
       }),
     ).toThrow(/already recorded/)
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::resumeVerdict',
+    'when there is no such session',
+    'it should refuse',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = resumeVerdict(undefined, 'fbf49583', false)
+
+    // then
+    expect(actual.ok).toBe(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::resumeVerdict',
+    "when the status is 'fail' and every RECORDED Activity Run was green",
+    'it should allow the resume \u2014 the exact state run fbf49583 died in',
+  ].join(', '),
+  () => {
+    // given
+    const given = stateWith({ status: 'fail', resume_from: undefined, resumable: true })
+
+    // when
+    const actual = resumeVerdict(given, 'fbf49583', false)
+
+    // then
+    expect(actual).toEqual({ ok: true, reason: '' })
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::resumeVerdict',
+    "when the status is 'success'",
+    'it should refuse, saying the run finished successfully',
+  ].join(', '),
+  () => {
+    // given
+    const given = stateWith({ status: 'success', resume_from: undefined, resumable: false })
+
+    // when
+    const actual = resumeVerdict(given, 'fbf49583', false)
+
+    // then
+    expect(actual.ok).toBe(false)
+    expect(actual.reason).toContain('finished successfully')
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::resumeVerdict',
+    "when the status is 'waiting'",
+    'it should allow the resume',
+  ].join(', '),
+  () => {
+    // given \u2014 the thing it was waiting for was a person, who has now answered
+    const given = stateWith({ status: 'waiting', resume_from: undefined, resumable: true })
+
+    // when
+    const actual = resumeVerdict(given, 'fbf49583', false)
+
+    // then
+    expect(actual).toEqual({ ok: true, reason: '' })
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::resumeVerdict',
+    "when the status is 'running' and a process is still alive",
+    'it should refuse, naming `just crust procs`',
+  ].join(', '),
+  () => {
+    // given
+    const given = stateWith({ status: 'running', resume_from: 'build', resumable: true })
+
+    // when
+    const actual = resumeVerdict(given, 'fbf49583', true)
+
+    // then
+    expect(actual.ok).toBe(false)
+    expect(actual.reason).toContain('just crust procs')
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::resumeVerdict',
+    "when the status is 'running' but no process answers",
+    'it should allow the resume \u2014 a run that was SIGKILLed never closed its own rows',
+  ].join(', '),
+  () => {
+    // given
+    const given = stateWith({ status: 'running', resume_from: 'build', resumable: true })
+
+    // when
+    const actual = resumeVerdict(given, 'fbf49583', false)
+
+    // then
+    expect(actual).toEqual({ ok: true, reason: '' })
   },
 )

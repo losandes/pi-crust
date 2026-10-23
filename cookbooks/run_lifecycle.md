@@ -49,7 +49,7 @@ They will rarely say `--config`. Treat any of these as naming a roster, then res
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | "run it on the frontier config", "use the frontier roster" | the roster file whose name matches                                                                                                                                |
 | "run this with the big models", "use the sota roster"      | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
-| "have opus plan this one"                                  | a roster whose `plan` Activity is that model; if none exists, say so rather than editing the config mid-request                                                           |
+| "have opus plan this one"                                  | a roster whose `plan` Activity is that model; if none exists, say so rather than editing the config mid-request                                                   |
 | nothing about models at all                                | the default, `.pi-crust/config/crust.config.yaml`                                                                                                                 |
 
 `--config` takes the path directly, and `CRUST_CONFIG` stands in for it when the flag is absent — whether a workflow is launched through the justfile or run with `bun` directly. The flag wins over the variable:
@@ -74,7 +74,7 @@ A path scope changes what rule 12 means: every file in scope must be covered by 
 
 `--stream` prints each agent's thinking and prose in the terminal as it arrives. Off by default, because an unattended run that writes a model's reasoning to stdout buries the one line that said what went wrong. Everything it prints is recorded either way — the visualizer's reading pane shows the same narration after the fact, and `raw_output.jsonl` holds the full text.
 
-Committing is a property of each Activity, not a mode of the run. An Activity that declares `commit: true` in `crust.activities.yaml` lands its own change once every gate on it has passed, in the words its envelope carried — so a chain with several writing Activities produces several commits rather than one squashed one at the end.
+Committing is a property of each Activity, not a mode of the run. An Activity that declares `commit: true` in `crust.activities.yaml` lands its own change once every gate on it has passed, in the words its envelope carried — so a chain with several writing Activities produces several commits rather than one squashed one at the end. A commit git refuses — an unlocked signing agent, a hook that exits non-zero — leaves the work in the tree, raises an `uncommitted` warning, and does not stop the run; the chain carries on to the next Activity.
 
 `--commit false` turns committing off for a whole run, whatever the registry says. There is no `--commit true`: a flag granting a permission the configuration withheld would make a run behave in a way nobody reading the registry could predict.
 
@@ -141,7 +141,7 @@ Exit codes: `0` the run succeeded, `1` it failed or is incomplete, `2` no such s
 Two things to know before reaching for it:
 
 - It needs `--run-id`. Resuming an unnamed session is resuming nothing, and it says so rather than quietly starting a new run.
-- A session whose every activity run succeeded has nothing to resume, and says that too. Drop `--run-id` to start fresh.
+- A session that finished successfully has nothing to resume, and says that too. Any other outcome is resumable, including one that died between Activities and has no row for the ones it never reached. Drop `--run-id` to start fresh.
 
 ## Observe
 

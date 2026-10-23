@@ -256,6 +256,7 @@ const settleGates = (
           entry.activity.instance,
           handleIdOf(run, entry.activity.instance),
           envelope,
+          unit.stage,
         )
       }
 

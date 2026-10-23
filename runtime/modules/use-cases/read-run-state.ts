@@ -9,8 +9,11 @@
  *
  *   1. The LATEST record per activityRun name wins. A joined session can run `build`
  *      twice; if the second one failed, `build` is not complete.
- *   2. `resume_from` is undefined only when every activity run succeeded. Nothing to
- *      resume is a different answer from "start at the beginning".
+ *   2. `resume_from` is undefined when every RECORDED activity run succeeded,
+ *      not necessarily when the run is finished: a session that died between
+ *      Activities has no row for the ones it never reached, so this alone
+ *      cannot say there is nothing left. `resumable` answers that question
+ *      instead, from the session's own status.
  */
 
 import type {
@@ -159,6 +162,7 @@ export const readRunState = (
     // line would start a second agent against a live session, both writing
     // the same trace. Only a stopped run has somewhere to be picked up.
     resume_from: unfinished.find((activityRun) => activityRun.status !== 'running')?.name,
+    resumable: rows.session.status !== 'success',
     failed_gates: activityRuns
       .flatMap((activityRun) => activityRun.gates)
       .filter((gate) => !gate.passed)

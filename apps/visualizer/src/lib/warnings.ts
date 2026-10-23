@@ -17,7 +17,7 @@ import type { EventRow } from './types'
 /** Must match the runtime's `WARNING_EVENT`, which writes these rows. */
 export const WARNING_EVENT = 'tree_warning'
 
-export type TWarningKind = 'unexpected' | 'overstep' | 'refusal'
+export type TWarningKind = 'unexpected' | 'overstep' | 'refusal' | 'uncommitted'
 
 export type TTreeWarning = Readonly<{
   kind: TWarningKind
@@ -48,7 +48,12 @@ const parse = (event: EventRow): TTreeWarning | undefined => {
     return undefined
   }
   const kind = payload.kind
-  if (kind !== 'unexpected' && kind !== 'overstep' && kind !== 'refusal') {
+  if (
+    kind !== 'unexpected' &&
+    kind !== 'overstep' &&
+    kind !== 'refusal' &&
+    kind !== 'uncommitted'
+  ) {
     return undefined
   }
 
@@ -95,11 +100,16 @@ export const warningExplanation = (kind: TWarningKind): string =>
     : kind === 'overstep'
       ? 'This Activity changed paths outside what it declared it writes. ' +
         'Nothing was changed back — the tree is yours to settle.'
-      : 'The path policy governed these tool calls. A blocked call never ran.'
+      : kind === 'refusal'
+        ? 'The path policy governed these tool calls. A blocked call never ran.'
+        : 'The work is in the working tree. Nothing was staged back, unstaged, ' +
+          "or signed on anybody's behalf — commit it yourself when you are ready."
 
 export const warningTitle = (kind: TWarningKind): string =>
   kind === 'unexpected'
     ? 'unexplained changes'
     : kind === 'overstep'
       ? 'changes outside what was declared'
-      : 'refused by the path policy'
+      : kind === 'refusal'
+        ? 'refused by the path policy'
+        : 'commit(s) this run could not make'

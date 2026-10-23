@@ -29,8 +29,11 @@
  *               exactly as before; no longer fatal, and never undone.
  *   refusal     a tool call was governed by the path policy — blocked before
  *               it ran, or allowed and recorded under `stop` or `warn`.
+ *   uncommitted an Activity's gates passed, it declared `commit: true`, and
+ *               git refused the commit. The work is in the tree; nothing was
+ *               staged back, unstaged, or signed on anybody's behalf.
  */
-export type TWarningKind = 'unexpected' | 'overstep' | 'refusal'
+export type TWarningKind = 'unexpected' | 'overstep' | 'refusal' | 'uncommitted'
 
 /** The `log` event name every warning is written under, and read back by. */
 export const WARNING_EVENT = 'tree_warning'
@@ -68,10 +71,43 @@ export const warningExplanation = (kind: TWarningKind): string =>
     : kind === 'overstep'
       ? 'This Activity changed paths outside what it declared it writes.\n' +
         'Nothing was changed back — the tree is yours to settle.'
-      : 'The path policy governed these tool calls. A blocked call never ran.'
+      : kind === 'refusal'
+        ? 'The path policy governed these tool calls. A blocked call never ran.'
+        : 'The work is in the working tree. Nothing was staged back, unstaged, ' +
+          "or signed on anybody's behalf — commit it yourself when you are " +
+          'ready.'
 
 const headline = (warning: TTreeWarning): string =>
   `${warning.activities.join(', ')} (${warning.stage})`
+
+/** The three kinds a tool call or an observed diff can raise, counted together. */
+const ATTRIBUTION_KINDS: readonly TWarningKind[] = [
+  'unexpected',
+  'overstep',
+  'refusal',
+]
+
+const renderGroup = (
+  warnings: readonly TTreeWarning[],
+  kind: TWarningKind,
+): readonly string[] => {
+  const group = warnings.filter((warning) => warning.kind === kind)
+
+  return group.length === 0
+    ? []
+    : [
+        '',
+        ...group.flatMap((warning) => [
+          `  ${headline(warning)}`,
+          ...warning.paths.map((path) => `    - ${path}`),
+          ...(warning.note === '' ? [] : [`    ${warning.note}`]),
+        ]),
+        '',
+        ...warningExplanation(kind)
+          .split('\n')
+          .map((line) => `  ${line}`),
+      ]
+}
 
 /**
  * Every warning a run raised, as lines a terminal or a report can print.
@@ -79,6 +115,12 @@ const headline = (warning: TTreeWarning): string =>
  * Grouped by kind so a reader meets one explanation per class rather than one
  * per path, and empty for a run that raised none — a surface asking for them
  * prints nothing at all rather than an encouraging empty heading.
+ *
+ * `uncommitted` renders as its own block with its own headline, counted
+ * separately from the three attribution kinds: the existing `⚠ <n>
+ * unexplained change(s) during this run` line reports what pi-crust could
+ * not tell apart from the developer's own edits, and a commit git refused is
+ * a different claim — whose work it is was never in question.
  */
 export const renderWarnings = (
   warnings: readonly TTreeWarning[],
@@ -86,32 +128,32 @@ export const renderWarnings = (
   if (warnings.length === 0) {
     return []
   }
-  const kinds: readonly TWarningKind[] = ['unexpected', 'overstep', 'refusal']
-  const total = warnings.reduce(
+  const attributable = warnings.filter((warning) =>
+    ATTRIBUTION_KINDS.includes(warning.kind),
+  )
+  const uncommitted = warnings.filter((warning) => warning.kind === 'uncommitted')
+  const attributableTotal = attributable.reduce(
+    (sofar, warning) => sofar + warning.paths.length,
+    0,
+  )
+  const uncommittedTotal = uncommitted.reduce(
     (sofar, warning) => sofar + warning.paths.length,
     0,
   )
 
   return [
-    `\u26a0 ${total} unexplained change(s) during this run`,
-    ...kinds.flatMap((kind) => {
-      const group = warnings.filter((warning) => warning.kind === kind)
-
-      return group.length === 0
-        ? []
-        : [
-            '',
-            ...group.flatMap((warning) => [
-              `  ${headline(warning)}`,
-              ...warning.paths.map((path) => `    - ${path}`),
-              ...(warning.note === '' ? [] : [`    ${warning.note}`]),
-            ]),
-            '',
-            ...warningExplanation(kind)
-              .split('\n')
-              .map((line) => `  ${line}`),
-          ]
-    }),
+    ...(attributable.length === 0
+      ? []
+      : [
+          `\u26a0 ${attributableTotal} unexplained change(s) during this run`,
+          ...ATTRIBUTION_KINDS.flatMap((kind) => renderGroup(attributable, kind)),
+        ]),
+    ...(uncommitted.length === 0
+      ? []
+      : [
+          `\u26a0 ${uncommittedTotal} commit(s) this run could not make`,
+          ...renderGroup(uncommitted, 'uncommitted'),
+        ]),
   ]
 }
 
@@ -124,7 +166,12 @@ export const warningFromPayload = (
       ? value.filter((entry): entry is string => typeof entry === 'string')
       : []
   const kind = payload.kind
-  if (kind !== 'unexpected' && kind !== 'overstep' && kind !== 'refusal') {
+  if (
+    kind !== 'unexpected' &&
+    kind !== 'overstep' &&
+    kind !== 'refusal' &&
+    kind !== 'uncommitted'
+  ) {
     return undefined
   }
 

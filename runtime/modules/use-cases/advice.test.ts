@@ -21,6 +21,7 @@ const state = (
     activityRuns: [],
     completed: [],
     resume_from: undefined,
+    resumable: true,
     failed_gates: [],
     warnings: [],
     envelopes: [

@@ -18,7 +18,11 @@
 import { commitPaths } from '../data/git'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
+import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
+import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
 import { touchedBy } from './observed-paths'
+
+const firstLine = (text: string): string => text.split('\n')[0] ?? ''
 
 export const commitMessage = (
   run: TRun,
@@ -54,19 +58,49 @@ export const commitMessage = (
  * finish something they began by hand would otherwise watch the Activity's
  * own work go uncommitted with no way to say "yes, that one too".
  *
- * Returns the sha, or '' when there was nothing to commit — which is not a
- * failure. An Activity whose gates passed without it changing a tracked file
- * has done its job; demanding a commit from it would make an empty change
- * into an error nobody can act on.
+ * Returns the sha, or '' when nothing was recorded — either there was
+ * nothing to commit, which is not a failure, or git refused the commit, which
+ * is reported as an `uncommitted` warning rather than ending the run. An
+ * Activity whose gates passed without it changing a tracked file has done its
+ * job; demanding a commit from it would make an empty change into an error
+ * nobody can act on. A commit git cannot complete — a signing agent nobody
+ * answered, a hook that exits non-zero — leaves the work in the tree for the
+ * same reason `commitPaths` never puts a file back: pi-crust cannot tell an
+ * agent's write from a developer's save, so it reports rather than acts.
  */
 export const commitActivity = (
   run: TRun,
   instance: string,
   activityRunId: string,
   envelope: TEnvelopeBase | undefined,
+  stage: string,
 ): string => {
   const message = commitMessage(run, envelope)
-  const { sha, paths } = commitPaths(message, touchedBy(run, instance))
+  const touched = touchedBy(run, instance)
+  const settlement = safeParseSettlement(() => commitPaths(message, touched))
+  if (settlement.status === 'error') {
+    run.console.note(
+      `${instance}: commit failed — ${firstLine(errorMessage(settlement.error))}` +
+        ` (${touched.length} path(s) left uncommitted)`,
+    )
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRunId,
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload({
+        kind: 'uncommitted',
+        activities: [instance],
+        activityRunIds: [activityRunId],
+        stage,
+        paths: touched,
+        note: `commit failed: ${firstLine(errorMessage(settlement.error))} — message: ${firstLine(message)}`,
+      }),
+    })
+
+    return ''
+  }
+  const { sha, paths } = settlement.data
   if (sha === '') {
     run.console.note(`${instance}: nothing to commit`)
 

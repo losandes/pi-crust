@@ -72,6 +72,15 @@ export type TRunState = Readonly<{
   completed: readonly string[]
   /** first activityRun, in seq order, whose latest record is not success */
   resume_from: string | undefined
+  /**
+   * Is there anything left to pick up?
+   *
+   * A run that died, was killed, or stopped for a person has work left even
+   * when every Activity Run it RECORDED was green: the Activities it never
+   * reached have no rows, so `resume_from` cannot see them. `false` only for
+   * a session that finished on its own terms.
+   */
+  resumable: boolean
   /** failed gates, newest Activity Run per gate, newest activityRun first */
   failed_gates: readonly TGateOutcome[]
   /**

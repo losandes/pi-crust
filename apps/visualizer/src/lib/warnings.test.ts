@@ -97,3 +97,39 @@ test(
     expect(somebodyElses).toEqual([])
   },
 )
+
+test(
+  [
+    'given lib/warnings::warningsIn',
+    'when the run filed a warning that a commit failed',
+    'it should survive as an uncommitted warning rather than being dropped',
+  ].join(', '),
+  () => {
+    // given
+    const given = [
+      event({
+        kind: 'uncommitted',
+        activities: ['build'],
+        activity_run_ids: ['run_01_build'],
+        stage: 'implement',
+        paths: ['src/add.ts'],
+        note: 'commit failed: 1Password: failed to fill whole buffer',
+      }),
+    ]
+
+    // when
+    const actual = warningsIn(given)
+
+    // then
+    expect(actual).toEqual([
+      {
+        kind: 'uncommitted',
+        activities: ['build'],
+        activityRunIds: ['run_01_build'],
+        stage: 'implement',
+        paths: ['src/add.ts'],
+        note: 'commit failed: 1Password: failed to fill whole buffer',
+      },
+    ])
+  },
+)

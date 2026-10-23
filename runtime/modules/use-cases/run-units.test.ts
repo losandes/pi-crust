@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
@@ -312,7 +312,7 @@ const gatedStep = (
      * fixture that does not record it is a fixture that changed nothing.
      */
     touches?: readonly string[]
-    /** what it CLAIMS it changed \u2014 a report, never the evidence */
+    /** what it CLAIMS it changed — a report, never the evidence */
     claims?: readonly string[]
   }>,
 ): TActivity =>
@@ -488,6 +488,90 @@ const aRepo = (): string => {
 
   return dir
 }
+
+/**
+ * Point this repository's commits at a hook that always refuses — the same
+ * subprocess an unlocked signing agent fails in — without touching signing.
+ */
+const withFailingPreCommit = (dir: string): void => {
+  const hooksDir = join(dir, '.hooks')
+  mkdirSync(hooksDir, { recursive: true })
+  const hook = join(hooksDir, 'pre-commit')
+  writeFileSync(hook, '#!/bin/sh\necho "commit refused by hook" >&2\nexit 1\n')
+  chmodSync(hook, 0o755)
+  execFileSync('git', ['config', 'core.hooksPath', hooksDir], {
+    cwd: dir,
+    encoding: 'utf8',
+  })
+}
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when the first Activity\'s commit fails and a second Activity follows',
+    'it should keep running the chain, with both Activity Runs successful',
+  ].join(', '),
+  async () => {
+    /*
+     * given — a commit git refuses (an unlocked signing agent, a hook that
+     * exits non-zero) is a warning, never fatal: the work the first Activity
+     * did is real, and the second Activity has nothing to do with the commit.
+     */
+    const dir = aRepo()
+    withFailingPreCommit(dir)
+    const run = aRun()
+    const firstRuns: string[] = []
+    const secondRuns: string[] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs: firstRuns,
+          feedbackSeen: [],
+          passOn: 1,
+          commit: true,
+          touches: ['README.md'],
+        }),
+      ]),
+      unit('accept', 'serial', [
+        gatedStep('review', {
+          runs: secondRuns,
+          feedbackSeen: [],
+          passOn: 1,
+        }),
+      ]),
+    ]
+    const was = process.cwd()
+    process.chdir(dir)
+
+    // when
+    let result: unknown
+    try {
+      writeFileSync(join(dir, 'README.md'), 'after\n')
+      result = await runUnits({ run, units: given, start: contextFor(run) })
+    } finally {
+      process.chdir(was)
+    }
+
+    // then — the chain resolved, the second Activity ran, nothing was committed
+    expect(result).toBeDefined()
+    expect(firstRuns).toEqual(['build'])
+    expect(secondRuns).toEqual(['review'])
+    expect(
+      eventsOf(run).filter((event) => event.name === 'committed'),
+    ).toHaveLength(0)
+    expect(
+      eventsOf(run).filter(
+        (event) =>
+          event.name === 'tree_warning' &&
+          (event.payload as Readonly<{ kind?: string }>)?.kind === 'uncommitted',
+      ),
+    ).toHaveLength(1)
+    const activityRuns = run.activityRuns()
+    expect(
+      activityRuns.every((one) => one.status === 'success'),
+    ).toBe(true)
+  },
+)
 
 test(
   [

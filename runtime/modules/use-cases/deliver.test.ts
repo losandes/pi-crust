@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TEnvelopeBase } from '../typedefs/envelope'
@@ -84,6 +84,21 @@ const envelopeWith = (message: string): TEnvelopeBase =>
     commit_message: message,
   }) as unknown as TEnvelopeBase
 
+/**
+ * Point this repository's commits at a hook that always refuses, the same
+ * subprocess a signing agent that never unlocked fails in — without
+ * touching signing, so the test is not at the mercy of the developer's own
+ * gpg or 1Password configuration.
+ */
+const withFailingPreCommit = (dir: string): void => {
+  const hooksDir = join(dir, '.hooks')
+  mkdirSync(hooksDir, { recursive: true })
+  const hook = join(hooksDir, 'pre-commit')
+  writeFileSync(hook, '#!/bin/sh\necho "commit refused by hook" >&2\nexit 1\n')
+  chmodSync(hook, 0o755)
+  git(dir, 'config', 'core.hooksPath', hooksDir)
+}
+
 /** A commit shells out in the process's cwd, so the test stands there. */
 const inRepo = <TResult>(dir: string, body: () => TResult): TResult => {
   const was = process.cwd()
@@ -113,7 +128,7 @@ test(
 
     // when
     const actual = inRepo(dir, () =>
-      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing')),
+      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
     )
 
     // then
@@ -151,6 +166,7 @@ test(
         'build',
         'id',
         envelopeWith('feat: the thing'),
+        'implement',
       ),
     )
 
@@ -176,7 +192,7 @@ test(
 
     // when
     const actual = inRepo(dir, () =>
-      commitActivity(runIn(), 'review', 'id', envelopeWith('chore: nothing')),
+      commitActivity(runIn(), 'review', 'id', envelopeWith('chore: nothing'), 'review'),
     )
 
 
@@ -201,5 +217,80 @@ test(
 
     // then
     expect(actual).toEqual('crust(aaaa1111): implemented the thing')
+  },
+)
+
+test(
+  [
+    'given use-cases/deliver::commitActivity',
+    'when git refuses the commit — a hook exiting non-zero, standing in for an unlocked signing agent',
+    'it should return \'\' and never throw out of the Activity Run',
+  ].join(', '),
+  () => {
+    // given — the work is done; only the commit itself fails
+    const dir = aRepo()
+    writeFileSync(join(dir, 'README.md'), 'after\n')
+    withFailingPreCommit(dir)
+    const run = runIn({ build: ['README.md'] })
+
+    // when
+    const actual = inRepo(dir, () =>
+      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+    )
+
+    // then — no throw reached the caller, and HEAD never moved
+    expect(actual).toEqual('')
+    expect(git(dir, 'log', '--oneline').split('\n')).toHaveLength(1)
+  },
+)
+
+test(
+  [
+    'given use-cases/deliver::commitActivity',
+    'when git refuses the commit',
+    'it should file a tree_warning of kind uncommitted naming the touched paths',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    writeFileSync(join(dir, 'README.md'), 'after\n')
+    withFailingPreCommit(dir)
+    const run = runIn({ build: ['README.md'] })
+
+    // when
+    inRepo(dir, () =>
+      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+    )
+
+    // then
+    const filed = eventsOf(run).find((event) => event.name === 'tree_warning')
+    expect(filed?.payload).toMatchObject({
+      kind: 'uncommitted',
+      activities: ['build'],
+      paths: ['README.md'],
+    })
+  },
+)
+
+test(
+  [
+    'given use-cases/deliver::commitActivity',
+    'when git refuses the commit',
+    'it should leave the working tree exactly as git left it — no reset, no unstage',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    writeFileSync(join(dir, 'README.md'), 'after\n')
+    withFailingPreCommit(dir)
+    const run = runIn({ build: ['README.md'] })
+
+    // when
+    inRepo(dir, () =>
+      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+    )
+
+    // then — `git add` already staged it before the hook refused
+    expect(git(dir, 'status', '--porcelain')).toContain('README.md')
   },
 )

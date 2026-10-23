@@ -199,13 +199,26 @@ export const renderReport = (
     ...(activityRun.error ? [paint(`      ${activityRun.error}`, 'red')] : []),
     ...activityRun.gates.filter((gate) => !gate.passed).flatMap(gateLines),
   ])
-  const tail =
-    state.resume_from === undefined
-      ? [paint('every activity run succeeded — nothing to resume', 'green')]
+  /*
+   * Keyed on `resumable`, not on `resume_from === undefined`: a run that died
+   * between Activities has no row for the ones it never reached, so
+   * `resume_from` alone would print the green line over a `status: fail`
+   * header — the same disagreement `--resume` used to make with this report.
+   */
+  const tail = state.resumable
+    ? state.resume_from === undefined
+      ? [
+          `  ${resumeCommand(state, invocation)}`,
+          paint(
+            'the run did not finish, even though every activity run it recorded was green',
+            'yellow',
+          ),
+        ]
       : [
           `${paint('resume from:', 'bold')} ${state.resume_from}`,
           `  ${resumeCommand(state, invocation)}`,
         ]
+    : [paint('every activity run succeeded — nothing to resume', 'green')]
   /*
    * What the run saw and could not attribute, reported here as well as in the
    * terminal that ran it. A developer asking a finished run what happened is
@@ -214,7 +227,7 @@ export const renderReport = (
   const warnings = renderWarnings(state.warnings)
 
   return [
-    box('run', header, state.resume_from === undefined ? 'green' : 'yellow'),
+    box('run', header, state.resumable ? 'yellow' : 'green'),
     '',
     ...(activityRuns.length > 0 ? activityRuns : ['  (no activityRuns recorded)']),
     '',
