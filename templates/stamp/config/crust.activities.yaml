@@ -216,8 +216,6 @@ activities:
     prompt_engineering:
       system: prompt-engineering/plan/system.md
       user: prompt-engineering/plan/user.md
-    harness_engineering:
-      - harness-engineering/subagents.ts      # registers the four subagent_* tools below
     writes:                        # the plan, and nothing in the repository itself
       - "{handoff}/plan.md"        # .pi-crust/data/sessions/{session_id}/context_handoff/
     tools:                         # full recon + write for plan.md; no edit — the planner never touches repo files
@@ -225,10 +223,6 @@ activities:
       - edit
       - read
       - write
-      - subagent_create            # extension tools MUST be named here or they are filtered out
-      - subagent_continue
-      - subagent_list
-      - subagent_remove
 
   - name: scout
     output: scoutOutput
@@ -238,18 +232,12 @@ activities:
     prompt_engineering:
       system: prompt-engineering/scout/system.md
       user: prompt-engineering/scout/user.md
-    harness_engineering:
-      - harness-engineering/subagents.ts    # registers the four subagent_* tools below
     writes: ['{handoff}/scout_findings.md'] # .pi-crust/data/sessions/{session_id}/context_handoff/
     tools:
       - bash
       - edit
       - read
       - write
-      - subagent_create            # extension tools MUST be named here or they are filtered out
-      - subagent_continue
-      - subagent_list
-      - subagent_remove
 
   # Reads adversarially. Demonstrated, plausible and speculative are three different claims.
   - name: security-research

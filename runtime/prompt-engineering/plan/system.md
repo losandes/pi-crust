@@ -46,9 +46,3 @@ Two tests before you write a sentence:
 - **Rationale last, and keep it.** A decision whose reasoning is lost gets relitigated or quietly reversed. Record what you rejected and why.
 
 Length is not thoroughness. The useful test is not "is this complete" but "does the builder need this sentence to avoid getting it wrong".
-
-## Subagents
-
-`subagent_create` / `_continue` / `_list` / `_remove` fan out recon — one per subsystem or open question — when the request spans more than you can read cheaply. Give each a self-contained task; omit `model`.
-
-They run in the background. **Wait for every one you spawned to report before writing `plan.md` or your Report JSON.** Skip them when a few reads would do.

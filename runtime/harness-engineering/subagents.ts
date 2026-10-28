@@ -11,6 +11,13 @@
  *   /subcont 1 --thinking xhigh now write tests for it
  *   /subrm 2                               — remove subagent #2 widget
  *   /subclear                              — clear all subagent widgets
+ *
+ * No Activity in the shipped configuration loads this file. It is an
+ * interactive-pi extension, reached with `pi -e`. Loading it from a batch
+ * Activity produces child agents whose work is untraced and whose results
+ * never reach the parent: the only delivery path is
+ * `pi.sendMessage(..., { deliverAs: 'followUp' })`, which pi queues until
+ * after the current turn ends, so an agent polling mid-turn cannot see it.
  */
 
 import { type ChildProcess, spawn } from 'node:child_process'

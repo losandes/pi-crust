@@ -54,6 +54,25 @@ const shippedConfig = (): TPiCrustConfig => {
   })
 }
 
+/**
+ * Agent names that still reach `subagents.ts` or a `subagent_*` tool, by
+ * either route — `harness_engineering` or the `tools` allowlist.
+ *
+ * No Activity in the shipped roster should spawn an agent the factory
+ * cannot see: `subagent_create` never returns output, and the only
+ * delivery path (`pi.sendMessage(..., { deliverAs: 'followUp' })`) is
+ * queued until after the spawning turn ends, so a batch Activity polling
+ * mid-turn never sees what it paid for.
+ */
+const subagentWiring = (config: TPiCrustConfig): readonly string[] =>
+  config.agents
+    .filter(
+      (one) =>
+        one.harness_engineering.some((file) => file.endsWith('subagents.ts')) ||
+        (one.tools ?? []).some((tool) => tool.startsWith('subagent_')),
+    )
+    .map((one) => one.name)
+
 test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
@@ -247,5 +266,62 @@ test(
     // then
     expect(deliver?.strategy).toBe('serial')
     expect(deliver?.activities).toEqual(['plan', 'design', 'build', 'test'])
+  },
+)
+
+test(
+  [
+    'given use-cases/shipped-config::subagentWiring',
+    'when the shipped roster is loaded',
+    'it should name no agent that still reaches subagents.ts or a subagent_* tool',
+  ].join(', '),
+  () => {
+    // given
+    const given = shippedConfig()
+
+    // when
+    const actual = subagentWiring(given)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/shipped-config::subagentWiring',
+    'when a hand-written roster wires one agent by harness_engineering and another by a subagent_* tool',
+    'it should name both',
+  ].join(', '),
+  () => {
+    // given
+    const given = crustConfigSchema.parse({
+      agents: [
+        {
+          name: 'plan',
+          prompt_engineering: { system: 'system.md', user: 'user.md' },
+          harness_engineering: ['harness-engineering/subagents.ts'],
+          writes: [],
+        },
+        {
+          name: 'scout',
+          prompt_engineering: { system: 'system.md', user: 'user.md' },
+          tools: ['bash', 'subagent_create'],
+          writes: [],
+        },
+        {
+          name: 'clean',
+          prompt_engineering: { system: 'system.md', user: 'user.md' },
+          tools: ['bash', 'read'],
+          writes: [],
+        },
+      ],
+    })
+
+    // when
+    const actual = subagentWiring(given)
+
+    // then
+    expect(actual).toEqual(['plan', 'scout'])
   },
 )
