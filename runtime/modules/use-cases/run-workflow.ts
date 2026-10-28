@@ -34,7 +34,7 @@ import { readRunState } from './read-run-state'
 import type { TWorkflowArgs } from './parse-cli'
 import { loopAgents, runReviseLoop } from './revise-loop'
 import { selfAnsweredIn } from './human-gate'
-import { finish, finishWaiting } from './run-activity-run'
+import { counts, finish, finishWaiting } from './run-activity-run'
 import type { TWaiting } from './run-activities'
 import type { TStage } from '../typedefs/lifecycle'
 import { plannedNames, unitsFrom } from './plan-units'
@@ -71,10 +71,7 @@ const spentAlready = (
   const state = readRunState(cfg.observability.db, runId)
 
   return (state?.activityRuns ?? [])
-    .filter(
-      (activityRun) =>
-        activityRun.kind === 'agent' && activityRun.status !== 'superseded',
-    )
+    .filter((activityRun) => activityRun.kind === 'agent' && counts(activityRun))
     .map((activityRun) => activityRun.name)
 }
 

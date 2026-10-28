@@ -265,6 +265,17 @@ export const runActivityRun =
     }
   }
 
+/**
+ * Does this activity run count towards the run's verdict?
+ *
+ * A superseded row is an attempt that a later attempt replaced — a gate
+ * retry, or a steer. It stays in the trace because what it decided is worth
+ * reading; it stops counting because the Activity it belongs to was run
+ * again, and the later row is the answer.
+ */
+export const counts = (activityRun: Readonly<{ status: string }>): boolean =>
+  activityRun.status !== 'superseded'
+
 export type TFinishParams = Readonly<{
   accepted?: boolean
   reason?: string
@@ -307,15 +318,47 @@ export const finishWaiting = (run: TRun, requestPath: string): number => {
 
 export const finish = (run: TRun, params: TFinishParams = {}): number => {
   const accepted = params.accepted ?? true
-  const activityRuns = run.activityRuns()
-  const activityRunsOk =
-    activityRuns.length > 0 && activityRuns.every((activityRun) => activityRun.status === 'success')
+  /*
+   * The run's recorded activity runs, read through the tracer rather than
+   * the in-memory list this process accumulated (1.2.1): a resumed process
+   * judges the whole run, not just the leg it ran itself.
+   */
+  const judged = run.tracer.activityRunsFor(run.runId).filter(counts)
+  const activityRunsOk = judged.length > 0 && judged.every((activityRun) => activityRun.status === 'success')
   const ok = activityRunsOk && accepted
-  if (activityRunsOk && !accepted) {
+  if (!activityRunsOk) {
+    const failing = judged.filter((activityRun) => activityRun.status !== 'success')
+    const note =
+      judged.length === 0
+        ? 'no activity run counted towards the verdict — every attempt was superseded'
+        : `activity run(s) failed: ${failing
+            .map((activityRun) => `${activityRun.activity_run_id} (${activityRun.status})`)
+            .join(', ')}`
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: judged.at(-1)?.activity_run_id ?? '',
+      type: 'error',
+      name: 'activity_runs_failed',
+      payload: {
+        reason: note,
+        activityRuns: failing.map((activityRun) => ({
+          activity_run_id: activityRun.activity_run_id,
+          status: activityRun.status,
+        })),
+      },
+    })
+    run.console.note(note)
+  }
+  /*
+   * Independent of activityRunsOk (1.3.3): a run can be both unaccepted and
+   * hold a failed activity run, and a reader must not have to fix the first
+   * reason before discovering the second.
+   */
+  if (!accepted) {
     const note = params.reason || "the run's acceptance criterion was not met"
     run.tracer.event({
       run_id: run.runId,
-      activity_run_id: activityRuns.at(-1)?.activity_run_id ?? '',
+      activity_run_id: judged.at(-1)?.activity_run_id ?? '',
       type: 'error',
       name: 'not_accepted',
       payload: { reason: note },

@@ -100,6 +100,13 @@ export type TTracer = Readonly<{
     runId: string,
     name: string,
   ) => readonly Readonly<Record<string, unknown>>[]
+  /**
+   * Every activity run recorded for this run, in seq order, as the
+   * persisted shape — read from the db rather than any in-memory list, so a
+   * finish reached by a resumed process judges the same rows an
+   * uninterrupted one would have.
+   */
+  activityRunsFor: (runId: string) => readonly TActivityRun[]
   activityRunUpsert: (activityRun: TActivityRun) => void
   envelopeRow: (
     activityRun: TActivityRun,

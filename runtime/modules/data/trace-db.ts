@@ -372,6 +372,48 @@ export const createTracer = (
       return row?.max_seq ?? 0
     },
 
+    /**
+     * Every activity run recorded for this run, in seq order.
+     *
+     * Read from the table rather than any in-memory list: this is what lets
+     * `finish` judge a run it did not entirely create itself (1.2.1 of
+     * specs/todos/FIX-SUPERSEDED-RUN-VERDICT.md).
+     */
+    activityRunsFor: (runId: string): readonly TActivityRun[] =>
+      db
+        .query<
+          {
+            activity_run_id: string
+            run_id: string
+            seq: number
+            name: string
+            kind: TActivityRun['params']['kind']
+            owner: string
+            description: string | null
+            status: TActivityRun['status']
+            error: string | null
+            started_at: string | null
+            ended_at: string | null
+          },
+          [string]
+        >('SELECT * FROM activity_runs WHERE run_id = ? ORDER BY seq')
+        .all(runId)
+        .map((row) => ({
+          activity_run_id: row.activity_run_id,
+          run_id: row.run_id,
+          seq: row.seq,
+          params: {
+            name: row.name,
+            kind: row.kind,
+            owner: row.owner,
+            description: row.description ?? '',
+          },
+          status: row.status,
+          error: row.error ?? undefined,
+          started_at: row.started_at ?? undefined,
+          ended_at: row.ended_at ?? undefined,
+        })),
+
     activityRunUpsert: (activityRun: TActivityRun) => {
       const p = activityRun.params
       db.run(
