@@ -1,0 +1,21 @@
+/* Visit https://aka.ms/tsconfig to read more about this file */
+{
+  /*
+   * This project has no source files of its own — `runtime/` and
+   * `apps/visualizer/` are independent TypeScript projects with their own
+   * compiler options (module system, lib, JSX, path aliases), and merging
+   * their settings into one shared config would check each tree under the
+   * other's rules. `package.json`'s own `typecheck` script reflects that:
+   * it runs `cd runtime && bun x tsc --noEmit` and
+   * `cd apps/visualizer && bun x tsc --noEmit` as two separate invocations,
+   * which remains how this repository verifies itself; see AGENTS.md.
+   *
+   * This file exists only so a bare `bun x tsc --noEmit` run from the
+   * repository root — with no `cd` — type-checks both projects instead of
+   * finding no tsconfig.json and failing before it reads a single file.
+   * `files: []` plus `references` checks each project under its own
+   * settings, the same as running it from that project's own directory.
+   */
+  "files": [],
+  "references": [{ "path": "./runtime" }, { "path": "./apps/visualizer" }]
+}

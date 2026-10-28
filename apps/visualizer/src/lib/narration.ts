@@ -1,5 +1,5 @@
 /**
- * Turning a phase's events into something readable.
+ * Turning a activityRun's events into something readable.
  *
  * The narration is the content; the tool calls are the footnotes. The trace
  * stores them as one interleaved stream because that is the order they
@@ -54,7 +54,7 @@ const turnOf = (payload: Readonly<Record<string, unknown>>): number =>
   typeof payload.turn === 'number' ? payload.turn : 0
 
 /**
- * Group a phase's events into turns.
+ * Group a activity-run's events into turns.
  *
  * Events whose turn is unknown — every run traced before narration existed —
  * collect under turn 0, which the pane renders as a single untitled group

@@ -8,8 +8,8 @@ import { navigate } from '../lib/router'
 import type {
   AgentStartPayload,
   EventRow,
-  Phase,
-  PhaseKind,
+  ActivityRun,
+  ActivityRunKind,
 } from '../lib/types'
 import { useTrace } from '../lib/use-trace'
 import {
@@ -26,13 +26,15 @@ import {
 import { DecisionRequest } from './DecisionRequest'
 import { RunControls } from './RunControls'
 import { SessionContext } from './SessionContext'
-import { PhaseDetail } from './PhaseDetail'
+import { ActivityRunDetail } from './ActivityRunDetail'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
+import { TreeWarnings } from './TreeWarnings'
+import { warningsIn } from '../lib/warnings'
 import styles from './SessionTrace.module.css'
 import { paletteColor } from '../lib/palette'
 
-// The two lanes nobody configures: the request itself, and the code phases
+// The two lanes nobody configures: the request itself, and the code activityRuns
 // that run without an agent. Roles like every other lane, so they re-theme
 // with the rest rather than staying dark-theme amber on a white page.
 const ENGINEER_COLOR = 'amber'
@@ -40,7 +42,7 @@ const CODE_COLOR = 'teal'
 
 type TIconProps = Readonly<{ size?: number; strokeWidth?: number; className?: string }>
 
-const KIND_ICONS: Readonly<Record<PhaseKind, ComponentType<TIconProps>>> = {
+const KIND_ICONS: Readonly<Record<ActivityRunKind, ComponentType<TIconProps>>> = {
   engineer: UserRound,
   code: SquareTerminal,
   agent: Bot,
@@ -64,24 +66,24 @@ type TLane = Readonly<{
   context: TLaneContext | undefined
   metaLines: readonly string[]
   color: string
-  kind: PhaseKind
-  phases: readonly Phase[]
+  kind: ActivityRunKind
+  activityRuns: readonly ActivityRun[]
 }>
 
 /**
  * A live agent's model, thinking level and colour arrive on its agent_start
  * event before any agent_sessions row exists, so each start is attributed to
- * its phase's owner.
+ * its activity-run's owner.
  */
 const startsByOwner = (
-  phases: readonly Phase[],
+  activityRuns: readonly ActivityRun[],
   events: readonly EventRow[],
 ): Readonly<Record<string, AgentStartPayload>> => {
-  const ownerByPhase = new Map(phases.map((p) => [p.phase_id, p.owner]))
+  const ownerByActivityRun = new Map(activityRuns.map((p) => [p.activity_run_id, p.owner]))
   const meta: Record<string, AgentStartPayload> = {}
   for (const event of events) {
     if (event.type !== 'agent_start') continue
-    const owner = (event.phase_id ? ownerByPhase.get(event.phase_id) : null) ?? event.name
+    const owner = (event.activity_run_id ? ownerByActivityRun.get(event.activity_run_id) : null) ?? event.name
     if (!owner || meta[owner]) continue
     const payload = parseAgentStart(event)
     if (payload) meta[owner] = payload
@@ -92,28 +94,28 @@ const startsByOwner = (
 export const SessionTrace = ({
   runId,
   workspace,
-  phaseId,
+  activityRunId,
 }: Readonly<{
   runId: string
-  phaseId: string | undefined
+  activityRunId: string | undefined
   /** The tree this run is in, when the link said. Carried on every request. */
   workspace: string | undefined
 }>) => {
   const trace = useTrace(runId, workspace)
-  const { session, phases, agents, events, nowMs } = trace
+  const { session, handoffDir, activityRuns, agents, events, nowMs } = trace
   const running = session?.status === 'running'
 
-  const selectedPhase = phases.find((p) => p.phase_id === phaseId)
+  const selectedActivityRun = activityRuns.find((p) => p.activity_run_id === activityRunId)
 
   const lanes = useMemo<readonly TLane[]>(() => {
-    const starts = startsByOwner(phases, events)
+    const starts = startsByOwner(activityRuns, events)
     const agentOwners: string[] = []
-    for (const phase of phases) {
-      if (phase.kind === 'agent' && phase.owner && !agentOwners.includes(phase.owner)) {
-        agentOwners.push(phase.owner)
+    for (const activityRun of activityRuns) {
+      if (activityRun.kind === 'agent' && activityRun.owner && !agentOwners.includes(activityRun.owner)) {
+        agentOwners.push(activityRun.owner)
       }
     }
-    const codePhases = phases.filter((p) => p.kind === 'code')
+    const codeActivityRuns = activityRuns.filter((p) => p.kind === 'code')
 
     const engineerLane: TLane = {
       id: 'engineer',
@@ -123,11 +125,11 @@ export const SessionTrace = ({
       metaLines: ['engineer'],
       color: ENGINEER_COLOR,
       kind: 'engineer',
-      phases: phases.filter((p) => p.kind === 'engineer'),
+      activityRuns: activityRuns.filter((p) => p.kind === 'engineer'),
     }
 
     const codeLane: readonly TLane[] =
-      codePhases.length > 0
+      codeActivityRuns.length > 0
         ? [
             {
               id: 'code',
@@ -137,7 +139,7 @@ export const SessionTrace = ({
               metaLines: ['workspace'],
               color: CODE_COLOR,
               kind: 'code',
-              phases: codePhases,
+              activityRuns: codeActivityRuns,
             },
           ]
         : []
@@ -148,30 +150,30 @@ export const SessionTrace = ({
       return {
         id: `agent:${owner}`,
         // The model is the lane's whole story; thinking level lives in the
-        // phase detail's agent config section.
+        // activityRun detail's agent config section.
         model: info?.model ?? start?.model ?? undefined,
         label: owner,
         context: laneContext(info?.context_tokens, info?.context_window),
         metaLines: [],
         color: agentColor(info?.color, start?.color, index),
         kind: 'agent',
-        phases: phases.filter((p) => p.kind === 'agent' && p.owner === owner),
+        activityRuns: activityRuns.filter((p) => p.kind === 'agent' && p.owner === owner),
       }
     })
 
     return [engineerLane, ...codeLane, ...agentLanes]
-  }, [phases, agents, events, session?.engineer])
+  }, [activityRuns, agents, events, session?.engineer])
 
   const range = useMemo(
-    () => timeRange(phases, session?.started_at, session?.ended_at, running, nowMs),
-    [phases, session?.started_at, session?.ended_at, running, nowMs],
+    () => timeRange(activityRuns, session?.started_at, session?.ended_at, running, nowMs),
+    [activityRuns, session?.started_at, session?.ended_at, running, nowMs],
   )
 
-  const requestPhase = phases.find((p) => p.kind === 'engineer' && p.started_at)
-  const zonePct = requestPhase === undefined ? 0 : REQ_ZONE_PCT
+  const requestActivityRun = activityRuns.find((p) => p.kind === 'engineer' && p.started_at)
+  const zonePct = requestActivityRun === undefined ? 0 : REQ_ZONE_PCT
   const origin = useMemo(
-    () => postOriginMs(phases, requestPhase, range),
-    [phases, requestPhase, range],
+    () => postOriginMs(activityRuns, requestActivityRun, range),
+    [activityRuns, requestActivityRun, range],
   )
   const postSpan = Math.max(range.t1 - origin, 1000)
 
@@ -186,62 +188,62 @@ export const SessionTrace = ({
 
   const layout = useMemo(
     () =>
-      blockLayout(phases, {
+      blockLayout(activityRuns, {
         zonePct,
         originMs: origin,
         spanMs: postSpan,
-        requestPhaseId: requestPhase?.phase_id,
+        requestActivityRunId: requestActivityRun?.activity_run_id,
         nowMs,
       }),
-    [phases, zonePct, origin, postSpan, requestPhase?.phase_id, nowMs],
+    [activityRuns, zonePct, origin, postSpan, requestActivityRun?.activity_run_id, nowMs],
   )
 
-  /** Tool-call marks per phase, read once rather than per block. */
-  const marksByPhase = useMemo(() => {
+  /** Tool-call marks per activityRun, read once rather than per block. */
+  const marksByActivityRun = useMemo(() => {
     const map = new Map<string, { id: string; t: number; ok: boolean }[]>()
     for (const event of events) {
-      if (event.type !== 'tool_call' || !event.phase_id) continue
-      const marks = map.get(event.phase_id) ?? []
+      if (event.type !== 'tool_call' || !event.activity_run_id) continue
+      const marks = map.get(event.activity_run_id) ?? []
       marks.push({
         id: event.event_id,
         t: ts(event.started_at),
         ok: payloadOk(event.payload_json),
       })
-      map.set(event.phase_id, marks)
+      map.set(event.activity_run_id, marks)
     }
     return map
   }, [events])
 
-  const blockGeom = (phase: Phase): { left: string; width: string } | undefined => {
+  const blockGeom = (activityRun: ActivityRun): { left: string; width: string } | undefined => {
     // The request block fills its reserved zone; nothing else ever enters it.
-    if (phase.phase_id === requestPhase?.phase_id && zonePct > 0) {
+    if (activityRun.activity_run_id === requestActivityRun?.activity_run_id && zonePct > 0) {
       return { left: '0.4%', width: `${zonePct - 0.8}%` }
     }
-    const geom = layout[phase.phase_id]
+    const geom = layout[activityRun.activity_run_id]
     return geom === undefined
       ? undefined
       : { left: `${geom.left}%`, width: `${geom.width}%` }
   }
 
-  const blockStyle = (phase: Phase, lane: TLane): CSSProperties | undefined => {
-    const geom = blockGeom(phase)
+  const blockStyle = (activityRun: ActivityRun, lane: TLane): CSSProperties | undefined => {
+    const geom = blockGeom(activityRun)
     if (geom === undefined) return undefined
     return {
       left: geom.left,
       width: geom.width,
       background: `linear-gradient(180deg, ${hexAlpha(lane.color, 0.2)}, ${hexAlpha(lane.color, 0.05)})`,
       borderColor:
-        phase.status === 'fail'
+        activityRun.status === 'fail'
           ? 'rgb(var(--fail-rgb) / 0.8)'
           : hexAlpha(lane.color, 0.55),
       '--lane-glow': hexAlpha(lane.color, 0.28),
     } as CSSProperties
   }
 
-  const blockDurationMs = (phase: Phase): number => {
-    const start = ts(phase.started_at)
+  const blockDurationMs = (activityRun: ActivityRun): number => {
+    const start = ts(activityRun.started_at)
     if (!Number.isFinite(start)) return Number.NaN
-    const end = phase.status === 'running' ? nowMs : ts(phase.ended_at)
+    const end = activityRun.status === 'running' ? nowMs : ts(activityRun.ended_at)
     return Number.isFinite(end) ? end - start : Number.NaN
   }
 
@@ -252,10 +254,10 @@ export const SessionTrace = ({
     return (Number.isFinite(end) ? end : nowMs) - start
   }, [session?.started_at, session?.ended_at, running, nowMs])
 
-  const selectPhase = (phase: Phase) =>
+  const selectActivityRun = (activityRun: ActivityRun) =>
     navigate(
       runId,
-      phase.phase_id === phaseId ? undefined : phase.phase_id,
+      activityRun.activity_run_id === activityRunId ? undefined : activityRun.activity_run_id,
       workspace,
     )
 
@@ -282,7 +284,7 @@ export const SessionTrace = ({
         </div>
       )}
 
-      {phases.length > 0 ? (
+      {activityRuns.length > 0 ? (
         <div className={styles.waterfall}>
           <div className={`${styles.row} ${styles.axisRow}`}>
             <div className={styles.label} />
@@ -307,7 +309,7 @@ export const SessionTrace = ({
           {lanes.map((lane) => {
             const KindIcon = KIND_ICONS[lane.kind]
             const icon = lane.model === undefined ? null : modelIcon(lane.model)
-            const queued = lane.phases.filter((p) => !p.started_at)
+            const queued = lane.activityRuns.filter((p) => !p.started_at)
             return (
               <div key={lane.id} className={`${styles.row} ${styles.lane}`}>
                 <div className={styles.label}>
@@ -364,15 +366,15 @@ export const SessionTrace = ({
                       style={{ left: `${tick.pct}%` }}
                     />
                   ))}
-                  {lane.phases
-                    .filter((phase) => blockGeom(phase) !== undefined)
-                    .map((phase) => {
-                      const duration = blockDurationMs(phase)
-                      const tone = styles[phase.status ?? '']
-                      const selected = phase.phase_id === phaseId
+                  {lane.activityRuns
+                    .filter((activityRun) => blockGeom(activityRun) !== undefined)
+                    .map((activityRun) => {
+                      const duration = blockDurationMs(activityRun)
+                      const tone = styles[activityRun.status ?? '']
+                      const selected = activityRun.activity_run_id === activityRunId
                       return (
                         <button
-                          key={phase.phase_id}
+                          key={activityRun.activity_run_id}
                           type="button"
                           className={[
                             styles.block,
@@ -381,23 +383,23 @@ export const SessionTrace = ({
                           ]
                             .filter(Boolean)
                             .join(' ')}
-                          style={blockStyle(phase, lane)}
-                          title={`${phase.name} — ${phase.status}${phase.description ? `\n${phase.description}` : ''}`}
-                          onClick={() => selectPhase(phase)}
+                          style={blockStyle(activityRun, lane)}
+                          title={`${activityRun.name} — ${activityRun.status}${activityRun.description ? `\n${activityRun.description}` : ''}`}
+                          onClick={() => selectActivityRun(activityRun)}
                         >
                           <span className={styles.blockTop}>
                             <span className={`${styles.blockStatus} ${tone ?? ''}`}>
-                              {STATUS_GLYPH[phase.status ?? ''] ?? '\u25cb'}
+                              {STATUS_GLYPH[activityRun.status ?? ''] ?? '\u25cb'}
                             </span>
-                            <span className={styles.blockName}>{phase.name}</span>
+                            <span className={styles.blockName}>{activityRun.name}</span>
                             {Number.isFinite(duration) && (
                               <StatChip kind="runtime" compact value={duration} />
                             )}
                           </span>
-                          <span className={styles.blockDesc}>{phase.description}</span>
+                          <span className={styles.blockDesc}>{activityRun.description}</span>
                           {toolTickPositions(
-                            phase,
-                            marksByPhase.get(phase.phase_id) ?? [],
+                            activityRun,
+                            marksByActivityRun.get(activityRun.activity_run_id) ?? [],
                             nowMs,
                           ).map((mark) => (
                             <span
@@ -409,26 +411,26 @@ export const SessionTrace = ({
                         </button>
                       )
                     })}
-                  {queued.map((phase, index) => (
+                  {queued.map((activityRun, index) => (
                     <button
-                      key={phase.phase_id}
+                      key={activityRun.activity_run_id}
                       type="button"
                       className={[
                         styles.block,
                         styles.queued,
-                        phase.phase_id === phaseId ? styles.selected : undefined,
+                        activityRun.activity_run_id === activityRunId ? styles.selected : undefined,
                       ]
                         .filter(Boolean)
                         .join(' ')}
                       style={{ right: `${10 + index * 5}px`, width: '170px' }}
-                      title={`${phase.name} — queued`}
-                      onClick={() => selectPhase(phase)}
+                      title={`${activityRun.name} — queued`}
+                      onClick={() => selectActivityRun(activityRun)}
                     >
                       <span className={styles.blockTop}>
                         <span className={`${styles.blockStatus} ${styles.queued}`}>
                           {'\u25cb'}
                         </span>
-                        <span className={styles.blockName}>{phase.name}</span>
+                        <span className={styles.blockName}>{activityRun.name}</span>
                       </span>
                       <span className={styles.blockDesc}>queued</span>
                     </button>
@@ -439,7 +441,7 @@ export const SessionTrace = ({
           })}
         </div>
       ) : trace.loaded ? (
-        <div className="empty-state">no phases recorded for this session</div>
+        <div className="empty-state">no activityRuns recorded for this session</div>
       ) : trace.error === undefined ? (
         <div className="empty-state">loading trace…</div>
       ) : undefined}
@@ -455,8 +457,16 @@ export const SessionTrace = ({
 
         The question still comes before the controls that answer it.
       */}
-      {session !== undefined && selectedPhase === undefined && (
+      {session !== undefined && selectedActivityRun === undefined && (
         <>
+          {/*
+            Everything the run saw in the working tree and could not
+            attribute. On the run rather than on an Activity, because a
+            reader with nothing selected is asking what happened to the
+            repository, and a warning raised by the second of nine
+            Activities is still the answer when the ninth has finished.
+          */}
+          <TreeWarnings warnings={warningsIn(events)} standalone />
           <DecisionRequest
             runId={runId}
             status={session.status ?? ''}
@@ -467,7 +477,7 @@ export const SessionTrace = ({
             Controls only while there is something to control. On a finished
             run this card said "there is nobody to talk to" above a disabled
             field — a whole card to say nothing can be done. What CAN be done
-            is asking a step, and that belongs on the step, where the
+            is asking a activity, and that belongs on the activity, where the
             conversation it continues is.
           */}
           {(session.status === 'running' || session.status === 'waiting') && (
@@ -480,7 +490,7 @@ export const SessionTrace = ({
           )}
           {/*
             The run's own context, under the conversation: what was asked,
-            and every document the run produced. A step has its context in a
+            and every document the run produced. A activity has its context in a
             tab because it has fifteen kinds; a run has two, so folding them
             would only cost a click.
           */}
@@ -488,6 +498,7 @@ export const SessionTrace = ({
             session={session}
             runId={runId}
             workspace={workspace}
+            handoffDir={handoffDir}
             envelopes={trace.envelopes}
             events={events}
           />
@@ -497,17 +508,17 @@ export const SessionTrace = ({
       {/*
         One agent at a time, chosen by the Gantt. Sankey curves across three
         concurrent agents interleaved by timestamp would be noise rather than
-        insight, so the selected phase decides whose conversation is on screen.
+        insight, so the selected activityRun decides whose conversation is on screen.
       */}
-      {selectedPhase !== undefined && (
-        <PhaseDetail
-          phase={selectedPhase}
+      {selectedActivityRun !== undefined && (
+        <ActivityRunDetail
+          activityRun={selectedActivityRun}
           runId={runId}
           runStatus={session?.status ?? ''}
           events={events}
           envelopes={trace.envelopes}
           gates={trace.gates}
-          phases={phases}
+          activityRuns={activityRuns}
           workspace={workspace}
           onClose={() => navigate(runId, undefined, workspace)}
         />

@@ -7,14 +7,14 @@ import {
   turnsOf,
   type TTurn,
 } from '../lib/narration'
-import type { TConsult } from '../lib/consult'
+import type { TConsult, TPendingConsult } from '../lib/consult'
 import type { Envelope, EventRow } from '../lib/types'
 import { DecisionRequest } from './DecisionRequest'
 import styles from './NarrationPane.module.css'
 import { hasCode, splitFencesAndJson } from '../lib/fences'
 import { highlightJsonText } from '../lib/highlight'
 
-/** The one sentence a step ends on, out of its envelope. */
+/** The one sentence a activity ends on, out of its envelope. */
 const summaryOf = (envelope: Envelope | undefined): string => {
   if (envelope?.payload_json == null) return ''
   try {
@@ -25,7 +25,7 @@ const summaryOf = (envelope: Envelope | undefined): string => {
         : undefined
     return typeof summary === 'string' ? summary : ''
   } catch (error) {
-    // A step whose output did not parse still has its thinking above; a
+    // A activity whose output did not parse still has its thinking above; a
     // broken tail must not take the readable part of the pane with it.
     void error
     return ''
@@ -41,7 +41,7 @@ const summaryOf = (envelope: Envelope | undefined): string => {
  * person actually reads.
  *
  * Two things now close the pane, in the order a conversation would have
- * them: the step's final output, and — when the run stopped here — what it
+ * them: the activity's final output, and — when the run stopped here — what it
  * is waiting for. Both used to live above the waterfall, which put the end
  * of the conversation above its beginning.
  */
@@ -49,19 +49,22 @@ export const NarrationPane = ({
   events,
   agent,
   envelope,
-  phaseStatus,
+  activityRunStatus,
   consults,
+  pending,
   runId,
   runStatus,
 }: Readonly<{
   events: readonly EventRow[]
   agent: string
-  /** Questions a person put to this step after it finished, with replies. */
+  /** Questions a person put to this activity after it finished, with replies. */
   consults: readonly TConsult[]
-  /** the step's final output, rendered as the last message it sent */
+  /** A consult that has been accepted and has not answered yet. */
+  pending?: TPendingConsult
+  /** the activity's final output, rendered as the last message it sent */
   envelope?: Envelope
-  /** the STEP's status — it colours the last message, not the run's */
-  phaseStatus: string
+  /** the ACTIVITY's status — it colours the last message, not the run's */
+  activityRunStatus: string
   runId: string
   runStatus: string
 }>) => {
@@ -128,7 +131,7 @@ export const NarrationPane = ({
           ))}
 
           {/*
-            The end of the turn, coloured by how it ended: green for a step
+            The end of the turn, coloured by how it ended: green for a activity
             that succeeded, red for one that failed. The colour is the point
             — it is what tells a reader scrolling past that this is the
             outcome rather than one more paragraph of thinking.
@@ -136,26 +139,26 @@ export const NarrationPane = ({
           {summary !== '' && (
             <div
               className={`${styles.final} ${
-                phaseStatus === 'fail' ? styles.finalFail : styles.finalOk
+                activityRunStatus === 'fail' ? styles.finalFail : styles.finalOk
               }`}
             >
               <span className={styles.finalKey}>
-                {phaseStatus === 'fail' ? 'it failed' : 'its answer'}
+                {activityRunStatus === 'fail' ? 'it failed' : 'its answer'}
               </span>
               <p className={styles.finalText}>{summary}</p>
             </div>
           )}
 
           {/*
-            Last, because it IS last: the step spoke, and this is the sentence
+            Last, because it IS last: the activity spoke, and this is the sentence
             that follows. It renders itself only while the run is waiting.
           */}
           <DecisionRequest runId={runId} status={runStatus} />
 
           {/*
-            Questions put to this step after it finished, and its replies.
+            Questions put to this activity after it finished, and its replies.
             They belong in the conversation because that is what they are:
-            the conversation continuing after the step ended. A person's
+            the conversation continuing after the activity ended. A person's
             message is coloured as a person's, since a reader must never
             have to work out who said a thing.
           */}
@@ -168,23 +171,53 @@ export const NarrationPane = ({
               {consult.answer !== '' && (
                 <article className={styles.turn}>
                   <span className={styles.turnMark}>{agent}</span>
-                  <p className={styles.segment}>{consult.answer}</p>
+                  {/*
+                    Through the same block as a turn, because it IS one: a
+                    consult answers with a full Report, and a bare paragraph
+                    rendered that envelope as one unbroken wall of prose with
+                    its fences showing. What a reader does with an answer —
+                    read the JSON, copy a field — needs it to be code.
+                  */}
+                  <NarrationBlock channel="text" text={consult.answer} />
                 </article>
               )}
               {consult.amended.length > 0 && (
                 <p className={styles.amended}>
-                  amended {consult.amended.join(', ')} — the steps after this
+                  amended {consult.amended.join(', ')} — the activities after this
                   one ran against the previous version
                 </p>
               )}
               {consult.restored.length > 0 && (
                 <p className={styles.reverted}>
                   put back {consult.restored.join(', ')}, which belongs to
-                  another step
+                  another activity
                 </p>
               )}
             </div>
           ))}
+
+          {/*
+            What was just said, before anything has answered it.
+            The consult event is written once, at the end, carrying the
+            question and the answer together — so without this the
+            conversation stays unchanged for minutes after a person presses
+            a button, which reads exactly like a message that went nowhere.
+          */}
+          {pending !== undefined && (
+            <div>
+              <article className={styles.asked}>
+                <span className={styles.askedMark}>you · {pending.mode}</span>
+                <p className={styles.askedText}>{pending.question}</p>
+              </article>
+              <article className={`${styles.turn} ${styles.awaiting}`}>
+                <span className={styles.turnMark}>{agent}</span>
+                <p className={styles.segment}>
+                  rejoining its session — this takes as long as the activity
+                  itself did, and the reply lands here
+                </p>
+              </article>
+            </div>
+          )}
         </div>
       </div>
 

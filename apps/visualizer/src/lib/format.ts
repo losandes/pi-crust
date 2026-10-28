@@ -61,9 +61,9 @@ const TICK_STEPS_MS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600]
 /** Evenly-stepped time-axis ticks over a span, ≤ maxTicks of them. */
 export function axisTicks(spanMs: number, maxTicks = 8): { pct: number; label: string }[] {
   const span = Math.max(spanMs, 1)
-  const step = TICK_STEPS_MS.find((s) => span / s <= maxTicks) ?? 3_600_000
+  const activity = TICK_STEPS_MS.find((s) => span / s <= maxTicks) ?? 3_600_000
   const out: { pct: number; label: string }[] = []
-  for (let t = 0; t <= span; t += step) {
+  for (let t = 0; t <= span; t += activity) {
     out.push({ pct: (t / span) * 100, label: fmtOffset(t) })
   }
   return out

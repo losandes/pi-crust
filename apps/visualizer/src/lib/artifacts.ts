@@ -45,30 +45,50 @@ export type TArtifact = Readonly<{
    */
   title: string
   source: TArtifactSource
-  /** The phase that produced it, when known. */
-  phaseId: string | undefined
+  /** The activityRun that produced it, when known. */
+  activityRunId: string | undefined
   /** The agent that produced it, when known. */
   agent: string | undefined
   /** The agent's account of what this document concludes. Empty when unknown. */
   summary: string
-  /** What the next step is expected to take from it. Empty when unknown. */
+  /** What the next activity is expected to take from it. Empty when unknown. */
   notes: string
 }>
 
 /**
- * Files the run writes for its own machinery rather than as a step's output.
+ * Files the run writes for its own machinery rather than as a activity's output.
  *
  * Listed, because a reader should not have to know which files the interface
  * has special-cased — but quietly, because they are already rendered in the
- * gate pane and are not what anybody means by "what did this step produce".
+ * gate pane and are not what anybody means by "what did this activity produce".
  */
 const SYSTEM_FILES = /^(decision-request|decision-answer|answers-.*)\.md$/
 
 /** `…/sessions/<run>/context_handoff/design.md` → `context_handoff/design.md`. */
-export const relativeToSession = (path: string, runId: string): string => {
+export const relativeToSession = (
+  path: string,
+  runId: string,
+  /**
+   * This run's handoff directory, resolved absolute by the server. When
+   * `--handoff` relocated it outside `sessions/<run>/`, a path under THIS
+   * directory collapses onto the same `context_handoff/<relative>` key the
+   * observed listing already uses — otherwise the same document would
+   * render as two cards, one reported and one observed.
+   */
+  handoffDir?: string,
+): string => {
   const marker = `/sessions/${runId}/`
   const at = path.indexOf(marker)
-  return at === -1 ? path : path.slice(at + marker.length)
+  if (at !== -1) {
+    return path.slice(at + marker.length)
+  }
+  if (handoffDir !== undefined && handoffDir !== '') {
+    const root = handoffDir.endsWith('/') ? handoffDir : `${handoffDir}/`
+    if (path.startsWith(root)) {
+      return `context_handoff/${path.slice(root.length)}`
+    }
+  }
+  return path
 }
 
 const nameOf = (path: string): string => path.split('/').at(-1) ?? path
@@ -94,29 +114,29 @@ const strings = (value: unknown): readonly string[] =>
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 /**
- * What each phase was observed to write, newest observation per phase.
+ * What each activityRun was observed to write, newest observation per activityRun.
  *
- * Only `created` counts as a phase's output. A `modified` entry means the
- * phase changed a document another phase owns, which is a different claim
+ * Only `created` counts as a activity-run's output. A `modified` entry means the
+ * activityRun changed a document another activityRun owns, which is a different claim
  * entirely and belongs in the violation report rather than in a list of
  * outputs.
  */
-export const observedByPhase = (
+export const observedByActivityRun = (
   events: readonly EventRow[],
 ): ReadonlyMap<string, readonly string[]> => {
-  const byPhase = new Map<string, readonly string[]>()
+  const byActivityRun = new Map<string, readonly string[]>()
   for (const event of events) {
-    if (event.type !== 'artifacts' || event.phase_id === null) continue
+    if (event.type !== 'artifacts' || event.activity_run_id === null) continue
     try {
       const payload = JSON.parse(event.payload_json ?? '{}') as {
         created?: unknown
       }
-      byPhase.set(event.phase_id, strings(payload.created))
+      byActivityRun.set(event.activity_run_id, strings(payload.created))
     } catch (cause) {
       void cause
     }
   }
-  return byPhase
+  return byActivityRun
 }
 
 /**
@@ -129,6 +149,8 @@ export const observedByPhase = (
  */
 export const runArtifacts = (params: {
   runId: string
+  /** This run's handoff directory, resolved absolute by the server. */
+  handoffDir?: string
   envelopes: readonly Envelope[]
   events: readonly EventRow[]
   present: readonly HandoffFile[] | undefined
@@ -151,14 +173,14 @@ export const runArtifacts = (params: {
     if (envelope.valid !== 1) continue
     const payload = payloadOf(envelope)
     for (const raw of strings(payload.artifacts)) {
-      const path = relativeToSession(raw, params.runId)
+      const path = relativeToSession(raw, params.runId, params.handoffDir)
       add({
         path,
         name: nameOf(path),
         title: onDisk?.get(path)?.title ?? '',
         source:
           onDisk === undefined || onDisk.has(path) ? 'reported' : 'missing',
-        phaseId: envelope.phase_id ?? undefined,
+        activityRunId: envelope.activity_run_id ?? undefined,
         agent: envelope.agent ?? undefined,
         summary: text(payload.summary),
         notes: text(payload.notes_for_next_agent),
@@ -167,9 +189,9 @@ export const runArtifacts = (params: {
   }
 
   // Then whatever is on disk that nobody claimed. Over-reporting here is
-  // deliberate: a document a step forgot to report is still a document
+  // deliberate: a document a activity forgot to report is still a document
   // somebody would otherwise have to go hunting for.
-  const observed = observedByPhase(params.events)
+  const observed = observedByActivityRun(params.events)
   for (const file of params.present ?? []) {
     const owner = [...observed.entries()].find(([, created]) =>
       created.includes(nameOf(file.path)),
@@ -179,7 +201,7 @@ export const runArtifacts = (params: {
       name: nameOf(file.path),
       title: file.title,
       source: SYSTEM_FILES.test(nameOf(file.path)) ? 'system' : 'observed',
-      phaseId: owner?.[0],
+      activityRunId: owner?.[0],
       agent: undefined,
       summary: '',
       notes: '',
@@ -189,21 +211,21 @@ export const runArtifacts = (params: {
   return found
 }
 
-/** The same list, narrowed to one phase — what this step produced. */
-export const phaseArtifacts = (
+/** The same list, narrowed to one activityRun — what this activity produced. */
+export const activityRunArtifacts = (
   all: readonly TArtifact[],
-  phaseId: string,
-): readonly TArtifact[] => all.filter((entry) => entry.phaseId === phaseId)
+  activityRunId: string,
+): readonly TArtifact[] => all.filter((entry) => entry.activityRunId === activityRunId)
 
 /**
- * A phase that changed or removed a document belonging to another phase.
+ * A activityRun that changed or removed a document belonging to another activityRun.
  *
  * Nothing forbids this today, which is why it is worth showing: the handoff
  * directory is granted to every agent wholesale, and being gitignored it is
  * invisible to the permission check that would otherwise catch it.
  */
 export type TArtifactViolation = Readonly<{
-  phaseId: string
+  activityRunId: string
   modified: readonly string[]
   deleted: readonly string[]
 }>
@@ -213,7 +235,7 @@ export const artifactViolations = (
 ): readonly TArtifactViolation[] => {
   const found: TArtifactViolation[] = []
   for (const event of events) {
-    if (event.type !== 'artifacts' || event.phase_id === null) continue
+    if (event.type !== 'artifacts' || event.activity_run_id === null) continue
     try {
       const payload = JSON.parse(event.payload_json ?? '{}') as {
         modified?: unknown
@@ -222,7 +244,7 @@ export const artifactViolations = (
       const modified = strings(payload.modified)
       const deleted = strings(payload.deleted)
       if (modified.length + deleted.length === 0) continue
-      found.push({ phaseId: event.phase_id, modified, deleted })
+      found.push({ activityRunId: event.activity_run_id, modified, deleted })
     } catch (cause) {
       void cause
     }

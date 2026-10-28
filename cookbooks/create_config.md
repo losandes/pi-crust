@@ -8,11 +8,11 @@ Generate `crust.config.yaml` — the agent roster for a target repo.
 bun <pi-crust>/scripts/make-config.ts
 ```
 
-Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed — with the starter agents (planner, builder, scout, reviewer, documenter) wired to the prompt files `/skill:crust install` stamped into `.pi-crust/prompt-engineering/`. That path is the default every workflow and the justfile look for; `--config` overrides it. `make-config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
+Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed — with the defaults and routing a stamp starts from. The Activities themselves live beside it in `crust.activities.yaml`, wired to the prompt files `/skill:crust install` stamped into `<pi-crust>/runtime/prompt-engineering/`. That path is the default every workflow and the justfile look for; `--config` overrides it. `make-config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
 
 ## The rule
 
-**One agent, one prompt, one purpose.** An entry defines who an agent *is*: its coding agent, model, thinking level, and exactly one system prompt plus one user prompt. How it gets *used* — the output type, a per-call user prompt override — lives at the workflow call site, never here.
+**One Activity, one prompt, one purpose.** An entry defines both halves of it: who performs it — coding agent, model, thinking level, exactly one system prompt and one user prompt — and what the work is, through `output`, `gates`, `input`, `attempts` and `commit`. They are one thing, because a Lifecycle names `plan` and `plan` IS the entry.
 
 ## Schema
 
@@ -24,27 +24,31 @@ defaults:
   harness_engineering: []          # pi extension names
   data_dir: .pi-crust/data          # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
 
-observability:
-  db: .pi-crust/data/crust.db        # tracer writes here; the UI polls it
-  poll_ms: 500                     # visualizer live-poll cadence
+# Watching a run — the trace database, the UI's ports, the themes it offers —
+# is crust.observe.yaml, beside this file. See references/config.md.
 
-agents:
-  - name: planner                  # workflow scripts name agents, never models
+# crust.activities.yaml, beside it
+activities:
+  - name: plan                     # named for the WORK, which is what a Lifecycle names
     coding_agent: pi
     model: google/gemini-3.6-flash
     thinking: high
-    color: "#a78bfa"               # optional hex — this agent's lane color in the visualizer
+    color: violet                  # a theme role, never a hex
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/planner/system.md
-      user: .pi-crust/prompt-engineering/planner/user.md
+      system: <pi-crust>/runtime/prompt-engineering/plan/system.md
+      user: <pi-crust>/runtime/prompt-engineering/plan/user.md
+    output: planOutput             # the envelope contract it answers, by published name
+    gates: [artifactsExist, filesNonEmpty]
 
   - name: scout
     thinking: high                 # unset keys fall through to defaults
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/scout/system.md
-      user: .pi-crust/prompt-engineering/scout/user.md
+      system: <pi-crust>/runtime/prompt-engineering/scout/system.md
+      user: <pi-crust>/runtime/prompt-engineering/scout/user.md
+    output: scoutOutput
+    gates: [artifactsExist]
     tools:                         # optional allowlist — omit the key entirely for all tools
       - read
       - bash
@@ -54,7 +58,7 @@ Every agent entry merges over `defaults`, so an entry only states what differs. 
 
 ## After generating
 
-1. Each agent needs its prompt pair to exist on disk: `.pi-crust/prompt-engineering/{name}/system.md` and `user.md`. `validateAgents()` fails the run at startup if either is missing.
+1. Each agent needs its prompt pair to exist on disk: `<pi-crust>/runtime/prompt-engineering/{name}/system.md` and `user.md`. `validateAgents()` fails the run at startup if either is missing.
 2. Write `purpose` as one sentence and make the system prompt say the same thing — the two should not drift.
 3. Validate by running the smallest workflow that names your agents; a bad entry fails fast, before anything spawns.
 

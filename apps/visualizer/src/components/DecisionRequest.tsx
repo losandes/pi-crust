@@ -8,7 +8,7 @@
  * page. Approving something you cannot read is not a decision.
  *
  * It reads as the last message of the run rather than as a banner, because
- * that is what it is: the step emits its facts and its questions, and this is
+ * that is what it is: the activity emits its facts and its questions, and this is
  * the sentence that follows them.
  */
 import { useEffect, useState } from 'react'
@@ -26,7 +26,7 @@ export const DecisionRequest = ({
   status: string
   /** The tree holding this run — the question is a file beside it. */
   workspace?: string
-  /** true on the page with no step selected, where it owns its own gutter */
+  /** true on the page with no activity selected, where it owns its own gutter */
   standalone?: boolean
 }>) => {
   const [markdown, setMarkdown] = useState('')

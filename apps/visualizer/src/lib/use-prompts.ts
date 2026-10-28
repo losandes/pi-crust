@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchPrompts, type PromptsResponse } from './api'
 import { renderMarkdown } from './markdown'
-import type { Phase } from './types'
+import type { ActivityRun } from './types'
 
 export type TPromptPanel = Readonly<{
   id: string
@@ -33,19 +33,19 @@ const panelsFor = (response: PromptsResponse): readonly TPromptPanel[] =>
     }))
 
 /**
- * The exact prompts sent to this phase's agent, fetched once per (run, agent).
+ * The exact prompts sent to this activity-run's agent, fetched once per (run, agent).
  *
  * The cache is module-level and deliberately outlives the component: the trace
- * view unmounts this panel whenever the reader closes a phase, and prompts for
- * a finished run cannot change. Keyed on run and agent rather than phase, for
+ * view unmounts this panel whenever the reader closes a activityRun, and prompts for
+ * a finished run cannot change. Keyed on run and agent rather than activityRun, for
  * the same reason.
  */
 const CACHE = new Map<string, PromptsResponse>()
 
-export const usePrompts = (phase: Phase, workspace?: string): TPrompts => {
+export const usePrompts = (activityRun: ActivityRun, workspace?: string): TPrompts => {
   const key =
-    phase.kind === 'agent' && phase.owner
-      ? `${workspace ?? ''}:${phase.run_id}:${phase.owner}`
+    activityRun.kind === 'agent' && activityRun.owner
+      ? `${workspace ?? ''}:${activityRun.run_id}:${activityRun.owner}`
       : undefined
 
   const [prompts, setPrompts] = useState<TPrompts>({ state: 'idle', panels: [] })
@@ -53,14 +53,14 @@ export const usePrompts = (phase: Phase, workspace?: string): TPrompts => {
 
   useEffect(() => {
     /*
-     * The trace view replaces the phase object on every poll tick, so this
+     * The trace view replaces the activityRun object on every poll tick, so this
      * guards on the (run, agent) key rather than the object: without it, the
      * panels would refetch and snap shut twice a second.
      */
     if (key === lastKey.current) return undefined
     lastKey.current = key
 
-    if (key === undefined || !phase.owner) {
+    if (key === undefined || !activityRun.owner) {
       setPrompts({ state: 'idle', panels: [] })
       return undefined
     }
@@ -76,8 +76,8 @@ export const usePrompts = (phase: Phase, workspace?: string): TPrompts => {
     void (async () => {
       try {
         const result = await fetchPrompts(
-          phase.run_id,
-          phase.owner ?? '',
+          activityRun.run_id,
+          activityRun.owner ?? '',
           workspace,
         )
         CACHE.set(key, result)
@@ -90,7 +90,7 @@ export const usePrompts = (phase: Phase, workspace?: string): TPrompts => {
     return () => {
       live = false
     }
-  }, [key, phase.run_id, phase.owner, workspace])
+  }, [key, activityRun.run_id, activityRun.owner, workspace])
 
   return prompts
 }

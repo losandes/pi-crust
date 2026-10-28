@@ -5,7 +5,7 @@ export type {
   SessionSummary,
   SessionUsage,
   SessionDetail,
-  Phase,
+  ActivityRun,
   Event as EventRow,
   EventsPage,
   Envelope,
@@ -23,7 +23,7 @@ export type {
   HealthResponse,
   WorkspaceInfo,
   SessionStatus,
-  PhaseStatus,
-  PhaseKind,
+  ActivityRunStatus,
+  ActivityRunKind,
   EventType,
 } from '@shared/types'

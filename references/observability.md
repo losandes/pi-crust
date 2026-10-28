@@ -6,28 +6,28 @@ The event schema, the seven SQLite tables, and the polling contract — the one 
 
 **Files are the raw record** (`raw_output.jsonl` streams, `envelope.json`, `agent_map.json`); **SQLite (`crust.db`) is the queryable mirror** the UI reads. `trace-db.ts` writes both. Losing the db loses nothing that can't be rebuilt from files.
 
-Location comes from `observability.db` in `crust.config.yaml`, default `.pi-crust/data/crust.db` — inside the **target** repo, gitignored.
+Location comes from `db` in `crust.observe.yaml`, default `.pi-crust/data/crust.db` — inside the **target** repo, gitignored.
 
 ## Event schema
 
-`trace-db.ts` emits these types, every one logged against its `run_id` **and** `phase_id`:
+`trace-db.ts` emits these types, every one logged against its `run_id` **and** `activity_run_id`:
 
-| Type | Emitted when |
-|---|---|
-| `phase_start` | a `phase(phaseParams({...}), body)` block is entered |
-| `agent_start` | a coding agent is spawned or resumed for `callAgent(run, ph, {...})` |
-| `tool_call` | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
-| `handoff` | an envelope crosses from one agent to the next |
-| `gate_pass` | a gate found no failed checks — payload carries `attempt`, `checks` (the evidence), and an empty `violations` |
-| `gate_fail` | a gate found at least one failed check — payload carries `attempt`, `checks`, and `violations` |
-| `log` | an explicit `ph.log(...)` from the workflow script |
-| `agent_end` | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window` |
-| `phase_end` | the block exits; carries the resolved status |
-| `error` | a raise inside a phase block |
+| Type                 | Emitted when                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `activity_run_start` | a `activity run(activityRunParams({...}), body)` block is entered                                                                                                                      |
+| `agent_start`        | a coding agent is spawned or resumed for `callAgent(run, ph, {...})`                                                                                                                   |
+| `tool_call`          | a tool (`read`, `bash`, `edit`, `write`) returns — **one event per real call**, named `bash: ls -la src`, payload `{tool, tool_call_id, args, result_snippet, ok, duration_ms, agent}` |
+| `handoff`            | an envelope crosses from one agent to the next                                                                                                                                         |
+| `gate_pass`          | a gate found no failed checks — payload carries `checks` (the evidence) and an empty `violations`                                                                                      |
+| `gate_fail`          | a gate found at least one failed check — payload carries `checks` and `violations`                                                                                                     |
+| `log`                | an explicit `ph.log(...)` from the workflow script                                                                                                                                     |
+| `agent_end`          | the agent's run completes; envelope parsed or not — payload carries `cost`, `usage` (the per-component breakdown), `context_tokens`, `context_window`                                  |
+| `activity_run_end`   | the block exits; carries the resolved status                                                                                                                                           |
+| `error`              | a raise inside a activity run block                                                                                                                                                    |
 
-`parent_id` nests spans, so an agent phase expands into its tool-call spans in the UI.
+`parent_id` nests spans, so an agent activity run expands into its tool-call spans in the UI.
 
-**Spend is itemised per phase.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the phase made, so a phase that retried on a bad envelope or a failed gate shows what all its attempts cost, not just the last one. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
+**Spend is itemised per activity run.** `agent_end.usage` carries tokens *and* dollars for each component pi reports — `input`, `output`, `cache_read`, `cache_write` — summed across every send the activity run made, so a activity run that re-prompted on a bad envelope shows what all of them cost, not just the last. A gate failure is a new Activity Run with its own row, so its spend sits beside the one it followed rather than folded into it. The four components sum to `total_tokens`, and their costs sum to `total_cost`; the visualizer's Cost panel renders them as a table you can add up by eye.
 
 `reasoning_tokens` is the thinking share and is **inside** `output_tokens`, not a fifth component — measured across every session on disk, reasoning never exceeds output and the four components always reconcile to the total. It bills at the output rate, so the panel nests it under output rather than adding it. Runs predating the breakdown have no `usage` key at all; the lump `cost` and the event's own `tokens` still stand, and the UI says so rather than rendering zeroes.
 
@@ -39,11 +39,11 @@ Two caveats worth knowing. Pi adds an *estimate* for any messages trailing the l
 
 **Gates record evidence, not just a verdict.** A gate returns one `{item, ok, note}` check per thing it looked at, and `violations` are derived from the failed ones. Both land in `gate_results` (`checks_json` + `violations_json`) and in the `gate_pass`/`gate_fail` payload, so a green gate can answer *what did you verify* — `{"item": "…/plan.md", "ok": true, "note": "exists, 454B"}` — rather than only *did it pass*. Rows written before this existed have `checks_json` NULL; treat that as "no evidence recorded", not "nothing checked".
 
-The gate event payload carries `attempt` too, so the `gate_results` table and the event stream are equivalent sources — a live consumer can group gate results per correction round from events alone, without a second query.
+The gate event payload carries `activity_run_id` too, so the `gate_results` table and the event stream are equivalent sources — a live consumer can group gate results by the Activity Run that produced them from events alone, without a second query.
 
 **A `tool_call` is the one event that spans time**, so it fills both `started_at` and `ended_at` on the row — the tool's real start and return. Every other type is a point in time: `started_at` is when it was recorded and `ended_at` stays NULL. Lay tool calls out on a time axis from those columns, never by parsing `payload_json` (`duration_ms` is in the payload too, as pi's own number, but it is a convenience, not the source for layout).
 
-**Streaming is solved by construction.** `data/pi-agent.ts` tails pi's JSONL stdout line by line and the tracer inserts each event into `crust.db` **while the agent is still working** — never batched at phase end (verified in the first smoke run: tool calls visible mid-run). Everything downstream is a poll → render.
+**Streaming is solved by construction.** `data/pi-agent.ts` tails pi's JSONL stdout line by line and the tracer inserts each event into `crust.db` **while the agent is still working** — never batched at activity run end (verified in the first smoke run: tool calls visible mid-run). Everything downstream is a poll → render.
 
 ## Tables
 
@@ -57,13 +57,12 @@ sessions (
   total_tokens  INTEGER, total_cost REAL
 );
 
-phases (
-  phase_id      TEXT PRIMARY KEY,
+activity runs (
+  activity_run_id      TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
   seq           INTEGER,
   name TEXT, kind TEXT, owner TEXT, description TEXT,
   status        TEXT DEFAULT 'fail',   -- success must be earned
-  attempt       INTEGER DEFAULT 0, retries INTEGER DEFAULT 0,
   error         TEXT,
   started_at    TEXT, ended_at TEXT
 );
@@ -71,9 +70,9 @@ phases (
 events (
   event_id      TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,   -- every event logs against run + phase
+  activity_run_id      TEXT REFERENCES activity runs,   -- every event logs against run + activity run
   parent_id     TEXT,                     -- span nesting
-  type          TEXT,   -- phase_start | phase_end | agent_start | agent_end | tool_call
+  type          TEXT,   -- activity_run_start | activity_run_end | agent_start | agent_end | tool_call
                         -- | handoff | gate_pass | gate_fail | log | error
   name          TEXT,
   payload_json  TEXT,
@@ -84,20 +83,18 @@ events (
 envelopes (
   envelope_id   TEXT PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
+  activity_run_id      TEXT REFERENCES activity runs,
   agent         TEXT,
   output_type   TEXT,              -- name of the data_types model it parsed against
   payload_json  TEXT,
   valid         INTEGER,
-  attempt       INTEGER,
   created_at    TEXT
 );
 
 gate_results (
   id            INTEGER PRIMARY KEY,
   run_id        TEXT REFERENCES sessions,
-  phase_id      TEXT REFERENCES phases,
-  attempt       INTEGER,
+  activity_run_id      TEXT REFERENCES activity runs,
   gate          TEXT,
   passed        INTEGER,
   violations_json TEXT,             -- derived: the failed checks, as "item: note"
@@ -129,9 +126,9 @@ agent_sessions (                   -- the queryable mirror of agent_map.json
 
 **A hung agent emits nothing**, which is exactly when you need its pid: no events, no tokens, no output to read. `processes` is the only table that can answer "what is this run running, and how do I stop it" — `just crust procs <run_id>` lists what is live, `just crust kill <run_id>` stops children before the parent, and both verify the recorded `command` still matches the pid before signalling it. A killed run finalizes its own trace: SIGTERM and SIGINT are turned into `SystemExit` in `session.ensure`, so the session lands on `fail` with its process rows closed instead of reading `running` forever.
 
-**Derived, never stored:** phase durations (`ended_at − started_at`), session phase-progress (query `phases` by `run_id`), lane layout (`kind` + `owner`).
+**Derived, never stored:** activity run durations (`ended_at − started_at`), session activity run-progress (query `activity-runs` by `run_id`), lane layout (`kind` + `owner`).
 
-Phase status invariants: `queued` only for manifest-declared phases not yet entered (dashed in the UI); `running` on enter; only a clean exit writes `success` — agent phases additionally need the envelope parsed and gates green; everything else resolves to `fail`.
+Activity Run status invariants: `queued` only for manifest-declared activity runs not yet entered (dashed in the UI); `running` on enter; only a clean exit writes `success` — agent activity runs additionally need the envelope parsed and gates green; everything else resolves to `fail`. `blocked` and `cancelled` are not activity run rows: nothing started, so there is nothing to open a row for. They arrive as `activities_blocked` and `activities_cancelled` events naming what the run did not reach and why — blocked when a person is holding it and the work is still owed, cancelled when it is not coming. Without them a halted run leaves everything downstream with no record at all, which reads the same as a lifecycle that never had those Activities.
 
 ## WAL pragmas
 
@@ -149,7 +146,7 @@ WAL allows readers during writes. Writers are the tracers of running workflow pr
 
 **The UI never receives pushes.** No ingest endpoint, no WebSocket, no backfill or dedup logic.
 
-Live view polls on a rowid cursor every `observability.poll_ms` (default 500):
+Live view polls on a rowid cursor every `poll_ms` in `crust.observe.yaml` (default 500):
 
 ```sql
 SELECT ... FROM events WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT 500;
@@ -163,15 +160,15 @@ Keep the highest `rowid` returned as the next cursor. History is **the same quer
 bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] [--config <path>]
 ```
 
-No `run-id` means the most recent session. `--db` wins over the config's `observability.db`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
+No `run-id` means the most recent session. `--db` wins over the config's `observability.db`, which is read from `crust.observe.yaml`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
 
 Exit codes, because an agent will branch on them:
 
-| Code | Means |
-|---|---|
-| `0` | the run succeeded and has no unfinished phase |
-| `1` | it failed, or it is incomplete |
-| `2` | no such session, or a usage error |
+| Code | Means                                                |
+| ---- | ---------------------------------------------------- |
+| `0`  | the run succeeded and has no unfinished activity run |
+| `1`  | it failed, or it is incomplete                       |
+| `2`  | no such session, or a usage error                    |
 
 ### `TRunState` — the JSON contract
 
@@ -188,16 +185,16 @@ Exit codes, because an agent will branch on them:
   "ended_at": "2024-01-01T00:08:00.000Z",
   "tokens": 12345,
   "cost": 0.4212,
-  "phases": [
+  "activity runs": [
     {
-      "seq": 3, "phase_id": "a1b2c3d4_03_build",
+      "seq": 3, "activity_run_id": "a1b2c3d4_03_build",
       "name": "build", "kind": "agent", "owner": "builder",
       "description": "Implement the plan exactly",
-      "status": "fail", "attempt": 2,
-      "error": "builder failed gates after 2 attempt(s)",
+      "status": "fail",
+      "error": "build failed its gates and has no attempts left",
       "started_at": "…", "ended_at": "…",
       "gates": [
-        { "gate": "diffMatchesClaims", "phase": "build", "attempt": 2,
+        { "gate": "diffMatchesClaims", "activity run": "build",
           "passed": false, "violations": ["src/a.ts: not in the diff"],
           "checks": [{ "item": "src/a.ts", "ok": false, "note": "not in the diff" }] }
       ],
@@ -207,26 +204,37 @@ Exit codes, because an agent will branch on them:
   "completed": ["request", "plan"],
   "resume_from": "build",
   "failed_gates": [ … ],
+  "warnings": [
+    { "kind": "unexpected", "activities": ["build"],
+      "activityRunIds": ["a1b2c3d4_03_build"], "stage": "implement",
+      "paths": ["src/add.ts"], "note": "" }
+  ],
   "envelopes": [
-    { "phase": "build", "agent": "builder", "output_type": "BuildOutput",
-      "valid": true, "attempt": 2, "payload": { … } }
+    { "activity run": "build", "agent": "builder", "output_type": "BuildOutput",
+      "valid": true, "payload": { … } }
   ]
 }
 ```
 
-Three fields carry the weight:
+Four fields carry the weight:
 
-- **`completed`** — phase names whose LATEST record is `success`. A session that ran `build` twice and failed the second time does not list `build`; the latest record per name wins, which is what makes resume correct across a joined session.
-- **`resume_from`** — the first phase, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every phase succeeded and there is nothing to resume.
-- **`logs[].name`** — the event name, not just the payload. The console echoes every printed line as a `log` too, so a code phase files its verdict under `step_result` and replay asks for it by that name. "The phase's last log" is usually a human sentence.
+- **`completed`** — activity run names whose LATEST record is `success`. A session that ran `build` twice and failed the second time does not list `build`; the latest record per name wins, which is what makes resume correct across a joined session.
+- **`resume_from`** — the first activity run, in `seq` order, whose latest record is not success. `undefined` (absent from the JSON) means every RECORDED activity run succeeded — not necessarily that the run is finished, since a session that died between Activities has no row for the ones it never reached.
+- **`resumable`** — is there anything left to pick up, from the session's own status rather than from `resume_from`. `false` only for a session that finished successfully; a session that failed, was killed, or is waiting for a person is resumable even when `resume_from` is `undefined`, which is what lets `--resume` and this report pick up a run that died between Activities.
+- **`warnings`** — what the run saw and could not attribute, read back from its own `tree_warning` events. `unexpected` is a path that changed during an Activity Run which was not already dirty and which the Activity did not report; `overstep` is a path outside what the Activity declared it writes; `refusal` is a tool call the path policy governed; `uncommitted` is a commit git refused — an unlocked signing agent, a hook that exits non-zero. None of them failed anything and none of them was undone — pi-crust cannot tell an agent's write from a developer's save in the same branch, so it names what it saw and leaves the tree alone. Empty for a run that saw nothing worth saying.
+- **`logs[].name`** — the event name, not just the payload. The console echoes every printed line as a `log` too, so a code activity run files its verdict under `step_result` and replay asks for it by that name. "The activity run's last log" is usually a human sentence.
 
 `error`, `ended_at`, `started_at` and `resume_from` are omitted when absent — `JSON.stringify` drops undefined keys. Read them as optional.
 
 `--resume` reads this same function (`readRunState`). There is one answer to "what is already done", and both callers read it, so the report and the resumed run cannot disagree.
 
-## One envelope row per attempt
+## An attempt is an Activity Run
 
-An envelope is persisted the moment it PARSES, not after its gates pass. A gate-corrected phase therefore writes one `envelopes` row per attempt, and the accepted envelope is the highest-attempt row with `valid = 1`. That is more rows than earlier versions wrote, and it is the point: a phase whose gate failed terminally used to lose both the row and `envelope.json`, so a later phase resuming the session had nothing to read — the agent's work was on disk and its report was not.
+There is no `attempt` column, on any table. A re-executed Activity — a gate failure, a revise round, a regression — opens its own `activity_runs` row, so the thing being budgeted and the thing being recorded are the same thing. A build that retried twice shows three rows rather than one row with `attempt=3` in a column nobody read, and the row it replaced is marked `superseded` rather than rewritten.
+
+`latestByName` already selects the highest `seq` per name, so resume needs no change: the latest record per name is the one that counts.
+
+An envelope is still persisted the moment it PARSES, not after its gates pass, so one Activity Run can write several `envelopes` rows when its JSON had to be corrected in session. The accepted one is the latest valid row for that Activity Run.
 
 ## Narration
 
@@ -234,7 +242,7 @@ Agents stream their reasoning and prose a few characters at a time. Those deltas
 
 Every narration event and every tool call carries the turn that produced it. That is what lets a reader see which calls a passage of thinking caused: a trace interleaves several agents, so adjacency in time is not causation.
 
-The database keeps a bounded tail per phase. `raw_output.jsonl` keeps the complete text, so a long phase can lose its earliest thinking from the UI while remaining whole on disk.
+The database keeps a bounded tail per activity run. `raw_output.jsonl` keeps the complete text, so a long activity run can lose its earliest thinking from the UI while remaining whole on disk.
 
 ## Watching several working trees
 
@@ -264,12 +272,14 @@ In the UI, a run's tree is a chip on its card and a filter above the list, both 
 
 ## Ports
 
-| Variable | Default | What it moves |
-|---|---|---|
-| `CRUST_BE_PORT` | 4600 | the API the UI and every run talk to |
-| `CRUST_FE_PORT` | 4601 | the web app |
-| `CRUST_WORKSPACES` | — | trees to watch, comma-separated, instead of the registry |
-| `CRUST_REGISTRY` | `~/.pi-crust/workspaces.jsonl` | where registration is recorded |
+The ports are a committed answer with an environment escape hatch. `ports.backend` and `ports.frontend` in `.pi-crust/config/crust.observe.yaml` are what `observe` boots on and what a run assumes when it prints a link; the variables below win over the file, for a clash that is not worth committing.
+
+| Variable           | Default                        | What it moves                                            |
+| ------------------ | ------------------------------ | -------------------------------------------------------- |
+| `CRUST_BE_PORT`    | `ports.backend` (4600)         | the API the UI and every run talk to                     |
+| `CRUST_FE_PORT`    | `ports.frontend` (4601)        | the web app                                              |
+| `CRUST_WORKSPACES` | —                              | trees to watch, comma-separated, instead of the registry |
+| `CRUST_REGISTRY`   | `~/.pi-crust/workspaces.jsonl` | where registration is recorded                           |
 
 ```bash
 CRUST_BE_PORT=5600 CRUST_FE_PORT=5601 just crust observe
@@ -294,15 +304,15 @@ Dry by default, because deleting a run cannot be undone, and an age is always re
 
 ## Building a command by answering questions
 
-`just crust please` asks for the run instead of the flags. It opens with the run id, because that question subsumes the rest: naming a run that is waiting means you are continuing it, and the only thing left to ask is whether you are approving, answering or rejecting. Say nothing and it offers a new run instead — which lifecycle or steps, in what order, how much it may decide for itself, how it hands the work over, and where to stop and show you.
+`just crust please` asks for the run instead of the flags. It opens with the run id, because that question subsumes the rest: naming a run that is waiting means you are continuing it, and the only thing left to ask is whether you are approving, answering or rejecting. Say nothing and it offers a new run instead — which Lifecycle or Activities, in what order, how much it may decide for itself, how it hands the work over, and where to stop and show you.
 
 It ends by printing the command and offering to run it. The line is the point: `please` is a way to build a command, not a replacement for knowing them, and seeing the one you just described is how the flags stop needing the wizard. Choose "just give me the line" and nothing is started.
 
-The menus move with the arrow keys or `j`/`k`, select with tab or space, `a` and `n` take or clear everything, enter confirms and escape backs out. A multi-select records the order you chose things in, because for a chain of steps the order is what the chain means.
+The menus move with the arrow keys or `j`/`k`, select with tab or space, `a` and `n` take or clear everything, enter confirms and escape backs out. A multi-select records the order you chose things in, because for a chain of Activities the order is what the chain means.
 
 ## Research, design, and letting it choose the chain
 
-Seven steps sit outside every lifecycle, because they answer questions a lifecycle does not ask. Run them when the question is theirs.
+Seven Activities sit outside every Lifecycle, because they answer questions a lifecycle does not ask. Run them when the question is theirs.
 
 Five of them are research disciplines — `technical-research`, `ux-research`, `domain-research`, `security-research`, `data-research`. Each establishes what is TRUE in its own subject and decides nothing, and each reports findings the same way: what was found, how it is known, how confident, and what contradicts it. `source` separates what was *observed* from what is *documented* from what was *inferred*, which is the distinction the whole exercise turns on — "the documentation says it retries" is not "it retries", and a design built on the second when only the first was established fails in production rather than in review. They are read-only; findings go to the session's handoff directory, never to the repository.
 
@@ -310,11 +320,11 @@ Five of them are research disciplines — `technical-research`, `ux-research`, `
 
 `ux-design` is not research: it decides. It produces an interface specification precise enough that an implementer invents no UX of their own, including every meaningful state, the keyboard and accessibility behaviour, and an explicit list of what was deliberately left open.
 
-`operator` chooses the chain and performs none of it. It is handed a catalogue of the steps that exist — generated from the registry and the roster, never written into its prompt — and returns the smallest chain that can produce the outcome, with what it excluded and why. Its plan then becomes the rest of that same run, so the reasoning and the work it caused live in one trace.
+`operator` chooses the chain and performs none of it. It is handed a catalogue of the Activities that exist — generated from the registry and the roster, never written into its prompt — and returns the smallest chain that can produce the outcome, with what it excluded and why. Its plan then becomes the rest of that same run, so the reasoning and the work it caused live in one trace.
 
-Two things govern it. `steps_valid` rejects a plan naming a step that does not exist, or naming another operator, and hands the mistake back to the same session to fix. The trust dial decides whether the chain may run unseen: below 50 the run stops and shows you the steps it proposes before spending anything on them, and at 50 or above it runs them and reports the choice with everything else the run decided for itself. There is no `--execute` flag, because that question is already answered by the dial, and two controls for one intention is a mistake this factory has made before.
+Two things govern it. `steps_valid` rejects a plan naming an Activity that does not exist, or naming another operator, and hands the mistake back to the same session to fix. The trust dial decides whether the chain may run unseen: below 50 the run stops and shows you the chain it proposes before spending anything on them, and at 50 or above it runs them and reports the choice with everything else the run decided for itself. There is no `--execute` flag, because that question is already answered by the dial, and two controls for one intention is a mistake this factory has made before.
 
-`operator` and `--steps` together are refused rather than reconciled. One asks the factory to choose the chain and the other names it; honouring either silently would mean guessing which you meant.
+`operator` and `--activities` together are refused rather than reconciled. One asks the factory to choose the chain and the other names it; honouring either silently would mean guessing which you meant.
 
 ## Watching a run from another machine
 
@@ -322,7 +332,7 @@ Two things govern it. `steps_valid` rejects a plan naming a step that does not e
 
 They go straight after the recipe with no `--` separator. `just crust observe -- --host` does not work — the flag never reaches vite, which reports "use --host to expose" — which is the opposite of the habit most tools teach, so it is worth remembering once.
 
-The arguments reach the web app only. The API behind it is configured by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
+The arguments reach the web app only. The API behind it is configured by `ports:` in `crust.observe.yaml`, or by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
 
 ## Archiving a run, and the token that lets you
 

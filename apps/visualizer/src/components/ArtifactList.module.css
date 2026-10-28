@@ -63,7 +63,7 @@
 }
 
 /* System-written files: listed so the reader never has to know which files
-   the interface special-cases, but not competing with a step's own output. */
+   the interface special-cases, but not competing with a activity's own output. */
 .quiet {
   opacity: 0.62;
 }

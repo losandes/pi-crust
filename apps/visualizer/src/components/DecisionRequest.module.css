@@ -9,7 +9,7 @@
 /*
  * No horizontal margin, because this renders in two places: as a message at
  * the end of the thinking column, where the column owns the gutter, and on
- * the page itself with no step selected. The page case supplies its own
+ * the page itself with no activity selected. The page case supplies its own
  * gutter via `.standalone` rather than making the message carry one it does
  * not want.
  */

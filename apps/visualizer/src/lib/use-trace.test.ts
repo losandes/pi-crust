@@ -53,7 +53,7 @@ test(
     await secondRun
 
     // then — the first advanced the cursor and threw its results away, so the
-    // second polls past the end and the UI shows a phase with no events
+    // second polls past the end and the UI shows a activityRun with no events
     expect(second.collected()).toEqual([])
     expect(shared.cursor).toBe(3)
   },

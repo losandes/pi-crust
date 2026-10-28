@@ -21,7 +21,7 @@ import type {
   Event,
   EventsPage,
   GateResult,
-  Phase,
+  ActivityRun,
   Session,
   SessionDetail,
   SessionSummary,
@@ -162,7 +162,7 @@ export class PiCrustDb {
     return this.session(runId) !== null;
   }
 
-  /** Sessions, most recent first, each with its phase statuses for the progress dots. */
+  /** Sessions, most recent first, each with its activityRun statuses for the progress dots. */
   sessions(limit = 200): SessionSummary[] {
     const rows = this.db
       .query<Session, [number]>(
@@ -171,7 +171,8 @@ export class PiCrustDb {
                 total_tokens, total_cost,
                 ${this.optionalColumn("sessions", "archived")},
                 ${this.optionalColumn("sessions", "workspace_root")},
-                ${this.optionalColumn("sessions", "branch")}
+                ${this.optionalColumn("sessions", "branch")},
+                ${this.optionalColumn("sessions", "name")}
            FROM sessions
           WHERE COALESCE(${this.hasColumn("sessions", "archived") ? "archived" : "0"}, 0) = 0
           ORDER BY started_at DESC, rowid DESC
@@ -181,22 +182,22 @@ export class PiCrustDb {
 
     if (rows.length === 0) return [];
 
-    // Embed each session's phases so the L1 progress dots cost no extra request.
+    // Embed each session's activityRuns so the L1 progress dots cost no extra request.
     const ids = rows.map((row) => row.run_id);
     const placeholders = ids.map(() => "?").join(", ");
-    const phaseRows = this.db
-      .query<Phase, string[]>(
-        `SELECT phase_id, run_id, seq, name, kind, owner, description, status,
-                attempt, retries, error, started_at, ended_at
-           FROM phases WHERE run_id IN (${placeholders}) ORDER BY seq, rowid`,
+    const activityRunRows = this.db
+      .query<ActivityRun, string[]>(
+        `SELECT activity_run_id, run_id, seq, name, kind, owner, description, status,
+                error, started_at, ended_at
+           FROM activity_runs WHERE run_id IN (${placeholders}) ORDER BY seq, rowid`,
       )
       .all(...ids);
 
-    const byRun = new Map<string, Phase[]>();
-    for (const phase of phaseRows) {
-      const list = byRun.get(phase.run_id);
-      if (list) list.push(phase);
-      else byRun.set(phase.run_id, [phase]);
+    const byRun = new Map<string, ActivityRun[]>();
+    for (const activityRun of activityRunRows) {
+      const list = byRun.get(activityRun.run_id);
+      if (list) list.push(activityRun);
+      else byRun.set(activityRun.run_id, [activityRun]);
     }
 
     // Agents come along too: an L1 card draws a per-agent dot timeline, and its
@@ -205,12 +206,12 @@ export class PiCrustDb {
 
     const summaries: SessionSummary[] = [];
     for (const session of rows) {
-      const phases = byRun.get(session.run_id) ?? [];
+      const activityRuns = byRun.get(session.run_id) ?? [];
       summaries.push(
         Object.assign(session, {
           workspace: this.label,
-          phases,
-          phase_count: phases.length,
+          activityRuns,
+          activity_run_count: activityRuns.length,
           agents: agentsByAdw.get(session.run_id) ?? [],
         }),
       );
@@ -226,7 +227,8 @@ export class PiCrustDb {
                 total_tokens, total_cost,
                 ${this.optionalColumn("sessions", "archived")},
                 ${this.optionalColumn("sessions", "workspace_root")},
-                ${this.optionalColumn("sessions", "branch")}
+                ${this.optionalColumn("sessions", "branch")},
+                ${this.optionalColumn("sessions", "name")}
            FROM sessions WHERE run_id = ?`,
       )
       .get(runId);
@@ -235,12 +237,12 @@ export class PiCrustDb {
       : Object.assign(row, { workspace: this.label });
   }
 
-  phases(runId: string): Phase[] {
+  activityRuns(runId: string): ActivityRun[] {
     return this.db
-      .query<Phase, [string]>(
-        `SELECT phase_id, run_id, seq, name, kind, owner, description, status,
-                attempt, retries, error, started_at, ended_at
-           FROM phases WHERE run_id = ? ORDER BY seq, rowid`,
+      .query<ActivityRun, [string]>(
+        `SELECT activity_run_id, run_id, seq, name, kind, owner, description, status,
+                error, started_at, ended_at
+           FROM activity_runs WHERE run_id = ? ORDER BY seq, rowid`,
       )
       .all(runId);
   }
@@ -294,7 +296,7 @@ export class PiCrustDb {
         string[]
       >(
         `SELECT e.run_id, p.owner AS agent, e.payload_json, e.started_at
-           FROM events e JOIN phases p ON p.phase_id = e.phase_id
+           FROM events e JOIN activity_runs p ON p.activity_run_id = e.activity_run_id
           WHERE e.run_id IN (${placeholders}) AND e.type = 'agent_start'
           ORDER BY e.rowid`,
       )
@@ -327,15 +329,20 @@ export class PiCrustDb {
     return byRun;
   }
 
-  /** Session + phases + agents in one shot — L2 needs all three to draw lanes. */
-  sessionDetail(runId: string): SessionDetail | null {
+  /**
+   * Session + activityRuns + agents in one shot — L2 needs all three to draw
+   * lanes. `handoff_dir` is server-computed from the filesystem rather than a
+   * db column, so it is NOT this connection's to fill in: the route handler
+   * attaches it.
+   */
+  sessionDetail(runId: string): Omit<SessionDetail, "handoff_dir"> | null {
     const session = this.session(runId);
     if (!session) return null;
 
     return {
       session,
       usage: this.usage(runId),
-      phases: this.phases(runId),
+      activityRuns: this.activityRuns(runId),
       agents: this.agentSessions(runId),
     };
   }
@@ -387,7 +394,7 @@ export class PiCrustDb {
     const cappedLimit = clamp(limit, 1, MAX_LIMIT);
     const events = this.db
       .query<Event, [string, number, number]>(
-        `SELECT rowid, event_id, run_id, phase_id, parent_id, type, name,
+        `SELECT rowid, event_id, run_id, activity_run_id, parent_id, type, name,
                 payload_json, tokens, started_at, ended_at
            FROM events
           WHERE run_id = ? AND rowid > ?
@@ -408,8 +415,8 @@ export class PiCrustDb {
   envelopes(runId: string): Envelope[] {
     return this.db
       .query<Envelope, [string]>(
-        `SELECT envelope_id, run_id, phase_id, agent, output_type, payload_json,
-                valid, attempt, created_at
+        `SELECT envelope_id, run_id, activity_run_id, agent, output_type, payload_json,
+                valid, created_at
            FROM envelopes WHERE run_id = ? ORDER BY created_at, rowid`,
       )
       .all(runId);
@@ -419,7 +426,7 @@ export class PiCrustDb {
     const checks = this.optionalColumn("gate_results", "checks_json");
     return this.db
       .query<GateResult, [string]>(
-        `SELECT id, run_id, phase_id, attempt, gate, passed, violations_json,
+        `SELECT id, run_id, activity_run_id, gate, passed, violations_json,
                 ${checks}, created_at
            FROM gate_results WHERE run_id = ? ORDER BY id`,
       )

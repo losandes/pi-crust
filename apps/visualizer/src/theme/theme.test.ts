@@ -81,18 +81,42 @@ test(
 test(
   [
     'given theme::storedTheme',
-    'when storage holds a value this version does not recognise',
-    'it should fall back to following the system',
+    'when storage holds a theme this app did not ship',
+    'it should honour it, because a repository may have registered it',
   ].join(', '),
   () => {
-    // given — a hand-edited key, or one written by an older spelling
+    // given — a theme the observed repository defines in crust.observe.yaml.
+    // The set of themes is open, so this module cannot tell a team's theme
+    // from a typo, and refusing both would make a registered theme
+    // unselectable after a reload.
     const storage = { getItem: () => 'midnight' }
 
     // when
     const actual = storedTheme(storage)
 
-    // then — an unhonourable preference is not an error worth surfacing
-    expect(actual).toBe('auto')
+    // then
+    expect(actual).toBe('midnight')
+  },
+)
+
+test(
+  [
+    'given theme::storedTheme',
+    'when storage holds a theme that has since been removed',
+    'it should still be honoured, and render as the base palette',
+  ].join(', '),
+  () => {
+    // given — the cost of an open set: nothing here knows the registry, so
+    // a stale preference reaches the document, matches no rules, and shows
+    // the base palette until somebody picks again. A wrong colour is a
+    // cheaper failure than a theme that cannot be chosen.
+    const storage = { getItem: () => 'deleted-last-week' }
+
+    // when
+    const actual = storedTheme(storage)
+
+    // then
+    expect(actual).toBe('deleted-last-week')
   },
 )
 

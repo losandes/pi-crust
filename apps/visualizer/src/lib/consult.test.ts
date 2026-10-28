@@ -3,21 +3,22 @@ import {
   consultsFor,
   consultsOf,
   staleAfterAmend,
+  stillPending,
   type TConsult,
 } from './consult'
-import type { EventRow, Phase } from './types'
+import type { EventRow, ActivityRun } from './types'
 
 const RUN = 'c35f2c7d'
 
 const consultEvent = (
-  phaseId: string,
+  activityRunId: string,
   payload: Readonly<Record<string, unknown>>,
 ): EventRow =>
   ({
     rowid: 1,
-    event_id: `evt_${phaseId}`,
+    event_id: `evt_${activityRunId}`,
     run_id: RUN,
-    phase_id: phaseId,
+    activity_run_id: activityRunId,
     parent_id: null,
     type: 'consult',
     name: 'agent ask',
@@ -27,9 +28,9 @@ const consultEvent = (
     ended_at: null,
   }) as EventRow
 
-const phase = (seq: number, name: string, endedAt: string): Phase =>
+const activityRun = (seq: number, name: string, endedAt: string): ActivityRun =>
   ({
-    phase_id: `${RUN}_0${seq}_${name}`,
+    activity_run_id: `${RUN}_0${seq}_${name}`,
     run_id: RUN,
     seq,
     name,
@@ -37,17 +38,15 @@ const phase = (seq: number, name: string, endedAt: string): Phase =>
     owner: name,
     description: '',
     status: 'success',
-    attempt: 1,
-    retries: 0,
     error: null,
     started_at: endedAt,
     ended_at: endedAt,
-  }) as Phase
+  }) as ActivityRun
 
 test(
   [
     'given lib/consult::consultsOf',
-    'when a step has been asked a question',
+    'when a activity has been asked a question',
     'it should read the thread without the machinery around it',
   ].join(', '),
   () => {
@@ -85,20 +84,20 @@ test(
 test(
   [
     'given lib/consult::staleAfterAmend',
-    'when a step amends a document after later steps already ran',
-    'it should mark those later steps and leave the earlier ones alone',
+    'when a activity amends a document after later activities already ran',
+    'it should mark those later activities and leave the earlier ones alone',
   ].join(', '),
   () => {
     // given — the honest cost of amending: the plan was derived from the
     // design as it read BEFORE the change, and nothing else records that
-    const phases = [
-      phase(4, 'conceptualize', '2026-10-06T10:00:00Z'),
-      phase(5, 'design', '2026-10-06T11:00:00Z'),
-      phase(6, 'plan', '2026-10-06T12:00:00Z'),
+    const activityRuns = [
+      activityRun(4, 'conceptualize', '2026-10-06T10:00:00Z'),
+      activityRun(5, 'design', '2026-10-06T11:00:00Z'),
+      activityRun(6, 'plan', '2026-10-06T12:00:00Z'),
     ]
     const consults: readonly TConsult[] = [
       {
-        phaseId: `${RUN}_05_design`,
+        activityRunId: `${RUN}_05_design`,
         mode: 'amend',
         agent: 'technical-architect',
         question: 'shorten the migration section',
@@ -111,7 +110,7 @@ test(
     ]
 
     // when
-    const actual = staleAfterAmend(consults, phases)
+    const actual = staleAfterAmend(consults, activityRuns)
 
     // then — the plan ran before the amendment and is stale; conceptualize
     // came first and cannot have depended on it
@@ -122,16 +121,16 @@ test(
 test(
   [
     'given lib/consult::staleAfterAmend',
-    'when a step ran after the amendment',
+    'when a activity ran after the amendment',
     'it should not be marked, because it already saw the new text',
   ].join(', '),
   () => {
     // given — a replay following an amend is the ordinary way to resolve
     // staleness, and marking it afterwards would make the flag permanent
-    const phases = [phase(5, 'design', '2026-10-06T11:00:00Z'), phase(6, 'plan', '2026-10-06T14:00:00Z')]
+    const activityRuns = [activityRun(5, 'design', '2026-10-06T11:00:00Z'), activityRun(6, 'plan', '2026-10-06T14:00:00Z')]
     const consults: readonly TConsult[] = [
       {
-        phaseId: `${RUN}_05_design`,
+        activityRunId: `${RUN}_05_design`,
         mode: 'amend',
         agent: 'technical-architect',
         question: 'shorten it',
@@ -144,7 +143,7 @@ test(
     ]
 
     // when
-    const actual = staleAfterAmend(consults, phases)
+    const actual = staleAfterAmend(consults, activityRuns)
 
     // then
     expect([...actual]).toEqual([])
@@ -155,12 +154,12 @@ test(
   [
     'given lib/consult::staleAfterAmend and consultsFor',
     'when the consult only asked a question',
-    'it should mark nothing, and the thread belongs to its own step',
+    'it should mark nothing, and the thread belongs to its own activity',
   ].join(', '),
   () => {
     // given — an ask changes no document, so nothing downstream can be
     // derived from something that moved
-    const phases = [phase(5, 'design', '2026-10-06T11:00:00Z'), phase(6, 'plan', '2026-10-06T12:00:00Z')]
+    const activityRuns = [activityRun(5, 'design', '2026-10-06T11:00:00Z'), activityRun(6, 'plan', '2026-10-06T12:00:00Z')]
     const consults = consultsOf([
       consultEvent(`${RUN}_05_design`, {
         mode: 'ask',
@@ -174,12 +173,95 @@ test(
 
     // when
     const actual = [
-      [...staleAfterAmend(consults, phases)].length,
+      [...staleAfterAmend(consults, activityRuns)].length,
       consultsFor(consults, `${RUN}_05_design`).length,
       consultsFor(consults, `${RUN}_06_plan`).length,
     ]
 
     // then
     expect(actual).toEqual([0, 1, 0])
+  },
+)
+
+test(
+  [
+    'given lib/consult::stillPending',
+    'when a message has been sent and nothing has answered it',
+    'it should stay on screen, because the event is written only at the end',
+  ].join(', '),
+  () => {
+    // given — a consult rejoins a conversation of a hundred thousand tokens
+    // and takes minutes; without this the pane is unchanged the whole time,
+    // which reads exactly like a message that went nowhere
+    const given = { mode: 'amend' as const, question: 'use toEqual, not toBe' }
+
+    // when
+    const actual = stillPending(given, [])
+
+    // then
+    expect(actual).toEqual(given)
+  },
+)
+
+test(
+  [
+    'given lib/consult::stillPending',
+    'when the reply has landed in the trace',
+    'it should clear, so the question is not shown twice',
+  ].join(', '),
+  () => {
+    // given — matched on the question, because the id does not exist until
+    // the event is written
+    const given = { mode: 'amend' as const, question: 'use toEqual, not toBe' }
+    const landed: readonly TConsult[] = [
+      {
+        activityRunId: `${RUN}_07_build`,
+        mode: 'amend',
+        agent: 'build',
+        question: 'use toEqual, not toBe',
+        answer: 'done',
+        answered: true,
+        amended: ['src/add.test.ts'],
+        restored: [],
+        at: '2026-10-12T20:27:20.780Z',
+      },
+    ]
+
+    // when
+    const actual = stillPending(given, landed)
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given lib/consult::stillPending',
+    'when a DIFFERENT consult lands first',
+    'it should keep waiting, rather than clear on somebody else\u2019s answer',
+  ].join(', '),
+  () => {
+    // given
+    const given = { mode: 'ask' as const, question: 'why a registry table?' }
+    const other: readonly TConsult[] = [
+      {
+        activityRunId: `${RUN}_07_build`,
+        mode: 'amend',
+        agent: 'build',
+        question: 'use toEqual, not toBe',
+        answer: 'done',
+        answered: true,
+        amended: [],
+        restored: [],
+        at: '2026-10-12T20:27:20.780Z',
+      },
+    ]
+
+    // when
+    const actual = stillPending(given, other)
+
+    // then
+    expect(actual).toEqual(given)
   },
 )

@@ -1,5 +1,5 @@
 /**
- * The documents a step produced, as cards you can open.
+ * The documents a activity produced, as cards you can open.
  *
  * One card per document rather than one card listing them all, because the
  * useful context is per-document: the agent's own summary of what it
@@ -7,7 +7,7 @@
  * whether to open, and it belongs to one file.
  *
  * A document nobody claimed still gets a card, a thinner one. Over-reporting
- * is deliberate — a file a step forgot to report is still a file somebody
+ * is deliberate — a file a activity forgot to report is still a file somebody
  * would otherwise go hunting for — and the thinness is honest about how much
  * is known.
  */
@@ -30,7 +30,7 @@ const isSelecting = (): boolean => {
 
 const LABEL: Readonly<Record<TArtifact['source'], string>> = {
   reported: '',
-  observed: 'not reported by the step',
+  observed: 'not reported by the activity',
   missing: 'reported but not found',
   system: '',
 }

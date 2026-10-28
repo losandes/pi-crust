@@ -15,63 +15,109 @@ defaults:
   tools: [read, bash, edit, write, grep, find, ls]
   data_dir: .pi-crust/data
 
-observability:
-  db: .pi-crust/data/crust.db
-  poll_ms: 500
-
-agents:
-  - name: planner
+# crust.activities.yaml, beside it
+activities:
+  - name: plan
     coding_agent: pi
     model: google/gemini-3.6-flash        # ALWAYS provider/model-id
     thinking: high
-    color: "#a78bfa"
+    color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
-      system: .pi-crust/prompt-engineering/planner/system.md
-      user: .pi-crust/prompt-engineering/planner/user.md
+      system: <pi-crust>/runtime/prompt-engineering/plan/system.md
+      user: <pi-crust>/runtime/prompt-engineering/plan/user.md
     harness_engineering:
       - json-enforcer
     tools:
       - read
       - bash
+    output: planOutput                    # the envelope contract it answers
+    gates: [artifactsExist, filesNonEmpty]
+    attempts: 2                           # Activity Runs of this instance, first included
+    commit: false                         # land its own change once its gates pass
+
+planners:                                 # closed set: operator and triage
+  - name: operator
+    purpose: Choose the smallest chain that can produce the outcome.
+    prompt_engineering:
+      system: <pi-crust>/runtime/prompt-engineering/operator/system.md
+      user: <pi-crust>/runtime/prompt-engineering/operator/user.md
+    writes: ['{handoff}/plan.md']
 ```
 
 ## Fields
 
 ### `defaults`
 
-| Field | Type | Meaning |
-|---|---|---|
-| `coding_agent` | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `data/claude-code-agent.ts`, landing in v2. |
-| `model` | string | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`. |
-| `thinking` | enum | Reasoning effort — see below. Default `medium`. |
-| `color` | hex string | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette. |
-| `harness_engineering` | list[string] | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks). |
-| `tools` | list[string] | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable. |
-| `protected_files` | list[string] | Paths **no** agent may modify unless it names them in its own `writes`. Default: `.pi-crust/modules/`, `.pi-crust/config/`, `.pi-crust/stages/`, `.pi-crust/lifecycles/` — an agent must not be able to edit the machinery that decides whether its work passed. |
-| `data_dir` | path | Runtime home. Sessions land at `{data_dir}/sessions/{run_id}/{agent_name}/`. Default `.pi-crust/data`. |
+| Field                 | Type                  | Meaning                                                                                                                                                                                                                                                                                                                                           |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coding_agent`        | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `data/claude-code-agent.ts`, landing in v2.                                                                                                                                                                                                  |
+| `model`               | string                | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`.                                                                                                                                                                                                                                                     |
+| `thinking`            | enum                  | Reasoning effort — see below. Default `medium`.                                                                                                                                                                                                                                                                                                   |
+| `color`               | hex string            | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette.                                                                                                                                                                                                                               |
+| `harness_engineering` | list[string]          | Coding-agent extensions. Pi: extension names. Claude Code: reserved (MCP, hooks).                                                                                                                                                                                                                                                                 |
+| `tools`               | list[string]          | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable.                                                                                                                                                                                                                                       |
+| `protected_files`     | list[string]          | Paths **no** agent may touch unless it names them in its own `writes`. Shipped default: `.pi-crust/config/`, `.env*`, `**/.env*` — an agent must not be able to edit the machinery that decides whether its work passed, nor read a credentials file. `*` does not cross `/` and `**` does, so an env file needs both spellings.                  |
+| `protected`           | `{read, write}`       | What a tool call reaching one of `protected_files` gets, per direction. `block` \| `stop` \| `warn` \| `allow`. Default `block` both ways. Enforced BEFORE the call by the path-policy extension, which is why it is the only mechanism here that protects rather than reports.                                                                   |
+| `ignored`             | `{read, write}`       | The same four verbs for GITIGNORED paths, with this run's own `data_dir` exempt. Default `warn` on read, `block` on write: reading a generated file is ordinary work, while writing one produces output no diff, review or commit will ever show. Membership is git's answer (`git check-ignore`), never a second implementation of `.gitignore`. |
+| `data_dir`            | path                  | Runtime home. Sessions land at `{data_dir}/sessions/{run_id}/{agent_name}/`. Default `.pi-crust/data`.                                                                                                                                                                                                                                            |
 
 ### `observability`
 
-| Field | Type | Meaning |
-|---|---|---|
-| `db` | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`. |
-| `poll_ms` | int | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`. |
+This block is no longer in `crust.config.yaml`. It lives in **`.pi-crust/config/crust.observe.yaml`**, beside it, which also carries the registered themes — everything about watching a run is in one file, and the roster file is about agents. `load-config.ts` reads it and merges it onto the loaded config under the key it always had, so every caller still reads `cfg.observability.db`, and a `crust.config.local.yaml` that sets `observability.poll_ms` still wins over it.
+
+```yaml
+# crust.observe.yaml
+db: .pi-crust/data/crust.db
+poll_ms: 500
+ports:
+  backend: 4600
+  frontend: 4601
+default_theme: auto
+themes:
+  - name: dark
+    label: Dark
+    builtin: true
+  - name: high-contrast
+    label: High contrast
+    stylesheet: config/high-contrast.css
+```
+
+| Field            | Type | Meaning                                                                                                                                         |
+| ---------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db`             | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`.                                  |
+| `poll_ms`        | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                                                   |
+| `ports.backend`  | int  | The API `observe` boots, the UI proxies to, and every run probes before printing a link. `CRUST_BE_PORT` wins. Default `4600`.                  |
+| `ports.frontend` | int  | The web app `observe` boots, and the host of the link a run prints. `CRUST_FE_PORT` wins. Default `4601`.                                       |
+| `default_theme`  | name | Which registered theme the trace UI starts on. `auto` follows the system. Default `auto`.                                                       |
+| `themes[]`       | list | Every theme the picker offers — see the observability reference. A theme is `builtin: true`, or names a `stylesheet:` relative to `.pi-crust/`. |
 
 ### `agents[]`
 
-| Field | Required | Meaning |
-|---|---|---|
-| `name` | yes | The identifier workflow scripts use. **workflows name agents, never models.** |
-| `purpose` | yes | One sentence: what this agent is for. Should match its `system.md` Purpose. |
-| `prompt_engineering.system` | yes | Path to the system prompt — who the agent is, its single purpose, its output contract. |
-| `prompt_engineering.user` | yes | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`. |
-| `color` | no | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette. |
-| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no | Override the corresponding `defaults` key. |
-| `tools` | no | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`. |
-| `writes` | no | What this agent may modify **in the repo**, enforced after every call. Omitted = unrestricted (still barred from `protected_files`). `[]` = no repo writes at all. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **The session runtime under `data_dir` is always writable** — `writes: []` means read-only with respect to the repo, not unable to write its own report. |
+| Field                                                               | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                              | yes      | The identifier workflow scripts use. **workflows name agents, never models.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `purpose`                                                           | yes      | One sentence: what this agent is for. Should match its `system.md` Purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `prompt_engineering.system`                                         | yes      | Path to the system prompt — who the agent is, its single purpose, its output contract.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `prompt_engineering.user`                                           | yes      | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `color`                                                             | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                                                                                                       |
+| `coding_agent`, `model`, `thinking`, `color`, `harness_engineering` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `tools`                                                             | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `writes`                                                            | **yes**  | What this agent may modify **in the repo**, and where its own document goes. Observed after every call and REPORTED, never reverted. `['*']` = unrestricted (still barred from `protected_files`). `[]` = modifies nothing. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, `{handoff}` expands to this run's context_handoff directory, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **Required** — omitting it used to mean *unrestricted*, so the widest permission was the one granted by saying nothing. |
 
-Output types are deliberately absent: config defines who an agent *is*; the workflow call site defines how it's *used*. One agent serves many calls — same system prompt, different user prompt + output type per call.
+### The work half of an Activity
+
+An Activity entry carries what the work IS as well as who performs it, because they are one thing: a Lifecycle names `plan`, and `plan` is the entry.
+
+| Field      | Required | Meaning                                                                                                                                                                                                                                           |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `output`   | no       | The envelope spec it answers, by published name. Default `genericOutput`. A name the package does not publish is refused at load, listing the ones it does.                                                                                       |
+| `gates`    | no       | What its envelope must survive, by published name. `checks` runs this repository's `routing.checks` commands and is deliberately opt-in: after `test` the suite is red on purpose.                                                                |
+| `input`    | no       | `upstream` (the default) or `changes` — the run's own diff since its baseline, which is what the documenter reads.                                                                                                                                |
+| `attempts` | no       | Activity Runs of ONE instance this run may spend, the first included. Default 2. A gate failure, a revise round and a regression all come out of it. Declare 1 where re-execution is expensive.                                                   |
+| `commit`   | no       | Land this Activity's own change, in its envelope's `commit_message`, once every gate on it has passed. `--commit false` takes it away for a run; nothing grants it. A commit git refuses raises an `uncommitted` warning and never stops the run. |
+
+Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
 
 ## Defaults merging
 
@@ -109,44 +155,53 @@ Other consequences worth knowing:
 
 `tools` maps to `pi --tools`. Pi's seven builtin tool names:
 
-| Tool | Purpose | Pi's own default |
-|---|---|---|
-| `read` | read file contents | on |
-| `bash` | execute bash commands | on |
-| `edit` | find/replace edits | on |
-| `write` | create/overwrite files | on |
-| `grep` | search file contents | **off** |
-| `find` | find files by glob | **off** |
-| `ls` | list directory contents | **off** |
+| Tool    | Purpose                 | Pi's own default |
+| ------- | ----------------------- | ---------------- |
+| `read`  | read file contents      | on               |
+| `bash`  | execute bash commands   | on               |
+| `edit`  | find/replace edits      | on               |
+| `write` | create/overwrite files  | on               |
+| `grep`  | search file contents    | **off**          |
+| `find`  | find files by glob      | **off**          |
+| `ls`    | list directory contents | **off**          |
 
 `grep`, `find`, and `ls` are off in bare Pi, so an agent that does not name them will shell out through `bash` to do the same work. The starter roster therefore sets `defaults.tools` to all seven and lets each agent narrow from there.
 
 **Resolution order:** an agent's own `tools` list wins; an agent that omits the key inherits `defaults.tools`; if neither is set, `tools` stays `None` and all tools are usable. An empty list is not "all tools" — it is a tool-less agent, and it will stall.
 
-## Write permissions — `writes` and `protected_files`
+## Write permissions — `writes`, `protected_files`, and the path policy
 
 `tools` cannot express a safety boundary, because two of the tools are general purpose. `bash` runs anything, including `git checkout`, which discards an engineer's uncommitted work; `write` reaches any path, not only the one report file an agent was granted it for. So "this agent changes nothing" is a claim a tool list can state but never keep.
 
-`modules/use-cases/enforce-permissions.ts` keeps it, the same way every other claim in this system is kept — after the fact, against the repo. Before an agent's first prompt the working tree's change-set is fingerprinted; after its last send (including JSON retries and gate corrections) it is fingerprinted again. Any path that appeared, vanished, or changed is attributed to that agent.
+Two mechanisms keep what can be kept, and the difference between them is **attribution**.
 
-Comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
+**Before the call, for a path the policy governs.** `harness-engineering/path-policy.ts` is loaded into every agent pi-crust spawns and answers pi's `tool_call` event, which can refuse a call before it runs. `defaults.protected` governs anything matching `protected_files`; `defaults.ignored` governs anything git ignores, with this run's `data_dir` exempt. This is the only enforcement in the system that is sound, because it is the only question where pi-crust knows WHOSE action it is: a tool call belongs to the agent that issued it. It is also the only one that can protect rather than report — a secret that has been read cannot be unread, and the after-the-fact check cannot see `.env` at all, since a change-set is a diff plus untracked files and a gitignored path never appears in either.
 
-A breach is not a gate violation. Gates are for work an agent can be asked to redo; a write has already happened, so re-prompting fixes nothing. Instead:
+`bash` is covered best-effort only, and that limit is stated in the shipped config beside the policy: `read`, `write` and `edit` carry a structured path and are matched exactly, while a shell command is a string and `cat .env`, `grep -r KEY .` and `env > dump` are not reliably distinguishable from legitimate work. If a path must not leak, do not give that Activity `bash`.
 
-1. every unauthorized change the agent **introduced** is rolled back — tracked files with `git checkout --`, untracked files by deletion;
-2. a path that was **already dirty** before the agent ran is left untouched. The operator had uncommitted work there, and discarding it to tidy up would be the same harm this module exists to prevent;
-3. the phase fails and names every path with what happened to it.
+**After the call, for `writes`.** `modules/use-cases/enforce-permissions.ts` fingerprints the working tree's change-set before an agent's first prompt and again after its last send, including JSON corrections. Any path that appeared, vanished, or changed is attributed to that agent — and comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
+
+What it does with that is report it. A breach is not a gate violation — gates are for work an agent can be asked to redo, and a write has already happened — and it is no longer a rollback either:
+
+1. nothing is reverted, deleted, restored or checked out, ever. The attribution is unsound: a developer editing the same branch while a run works is a supported way to use this tool, and `git checkout --` on their uncommitted edit has no undo. Observed once, on a developer's uncommitted `crust.config.yaml`;
+2. the paths are named, in the terminal at the end of the run, in `just crust report`, and in the visualizer, as a warning that says pi-crust cannot tell whose change it was;
+3. the Activity Run still succeeds. The run continues, and the tree is yours to settle.
+
+The same reporting covers the other direction: a path that changed during an Activity Run, was not already dirty, and was not in the Activity's own `changed_files` is named too. That comparison is what a commit is NOT built from — a commit carries only what the Activity was observed to change, so a developer's unrelated work in progress is never swept into it.
 
 ```yaml
 defaults:
-  protected_files: [.pi-crust/modules/, .pi-crust/config/, .pi-crust/stages/, .pi-crust/lifecycles/]
+  protected_files: ['.pi-crust/config/', '.env*', '**/.env*']
+  protected: { read: block, write: block }   # block | stop | warn | allow
+  ignored:   { read: warn,  write: block }   # whatever .gitignore says, minus data_dir
 
-agents:
-  - name: builder      # no `writes` key -> unrestricted, minus protected_files
+activities:
+  - name: builder
+    writes: ['*']      # unrestricted, minus protected_files — said out loud
   - name: scout
-    writes: []         # no repo writes; its findings still land in context_handoff/
+    writes: ["{handoff}/scout_findings.md"]   # its findings, and nothing else
   - name: planner
-    writes: [specs/]
+    writes: ["{handoff}/plan.md"]   # the plan, and nothing in the repository
   - name: documenter
     writes: [app_docs/, docs/, "**/*.md", "*.md"]
 ```
@@ -176,15 +231,53 @@ This fails quietly. The extension still loads, the run still succeeds, and the t
 
 Rule: **every entry in `harness_engineering` that registers a tool must have that tool name added to the agent's `tools` list.** Adding an extension is therefore a two-line change, never one. The alternative is dropping the `tools` key *and* leaving `defaults.tools` unset so the agent resolves to `None` (all tools) — but with a roster-wide `defaults.tools` in place, that escape hatch is closed; naming the tool is the only path.
 
+## Where an Activity's document goes
+
+An Activity that produces a document names it in `writes`, with `{handoff}` standing for this run's context_handoff directory. That directory is per-run, and defaults to `<data_dir>/sessions/<run_id>/context_handoff`; `--handoff <path>` on `just crust run` moves WHICH directory `{handoff}` resolves to for that one run, without changing how `writes:` spells the token — a `writes` entry you declare here never names the run's own id.
+
+```yaml
+  - name: reviewer
+    writes: ["{handoff}/review.md"]
+```
+
+The prompt renders `{{output_document}}` rather than a filename, so the path the agent is told to write and the path it is permitted to write are one declaration instead of two that can disagree. Sending an Activity's output somewhere else is then a configuration change:
+
+```yaml
+  - name: reviewer
+    writes: [specs/review.md]
+```
+
+It is also what makes concurrency checkable. A Stage may only claim `strategy: concurrent` when its Activities' declared paths are disjoint, and that is a question about these lists — see the Lifecycles reference. An Activity declaring `['*']` overlaps everything and can never share a concurrent Stage.
+
+Under concurrency this list is also how a write is attributed. Permission used to be enforced by diffing the working tree across the window an Activity ran in, which blames each of two concurrent Activities for the other's work. A path a sibling declared is that sibling's.
+
+## Stopping the run for a person
+
+`--approve-after` takes Activity names, and Stage names prefixed with `stage:`:
+
+```bash
+just crust run "..." --lifecycle sdlc --approve-after plan,stage:accept
+```
+
+| Named          | Stage strategy | The run pauses                              |
+| -------------- | -------------- | ------------------------------------------- |
+| an Activity    | serial         | as soon as that Activity completes          |
+| an Activity    | concurrent     | after every Activity in the Stage completes |
+| `stage:<name>` | either         | after every Activity in the Stage completes |
+
+An Activity gate inside a concurrent Stage cannot stop its siblings — they are already running, and an agent killed mid-write leaves the tree in a state nobody declared. The gate is recorded when the Activity finishes and enforced at the Stage boundary, naming the Activity that raised it.
+
+The prefix exists because Activities and Stages share a namespace. A bare `accept` would be ambiguous the first time somebody names a Stage after an Activity it contains.
+
 ## Harness engineering
 
 `harness_engineering` entries are pi extension **file paths**, passed through as `pi -e <path>`, one flag per entry, scoped to that agent only. This is where per-agent harness changes live — e.g. an output-tightening extension for an agent that keeps wrapping its envelope in prose. The starter roster ships with none. On Claude Code the field is reserved for MCP config and hooks in v2.
 
 **If the extension registers a tool, name that tool in the agent's `tools` list too** — `--tools` filters extension tools exactly like builtins, so an unnamed extension tool is silently unavailable no matter that the extension loaded fine. See [Extension tools must be named explicitly](#extension-tools-must-be-named-explicitly) above. Extensions that only shape output or add flags (no tool registration) need no `tools` change.
 
-## `routing:` — what agents load, what `verify` runs
+## `routing:` — what agents load, what the `checks` gate runs
 
-The one section that may name a skill path or a checker command. Nothing in `.pi-crust/modules/`, `.pi-crust/stages/` and `.pi-crust/lifecycles/`, or `.pi-crust/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
+The one section that may name a skill path or a checker command. Nothing in `<pi-crust>/runtime/modules/`, `<pi-crust>/runtime/stages/` and `<pi-crust>/runtime/lifecycles/`, or `<pi-crust>/runtime/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
 
 Both lists are selected by **the paths the change actually touched**.
 
@@ -195,12 +288,12 @@ routing:
       path: .claude/skills/code-review   # passed to the coding agent as --skill
       agents: [code-reviewer]            # omit to give it to every agent
       when: ["**/*.ts", "**/*.tsx"]
-      phases: []                         # omit to give it to every phase
+      activity runs: []                         # omit to give it to every activity run
 
     - name: respond-to-pr-comments       # how to ANSWER a review, so no `when:`
       path: .claude/skills/respond-to-pr-comments
       agents: [builder]
-      phases: [revise]                   # `revise_2` matches this too
+      activity runs: [revise]                   # `revise_2` matches this too
 
   checks:
     - name: test
@@ -213,16 +306,16 @@ routing:
       timeout_seconds: 600
 ```
 
-| Key | Default | Meaning |
-|---|---|---|
-| `skills[].path` | — | file or directory handed to the agent's harness, once per entry |
-| `skills[].agents` | `[]` | which agents receive it; empty means every agent |
-| `skills[].when` | `[]` | path globs; empty always matches |
-| `skills[].phases` | `[]` | phase names that receive it; empty is every phase. An instance suffix is stripped, so `revise` matches `revise_2` |
-| `checks[].argv` | — | at least one token; never a shell string |
-| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments |
-| `checks[].cwd` | `""` | directory to run in, relative to the git root; empty is the root itself |
-| `checks[].timeout_seconds` | `300` | a timeout reports exit 124, with the output captured |
+| Key                           | Default | Meaning                                                                                                                         |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                                 |
+| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                                |
+| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                                |
+| `skills[].activity runs`      | `[]`    | activity run names that receive it; empty is every activity run. An instance suffix is stripped, so `revise` matches `revise_2` |
+| `checks[].argv`               | —       | at least one token; never a shell string                                                                                        |
+| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                                       |
+| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                                         |
+| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                                            |
 
 ### `cwd`, and why changed paths are rebased onto it
 
@@ -234,21 +327,24 @@ Without the rebase, a root-relative path handed to a command running in a subdir
 
 `when` uses the same matcher as `writes:`: **`*` does not cross `/`, `**` does.** So `when: ["*.ts"]` matches `server.ts` at the repository root and nothing nested — and because the result is "no rule matched", it reads as silence rather than as an error. Write `**/*.ts` unless you mean the root only.
 
-### Declaring nothing is not the same as passing
+### Declaring nothing is not the same as declaring a rule that misses
 
-A `verify` phase where paths changed and **no check matched them** FAILS, and says which. A repository that forgot to declare `routing.checks` would otherwise get a green verification forever — the classic "a rule reporting zero may be disabled rather than satisfied" failure. Three outcomes, all distinguishable in the trace:
+An empty `routing.checks` passes, saying it had nothing to run. A declared rule that matches nothing **fails**, and says which paths went unchecked.
 
-| Changed paths | Matched checks | Verdict |
-|---|---|---|
-| none | — | passed: nothing changed, no checks apply |
-| some | 0 | **failed**: N path(s) changed but no rule matched them |
-| some | N | whatever the commands said |
+Those are different claims. Nothing declared is a repository that has not opted in to verification — and `checks: []` is what an install stamps, in a file `protected_files` keeps the agents out of, so failing on it made the shipped configuration unrunnable by construction. A rule that matched nothing is a repository that opted in and left this change uncovered, which is the "a rule reporting zero may be disabled rather than satisfied" failure worth catching.
+
+| routing.checks | Changed paths | Matched | Verdict                                                |
+| -------------- | ------------- | ------- | ------------------------------------------------------ |
+| empty          | —             | —       | passed: nothing was declared, so nothing was promised  |
+| declared       | none          | —       | passed: nothing changed, no checks apply               |
+| declared       | some          | 0       | **failed**: N path(s) changed but no rule matched them |
+| declared       | some          | N       | whatever the commands said                             |
 
 ### How a skill reaches the agent
 
-`executeAgent` resolves the list for the agent it is about to call — by agent name, by changed path, and by the phase it is running — and passes each entry as `--skill <path>`. Two render variables carry the same information into the prompt, so an agent can be told to follow them without any prompt naming a path: `{{skills}}` (newline-separated, or `(none)`) and `{{changed_files}}`.
+`executeAgent` resolves the list for the agent it is about to call — by agent name, by changed path, and by the activity run it is running — and passes each entry as `--skill <path>`. Two render variables carry the same information into the prompt, so an agent can be told to follow them without any prompt naming a path: `{{skills}}` (newline-separated, or `(none)`) and `{{changed_files}}`.
 
-`phases:` is what makes "this skill is about how to answer a review" expressible: a skill routed to the builder's `revise` phase reaches it and nothing else, where a `when:` glob would have given it to every build that touched the same files.
+`activity runs:` is what makes "this skill is about how to answer a review" expressible: a skill routed to the builder's `revise` activity run reaches it and nothing else, where a `when:` glob would have given it to every build that touched the same files.
 
 A code-review agent handed `(none)` must say so and withhold approval. A review with no conventions loaded is not a review, and inventing them is worse than declining.
 
@@ -265,7 +361,7 @@ It may override exactly four things, per agent or on `defaults`: `model`, `think
 defaults:
   model: openai/gpt-5.1
 
-agents:
+activities:
   - name: builder
     model: anthropic/claude-opus-5
     thinking: high
@@ -273,9 +369,11 @@ agents:
     color: cyan
 ```
 
-Anything else is refused by name — `writes`, `tools`, `protected_files`, the prompts, and all of `routing`. Those are boundaries and standards the repository reviewed, and a file nobody reviews must not be able to move them: a local layer that could widen `writes` could hand an agent write access to the repository in a line that appears in no diff. Refusing loudly rather than ignoring matters just as much, because an override that silently does nothing is one a developer will believe applied.
+A local layer may set anything the committed file can, key by key, with the local value winning. There is no restricted subset. The restriction that used to be here — four keys, and no adding an agent — protected nothing: whoever writes the local file can equally edit the committed one, and runs the result on their own machine against their own checkout. There is no second principal to protect, and the restriction was friction in the one file whose purpose is to have none.
 
-A local layer cannot add an agent. Steps bind to the owner names in the registry, so a local-only agent would be unreachable anyway, and allowing it would smuggle in a prompt and a writes list by the back door.
+That makes the convention yours to keep rather than the tool's to enforce. A `writes` list narrowed locally is a run behaving differently from everyone else's for a reason no reviewer can see, which is worth avoiding by choice.
+
+Adding an Activity belongs in `crust.activities.local.yaml` rather than here, because that is the registry a Lifecycle resolves names against. An Activity named here that the committed config does not have is a warning pointing at that file.
 
 Naming an agent the roster does not have is a **warning**, not an error. Names go stale when somebody renames an agent upstream, and a colleague's private file must not break your run — but the warning is printed, because a typo that quietly did nothing is the confusion this is meant to avoid.
 
@@ -293,34 +391,34 @@ blue  amber  green  purple  cyan  pink  violet  orange  teal  indigo  rose  lime
 
 Each theme decides what a role looks like — `amber` is `232 182 74` on dark and `150 100 10` on light, because the second has to be legible on white. The visualizer resolves a role to `rgb(var(--amber-rgb))` at render, so switching theme re-colours every lane, including lanes in runs recorded months earlier. That works because the trace stores the role it was given rather than a finished colour.
 
-`red` is deliberately not offered. It means a failed phase everywhere else in the interface, and an agent permanently wearing the failure colour reads as broken at a glance.
+`red` is deliberately not offered. It means a failed activity run everywhere else in the interface, and an agent permanently wearing the failure colour reads as broken at a glance.
 
 A hex still works and is honoured verbatim. It is the escape hatch for a colour the palette does not have, and it is theme-unaware by definition: it will be whatever you wrote on every theme, and its contrast is yours to own rather than the theme's.
 
 An agent that names nothing takes a role by position, so adjacent lanes in a waterfall always differ. Twelve roles cover a roster of eighteen agents, which means two agents far apart in the list can share — distinguishable in practice, because what matters is the lanes on screen together.
 
-## What the step menu offers, and in what order
+## What the interactive menu offers, and in what order
 
-`steps.order` is the sequence a hand-picked chain runs in. Tick the steps you want in any order at all — the chain is sorted into this one. Before, the menu recorded the order you tabbed them in, which was undiscoverable and inconsistent: pressing `a` for all produced list order from the same screen.
+Everything registered in `crust.activities.yaml`, in the order that file declares them, with the Lifecycles from `crust.lifecycles.yaml` above them and the Operator between. Reorder the registry to reorder the menu; nothing else records a sequence, so nothing else can drift away from the Activities that exist.
 
-A partial list is the normal case and is safe. The steps named take the slots that named steps occupy in the built-in order, and everything unnamed stays exactly where it was — so `order: [design, plan]` swaps those two and moves nothing else. The obvious alternative, "listed first then the rest", would silently relegate every step you did not mention.
+`hidden: true` on an Activity keeps it out of the menu, for people who drive the factory with Lifecycles or a Planner and never pick it by hand.
 
-`steps.hidden` keeps steps out of `please`'s menu, for people who drive the factory with lifecycles or an operator and never pick those steps by hand.
+Hidden is not disabled, and the distinction is deliberate. A Lifecycle, a Planner and an explicit `--activities` all still run a hidden Activity. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to.
 
-Hidden is not disabled, and the distinction is deliberate. A lifecycle, an operator and an explicit `--steps` all still run a hidden step. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to, which is the same reason a local layer may not touch `routing.checks`.
-
-That is also what makes both keys safe to override per developer:
+Because the flag lives on the Activity, a local layer can hide one without changing what the team ships:
 
 ```yaml
-# crust.config.local.yaml
-steps:
-  hidden: [prompt, scout, poc, revise]
-  order: [build, plan]
+# crust.activities.local.yaml
+activities:
+  - name: security-research
+    hidden: true
 ```
 
-Both are replaced wholesale rather than merged, because an order is a sequence and half of one merged into another is neither.
+The menu lists exactly what the registry registers. There is no second namespace of performers to bridge: an entry is named for the work, and the work IS the agent.
 
-When a chain needs a different order for one run, press `r` at the step menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the step. It costs nothing in the common case, because nothing happens unless you ask for it.
+There is no `steps` block any more. It held an `order` and a `hidden` list, and both are gone — presentation order is the registry's order, and hiding is a property of the Activity. Execution order comes from the Lifecycle, or from the chain given to `--activities`.
+
+When a chain needs a different order for one run, press `r` at the menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the selected item.
 
 ## The trust dial has four behaviours, so it has four names
 
@@ -334,7 +432,7 @@ high    nothing stops it unless you asked with --approve-after
 
 The axis is the run's blast radius, not the importance of the subject. Two things stop a medium run and only two: an empty `provisional_answer`, which means the stage had no answer it could defend and proceeding would be invention; and `beyond_this_run: true`, which means acting would reach outside what discarding the run's output would undo — a push, a deploy, a migration against real data, spend.
 
-It used to be irreversibility, and that was wrong in a way worth recording. An agent correctly calls a schema irreversible, so a run that was only writing a *document* about a schema stopped at nearly every step. Measured across every question the factory has written, 12 of 40 carried both flags, and they were questions like "which naming survives" and "is that year 2026 or 2025" — things a colleague decides, states, and is corrected on later.
+It used to be irreversibility, and that was wrong in a way worth recording. An agent correctly calls a schema irreversible, so a run that was only writing a *document* about a schema stopped at nearly every Activity. Measured across every question the factory has written, 12 of 40 carried both flags, and they were questions like "which naming survives" and "is that year 2026 or 2025" — things a colleague decides, states, and is corrected on later.
 
 Each level is now rendered into every agent's prompt as `{{trust_stance}}`. Before, no prompt mentioned the dial at all: it filtered the agent's classification after the fact, so raising it could not make an agent try harder to settle anything. A setting the worker cannot see is a report filter, not a setting.
 

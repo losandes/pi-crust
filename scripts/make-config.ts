@@ -13,7 +13,7 @@ const TEMPLATE = resolve(
   dirname(new URL(import.meta.url).pathname),
   '..',
   'templates',
-  'crust',
+  'stamp',
   'config',
   'crust.config.yaml',
 )

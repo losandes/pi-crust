@@ -1,5 +1,5 @@
 /**
- * What a step decided, assumed, and could not settle — beside its thinking.
+ * What a activity decided, assumed, and could not settle — beside its thinking.
  *
  * This column is the other half of the trust dial. A chain that answers its
  * own questions instead of stopping is only safe if every one of those
@@ -8,10 +8,10 @@
  *
  * Questions come first and decisions second, because a question is a thing a
  * reader may still have to act on and a decision is a thing they are being
- * told. Assumptions come last: they are the softest claim a step makes and
+ * told. Assumptions come last: they are the softest claim a activity makes and
  * the least likely to need a response today.
  */
-import type { TPhaseLedger, TQuestionOutcome } from '../lib/ledger'
+import type { TActivityRunLedger, TQuestionOutcome } from '../lib/ledger'
 import styles from './DecisionLedger.module.css'
 
 const OUTCOME_LABEL: Readonly<Record<TQuestionOutcome, string>> = {
@@ -22,11 +22,11 @@ const OUTCOME_LABEL: Readonly<Record<TQuestionOutcome, string>> = {
 
 export const DecisionLedger = ({
   ledger,
-}: Readonly<{ ledger: TPhaseLedger }>) => {
+}: Readonly<{ ledger: TActivityRunLedger }>) => {
   if (ledger.total === 0) {
     return (
       <div className={styles.empty}>
-        This step reported nothing it decided, assumed, or could not answer.
+        This activity reported nothing it decided, assumed, or could not answer.
       </div>
     )
   }

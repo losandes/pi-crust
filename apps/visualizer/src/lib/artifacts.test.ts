@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import {
   artifactViolations,
-  phaseArtifacts,
+  activityRunArtifacts,
   relativeToSession,
   runArtifacts,
 } from './artifacts'
@@ -12,19 +12,18 @@ const DIR = `/repo/.pi-crust/data/sessions/${RUN}/context_handoff`
 
 const envelope = (
   agent: string,
-  phaseId: string,
+  activityRunId: string,
   payload: Readonly<Record<string, unknown>>,
   valid = 1,
 ): Envelope =>
   ({
-    envelope_id: `${phaseId}_${agent}`,
+    envelope_id: `${activityRunId}_${agent}`,
     run_id: RUN,
-    phase_id: phaseId,
+    activity_run_id: activityRunId,
     agent,
     output_type: 'Output',
     payload_json: JSON.stringify(payload),
     valid,
-    attempt: 1,
     created_at: '2026-10-06T00:00:00Z',
   }) as Envelope
 
@@ -36,14 +35,14 @@ const file = (path: string, title = ''): HandoffFile => ({
 })
 
 const artifactEvent = (
-  phaseId: string,
+  activityRunId: string,
   payload: Readonly<Record<string, unknown>>,
 ): EventRow =>
   ({
     rowid: 1,
-    event_id: `evt_${phaseId}`,
+    event_id: `evt_${activityRunId}`,
     run_id: RUN,
-    phase_id: phaseId,
+    activity_run_id: activityRunId,
     parent_id: null,
     type: 'artifacts',
     name: 'design',
@@ -56,7 +55,7 @@ const artifactEvent = (
 test(
   [
     'given lib/artifacts::runArtifacts',
-    'when a step reported a document that exists',
+    'when a activity reported a document that exists',
     'it should carry the agent, the summary and the heading as its title',
   ].join(', '),
   () => {
@@ -75,7 +74,7 @@ test(
       runId: RUN,
       envelopes,
       events: [],
-      present: [file('context_handoff/design.md', 'Design — Phase 1')],
+      present: [file('context_handoff/design.md', 'Design — ActivityRun 1')],
     })
 
     // then
@@ -83,9 +82,9 @@ test(
       {
         path: 'context_handoff/design.md',
         name: 'design.md',
-        title: 'Design — Phase 1',
+        title: 'Design — ActivityRun 1',
         source: 'reported',
-        phaseId: `${RUN}_05_design`,
+        activityRunId: `${RUN}_05_design`,
         agent: 'technical-architect',
         summary: 'Physical shape for the accepted architecture.',
         notes: 'The builder must not invent the table names.',
@@ -97,7 +96,7 @@ test(
 test(
   [
     'given lib/artifacts::runArtifacts',
-    'when a step claims a document that is not on disk',
+    'when a activity claims a document that is not on disk',
     'it should list it as missing rather than hide it',
   ].join(', '),
   () => {
@@ -159,7 +158,7 @@ test(
     'it should still be listed, and system files marked as such',
   ].join(', '),
   () => {
-    // given — over-reporting is deliberate: a document a step forgot to
+    // given — over-reporting is deliberate: a document a activity forgot to
     // report is still a document somebody would go hunting for. The run's
     // own machinery files are listed too, but marked, so a reader never has
     // to know which files the interface special-cases.
@@ -179,10 +178,10 @@ test(
       ],
     })
 
-    // then — and the unreported document is still attributed to the phase
+    // then — and the unreported document is still attributed to the activityRun
     // that was OBSERVED to create it
     expect(
-      actual.map((entry) => [entry.name, entry.source, entry.phaseId]),
+      actual.map((entry) => [entry.name, entry.source, entry.activityRunId]),
     ).toEqual([
       ['diagnosis.md', 'observed', `${RUN}_07_diagnose`],
       ['decision-request.md', 'system', undefined],
@@ -229,7 +228,7 @@ test(
   ].join(', '),
   () => {
     // given — an invalid envelope is a rejected report; the attempt that
-    // replaced it is the one that speaks for the step
+    // replaced it is the one that speaks for the activity
     const envelopes = [
       envelope('scout', `${RUN}_01_scout`, { artifacts: [`${DIR}/junk.md`] }, 0),
     ]
@@ -250,8 +249,8 @@ test(
 test(
   [
     'given lib/artifacts::artifactViolations',
-    'when a phase changed or removed another phase\u2019s document',
-    'it should report it, and say nothing about a phase that only created',
+    'when a activityRun changed or removed another activityRun\u2019s document',
+    'it should report it, and say nothing about a activityRun that only created',
   ].join(', '),
   () => {
     // given — nothing forbids this today: the handoff directory is granted to
@@ -272,7 +271,7 @@ test(
     // then
     expect(actual).toEqual([
       {
-        phaseId: `${RUN}_06_build`,
+        activityRunId: `${RUN}_06_build`,
         modified: ['design.md'],
         deleted: ['plan.md'],
       },
@@ -282,9 +281,9 @@ test(
 
 test(
   [
-    'given lib/artifacts::relativeToSession and phaseArtifacts',
-    'when a path is absolute and a list spans several phases',
-    'it should shorten the path and narrow the list to one step',
+    'given lib/artifacts::relativeToSession and activityRunArtifacts',
+    'when a path is absolute and a list spans several activity-run',
+    'it should shorten the path and narrow the list to one activity',
   ].join(', '),
   () => {
     // given — the trace stores absolute paths, which are unreadable on a card
@@ -302,10 +301,59 @@ test(
     // when
     const actual = [
       relativeToSession(absolute, RUN),
-      ...phaseArtifacts(all, `${RUN}_02_two`).map((entry) => entry.name),
+      ...activityRunArtifacts(all, `${RUN}_02_two`).map((entry) => entry.name),
     ]
 
     // then
     expect(actual).toEqual(['context_handoff/design.md', 'two.md'])
+  },
+)
+
+test(
+  [
+    'given lib/artifacts::relativeToSession and runArtifacts',
+    'when a --handoff relocated the directory outside sessions/<run>/',
+    'it should collapse a reported artifact onto the same context_handoff/<name> key the observed listing uses',
+  ].join(', '),
+  () => {
+    // given — a relocated handoff directory never matches /sessions/<run>/,
+    // so without the handoffDir fallback this would render two cards
+    const relocatedDir = '/repo/specs/c35f2c7d'
+    const absolute = `${relocatedDir}/plan.md`
+
+    // when
+    const actual = relativeToSession(absolute, RUN, relocatedDir)
+
+    // then
+    expect(actual).toEqual('context_handoff/plan.md')
+  },
+)
+
+test(
+  [
+    'given lib/artifacts::runArtifacts',
+    'when a reported artifact is inside a relocated handoff directory, and the same file is also observed',
+    'it should produce exactly one artifact, not two',
+  ].join(', '),
+  () => {
+    // given
+    const relocatedDir = '/repo/specs/c35f2c7d'
+    const path = `${relocatedDir}/plan.md`
+
+    // when
+    const actual = runArtifacts({
+      runId: RUN,
+      handoffDir: relocatedDir,
+      envelopes: [envelope('a', `${RUN}_01_plan`, { artifacts: [path] })],
+      events: [],
+      present: [
+        { path: 'context_handoff/plan.md', title: '', bytes: 0, modified_at: '' },
+      ],
+    })
+
+    // then
+    expect(actual).toHaveLength(1)
+    expect(actual[0]?.path).toEqual('context_handoff/plan.md')
+    expect(actual[0]?.source).toEqual('reported')
   },
 )

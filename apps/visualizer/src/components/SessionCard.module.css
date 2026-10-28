@@ -2,7 +2,14 @@
   /* Uniform size: the grid fixes the width, this fixes the height — content
      clamps and truncates rather than resizing the card. Grew by one 40px row
      slot when the timeline went from three to four. */
-  height: 420px;
+  --card-height: 420px;
+  /* The workspace chip is a conditional row: its own 22px (12px × 1.5 line
+     plus 2px padding each side) and the 10px column gap it brings with it.
+     Named here so the card's budget and the chip's height are one number,
+     and spent only by .card.withWorkspace — a card with no chip must not
+     grow a 32px hole at the bottom. */
+  --workspace-slot: 32px;
+  height: var(--card-height);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -18,6 +25,13 @@
     border-color 0.18s ease,
     box-shadow 0.18s ease,
     transform 0.18s ease;
+}
+
+/* A card that renders the chip is one row taller than the budget above.
+   Without this the extra row pushes .stats past the bottom edge, where
+   overflow: hidden hides it rather than letting anyone scroll to it. */
+.card.withWorkspace {
+  height: calc(var(--card-height) + var(--workspace-slot));
 }
 
 .archive {
@@ -232,6 +246,10 @@
 .workspace {
   flex: none;
   align-self: flex-start;
+  box-sizing: border-box;
+  /* The chip half of --workspace-slot; the other 10px is the column gap.
+     Pinned so a font-size change cannot silently unbalance the budget. */
+  height: 22px;
   max-width: 100%;
   padding: 2px 8px;
   border-radius: 999px;

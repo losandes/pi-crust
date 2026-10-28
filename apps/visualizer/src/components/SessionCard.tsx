@@ -5,7 +5,7 @@ import { axisTicks, fmtDate, fmtOffset, ts } from '../lib/format'
 import { paletteColor } from '../lib/palette'
 import { hrefFor } from '../lib/router'
 import type { EventRow, SessionSummary } from '../lib/types'
-import { PhaseDots } from './PhaseDots'
+import { ActivityRunDots } from './ActivityRunDots'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
 import styles from './SessionCard.module.css'
@@ -56,7 +56,7 @@ const useCardEvents = (
       if (inflight.current) return
       inflight.current = true
       try {
-        const fresh: EventRow[] = []
+        let fresh: readonly EventRow[] = []
         let hasMore = true
         while (hasMore) {
           // Cursor pagination is inherently sequential: each request needs the
@@ -68,7 +68,7 @@ const useCardEvents = (
             workspace,
           )
           cursor.current = Math.max(cursor.current, page.cursor)
-          fresh.push(...page.events)
+          fresh = [...fresh, ...page.events]
           hasMore = page.has_more
         }
         if (live && fresh.length > 0) {
@@ -159,14 +159,14 @@ export const SessionCard = ({
 
   const ticks = useMemo(() => axisTicks(range.span, 5), [range.span])
 
-  /** Per-agent rows: events attribute to an agent through their phase's owner. */
+  /** Per-agent rows: events attribute to an agent through their activity-run's owner. */
   const rows = useMemo<readonly TTimelineRow[]>(() => {
-    const owners: string[] = []
-    const ownerByPhase = new Map<string, string>()
-    for (const phase of session.phases ?? []) {
-      if (phase.kind !== 'agent' || !phase.owner) continue
-      ownerByPhase.set(phase.phase_id, phase.owner)
-      if (!owners.includes(phase.owner)) owners.push(phase.owner)
+    let owners: string[] = []
+    const ownerByActivityRun = new Map<string, string>()
+    for (const activityRun of session.activityRuns ?? []) {
+      if (activityRun.kind !== 'agent' || !activityRun.owner) continue
+      ownerByActivityRun.set(activityRun.activity_run_id, activityRun.owner)
+      if (!owners.includes(activityRun.owner)) owners = [...owners, activityRun.owner]
     }
     if (owners.length === 0) return []
 
@@ -176,7 +176,7 @@ export const SessionCard = ({
     let latestAt = Number.NEGATIVE_INFINITY
 
     for (const event of events) {
-      const owner = event.phase_id ? ownerByPhase.get(event.phase_id) : undefined
+      const owner = event.activity_run_id ? ownerByActivityRun.get(event.activity_run_id) : undefined
       const color = dotColor(event.type)
       if (!(owner && color)) continue
       const at = ts(event.started_at)
@@ -210,7 +210,7 @@ export const SessionCard = ({
           : dots,
       }
     })
-  }, [session.phases, session.agents, events, range, running])
+  }, [session.activityRuns, session.agents, events, range, running])
 
   const durationMs = useMemo(() => {
     const start = ts(session.started_at)
@@ -224,12 +224,14 @@ export const SessionCard = ({
   const hiddenRowCount = overflowing ? rows.length - MIN_VISIBLE_ROWS : 0
 
   const tone = styles[session.status ?? '']
+  const classes = [
+    styles.card,
+    tone,
+    workspaceRole === undefined ? undefined : styles.withWorkspace,
+  ].filter((name): name is string => name !== undefined)
 
   return (
-    <a
-      className={tone === undefined ? styles.card : `${styles.card} ${tone}`}
-      href={hrefFor(session.run_id, undefined, session.workspace)}
-    >
+    <a className={classes.join(' ')} href={hrefFor(session.run_id, undefined, session.workspace)}>
       <button
         className={styles.archive}
         type="button"
@@ -256,8 +258,11 @@ export const SessionCard = ({
           {session.branch ?? session.workspace}
         </span>
       )}
-      <span className={styles.lifecycle} title={session.lifecycle ?? ''}>
-        {session.lifecycle ?? '—'}
+      <span
+        className={styles.lifecycle}
+        title={session.name ?? session.lifecycle ?? ''}
+      >
+        {session.name || session.lifecycle || '—'}
       </span>
       <span className={styles.request} title={session.request ?? ''}>
         {session.request}
@@ -315,7 +320,7 @@ export const SessionCard = ({
       <div className={styles.foot}>
         <span className={styles.footStatus}>
           <StatusChip status={session.status ?? 'fail'} />
-          <PhaseDots phases={session.phases ?? []} />
+          <ActivityRunDots activityRuns={session.activityRuns ?? []} />
         </span>
         <span className="dim">{fmtDate(session.started_at)}</span>
       </div>

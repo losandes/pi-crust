@@ -10,10 +10,10 @@ Turn what the engineer said into the prompt the workflow receives: **clearer, no
 
 **The intent is theirs. The precision is yours.**
 
-| You MAY | You MAY NOT |
-|---|---|
-| Carry every constraint forward, verbatim | Quietly drop a requirement because it looks hard or odd |
-| Fix grammar, cut rambling, order the steps | Soften a strong ask ("rewrite" → "refactor a bit") |
+| You MAY                                                 | You MAY NOT                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Carry every constraint forward, verbatim                | Quietly drop a requirement because it looks hard or odd           |
+| Fix grammar, cut rambling, order the steps              | Soften a strong ask ("rewrite" → "refactor a bit")                |
 | Change the language used to better communicate the idea | Research the codebase for exact file names, never go into the app |
 
 If you catch yourself improving the *idea* rather than the *sentence*, stop. Raise the concern to the engineer in your own message and launch what they asked for.
@@ -61,31 +61,32 @@ Same idea, same scope. What changed is that "popularity" became a sort order, th
 **If they did not, read what this repo actually has and choose from that.**
 
 ```bash
-ls .pi-crust/stages/*.ts .pi-crust/lifecycles/*.ts                       # the menu
-head -20 .pi-crust/lifecycles/<name>.ts            # every workflow opens with its `Phases:` line — the chain in one line
+cat .pi-crust/config/crust.lifecycles.yaml                 # the lifecycles this repo offers
+cat .pi-crust/config/crust.activities.yaml                 # the activities they are built from
+just crust please                                          # the same menu, interactively
 ```
 
 Chains are the engineer's to add, rename, and rewire, so **the files on disk are the only authority**. Never launch from memory or from a name you saw in a doc; read the docstrings, then match by shape:
 
-| The work | Look for a chain that |
-|---|---|
-| Changes code, and the shape is not obvious — new behaviour, more than one file, anything you would want a plan for | goes end to end: plans, builds, verifies, reviews, and documents |
-| Changes code, one well-understood edit | plans, builds, and verifies |
-| Implements a plan this session already produced (`--run-id`) | starts at build and verifies |
-| Confirms built work is what was asked for | ends in a review phase |
-| Writes up work already shipped | captures the diff and documents it |
-| Is a question, and nothing should change | is a single read-only agent — the one case where one phase is right |
+| The work                                                                                                           | Look for a chain that                                                      |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Changes code, and the shape is not obvious — new behaviour, more than one file, anything you would want a plan for | goes end to end: plans, builds, verifies, reviews, and documents           |
+| Changes code, one well-understood edit                                                                             | plans, builds, and verifies                                                |
+| Implements a plan this session already produced (`--run-id`)                                                       | starts at build and verifies                                               |
+| Confirms built work is what was asked for                                                                          | ends in a review activity run                                              |
+| Writes up work already shipped                                                                                     | captures the diff and documents it                                         |
+| Is a question, and nothing should change                                                                           | is a single read-only agent — the one case where one activity run is right |
 
-**Never a single-agent chain when the engineer asked for work to be done.** One-phase workflows answer questions and run one-offs; they do not deliver.
+**Never a single-agent chain when the engineer asked for work to be done.** One-activity run workflows answer questions and run one-offs; they do not deliver.
 
-**The more complex the ask, the more complete the chain.** Complexity means: more than one file, a behaviour you cannot describe in one sentence, anything touching data or an interface others call, or any request where you had to guess. When two chains both fit, take the longer one — a phase you did not need costs cents, while a change nobody planned, verified, reviewed, or wrote up costs an afternoon.
+**The more complex the ask, the more complete the chain.** Complexity means: more than one file, a behaviour you cannot describe in one sentence, anything touching data or an interface others call, or any request where you had to guess. When two chains both fit, take the longer one — a activity run you did not need costs cents, while a change nobody planned, verified, reviewed, or wrote up costs an afternoon.
 
-If nothing on disk fits the shape you need, say so and offer to compose one (`create_lifecycle.md`) rather than forcing the work into a chain that skips the phase it needed.
+If nothing on disk fits the shape you need, say so and offer to compose one ([create_lifecycle.md](create_lifecycle.md)) rather than forcing the work into a chain that skips the activity run it needed.
 
 ## Workflow
 
 1. **Read it twice.** Mark every noun that could point at two things.
-2. **Verify before you write.** Every path, route, and symbol you put in the prompt must exist — check it. A wrong path costs a whole build phase.
+2. **Verify before you write.** Every path, route, and symbol you put in the prompt must exist — check it. A wrong path costs a whole build activity run.
 3. **Draft the four lines.**
 4. **Diff against the original.** Every specific thing they said, still there? Anything in your draft they did not say? Delete it.
 5. **Ask at most one question**, only when two readings would produce different code. Otherwise state your assumption in the prompt and say so when you report.
@@ -100,10 +101,10 @@ If nothing on disk fits the shape you need, say so and offer to compose one (`cr
 
 ## Report back
 
-After launching, show the engineer three things so a bad translation dies in seconds rather than at the commit phase:
+After launching, show the engineer three things so a bad translation dies in seconds rather than at the commit activity run:
 
 1. **The prompt you actually sent** — verbatim.
 2. **The workflow you chose**, and the one-line reason — or that you used the one they named. If they named a roster (a config, a model tier), say which one you ran on; if they did not, you ran the default, and switching that is their call, not yours (`run_lifecycle.md`).
-3. **The `run_id`**, so they can watch it (`just crust phases <run_id>`).
+3. **The `run_id`**, so they can watch it (`just crust activity runs <run_id>`).
 
 Then observe and report per `run_lifecycle.md`. You run the system; you do not do the work inside it.

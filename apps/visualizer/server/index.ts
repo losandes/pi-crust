@@ -13,7 +13,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import type { PiCrustDb } from "./db.ts";
+import { handoffDirFor } from "./handoff.ts";
 import { WorkspaceRegistry } from "./registry.ts";
+import { BUILTIN_THEMES, workspaceThemes } from "./themes.ts";
 import {
   registryPath,
   registryStamp,
@@ -31,6 +33,7 @@ import {
   isInboxKind,
   postMessage,
   startConsult,
+  startupFailure,
   startSteer,
   recordDecision,
   refuseUnlessAuthorised,
@@ -172,7 +175,7 @@ function intQuery(req: Request, key: string, fallback: number): number {
  * Every file in a run's handoff directory, with the heading it opens with.
  *
  * The heading is what gives a card a title a human recognises — "Design —
- * Playback stats, Phase 1" rather than `design.md`. Read from the first
+ * Playback stats, ActivityRun 1" rather than `design.md`. Read from the first
  * kilobyte rather than the whole file, because a listing of ten documents
  * should not read half a megabyte to draw ten lines of text.
  */
@@ -281,6 +284,31 @@ const server = Bun.serve({
     /** Every watched tree, including the ones that cannot currently be read. */
     "/api/workspaces": safely(() => json(describeWorkspaces())),
 
+    /*
+     * The themes a workspace registers.
+     *
+     * Per workspace rather than per server: this app observes one repository
+     * at a time but can watch several, and a theme is the repository's
+     * statement about itself. Absent a workspace, the first one answers —
+     * the picker has to show something before anything is selected.
+     */
+    "/api/themes": safely((req) => {
+      const label = workspaceQuery(req);
+      const named = label === undefined ? undefined : registry.byLabel(label);
+      if (label !== undefined && named === undefined) {
+        return notFound(`no workspace ${label}`);
+      }
+      const root = (label === undefined
+        ? registry.states()[0]?.root
+        : registry.states().find((state) => state.label === label)?.root) ?? "";
+
+      return json(
+        root === ""
+          ? { default: "auto", themes: BUILTIN_THEMES, problem: "" }
+          : workspaceThemes(root),
+      );
+    }),
+
     "/api/sessions": safely((req) => {
       const label = workspaceQuery(req);
       const limit = intQuery(req, "limit", 200);
@@ -295,8 +323,29 @@ const server = Bun.serve({
 
     "/api/sessions/:run_id": safely((req) => {
       const runId = param(req, "run_id");
-      const detail = forRun(req, runId)?.sessionDetail(runId);
-      return detail ? json(detail) : notFound(`no session ${runId}`);
+      const owner = forRun(req, runId);
+      const detail = owner?.sessionDetail(runId);
+      if (detail && owner) {
+        /*
+         * Computed here, not in `db.ts`: the db connection is readonly SQL
+         * and must stay that way, and this is the one field on
+         * `SessionDetail` that reads the filesystem instead of a row.
+         */
+        return json({
+          ...detail,
+          handoff_dir: resolve(handoffDirFor(owner.sessionsDir, runId)),
+        });
+      }
+      /*
+       * A run REFUSED at load has no session row and never will — a
+       * concurrent Stage with overlapping `writes` is the case this exists
+       * for. The reason is in the log the spawn wrote, and without it the UI
+       * shows a run that simply never appeared.
+       */
+      const failure = owner && startupFailure(owner.path, runId);
+      return notFound(
+        failure ? `run ${runId} did not start:\n${failure}` : `no session ${runId}`,
+      );
     }),
 
     /*
@@ -307,7 +356,7 @@ const server = Bun.serve({
      */
 
     // Say something to an agent that is working right now. The message lands
-    // in the run's inbox and the running phase delivers it to pi as a steer,
+    // in the run's inbox and the running activityRun delivers it to pi as a steer,
     // a follow-up, or an abort.
     "/api/sessions/:run_id/messages": {
       POST: safely(async (req) => {
@@ -386,6 +435,36 @@ const server = Bun.serve({
       }),
     },
 
+    /*
+     * Pick a FINISHED run back up, where nothing is being answered.
+     *
+     * Separate from `/decision`, which records an approve, reject or answer
+     * against a gate and resumes as a consequence. A run that failed has no
+     * gate waiting and no decision to record — the developer fixed what
+     * broke it and wants it continued — and posting a decision to say so
+     * would write a gate answer nobody gave.
+     *
+     * Needed because a consult does not move a run. An `amend` rewrites a
+     * document and opens no Activity Run by design, so after correcting the
+     * thing that failed there was no way forward from this UI at all.
+     */
+    "/api/sessions/:run_id/resume": {
+      POST: safely((req) => {
+        const refusal = refuseUnlessAuthorised(req);
+        if (refusal) return refusal;
+        const runId = param(req, "run_id");
+        if (!isSafeSegment(runId)) {
+          return json({ error: "invalid run_id" } satisfies ApiError, 400);
+        }
+        const owner = forRun(req, runId);
+        if (!owner) return notFound(`no session ${runId}`);
+        const resumed = resumeRun(owner.path, runId);
+        return resumed.resumed
+          ? json({ run_id: runId, ...resumed })
+          : json({ error: resumed.reason } satisfies ApiError, 503);
+      }),
+    },
+
     // Start a lifecycle. The heaviest thing this server can do, so it is the
     // one that most needs the token in front of it.
     "/api/runs": {
@@ -431,26 +510,32 @@ const server = Bun.serve({
             400,
           );
         }
-        return json(startRun(target.path, lifecycle, prompt, args));
+        const started = startRun(target.path, lifecycle, prompt, args);
+        // A refusal is a 503, not a 200 with a falsy field. The UI shows what
+        // the server says; a success-shaped body for a run that never started
+        // is the defect this whole route had.
+        return started.run_id === ""
+          ? json({ error: started.reason ?? "" } satisfies ApiError, 503)
+          : json(started);
       }),
     },
 
     // Archiving is review triage — it belongs to the reader, not to the run —
     // so it never touches anything a tracer wrote. It is still a write.
     /*
-     * Ask a finished step a question, or have it amend its own document.
+     * Ask a finished Activity Run a question, or have it amend its own document.
      *
      * Behind the token like every write: `amend` rewrites a document, and
      * even `ask` spends money on a model.
      */
-    "/api/sessions/:run_id/steps/:step/consult": {
+    "/api/sessions/:run_id/activities/:activity/consult": {
       POST: safely(async (req) => {
         const refusal = refuseUnlessAuthorised(req);
         if (refusal) return refusal;
         const runId = param(req, "run_id");
-        const step = param(req, "step");
-        if (!(isSafeSegment(runId) && isSafeSegment(step))) {
-          return json({ error: "invalid run_id or step" } satisfies ApiError, 400);
+        const activity = param(req, "activity");
+        if (!(isSafeSegment(runId) && isSafeSegment(activity))) {
+          return json({ error: "invalid run_id or activity" } satisfies ApiError, 400);
         }
         const body = (await req.json().catch(() => ({}))) as {
           mode?: unknown;
@@ -466,28 +551,26 @@ const server = Bun.serve({
         }
         const owner = forRun(req, runId);
         if (!owner) return notFound(`no session ${runId}`);
-        return json({
-          run_id: runId,
-          step,
-          mode,
-          ...startConsult(owner.path, runId, step, mode, question),
-        });
+        const started = startConsult(owner.path, runId, activity, mode, question);
+        return started.started
+          ? json({ run_id: runId, activity, mode, ...started })
+          : json({ error: started.reason ?? "" } satisfies ApiError, 503);
       }),
     },
 
     /*
-     * Send a run back to a step. The target is REQUIRED in the body and is
+     * Send a run back to an Activity Run. The target is REQUIRED in the body and
      * not defaulted here: overwrite discards the path being steered away
      * from, and a default on that choice is a choice made by habit.
      */
-    "/api/sessions/:run_id/steps/:step/steer": {
+    "/api/sessions/:run_id/activities/:activity/steer": {
       POST: safely(async (req) => {
         const refusal = refuseUnlessAuthorised(req);
         if (refusal) return refusal;
         const runId = param(req, "run_id");
-        const step = param(req, "step");
-        if (!(isSafeSegment(runId) && isSafeSegment(step))) {
-          return json({ error: "invalid run_id or step" } satisfies ApiError, 400);
+        const activity = param(req, "activity");
+        if (!(isSafeSegment(runId) && isSafeSegment(activity))) {
+          return json({ error: "invalid run_id or activity" } satisfies ApiError, 400);
         }
         const body = (await req.json().catch(() => ({}))) as {
           target?: unknown;
@@ -508,12 +591,10 @@ const server = Bun.serve({
         }
         const owner = forRun(req, runId);
         if (!owner) return notFound(`no session ${runId}`);
-        return json({
-          run_id: runId,
-          step,
-          target: body.target,
-          ...startSteer(owner.path, runId, step, body.target, note),
-        });
+        const started = startSteer(owner.path, runId, activity, body.target, note);
+        return started.started
+          ? json({ run_id: runId, activity, target: body.target, ...started })
+          : json({ error: started.reason ?? "" } satisfies ApiError, 503);
       }),
     },
 
@@ -572,11 +653,7 @@ const server = Bun.serve({
       const db = forRun(req, runId);
       if (!db) return notFound(`no session ${runId}`);
 
-      const dir = resolve(db.sessionsDir, runId, "context_handoff");
-      // Defense in depth: the segment check already forbids traversal.
-      if (!dir.startsWith(db.sessionsDir + sep)) {
-        return json({ error: "invalid path" } satisfies ApiError, 400);
-      }
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
 
       const file = Bun.file(join(dir, "decision-request.md"));
       /*
@@ -611,10 +688,7 @@ const server = Bun.serve({
       }
       const db = forRun(req, runId);
       if (!db) return notFound(`no session ${runId}`);
-      const dir = resolve(db.sessionsDir, runId, "context_handoff");
-      if (!dir.startsWith(db.sessionsDir + sep)) {
-        return json({ error: "invalid path" } satisfies ApiError, 400);
-      }
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
       return json(listHandoff(dir) satisfies HandoffFile[]);
     }),
 
@@ -626,7 +700,7 @@ const server = Bun.serve({
       }
       const db = forRun(req, runId);
       if (!db) return notFound(`no session ${runId}`);
-      const dir = resolve(db.sessionsDir, runId, "context_handoff");
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
       const file = resolve(dir, relative);
       /*
        * Containment is checked on the RESOLVED path rather than on the text

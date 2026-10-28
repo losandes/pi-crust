@@ -64,7 +64,7 @@
   border-style: dashed;
 }
 
-/* Succeeded once, then replaced by a later run of the same step. Dimmed
+/* Succeeded once, then replaced by a later run of the same activity. Dimmed
    rather than coloured: it is history, and it must not compete with the
    attempt that is standing. */
 .superseded {

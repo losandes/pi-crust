@@ -1,0 +1,38 @@
+{
+  "name": "pi-crust",
+  "version": "0.1.0",
+  "description": "Run a structured SDLC of autonomous, specialist AI agents in your repo",
+  "type": "module",
+  "scripts": {
+    "postinstall": "cd apps/visualizer && bun install",
+    "// LINT": "==============================LINT==============================",
+    "lint": "biome check apps runtime scripts templates",
+    "lint:fix": "biome check apps runtime scripts templates --fix",
+    "// TEST": "==============================TEST==============================",
+    "test": "bun test",
+    "test:with-logs": "bun test --verbose",
+    "test:ci": "CLAUDECODE=1 bun test --verbose",
+    "test:claude": "CLAUDECODE=1 bun test --verbose --bail",
+    "test:coverage": "CLAUDECODE=1 bun test --coverage",
+    "test:watch": "bun test --watch",
+    "// TYPECHECK": "=======================TYPECHECK===========================",
+    "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
+    "typecheck:runtime": "cd runtime && bun x tsc --noEmit",
+    "typecheck:harness": "bun scripts/typecheck-harness.ts",
+    "typecheck:visualizer": "cd apps/visualizer && bun x tsc --noEmit"
+  },
+  "packageManager": "bun@1.4.2",
+  "engines": {
+    "node": ">=24.8.0",
+    "bun": ">=1.4"
+  },
+  "dependencies": {
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.12",
+    "@types/bun": "1.4.2",
+    "markdownlint-cli2": "^0.23.3",
+    "typescript": "5.9.3"
+  }
+}

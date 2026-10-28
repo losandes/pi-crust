@@ -1,5 +1,5 @@
-/* Wider than the confirm dialog: this one has to name every step that will
-   run again, and a wrapped list of steps is a list nobody reads. */
+/* Wider than the confirm dialog: this one has to name every activity that will
+   run again, and a wrapped list of activities is a list nobody reads. */
 .dialog {
   width: min(560px, 92vw);
   padding: 20px 22px;

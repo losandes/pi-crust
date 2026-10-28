@@ -6,11 +6,11 @@
  *     bun <pi-crust>/scripts/install.ts [--force]
  *
  * Stamps: .pi-crust/ (modules, stages, lifecycles, config, prompts, recipes, README),
- * .env.sample, .gitignore entries, and a `mod crust` line in the root justfile.
+ * .env.pi-crust.example, .gitignore entries, and a `mod crust` line in the root
+ * justfile.
  * Existing files are skipped unless --force.
  */
 
-import { spawnSync } from 'node:child_process'
 import {
   appendFileSync,
   copyFileSync,
@@ -18,6 +18,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -29,22 +30,110 @@ const TEMPLATES = resolve(
   'templates',
 )
 
-const GITIGNORE_ENTRIES = [
-  '.pi-crust/data/sessions/',
-  '.pi-crust/data/crust.db*',
-  // Where pi-crust was installed from, on THIS machine. Two developers
-  // sharing a repository do not share a path, and a worktree checked out
-  // somewhere else does not either.
-  '.pi-crust/data/pi-crust-home',
-  '.pi-crust/node_modules/',
-  // One developer's overrides of the committed roster — a cheaper model
-  // while iterating, a different port. Ignored by pattern rather than by
-  // exact name so it still covers a config pointed somewhere else.
-  '.pi-crust/config/*.local.yaml',
-  '.env',
+/**
+ * What a team does not share.
+ *
+ * Everything else in the stamp IS the team's: the roster, the lifecycles,
+ * the themes, and any prompt they wrote. The runtime that reads them lives
+ * in the pi-crust package rather than here, so there is no generated code in
+ * the stamp to decide about.
+ *
+ * `data/` is one developer's runs and the machine-local path to pi-crust.
+ * A `.local.yaml` is one developer's deviation from the team's answer. The
+ * example prompt is illustrative, so it is ignored rather than maintained.
+ */
+/**
+ * Paths the stamp used to own, removed when an install finds them.
+ *
+ * Earlier versions stamped the whole runtime into `.pi-crust/`. Those copies
+ * are now dead weight that no code reads, and leaving them means somebody
+ * edits one and wonders why nothing changed.
+ *
+ * The list is explicit rather than "anything not in the template". A team's
+ * own file must never be a deletion candidate, and a rule phrased as an
+ * exclusion makes every new file one until somebody remembers to exempt it.
+ */
+const ORPHANED = [
+  'modules',
+  'stages',
+  'lifecycles',
+  'harness-engineering',
+  'crust.just',
+  'package.json',
+  'tsconfig.json',
+  'bun.lock',
+  'node_modules',
+  'README.md',
+  'consult.ts',
+  'decide.ts',
+  'please.ts',
+  'prune.ts',
+  'report.ts',
+  'steer.ts',
+  'workspaces.ts',
 ]
 
-const JUST_MODULE = "mod crust '.pi-crust/crust.just'"
+const removeOrphans = (root: string, tally: TTally): void => {
+  const gone = ORPHANED.filter((name) => {
+    const path = join(root, '.pi-crust', name)
+    if (!existsSync(path)) {
+      return false
+    }
+    rmSync(path, { recursive: true, force: true })
+
+    return true
+  })
+  if (gone.length > 0) {
+    tally.stamped.push(
+      `removed ${gone.length} path(s) the runtime no longer owns`,
+    )
+  }
+}
+
+const GITIGNORE_ENTRIES = [
+  '.pi-crust/data/',
+  '.pi-crust/config/*.local.yaml',
+  '.pi-crust/prompt-engineering/example/',
+]
+
+/**
+ * The setting that keeps a prompt one argument.
+ *
+ * `{{ARGS}}` interpolates a variadic parameter into the command line as
+ * TEXT, so the shell splits it again on whitespace: `just crust run "add a
+ * src directory"` reached the runtime as six arguments, the first of which
+ * became the whole prompt. The run then did real work on the word "add".
+ *
+ * `set positional-arguments` plus `"$@"` is the only mechanism just has for
+ * passing arguments through with their boundaries intact. It is file-scoped
+ * rather than recipe-scoped, which is a real imposition on a repository's own
+ * justfile and is accepted because the alternative is a factory that silently
+ * truncates every prompt containing a space.
+ */
+const JUST_SETTING = 'set positional-arguments'
+
+const JUST_RECIPE = [
+  '# pi-crust: every recipe lives in the package, not in this repository.',
+  '# `just crust <recipe>` reaches them; `just crust default` lists them.',
+  '#',
+  '# `set positional-arguments` + "$@" rather than {{ARGS}}: interpolation',
+  '# re-splits on whitespace, which turns a quoted prompt into one word.',
+  JUST_SETTING,
+  '',
+  'crust *ARGS:',
+  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"',
+].join('\n')
+
+/** The same block, for a justfile that already carries the setting. */
+const JUST_RECIPE_ONLY = [
+  '# pi-crust: every recipe lives in the package, not in this repository.',
+  '# `just crust <recipe>` reaches them; `just crust default` lists them.',
+  '#',
+  '# Relies on this file\'s `set positional-arguments`: without it, {{ARGS}}',
+  '# interpolation re-splits a quoted prompt on whitespace.',
+  'crust *ARGS:',
+  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"',
+].join('\n')
 
 /**
  * Where pi-crust was installed from, left behind for the recipes to find.
@@ -131,48 +220,102 @@ const ensureGitignore = (root: string, tally: TTally): void => {
   if (missing.length === 0) {
     return
   }
-  appendFileSync(gitignore, `\n# crust runtime\n${missing.join('\n')}\n`, 'utf8')
+  appendFileSync(
+    gitignore,
+    `\n# crust runtime\n${missing.join('\n')}\n`,
+    'utf8',
+  )
   tally.stamped.push(`${gitignore} (+${missing.length} entries)`)
 }
 
 /**
  * The recipes are part of the operating experience, and the run banner points
- * at them — so a stamped repo has to reach them. They go in `.pi-crust/crust.just`
- * and are imported as a MODULE rather than written into the root justfile:
- * most repositories already have one, and `demo`, `plan`, and `scout` are
- * common enough recipe names that merging would collide.
+ * at them — so a stamped repo has to reach them.
+ *
+ * One passthrough recipe rather than a `mod` line. The recipes live in the
+ * pi-crust package, whose path differs per machine and must not be committed,
+ * and a `mod` resolves its path when the justfile is PARSED — so a missing
+ * one fails every recipe in the repository, not only the crust ones. A
+ * passthrough resolves at call time and costs an unrelated recipe nothing.
  */
-const ensureJustModule = (root: string, tally: TTally): void => {
+/**
+ * An ALREADY-STAMPED justfile whose passthrough still interpolates.
+ *
+ * The first version of this recipe ended `{{ARGS}}`, which the shell splits
+ * again on whitespace — so every prompt containing a space arrived as its
+ * first word and runs were started on "add". A repository that has the old
+ * line gets it corrected on the next install; one that has already been
+ * corrected, or that a team has edited, is left alone.
+ *
+ * This is the one case where an install rewrites a line the repository owns.
+ * It is narrow by construction: the exact old body, replaced by the exact new
+ * one, and the setting added only when the file lacks it.
+ */
+const OLD_PASSTHROUGH =
+  '@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" {{ARGS}}'
+
+const NEW_PASSTHROUGH =
+  '@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"'
+
+const repairInterpolation = (
+  justfile: string,
+  existing: string,
+  tally: TTally,
+): void => {
+  if (!existing.includes(OLD_PASSTHROUGH)) {
+    return
+  }
+  const settled = existing
+    .split('\n')
+    .map((line) => line.trim())
+    .some(
+      (line) => line === JUST_SETTING || line === `${JUST_SETTING} := true`,
+    )
+  const repaired = existing.replace(OLD_PASSTHROUGH, NEW_PASSTHROUGH)
+  writeFileSync(
+    justfile,
+    settled ? repaired : `${JUST_SETTING}\n\n${repaired}`,
+    'utf8',
+  )
+  tally.stamped.push(
+    `${justfile} (crust recipe repaired: a quoted prompt stayed one word)`,
+  )
+}
+
+const ensureJustRecipe = (root: string, tally: TTally): void => {
   const justfile = join(root, 'justfile')
   const existing = existsSync(justfile) ? readFileSync(justfile, 'utf8') : ''
   /*
-   * A COMMENT naming the line is not the line. A justfile that explains how to
-   * re-add the module — which is exactly what a repo left after uninstalling
-   * tends to have — contains the text without importing anything, and a
-   * substring check reads that as "already installed" and silently stamps
-   * nothing. Match a real, uncommented statement.
+   * A COMMENT naming the recipe is not the recipe. A justfile that explains
+   * how to re-add it — which is what a repo left after uninstalling tends to
+   * have — contains the text without defining anything, and a substring check
+   * reads that as "already installed" and silently stamps nothing. Match a
+   * real, uncommented recipe header.
    */
-  const installed = existing
-    .split('\n')
-    .some((line) => line.trim() === JUST_MODULE)
+  const lines = existing.split('\n').map((line) => line.trim())
+  const installed = lines.some((line) => line === 'crust *ARGS:')
   if (installed) {
+    repairInterpolation(justfile, existing, tally)
     return
   }
   if (existing === '') {
-    writeFileSync(
-      justfile,
-      `# Repo recipes. pi-crust's live in .pi-crust/crust.just — run them as \`just crust <recipe>\`.\n\n${JUST_MODULE}\n`,
-      'utf8',
-    )
-    tally.stamped.push(`${justfile} (created, +crust module)`)
+    writeFileSync(justfile, `${JUST_RECIPE}\n`, 'utf8')
+    tally.stamped.push(`${justfile} (created, +crust recipe)`)
     return
   }
-  appendFileSync(
-    justfile,
-    `\n# crust recipes — run them as \`just crust <recipe>\`\n${JUST_MODULE}\n`,
-    'utf8',
+  /*
+   * A second `set positional-arguments` is a parse error, so a justfile that
+   * already has it gets the recipe alone. The setting is file-scoped and
+   * order does not matter, which is why appending works at all.
+   */
+  const settled = lines.some(
+    (line) => line === JUST_SETTING || line === `${JUST_SETTING} := true`,
   )
-  tally.stamped.push(`${justfile} (+crust module)`)
+  const block = settled ? JUST_RECIPE_ONLY : JUST_RECIPE
+  appendFileSync(justfile, `\n${block}\n`, 'utf8')
+  tally.stamped.push(
+    `${justfile} (+crust recipe${settled ? '' : ', +positional-arguments'})`,
+  )
 }
 
 const say = (line: string): void => {
@@ -184,18 +327,20 @@ const main = (): number => {
   const root = process.cwd()
   const tally: TTally = { stamped: [], skipped: [] }
 
-  stamp(join(TEMPLATES, 'pi-crust'), join(root, '.pi-crust'), force, tally)
-  stamp(join(TEMPLATES, 'env.sample'), join(root, '.env.sample'), force, tally)
+  stamp(join(TEMPLATES, 'stamp'), join(root, '.pi-crust'), force, tally)
+  // Namespaced rather than `.env.example`: the root of somebody else's
+  // repository is not ours to claim, and a project with its own example would
+  // otherwise have it overwritten by an install.
+  stamp(
+    join(TEMPLATES, 'env.example'),
+    join(root, '.env.pi-crust.example'),
+    force,
+    tally,
+  )
+  removeOrphans(root, tally)
   ensureGitignore(root, tally)
-  ensureJustModule(root, tally)
+  ensureJustRecipe(root, tally)
   recordHome(root, tally)
-
-  // The stamped tree has exactly one runtime dependency. Installing it here
-  // means `just crust demo` works without a second instruction nobody read.
-  const installed = spawnSync('bun', ['install'], {
-    cwd: join(root, '.pi-crust'),
-    encoding: 'utf8',
-  })
 
   say(`crust installed into ${root}`)
   say(`  stamped: ${tally.stamped.length} file(s)`)
@@ -207,20 +352,20 @@ const main = (): number => {
       `  skipped (already exist, use --force to overwrite): ${tally.skipped.length}`,
     )
   }
-  say(
-    installed.status === 0
-      ? '  dependencies: bun install ok'
-      : `  dependencies: bun install failed — run it yourself in .pi-crust/ (${(installed.stderr ?? '').trim().slice(-200)})`,
-  )
   say('\nnext steps:')
-  say('  1. cp .env.sample .env     # then set the key(s) your roster needs')
+  say(
+    '  1. cp .env.pi-crust.example .env     # then set the key(s) your roster needs',
+  )
   say('  2. just crust demo          # two cheap read-only runs, end to end')
   say('  3. just crust sessions      # what just happened')
   say('  4. just crust observe       # the trace UI, needs bun')
   say('\n  no just? the raw form of step 2 is:')
-  say('     bun .pi-crust/stages/prompt.ts "say hello" --agent scout')
   say(
-    '\n  read .pi-crust/README.md — it explains the folder to whoever finds it next.',
+    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/lifecycles/compose.ts" \\\n' +
+      '       "list the top-level directories in this repo" --activities scout',
+  )
+  say(
+    '\n  read .pi-crust/prompt-engineering/README.md — it explains what is yours here.',
   )
   return 0
 }

@@ -1,0 +1,68 @@
+/* Visit https://aka.ms/tsconfig to read more about this file */
+{
+  /*
+   * Everything that ships, not a list that rots.
+   *
+   * This used to name `./workflows`, a directory that stopped existing when
+   * stages and lifecycles were split apart — so every entry point was
+   * silently unchecked, and an import of a module that does not exist
+   * compiled clean and failed at run time. An include list is a second
+   * inventory of the tree, and the tree is the one that changes.
+   */
+  "include": ["."],
+  /*
+   * `harness-engineering` is pi's, not ours. It imports @earendil-works/*
+   * and typebox — modules the pi host provides to an extension at run time
+   * and which are deliberately not dependencies of this tree. Checking it
+   * here would report thirty unresolvable imports forever, which is how a
+   * checker gets ignored, and it would make this project unusable on a
+   * machine with no pi at all.
+   *
+   * Excluded HERE is not unchecked. `scripts/typecheck-harness.ts` runs the
+   * same compiler over that directory against the pi actually installed on
+   * the machine, which is the only version whose API the extensions will
+   * ever meet. Run it with `bun run typecheck`. `data` is runtime output.
+   */
+  "exclude": ["node_modules", "data", "harness-engineering"],
+  "compilerOptions": {
+    "types": ["bun"],
+    // base
+    "target": "ES2022",
+    // ES2023 for toSorted()/toReversed(), which the repo's lint rules require
+    // in place of the mutating sort() and reverse().
+    "lib": ["ES2023"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    /*
+     * Lets the repository root's tsconfig.json reference this project, so a
+     * plain `bun x tsc --noEmit` run from the repository root (rather than
+     * `cd runtime &&`) type-checks it instead of finding no project at all.
+     */
+    "composite": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": true,
+    "sourceMap": true,
+    "useDefineForClassFields": true,
+    // strict
+    "strict": true,
+    // strictest
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
+  }
+}

@@ -18,21 +18,18 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 ├── package.json                 one dependency: zod
 ├── crust.just                    recipes, reached as `just crust <recipe>`
 ├── config/
-│   └── crust.config.yaml         the agent roster — one agent, one prompt, one purpose
+│   ├── crust.activities.yaml     the Activity registry — what a Lifecycle may name
+│   ├── crust.lifecycles.yaml     the Lifecycles, their Stages, and each Stage's strategy
+│   ├── crust.config.yaml         defaults and routing
+│   └── crust.observe.yaml        the trace db, the ports, the themes
 ├── report.ts                    where did a run stop, and what resumes it
-├── stages/                      one runnable entrypoint per step
-├── lifecycles/                  compositions of stages; thin by rule
-│   ├── prompt.ts · scout.ts · plan.ts · test.ts · build.ts    one step each
-│   ├── verify.ts · review.ts · code-review.ts · commit.ts · document.ts
-│   ├── sdlc.ts                  plan → test → build → verify → review → code-review ↻
-│   ├── compose.ts               --steps a,b,c: any ordered subset of the eleven
-│   ├── sdlc.ts                  the full lifecycle, from a wish
-│   ├── bugfix.ts                diagnose → plan → test → build → verify → review → code-review
-│   ├── de-risk.ts               identify → conceptualize → plan → design → poc
-│   └── compose.ts               any ordered subset, named with --steps
+├── checks.ts                    routing.checks on their own, with no Lifecycle
+├── stages/                      the two Planners with an agent: operator, triage
+├── lifecycles/
+│   └── compose.ts               --lifecycle <name>, or --activities a,b+c
 ├── modules/                     ALL low-level logic — workflow scripts stay thin
 │   ├── typedefs/                types and zod schemas only
-│   │   ├── phase.ts             TPhaseParams, TPhase
+│   │   ├── activity run.ts             TActivityRunParams, TActivityRun
 │   │   ├── envelope.ts          one output type per agent call, plus TEnvelopeSpec
 │   │   ├── config.ts            TAgentConfig, TPiCrustConfig
 │   │   └── gate.ts · pi.ts · quality.ts · changes.ts · trace.ts · run.ts
@@ -42,24 +39,27 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 │   │   ├── trace-db.ts          JSONL + SQLite, written as it happens
 │   │   └── git.ts · files.ts · clock.ts · ids.ts · terminal.ts · prompt-files.ts
 │   └── use-cases/               orchestration and policy
-│       ├── run-phase.ts         runPhase(run)(params, body) and finish(run)
+│       ├── run-activity-run.ts         runActivityRun(run)(params, body) and finish(run)
 │       ├── execute-agent.ts     prompt → pi → typed parse → gates → envelope
-│       ├── steps/               one file per step kind, plus the registry
-│       ├── run-steps.ts         fold a context through an ordered step list
-│       ├── revise-loop.ts       the bounded loop a chain ending in a review gets
+│       ├── activity-registry.ts  configuration → something runnable, by name
+│       ├── attempts.ts          the one ceiling: Activity Runs per instance, per run
+│       ├── deliver.ts           an Activity commits its own change, in its own words
+│       ├── activities/          one Activity made runnable, and the Planners
+│       ├── run-activities.ts    fold a context through an ordered chain
+│       ├── revise-loop.ts       the bounded loop a chain ending in reviews gets
 │       ├── dispute-ledger.ts    counts repeated findings, so neither agent does
-│       ├── select-range.ts      --base: which change verify and the reviews judge
-│       ├── run-workflow.ts      the body every step-based workflow shares
-│       ├── resume.ts            skipIfDone: run the phase, or replay it
-│       ├── replay.ts            how a hand-written workflow's phases replay
+│       ├── select-range.ts      --scope: which change the reviews judge
+│       ├── run-workflow.ts      the body every workflow shares
+│       ├── resume.ts            skipIfDone: run the activity run, or replay it
+│       ├── replay.ts            how a hand-written workflow's activity runs replay
 │       ├── read-run-state.ts    the ONE answer to "what is already done"
 │       ├── route-by-path.ts     which skills load, which checks run, by changed path
-│       ├── gates/               gate.check(envelope, run) -> TGateReport
+│       ├── gates/               gate.check(envelope, run, changedPaths) -> TGateReport
 │       ├── enforce-permissions.ts   what an agent may change, checked after the fact
 │       ├── run-checks.ts       the deterministic lint/typecheck/build/test blocks
 │       └── capture-changes.ts   git diff vs a resolved base → envelope
 ├── prompt-engineering/{agent}/{system.md,user.md}   tracked — edit prompts HERE
-│                                planner · builder · scout · tester
+│                                plan · build · scout · test
 │                                reviewer · code-reviewer · documenter
 ├── harness-engineering/         pi extensions an agent's harness can load
 └── data/                        runtime only; nothing under here is authored
@@ -72,39 +72,38 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 
 **v1 runs Pi only.** `coding_agent: pi`, default model `gemini-3.6-flash`, thinking `medium`. `claude_code` is specced in the config and stubbed in the interface — it lands in v2.
 
-## The phase model
+## The activity run model
 
-Every run is a sequence of **phases**, each one `await phase(phaseParams({...}), body)`. Three kinds, three swim lanes:
+Every run is a sequence of **activity runs**, each one `await activity run(activityRunParams({...}), body)`. Three kinds, three swim lanes:
 
-- **engineer** — the human lane; today the system-input phase (who asked, and for what).
+- **engineer** — the human lane; today the system-input activity run (who asked, and for what).
 - **agent** — `callAgent(run, ph, {...})`: prompt in → typed envelope out → gates verified.
-- **code** — deterministic steps that stand alone (git commit, quality blocks, change capture). Never buried inside an agent phase.
+- **code** — deterministic Activities that stand alone (git commit, quality blocks, change capture). Never buried inside an agent activity run.
 
-**Success must be earned — every phase defaults to `fail`.** A clean exit flips it to success; agent phases additionally require the envelope to parse and all gates to come back green. A throw keeps it failed, records an error event, and aborts the run. `retries: N` on an agent phase buys extra gate-correction rounds through the same session before that throw happens.
+**Success must be earned — every activity run defaults to `fail`.** A clean exit flips it to success; agent activity runs additionally require the envelope to parse and all gates to come back green. A throw keeps it failed, records an error event, and aborts the run. A failed gate is not a throw while the Activity has budget: it runs again, as its own Activity Run, against its `attempts`.
 
-## The step model
+## The Activity model
 
-A **step** is a phase plus the two things composition needs: the agents it requires, and how it is REPLAYED. Eleven of them, each runnable on its own:
+An **Activity** is a discrete unit of work and the agent that performs it — one entry in `config/crust.activities.yaml`, carrying both halves:
 
-| Step | Kind | Owner | Asks |
-|---|---|---|---|
-| `prompt` | agent | `--agent` | whatever you asked, straight through |
-| `scout` | agent | scout | where do things live? |
-| `plan` | agent | planner | what should be done? |
-| `test` | agent | tester | what would prove it was done? |
-| `build` | agent | builder | do it |
-| `verify` | code | quality | do the declared checks pass? |
-| `review` | agent | reviewer | is this what was asked for? |
-| `code-review` | agent | code-reviewer | does it match this repo's conventions? |
-| `revise` | agent | builder | answer the review: fix it, or dispute it with evidence |
-| `commit` | code | git | land it, in its author's words |
-| `document` | agent | documenter | write up what the diff shows |
+| Key                  | Says                                                               |
+| -------------------- | ------------------------------------------------------------------ |
+| `model`, `thinking`, `tools`, `writes`, `prompt_engineering` | who performs it, and what it may reach |
+| `output`             | the envelope contract it answers, by published name                |
+| `gates`              | what its envelope must survive, by published name                  |
+| `input`              | `upstream` (the default), or `changes` for the run's own diff      |
+| `attempts`           | Activity Runs of one instance this run may spend, the first included |
+| `commit`             | land its own change, in its envelope's words, once its gates pass  |
 
-`test` writes tests and `verify` runs them, because writing one is judgement and running one is a command. `review` and `code-review` ask different questions: whether the ask was met, and whether the result conforms. `code-review` learns the conventions by loading the skills `routing.skills` gives it — none of them is named in `.pi-crust/`.
+There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` or a gate nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names.
 
-A chain worth repeating gets a two-line script listing its steps (`sdlc.ts`); a chain you want once is `compose --steps`. A conditional tail stays hand-written — that is control flow, and a list of names cannot express it.
+Three things are NOT Activities, deliberately:
 
-One loop does not. A chain whose LAST step is `review` or `code-review` gets the bounded revise loop from `use-cases/revise-loop.ts`: the blocking findings go back to the builder as a `revise`, the reviewer rules again, at most twice. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer. `revise` is also nameable on its own, for a single pass with no re-review.
+- **The Planners** — `operator`, `triage`, and the Composer. They decide what happens and perform none of it, they are a closed set in code, and a Lifecycle cannot name one. Configuration tunes their model, tools, writes and prompts under `planners:`.
+- **The repository's checks** — a known command is the `checks` gate, declared per Activity. It used to be a `verify` Activity producing a verdict nothing read.
+- **Delivery** — an Activity with `commit: true` lands its own change once its gates pass, so granularity follows the chain. `--commit false` turns it off for a whole run; there is no flag that turns it on.
+
+A chain that ENDS in reviewing Activities — any declaring `output: reviewOutput` — gets the bounded revise loop from `use-cases/revise-loop.ts`, which re-asks all of them each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.
 
 ## Envelopes
 
@@ -115,9 +114,9 @@ Agents have exactly two output channels: reference files written into `context_h
 ## Running a workflow
 
 ```bash
-bun .pi-crust/stages/plan.ts "add a /health endpoint"
-bun .pi-crust/lifecycles/sdlc.ts requests/health.md --run-id a1b2c3d4
-just crust plan "add a /health endpoint"
+just crust run "add a /health endpoint" --activities plan
+just crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
+just crust run "the /health work" --activities review+code-review
 ```
 
 The prompt is inline text or a file path. `--run-id` is optional on every workflow: given one, the run joins that session (same dirs, same `context_handoff/`, agents resume their existing context windows); omitted, a fresh id is minted and printed.
@@ -126,14 +125,14 @@ A run that stopped is picked up, not restarted:
 
 ```bash
 bun .pi-crust/report.ts                      # where did the last run stop?
-bun .pi-crust/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
+bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
 ```
 
-`--resume` skips every phase already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
+`--resume` skips every activity run already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
 
 ## When you have finished reading this
 
-You are done with startup. List the workflows (`ls .pi-crust/stages/*.ts .pi-crust/lifecycles/*.ts`, plus each `Phases:` docstring line) as a table, and **wait for the engineer's request.**
+You are done with startup. List the workflows (`ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts`, plus each `Activity Runs:` docstring line) as a table, and **wait for the engineer's request.**
 
 Do not survey anything else — not the trace db, not the config, not past runs, not the repo tree. You do not yet know what the request is, so anything you gather now is a guess about what will matter, spent from the context the real work needs. Every cookbook and reference below is lazy-loaded, one per request, and that is the whole design.
 
@@ -141,15 +140,15 @@ Do not survey anything else — not the trace db, not the config, not past runs,
 
 Load one cookbook per request — this overview is the only one you read up front.
 
-| Request | Cookbook |
-|---|---|
+| Request                                        | Cookbook                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------- |
 | Turn a request into the prompt a workflow gets | `how_to_prompt_for_the_eng.md` — **read before every launch** |
-| Set the system up in a repo | `install.md` |
-| Write a new workflow script | `create_lifecycle.md` |
-| Change an existing workflow chain | `update_lifecycle.md` |
-| Generate `crust.config.yaml` | `create_config.md` |
-| Add or retune an agent | `update_config.md` |
-| Add low-level logic or a gate | `update_modules.md` |
-| Run and monitor a workflow | `how_to_prompt_for_the_eng.md`, then `run_lifecycle.md` |
+| Set the system up in a repo                    | `install.md`                                                  |
+| Add a lifecycle                                | `create_lifecycle.md`                                         |
+| Change a lifecycle's stages or concurrency     | `update_lifecycle.md`                                         |
+| Generate `crust.config.yaml`                   | `create_config.md`                                            |
+| Add or retune an agent                         | `update_config.md`                                            |
+| Add low-level logic or a gate                  | `update_modules.md`                                           |
+| Run and monitor a workflow                     | `how_to_prompt_for_the_eng.md`, then `run_lifecycle.md`       |
 
 References, loaded when you need the spec: `references/config.md` (full config schema), `references/handoff.md` (envelope + session layout), `references/observability.md` (events, db tables, polling).
