@@ -46,4 +46,13 @@ export type TQualityResult = Readonly<{
   checks: readonly TQualityCheckResult[]
   failures: readonly string[]
   artifacts: readonly string[]
+  /**
+   * Changed paths no declared `routing.checks` rule reached.
+   *
+   * Not a failure by default (see `run-checks.ts`): a repository that opted
+   * in and left a gap is a reporting problem, not evidence the change is
+   * bad. Named here so the gate can say so, and so `routing.unmatched:
+   * "block"` has something to fail on.
+   */
+  unmatchedPaths: readonly string[]
 }>
