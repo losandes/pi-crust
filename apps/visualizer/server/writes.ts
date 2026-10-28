@@ -29,6 +29,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { Database } from "bun:sqlite";
 import { handoffDirFor } from "./handoff.ts";
 import type { ApiError } from "../shared/types.ts";
 
@@ -229,6 +230,16 @@ export const recordDecision = (
  * target is passed through as the flag the CLI requires rather than a
  * default chosen here — one of the two discards the path being steered away
  * from, and the server is not the place that decides which.
+ *
+ * A branch is always seeded `fork`: the dialog that offers branch at all is
+ * designed around one deliberate choice, and `TSeeding`'s own documentation
+ * says fork is usually what you want because the rejected attempt is WHY
+ * somebody is steering. `fresh` stays a CLI-only choice.
+ *
+ * `branchRunId` is minted by the CALLER — `/steer`, following `startRun`'s
+ * own pattern — because this detaches: the HTTP response cannot wait to
+ * learn what the child decided, so the id has to exist before it is asked
+ * to write anything.
  */
 export const startSteer = (
   dbPath: string,
@@ -236,33 +247,57 @@ export const startSteer = (
   activity: string,
   target: "overwrite" | "branch",
   note: string,
+  branchRunId?: string,
 ): Readonly<{
   started: boolean;
   pid: number | undefined;
   log: string;
   reason?: string;
+  branch_run_id: string;
 }> => {
   const runtime = crustRuntime(dbPath);
   if (runtime === undefined) {
-    return { started: false, pid: undefined, log: "", reason: NO_RUNTIME };
+    return {
+      started: false,
+      pid: undefined,
+      log: "",
+      reason: NO_RUNTIME,
+      branch_run_id: target === "branch" ? (branchRunId ?? "") : "",
+    };
   }
   const dir = sessionDir(dbPath, runId);
   mkdirSync(dir, { recursive: true });
   const log = join(dir, "steer.log");
-  const child = spawn(
-    "bun",
-    [join(runtime, "steer.ts"), runId, activity, `--${target}`, note],
-    {
-      cwd: workspaceRoot(dbPath),
-      detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, CRUST_DB: dbPath },
-    },
-  );
+  const args =
+    target === "branch"
+      ? [
+          join(runtime, "steer.ts"),
+          runId,
+          activity,
+          "--branch",
+          "--seeding",
+          "fork",
+          "--branch-id",
+          branchRunId ?? "",
+          note,
+        ]
+      : [join(runtime, "steer.ts"), runId, activity, "--overwrite", note];
+  const child = spawn("bun", args, {
+    cwd: workspaceRoot(dbPath),
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, CRUST_DB: dbPath },
+  });
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
   child.unref();
-  return { started: true, pid: child.pid, log, reason: "" };
+  return {
+    started: true,
+    pid: child.pid,
+    log,
+    reason: "",
+    branch_run_id: target === "branch" ? (branchRunId ?? "") : "",
+  };
 };
 
 /**
@@ -315,6 +350,57 @@ export const startConsult = (
 };
 
 /**
+ * The standing instruction a developer leaves when picking a run back up, in
+ * the exact shape `runtime/modules/use-cases/steer.ts::developerNote` writes
+ * it — see `writes.test.ts` for the test pinning both sides to the same
+ * literal, since there is no import that would be correct here: this server
+ * resolves whatever workspace it is pointed at, and `runtime/` ships with
+ * the package rather than with the stamp.
+ */
+const developerNoteEntry = (note: string, at: string): string =>
+  [`## Instruction from the developer at ${at}`, "", note.trim(), ""].join("\n");
+
+/**
+ * Append a developer's note to the run's own `steering.md`, through the
+ * handoff directory the run actually recorded — never `CRUST_HOME`, which a
+ * stamped tree resuming today does not depend on and must not start to.
+ */
+const recordResumeNote = (
+  dbPath: string,
+  runId: string,
+  note: string,
+  from: string,
+): string => {
+  const handoff = handoffDirFor(join(dirname(dbPath), "sessions"), runId);
+  if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true });
+  const path = join(handoff, "steering.md");
+  const entry = developerNoteEntry(note, new Date().toISOString());
+  appendFileSync(path, entry.endsWith("\n") ? entry : `${entry}\n`);
+
+  const db = new Database(dbPath);
+  db.run("PRAGMA busy_timeout=5000;");
+  db.run(
+    "INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)" +
+      " VALUES (?,?,?,?,?,?)",
+    [
+      `evt_note_${Date.now()}`,
+      runId,
+      "log",
+      "developer_note",
+      JSON.stringify({
+        note,
+        from,
+        at: new Date().toISOString(),
+        recorded: path,
+      }),
+      new Date().toISOString(),
+    ],
+  );
+  db.close();
+  return path;
+};
+
+/**
  * Pick a waiting run back up, exactly as it was launched.
  *
  * Approve, reject and answer all MEAN "carry on" — a person who has just told
@@ -326,17 +412,33 @@ export const startConsult = (
  * the flags are not otherwise recoverable: `--approve-after plan` exists only
  * in argv, and the processes table stores the command space-joined, which
  * loses the boundaries of a prompt containing spaces.
+ *
+ * A non-empty `note` is appended to `steering.md` BEFORE the run is spawned,
+ * so every activity from here reads it through the steering block
+ * `execute-agent.ts` already splices into every prompt. An empty note keeps
+ * today's behaviour byte-for-byte: no file is written, and `note_recorded`
+ * comes back `''`.
  */
 export const resumeRun = (
   dbPath: string,
   runId: string,
-): Readonly<{ resumed: boolean; pid: number | undefined; reason: string }> => {
+  note = "",
+  from = "the web app",
+): Readonly<{
+  resumed: boolean;
+  pid: number | undefined;
+  reason: string;
+  note_recorded: string;
+}> => {
+  const noteRecorded =
+    note.trim() === "" ? "" : recordResumeNote(dbPath, runId, note.trim(), from);
   const recorded = join(sessionDir(dbPath, runId), "invocation.json");
   if (!existsSync(recorded)) {
     return {
       resumed: false,
       pid: undefined,
       reason: `no invocation.json for ${runId} — resume it by hand`,
+      note_recorded: noteRecorded,
     };
   }
   const parsed = JSON.parse(readFileSync(recorded, "utf8")) as {
@@ -348,7 +450,12 @@ export const resumeRun = (
     : [];
   const script = argv[1] ?? "";
   if (script === "") {
-    return { resumed: false, pid: undefined, reason: "recorded argv is unusable" };
+    return {
+      resumed: false,
+      pid: undefined,
+      reason: "recorded argv is unusable",
+      note_recorded: noteRecorded,
+    };
   }
   // The run's own resume flags are stripped and re-appended, so resuming a
   // run that was already resumed does not stack duplicates onto the line.
@@ -372,7 +479,7 @@ export const resumeRun = (
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
   child.unref();
-  return { resumed: true, pid: child.pid, reason: "" };
+  return { resumed: true, pid: child.pid, reason: "", note_recorded: noteRecorded };
 };
 
 /**

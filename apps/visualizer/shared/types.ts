@@ -45,6 +45,8 @@ export type EventType =
   | "gate_pass"
   | "gate_fail"
   | "log"
+  /** A run sent back to an activity, by overwrite or by branch. */
+  | "steer"
   | "error";
 
 export interface Session {

@@ -11,6 +11,7 @@ import {
 import { ConfirmDialog } from './ConfirmDialog'
 import { SteerDialog } from './SteerDialog'
 import { readToken, writeToken } from '../lib/token'
+import { hrefFor } from '../lib/router'
 import styles from './RunControls.module.css'
 
 /**
@@ -36,6 +37,7 @@ export const RunControls = ({
   workspace,
   consultStep,
   onConsultSent,
+  onMessageSent,
   replaying = [],
   standalone = false,
 }: Readonly<{
@@ -63,6 +65,12 @@ export const RunControls = ({
    */
   onConsultSent?: (mode: 'ask' | 'amend', question: string) => void
   /**
+   * Fired after a steer or a follow-up is ACCEPTED, so the pane beside this
+   * one can echo it into the conversation immediately, the same "only on
+   * result.ok" rule `onConsultSent` already follows.
+   */
+  onMessageSent?: (kind: 'steer' | 'follow_up', text: string) => void
+  /**
    * The activities a steer from here would replay, in the order the run took.
    *
    * Passed in rather than derived here, because only the caller has the
@@ -80,6 +88,7 @@ export const RunControls = ({
   const [busy, setBusy] = useState(false)
   const [confirmAbort, setConfirmAbort] = useState(false)
   const [steering, setSteering] = useState(false)
+  const [branchRunId, setBranchRunId] = useState('')
 
   const running = status === 'running'
   const waiting = status === 'waiting'
@@ -117,13 +126,13 @@ export const RunControls = ({
   const act = (
     run: () => Promise<TWriteResult>,
     said: string,
-    onSent?: () => void,
+    onSent?: (result: Readonly<{ ok: true; data: unknown }>) => void,
   ): void => {
     setBusy(true)
     void run().then((result) => {
       settle(result, said)
       if (result.ok) {
-        onSent?.()
+        onSent?.(result)
       }
     })
   }
@@ -165,7 +174,11 @@ export const RunControls = ({
             : waiting
               ? 'Your answer. It enters the next stage as a fact attributed to you.'
               : canConsult
-                ? 'Ask this activity a question, or tell it what to change.'
+                ? failed
+                  ? 'Ask this activity a question, tell it what to change, or ' +
+                    'type a note — it is sent as a standing instruction every ' +
+                    'activity reads when you pick the run back up.'
+                  : 'Ask this activity a question, or tell it what to change.'
                 : 'Nothing is listening.'
         }
         onChange={(event) => setText(event.target.value)}
@@ -182,7 +195,8 @@ export const RunControls = ({
                 needsText('steer') ||
                 act(
                   () => sendMessage(runId, 'steer', text, workspace),
-                  'steering sent',
+                  'steering sent \u2014 it will appear in the conversation above',
+                  () => onMessageSent?.('steer', text),
                 )
               }
             >
@@ -195,7 +209,8 @@ export const RunControls = ({
                 needsText('queue it') ||
                 act(
                   () => sendMessage(runId, 'follow_up', text, workspace),
-                  'queued for when it finishes',
+                  'queued for when it finishes \u2014 it will appear in the conversation above',
+                  () => onMessageSent?.('follow_up', text),
                 )
               }
             >
@@ -305,11 +320,18 @@ export const RunControls = ({
                 type="button"
                 disabled={busy}
                 className={styles.primary}
-                title="Re-launches the run exactly as it was started, skipping every Activity Run already recorded successful."
+                title={
+                  text.trim() === ''
+                    ? 'Re-launches the run exactly as it was started, skipping every Activity Run already recorded successful.'
+                    : 'Re-launches the run, and carries what you typed as a standing instruction every activity from here reads.'
+                }
                 onClick={() =>
                   act(
-                    () => sendResume(runId, workspace),
-                    'picked up where it stopped — nothing already green re-runs',
+                    () => sendResume(runId, workspace, text),
+                    text.trim() === ''
+                      ? 'picked up where it stopped — nothing already green re-runs'
+                      : 'picked up where it stopped — your note is now a standing ' +
+                        'instruction every activity from here reads',
                   )
                 }
               >
@@ -335,6 +357,18 @@ export const RunControls = ({
       </div>
 
       {done !== '' && <p className={styles.done}>{done}</p>}
+      {/*
+        Only rendered after a successful branch: the id comes back in the
+        response because the server mints it before the detached child has
+        written a row, and this is the one place that id is worth a click.
+      */}
+      {branchRunId !== '' && (
+        <p className={styles.done}>
+          <a href={hrefFor(branchRunId, undefined, workspace)}>
+            open the new run ({branchRunId})
+          </a>
+        </p>
+      )}
       {problem !== '' && <p className={styles.problem}>{problem}</p>}
 
       {/*
@@ -369,20 +403,23 @@ export const RunControls = ({
         activity={consultStep ?? ''}
         replaying={replaying}
         note={text}
-        /*
-         * Branching is designed and not built. The button says so instead of
-         * quietly doing the other thing — which, here, would discard the work
-         * somebody chose branch precisely to keep.
-         */
-        branchReady={false}
+        branchReady={true}
         onCancel={() => setSteering(false)}
         onChoose={(target) => {
           setSteering(false)
+          setBranchRunId('')
           act(
             () => sendSteer(runId, consultStep ?? '', target, text, workspace),
             target === 'overwrite'
               ? 'steering sent — these activities are running again'
-              : 'branching — a new run is starting from this activity',
+              : 'branching — a new run is starting; its link appears below',
+            (result) => {
+              if (target !== 'branch') return
+              const data = result.data as Readonly<{ branch_run_id?: unknown }>
+              if (typeof data.branch_run_id === 'string' && data.branch_run_id !== '') {
+                setBranchRunId(data.branch_run_id)
+              }
+            },
           )
         }}
       />

@@ -7,6 +7,11 @@ import {
   turnsOf,
   type TTurn,
 } from '../lib/narration'
+import {
+  conversationOf,
+  developerMessagesOf,
+  type TDeveloperMessage,
+} from '../lib/messages'
 import type { TConsult, TPendingConsult } from '../lib/consult'
 import type { Envelope, EventRow } from '../lib/types'
 import { DecisionRequest } from './DecisionRequest'
@@ -17,6 +22,7 @@ import { highlightJsonText } from '../lib/highlight'
 /** The one sentence a activity ends on, out of its envelope. */
 const summaryOf = (envelope: Envelope | undefined): string => {
   if (envelope?.payload_json == null) return ''
+  // biome-ignore lint/plugin/no-intermediate-try-catch: a activity whose output did not parse still has its thinking above, and a broken tail must not take the readable part of the pane with it
   try {
     const payload: unknown = JSON.parse(envelope.payload_json)
     const summary =
@@ -52,6 +58,7 @@ export const NarrationPane = ({
   activityRunStatus,
   consults,
   pending,
+  pendingMessage,
   runId,
   runStatus,
 }: Readonly<{
@@ -61,6 +68,12 @@ export const NarrationPane = ({
   consults: readonly TConsult[]
   /** A consult that has been accepted and has not answered yet. */
   pending?: TPendingConsult
+  /**
+   * A steer or follow-up just sent and not yet traced back, shown as an
+   * unanswered message the instant it is accepted — the same immediacy
+   * `pending` already gives a consult.
+   */
+  pendingMessage?: Readonly<{ kind: string; text: string }>
   /** the activity's final output, rendered as the last message it sent */
   envelope?: Envelope
   /** the ACTIVITY's status — it colours the last message, not the run's */
@@ -69,6 +82,8 @@ export const NarrationPane = ({
   runStatus: string
 }>) => {
   const turns = turnsOf(events)
+  const messages = developerMessagesOf(events)
+  const conversation = conversationOf(turns, messages)
   const [following, setFollowing] = useState(true)
   const [missed, setMissed] = useState(0)
 
@@ -84,15 +99,15 @@ export const NarrationPane = ({
   useLayoutEffect(() => {
     const node = scroller.current
     if (node === null) return
-    const arrived = turns.length - seen.current
-    seen.current = turns.length
+    const arrived = conversation.length - seen.current
+    seen.current = conversation.length
     if (following) {
       node.scrollTop = node.scrollHeight
       setMissed(0)
     } else if (arrived > 0) {
       setMissed((count) => count + arrived)
     }
-  }, [turns.length, following])
+  }, [conversation.length, following])
 
   const onScroll = useCallback(() => {
     const node = scroller.current
@@ -123,12 +138,27 @@ export const NarrationPane = ({
       */}
       <div className={styles.scroller} onScroll={onScroll} ref={scroller}>
         <div className={styles.narration}>
-          {turns.length === 0 && (
+          {conversation.length === 0 && (
             <div className="faint">nothing recorded for {agent} yet</div>
           )}
-          {turns.map((turn) => (
-            <TurnNarration key={turn.turn} turn={turn} />
-          ))}
+          {conversation.map((item) =>
+            item.kind === 'turn' ? (
+              <TurnNarration key={`turn-${item.turn.turn}`} turn={item.turn} />
+            ) : (
+              <DeveloperMessageCard key={item.message.id} message={item.message} />
+            ),
+          )}
+          {/*
+            A steer or follow-up just accepted, before its own event has
+            landed — the same immediacy `pending` already gives a consult, so
+            a person never has to wonder whether a send went anywhere.
+          */}
+          {pendingMessage !== undefined && (
+            <article className={styles.asked}>
+              <span className={styles.askedMark}>you</span>
+              <p className={styles.askedText}>{pendingMessage.text}</p>
+            </article>
+          )}
 
           {/*
             The end of the turn, coloured by how it ended: green for a activity
@@ -297,6 +327,28 @@ const TurnNarration = ({ turn }: Readonly<{ turn: TTurn }>) => (
     {turn.blocks.length === 0 && (
       <p className={`${styles.thinking} faint`}>no narration for this turn</p>
     )}
+  </article>
+)
+
+/**
+ * What a person said, never styled as the agent's own thinking.
+ *
+ * Reuses the `asked` styling the consult thread already carries, so a
+ * reader's words look the same wherever they appear in a conversation: a
+ * steer, a queued follow-up, an abort, or a standing instruction an activity
+ * was actually given.
+ */
+const DeveloperMessageCard = ({
+  message,
+}: Readonly<{ message: TDeveloperMessage }>) => (
+  <article className={styles.asked}>
+    <span className={styles.askedMark}>
+      {message.from} · {message.kind === 'standing' ? 'standing instruction' : message.kind}
+      <span className="faint"> {fmtClock(new Date(message.at).toISOString())}</span>
+    </span>
+    <p className={styles.askedText}>
+      {message.kind === 'abort' ? 'aborted this activity run' : message.text}
+    </p>
   </article>
 )
 

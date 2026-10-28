@@ -189,6 +189,7 @@ export type TWriteResult =
   | Readonly<{ ok: false; problem: string }>
 
 const post = async (url: string, body: unknown): Promise<TWriteResult> => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a network failure or a malformed response into the settlement every caller already reads
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -300,5 +301,8 @@ export const sendDecision = (
 export const sendResume = (
   runId: string,
   workspace?: string,
+  note?: string,
 ): Promise<TWriteResult> =>
-  post(`/api/sessions/${encodeURIComponent(runId)}/resume${scope(workspace)}`, {})
+  post(`/api/sessions/${encodeURIComponent(runId)}/resume${scope(workspace)}`, {
+    note: note ?? '',
+  })

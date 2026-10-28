@@ -15,6 +15,7 @@
  */
 
 import type { TActivityRunState } from '../typedefs/run-state'
+import { latestByName } from './read-run-state'
 
 /**
  * How a branch inherits the conversations it is branching from.
@@ -121,9 +122,79 @@ export const steeringBlock = (steering: string): string =>
         '',
         '## Steering from the developer',
         '',
-        'This run was sent back to an earlier activity with new instructions.',
-        'They apply to you, and they override what the earlier pass of this',
-        'activity concluded wherever the two conflict.',
+        'A person sent this run back to an earlier activity, or picked it back up',
+        'with a standing instruction. Either way, it applies to you, and it',
+        'overrides what an earlier pass of this activity concluded wherever the',
+        'two conflict.',
         '',
         steering.trim(),
       ].join('\n')
+
+/**
+ * The flag's value, or undefined when the flag is absent or bare.
+ *
+ * Shared by every reader of a `--flag value` pair so argv parsing says the
+ * same thing everywhere it happens, rather than once per script.
+ */
+export const flagValue = (
+  argv: readonly string[],
+  flag: string,
+): string | undefined => {
+  const at = argv.indexOf(flag)
+  if (at === -1) return undefined
+  const value = argv[at + 1]
+  return value === undefined || value.startsWith('--') ? undefined : value
+}
+
+/**
+ * Where a steer's result goes — the one thing a caller must say out loud.
+ *
+ * Both or neither is not "either": it is somebody who has not decided, and a
+ * default on a choice where one option destroys evidence would be a choice
+ * made by habit rather than by a person.
+ */
+export const steerTargetOf = (argv: readonly string[]): TSteerTarget | undefined => {
+  const overwrite = argv.includes('--overwrite')
+  const branch = argv.includes('--branch')
+  return overwrite === branch ? undefined : overwrite ? 'overwrite' : 'branch'
+}
+
+/** How a branch inherits its conversations. `fork` unless `--seeding fresh`. */
+export const seedingOf = (argv: readonly string[]): TSeeding =>
+  flagValue(argv, '--seeding') === 'fresh' ? 'fresh' : 'fork'
+
+/**
+ * The standing successful activity runs a branch inherits: every one NOT in
+ * `activitiesToReplay`. Built from the same `latestByName` the resume skip
+ * reads, so the two sets can never disagree about what "standing" means.
+ */
+export const activityRunsToCarry = (
+  activityRuns: readonly TActivityRunState[],
+  activity: string,
+): readonly TActivityRunState[] => {
+  const replaying = new Set(activitiesToReplay(activityRuns, activity))
+  return latestByName(activityRuns).filter(
+    (activityRun) => !replaying.has(activityRun.name) && activityRun.status === 'success',
+  )
+}
+
+/**
+ * A note from a person picking a run back up — not a send-back, so it gets
+ * its own heading rather than steeringEntry's "sent back to" sentence.
+ */
+export const developerNote = (note: string, at: string): string =>
+  [`## Instruction from the developer at ${at}`, '', note.trim(), ''].join('\n')
+
+/**
+ * What `execute-agent.ts` traces at the moment a non-empty steering block is
+ * spliced into a prompt. `undefined` for an empty block, so the caller
+ * traces nothing rather than an empty event every ordinary activity would
+ * otherwise file.
+ */
+export const steeringAppliedEvent = (
+  agent: string,
+  steering: string,
+): Readonly<{ name: 'steering_applied'; payload: { agent: string; text: string } }> | undefined =>
+  steering.trim() === ''
+    ? undefined
+    : { name: 'steering_applied', payload: { agent, text: steering.trim() } }

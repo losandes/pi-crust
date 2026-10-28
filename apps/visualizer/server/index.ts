@@ -118,6 +118,7 @@ function safely(
   handler: (req: Request) => Response | Promise<Response>,
 ): (req: Request) => Promise<Response> {
   return async (req) => {
+    // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, the one place a handler's exception becomes a 500 response instead of taking the server down
     try {
       return await handler(req);
     } catch (error) {
@@ -200,12 +201,13 @@ function listHandoff(dir: string): HandoffFile[] {
 }
 
 const firstHeading = (file: string): string => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: an unreadable file still exists, and saying so is the point, decided right here
   try {
     const head = readFileSync(file, "utf8").slice(0, 1024);
     const match = /^#\s+(.+)$/m.exec(head);
     return match?.[1]?.trim() ?? "";
-  } catch {
-    // A file that cannot be read still exists, and saying so is the point.
+  } catch (cause) {
+    void cause;
     return "";
   }
 };
@@ -449,16 +451,21 @@ const server = Bun.serve({
      * thing that failed there was no way forward from this UI at all.
      */
     "/api/sessions/:run_id/resume": {
-      POST: safely((req) => {
+      POST: safely(async (req) => {
         const refusal = refuseUnlessAuthorised(req);
         if (refusal) return refusal;
         const runId = param(req, "run_id");
         if (!isSafeSegment(runId)) {
           return json({ error: "invalid run_id" } satisfies ApiError, 400);
         }
+        const body = (await req.json().catch(() => ({}))) as { note?: unknown };
+        if (body.note !== undefined && typeof body.note !== "string") {
+          return json({ error: "note must be a string" } satisfies ApiError, 400);
+        }
+        const note = typeof body.note === "string" ? body.note : "";
         const owner = forRun(req, runId);
         if (!owner) return notFound(`no session ${runId}`);
-        const resumed = resumeRun(owner.path, runId);
+        const resumed = resumeRun(owner.path, runId, note, "the web app");
         return resumed.resumed
           ? json({ run_id: runId, ...resumed })
           : json({ error: resumed.reason } satisfies ApiError, 503);
@@ -591,7 +598,22 @@ const server = Bun.serve({
         }
         const owner = forRun(req, runId);
         if (!owner) return notFound(`no session ${runId}`);
-        const started = startSteer(owner.path, runId, activity, body.target, note);
+        /*
+         * Minted here, the same way `startRun` mints a run id, because a
+         * branch detaches: the response cannot wait to learn what the child
+         * decided, and the id has to exist before anybody can be told to
+         * watch it.
+         */
+        const branchRunId =
+          body.target === "branch" ? Math.random().toString(16).slice(2, 10) : undefined;
+        const started = startSteer(
+          owner.path,
+          runId,
+          activity,
+          body.target,
+          note,
+          branchRunId,
+        );
         return started.started
           ? json({ run_id: runId, activity, target: body.target, ...started })
           : json({ error: started.reason ?? "" } satisfies ApiError, 503);
