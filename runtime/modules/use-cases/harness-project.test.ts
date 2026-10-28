@@ -53,3 +53,21 @@ test(
     expect(project.include).toEqual(['harness-engineering'])
   },
 )
+
+test(
+  [
+    'given use-cases/harness-project::harnessProject',
+    'when the project is written out',
+    'it should turn composite off, so a file it reaches outside the include is not reported as unlisted',
+  ].join(', '),
+  () => {
+    const project = harnessProject('/pi/node_modules') as {
+      compilerOptions: { composite: boolean }
+    }
+
+    // Inherited as true from runtime/tsconfig.json, where it exists so the
+    // repository root can reference that project. Here it only produces
+    // TS6307 for every `modules/` file the extensions import.
+    expect(project.compilerOptions.composite).toEqual(false)
+  },
+)

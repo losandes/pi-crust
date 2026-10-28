@@ -29,6 +29,24 @@ export const harnessProject = (
   include: ['harness-engineering'],
   exclude: ['node_modules', 'data'],
   compilerOptions: {
+    /*
+     * Inherited as `true`, and wrong here.
+     *
+     * `composite` exists so the repository root can REFERENCE `runtime/`, and
+     * it requires a project to list every file it pulls in. This project
+     * includes `harness-engineering` alone, while those extensions import
+     * into `modules/` — so each reached file is reported as `TS6307: not
+     * listed within the file list of project`, fifteen of them the day a
+     * `modules/data/roots.ts` joined the graph.
+     *
+     * Listing the reachable set would be an inventory of the import graph,
+     * maintained by hand, that goes stale on the next import. Nothing
+     * references this project — it is generated, run once and deleted — so
+     * the constraint buys nothing and is switched off rather than satisfied.
+     * Scope is unchanged: tsc still checks `harness-engineering` and still
+     * type-checks everything those files reach.
+     */
+    composite: false,
     baseUrl: '.',
     paths: {
       '@earendil-works/*': [join(hostModules, '@earendil-works', '*')],
