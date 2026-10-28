@@ -36,6 +36,7 @@ import { useHandoff } from '../lib/use-handoff'
 import { usePrompts } from '../lib/use-prompts'
 import { consultsFor, consultsOf, stillPending } from '../lib/consult'
 import type { TPendingConsult } from '../lib/consult'
+import { developerMessagesOf, stillPendingMessage } from '../lib/messages'
 import { ArtifactList } from './ArtifactList'
 import { DecisionLedger } from './DecisionLedger'
 import { DetailSection } from './DetailSection'
@@ -226,6 +227,15 @@ export const ActivityRunDetail = ({
    */
   const [pending, setPending] = useState<TPendingConsult | undefined>(undefined)
 
+  /**
+   * A steer or follow-up just sent from this Activity Run's own controls,
+   * shown immediately and cleared once the matching `inbox_*` event lands —
+   * the same `stillPending` pattern a consult already uses.
+   */
+  const [pendingMessage, setPendingMessage] = useState<
+    Readonly<{ kind: string; text: string }> | undefined
+  >(undefined)
+
   const consults = useMemo(
     () => consultsFor(consultsOf(events), activityRun.activity_run_id),
     [events, activityRun.activity_run_id],
@@ -364,6 +374,10 @@ export const ActivityRunDetail = ({
                     activityRunStatus={activityRun.status ?? ''}
                     consults={consults}
                     pending={stillPending(pending, consults)}
+                    pendingMessage={stillPendingMessage(
+                      pendingMessage,
+                      developerMessagesOf(activityRunEvents),
+                    )}
                     runId={runId}
                     runStatus={runStatus}
                   />
@@ -381,6 +395,7 @@ export const ActivityRunDetail = ({
             workspace={workspace}
             consultStep={activityRun.kind === 'agent' ? (activityRun.name ?? '') : undefined}
             onConsultSent={(mode, question) => setPending({ mode, question })}
+            onMessageSent={(kind, text) => setPendingMessage({ kind, text })}
             replaying={replaying}
           />
         </div>
@@ -605,7 +620,24 @@ export const ActivityRunDetail = ({
                   key={gate.id}
                   className={`${styles.gate} ${gate.passed ? styles.pass : styles.fail}`}
                 >
-                  {checks !== undefined ? (
+                  {checks === undefined ? (
+                    <>
+                      <div className={styles.gateLine}>
+                        <span className={styles.gateMark}>{gate.passed ? '✓' : '✗'}</span>
+                        <span className={styles.gateName}>{gate.gate}</span>
+                        <span className={`dim ${styles.gateTime}`}>
+                          {fmtClock(gate.created_at)}
+                        </span>
+                      </div>
+                      {failures.length > 0 && (
+                        <ul className={styles.violations}>
+                          {failures.map((failure) => (
+                            <li key={failure}>{failure}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  ) : (
                     <>
                       <button
                         type="button"
@@ -663,23 +695,6 @@ export const ActivityRunDetail = ({
                             </ul>
                           )}
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className={styles.gateLine}>
-                        <span className={styles.gateMark}>{gate.passed ? '✓' : '✗'}</span>
-                        <span className={styles.gateName}>{gate.gate}</span>
-                        <span className={`dim ${styles.gateTime}`}>
-                          {fmtClock(gate.created_at)}
-                        </span>
-                      </div>
-                      {failures.length > 0 && (
-                        <ul className={styles.violations}>
-                          {failures.map((failure) => (
-                            <li key={failure}>{failure}</li>
-                          ))}
-                        </ul>
                       )}
                     </>
                   )}
@@ -808,7 +823,31 @@ export const ActivityRunDetail = ({
 
                 {open && (
                   <div className={styles.payloadPanel}>
-                    {call !== null ? (
+                    {call === null ? event.type === 'tool_call' && event.payload_json ? (
+                      <>
+                        <div className="faint">no detail available — legacy event payload</div>
+                        <pre
+                          className={styles.payloadPre}
+                          // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
+                          dangerouslySetInnerHTML={{
+                            __html: highlightJson(event.payload_json),
+                          }}
+                        />
+                      </>
+                    ) : event.payload_json ? (
+                      <>
+                        <h4>payload</h4>
+                        <pre
+                          className={styles.payloadPre}
+                          // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
+                          dangerouslySetInnerHTML={{
+                            __html: highlightJson(event.payload_json),
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <div className="faint">no payload</div>
+                    ) : (
                       <>
                         <div className={styles.payloadMeta}>
                           <span className={styles.payloadTool}>{call.tool}</span>
@@ -834,30 +873,6 @@ export const ActivityRunDetail = ({
                           </>
                         )}
                       </>
-                    ) : event.type === 'tool_call' && event.payload_json ? (
-                      <>
-                        <div className="faint">no detail available — legacy event payload</div>
-                        <pre
-                          className={styles.payloadPre}
-                          // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
-                          dangerouslySetInnerHTML={{
-                            __html: highlightJson(event.payload_json),
-                          }}
-                        />
-                      </>
-                    ) : event.payload_json ? (
-                      <>
-                        <h4>payload</h4>
-                        <pre
-                          className={styles.payloadPre}
-                          // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
-                          dangerouslySetInnerHTML={{
-                            __html: highlightJson(event.payload_json),
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <div className="faint">no payload</div>
                     )}
                   </div>
                 )}

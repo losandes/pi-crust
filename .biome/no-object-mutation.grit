@@ -322,6 +322,9 @@ or {
       "width", "height", "value", "checked", "disabled", "title",
       // Server frameworks: the per-request channel a handler is given.
       "locals", "statusCode",
+      // Node/Bun: the only way a CLI entry point reports its exit status to
+      // the shell that spawned it. There is no return value this reaches.
+      "exitCode",
       // Owned by the array rule, which reports it in every layer.
       "length"
     },

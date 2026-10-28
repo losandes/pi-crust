@@ -156,9 +156,17 @@ ask RUN_ID ACTIVITY *QUESTION:
 
 # send a run back to an activity with new instructions: it and every activity
 # after it run again. --overwrite or --branch is REQUIRED; neither is default.
+# --branch also takes --seeding fork|fresh (fork is the default) and
+# --branch-id <id> to name the branch instead of minting one.
 # just crust steer <run_id> <activity> --overwrite "use the registry, not the map"
+# just crust steer <run_id> <activity> --branch --seeding fresh "start over"
 steer RUN_ID ACTIVITY *ARGS:
     @bun "{{crust}}/steer.ts" {{RUN_ID}} {{ACTIVITY}} "$@"
+
+# pick a stopped run back up, optionally with a note every activity from here reads.
+# just crust resume <run_id> --note "I fixed the failing migration"
+resume RUN_ID *ARGS:
+    @bun "{{crust}}/resume.ts" {{RUN_ID}} "$@"
 
 # have a finished activity revise ITS OWN document. Every other activity's
 # stays read-only. just crust amend <run_id> <activity> "shorten section 3"

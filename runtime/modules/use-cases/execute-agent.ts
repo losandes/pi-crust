@@ -31,7 +31,7 @@ import { extractJson } from './extract-json'
 import { resolveAgent } from './load-config'
 import { trustStance } from '../typedefs/trust'
 import { readSteering } from '../data/steering'
-import { steeringBlock } from './steer'
+import { steeringAppliedEvent, steeringBlock } from './steer'
 import { activityCatalogue } from './activity-catalogue'
 import { matchingSkills } from './route-by-path'
 
@@ -371,11 +371,28 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * that silently ignored the person. Every activity from the branch point
    * onward has to hear it, so no prompt gets a say in whether it does.
    */
+  const steering = readSteering(run.contextHandoffDir)
   const userText = `${render(agent.prompt_engineering.user, variables)}${steeringBlock(
-    readSteering(run.contextHandoffDir),
+    steering,
   )}${feedbackBlock(call.feedback ?? [])}`
   savePrompt(join(agentDir, 'prompts'), 'system.md', systemText)
   savePrompt(join(agentDir, 'prompts'), 'user.md', userText)
+
+  /*
+   * Filed once per activity run, not once per send: a parse retry or a gate
+   * correction re-enters the same session with the same steering already
+   * applied, and filing it again would make one instruction look like two.
+   */
+  const appliedEvent = steeringAppliedEvent(agent.name, steering)
+  if (appliedEvent !== undefined) {
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun.activity_run_id,
+      type: 'log',
+      name: appliedEvent.name,
+      payload: appliedEvent.payload,
+    })
+  }
 
   const sessionId = agentSessionId(run, agent)
   run.tracer.event({

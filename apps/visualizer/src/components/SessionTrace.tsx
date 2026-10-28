@@ -30,6 +30,8 @@ import { ActivityRunDetail } from './ActivityRunDetail'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
 import { TreeWarnings } from './TreeWarnings'
+import { RunNotices } from './RunNotices'
+import { runNoticesOf } from '../lib/notices'
 import { warningsIn } from '../lib/warnings'
 import styles from './SessionTrace.module.css'
 import { paletteColor } from '../lib/palette'
@@ -80,15 +82,20 @@ const startsByOwner = (
   events: readonly EventRow[],
 ): Readonly<Record<string, AgentStartPayload>> => {
   const ownerByActivityRun = new Map(activityRuns.map((p) => [p.activity_run_id, p.owner]))
-  const meta: Record<string, AgentStartPayload> = {}
-  for (const event of events) {
-    if (event.type !== 'agent_start') continue
+  // The FIRST agent_start per owner wins, so a Set of owners already claimed
+  // decides what the later map/filter keeps, and the final object is built
+  // once from entries rather than one field at a time with a growing spread.
+  const claimed = new Set<string>()
+  const entries = events.flatMap((event): readonly [string, AgentStartPayload][] => {
+    if (event.type !== 'agent_start') return []
     const owner = (event.activity_run_id ? ownerByActivityRun.get(event.activity_run_id) : null) ?? event.name
-    if (!owner || meta[owner]) continue
+    if (!owner || claimed.has(owner)) return []
     const payload = parseAgentStart(event)
-    if (payload) meta[owner] = payload
-  }
-  return meta
+    if (!payload) return []
+    claimed.add(owner)
+    return [[owner, payload]]
+  })
+  return Object.fromEntries(entries)
 }
 
 export const SessionTrace = ({
@@ -109,12 +116,13 @@ export const SessionTrace = ({
 
   const lanes = useMemo<readonly TLane[]>(() => {
     const starts = startsByOwner(activityRuns, events)
-    const agentOwners: string[] = []
-    for (const activityRun of activityRuns) {
-      if (activityRun.kind === 'agent' && activityRun.owner && !agentOwners.includes(activityRun.owner)) {
-        agentOwners.push(activityRun.owner)
-      }
-    }
+    const agentOwners = [
+      ...new Set(
+        activityRuns
+          .filter((activityRun) => activityRun.kind === 'agent' && activityRun.owner)
+          .map((activityRun) => activityRun.owner as string),
+      ),
+    ]
     const codeActivityRuns = activityRuns.filter((p) => p.kind === 'code')
 
     const engineerLane: TLane = {
@@ -200,16 +208,18 @@ export const SessionTrace = ({
 
   /** Tool-call marks per activityRun, read once rather than per block. */
   const marksByActivityRun = useMemo(() => {
-    const map = new Map<string, { id: string; t: number; ok: boolean }[]>()
+    const map = new Map<string, readonly { id: string; t: number; ok: boolean }[]>()
     for (const event of events) {
       if (event.type !== 'tool_call' || !event.activity_run_id) continue
       const marks = map.get(event.activity_run_id) ?? []
-      marks.push({
-        id: event.event_id,
-        t: ts(event.started_at),
-        ok: payloadOk(event.payload_json),
-      })
-      map.set(event.activity_run_id, marks)
+      map.set(event.activity_run_id, [
+        ...marks,
+        {
+          id: event.event_id,
+          t: ts(event.started_at),
+          ok: payloadOk(event.payload_json),
+        },
+      ])
     }
     return map
   }, [events])
@@ -467,6 +477,7 @@ export const SessionTrace = ({
             Activities is still the answer when the ninth has finished.
           */}
           <TreeWarnings warnings={warningsIn(events)} standalone />
+          <RunNotices notices={runNoticesOf(events)} workspace={workspace} />
           <DecisionRequest
             runId={runId}
             status={session.status ?? ''}
