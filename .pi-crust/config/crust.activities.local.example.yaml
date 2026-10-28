@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# Copy it to `crust.activities.local.yaml` — same directory, drop the
+# `.example` — and it is picked up automatically on the next run. That name is
+# gitignored, so what you put in it stays on your machine.
+#
+#     cp .pi-crust/config/crust.activities.local.example.yaml \
+#        .pi-crust/config/crust.activities.local.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── How this merges with the team's file ─────────────────────────────────────
+#
+# Per key, with yours winning. Name an Activity and set only what you want
+# different; everything you do not mention stays as the repository has it.
+#
+# A nested object merges, so you can replace one prompt without restating the
+# other. A LIST REPLACES — `tools` or `writes` here is the whole list, not an
+# addition to the team's. That way you can remove a tool, which concatenating
+# would never let you do.
+#
+# You may add an Activity the team file does not have, carrying any keys you
+# like. It is yours, on your machine, and nothing stops you.
+#
+# The cost is a run that works here and nowhere else: a committed Lifecycle
+# naming an Activity only you have will fail for everyone. Add it to the
+# team's file when it earns a place there.
+#
+# Naming an Activity the team file does not have, and did not intend you to
+# add, is still just an addition — there is no spell-check. A typo gives you
+# a new Activity nothing references rather than an error.
+# ─────────────────────────────────────────────────────────────────────────────
+
+activities:
+  # Override one Activity, and only the keys you name. Its purpose, prompts,
+  # tools and writes boundary stay as the repository has them.
+  - name: build
+    model: anthropic/claude-opus-5
+    thinking: high
+
+  # The cheap end of a roster, while iterating on a prompt.
+  - name: scout
+    model: anthropic/claude-haiku-4-5
+    thinking: low
+
+  # Colour is a theme role, never a hex: each theme decides what `cyan` looks
+  # like, so a lane stays legible in light and high-contrast too.
+  - name: outcome-review
+    color: cyan
+
+  # Keep one out of the `just crust please` menu, for work you never pick by
+  # hand. HIDDEN, not disabled: a Lifecycle, a Planner, or an explicit
+  # --activities still runs it. Hiding is a preference about a menu.
+  - name: security-research
+    hidden: true
+
+  # Replace one prompt and keep the other. A nested object merges, so this
+  # leaves the team's user prompt exactly as it was.
+  - name: plan
+    prompt_engineering:
+      system: prompt-engineering/plan/system.md
+
+  # Narrow what an Activity may reach. The list REPLACES the team's, which is
+  # the only way to take a tool away.
+  - name: document
+    tools:
+      - read
+      - write
+
+  # Spend less on something that keeps failing its gates for a reason no
+  # second attempt is going to fix, or more on something worth another go.
+  # The first run is an attempt, so `attempts: 1` means no retry at all.
+  - name: test
+    attempts: 1
+
+  # Stop a committing Activity from committing on YOUR machine, without
+  # changing what the team ships. The reverse is available too, and is the
+  # one thing `--commit` cannot do: the flag only ever subtracts.
+  - name: document
+    commit: false
+
+  # Something only you run. `output` and `gates` name what the package
+  # publishes; leave them out and you get `genericOutput` with no gates.
+  # Nothing references it until you name it in --activities or a Lifecycle.
+  - name: spike
+    model: anthropic/claude-haiku-4-5
+    purpose: Answer one throwaway question without touching the repository.
+    output: researchOutput
+    gates: [artifactsExist]
+    prompt_engineering:
+      system: prompt-engineering/spike/system.md
+      user: prompt-engineering/spike/user.md
+    writes: ["{handoff}/spike.md"]   # the one document it leaves behind
+
+# A Planner is tuned here the same way, and cannot be added or removed: the
+# set is operator and triage, and a name that is not one of them is refused.
+planners:
+  - name: triage
+    model: anthropic/claude-haiku-4-5

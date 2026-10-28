@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# Copy it to `crust.config.local.yaml` — same directory, drop the `.example` —
+# and it is picked up automatically on the next run. That name is gitignored,
+# so what you put in it stays on your machine.
+#
+#     cp .pi-crust/config/crust.config.local.example.yaml \
+#        .pi-crust/config/crust.config.local.yaml
+#
+# This exists because a repository with several developers has one answer and
+# several sets of credentials, licences and habits. The committed file is the
+# team's; this is yours, and a run using one says so on its first line rather
+# than quietly billing a model nobody else chose.
+#
+# There is one of these per registry. Activities are overridden in
+# crust.activities.local.yaml and lifecycles in crust.lifecycles.local.yaml —
+# each file has its own local layer, and each has an example beside it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── What a local layer may change ────────────────────────────────────────────
+#
+# Anything this file can say, with the local value winning key by key. There
+# is no restricted subset: whoever writes this file can equally edit the
+# committed one, and runs the result on their own machine against their own
+# checkout, so a restriction here would be friction in the one file whose
+# purpose is to have none.
+#
+# What that means in practice: keep safety boundaries out of here by choice
+# rather than because you were stopped. A `writes` list narrowed locally is a
+# run behaving differently from everyone else's for a reason nobody can see in
+# review.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Applies to every Activity that has not named its own.
+defaults:
+  model: anthropic/claude-opus-5
+  thinking: high

@@ -27,7 +27,7 @@
 # Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
 
 lifecycles:
-  - name: tdd
+  - name: sdlc
     description: >-
       The whole lifecycle, identify through code-review with test-driven
       development: success criteria written before the build.
@@ -42,20 +42,16 @@ lifecycles:
         strategy: concurrent
         activities: [outcome-review, code-review]
 
-  - name: sdlc
+  - name: analyze
     description: >-
-      The whole lifecycle, identify through code-review. Success criteria
-      written after the build.
+      The product lifecycle for evaluating a bug and planning the fix.
     stages:
       - name: discover
-        strategy: serial
-        activities: [identify, conceptualize]
-      - name: deliver
-        strategy: serial
-        activities: [plan, design, build, test]
-      - name: accept
         strategy: concurrent
-        activities: [outcome-review, code-review]
+        activities: [identify, diagnose]
+      - name: plan
+        strategy: serial
+        activities: [plan]
 
   - name: discover
     description: >-
@@ -65,24 +61,13 @@ lifecycles:
         strategy: serial
         activities: [identify, conceptualize, plan]
 
-  - name: deliver-tdd
+  - name: deliver
     description: >-
       The engineering lifecycle: test-first, build, and review.
     stages:
       - name: deliver-tdd
         strategy: serial
         activities: [test-tdd, build]
-      - name: accept
-        strategy: concurrent
-        activities: [outcome-review, code-review]
-
-  - name: deliver
-    description: >-
-      The engineering lifecycle: build, test, and review.
-    stages:
-      - name: deliver
-        strategy: serial
-        activities: [build, test]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
