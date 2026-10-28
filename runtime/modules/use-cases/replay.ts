@@ -97,6 +97,7 @@ export const replayQuality =
       checks: [],
       failures: [...failures],
       artifacts: [...artifacts],
+      unmatchedPaths: [],
     })
   }
 

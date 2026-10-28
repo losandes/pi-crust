@@ -304,18 +304,20 @@ routing:
       cwd: ""                            # where to run it, from the git root
       with_changed_paths: false          # true appends the matched paths to argv
       timeout_seconds: 600
+  unmatched: warn                        # warn (default) | block restores the old failing behaviour
 ```
 
-| Key                           | Default | Meaning                                                                                                                         |
-| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                                 |
-| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                                |
-| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                                |
-| `skills[].activity runs`      | `[]`    | activity run names that receive it; empty is every activity run. An instance suffix is stripped, so `revise` matches `revise_2` |
-| `checks[].argv`               | —       | at least one token; never a shell string                                                                                        |
-| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                                       |
-| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                                         |
-| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                                            |
+| Key                           | Default | Meaning                                                                                                                           |
+| ----------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                                   |
+| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                                  |
+| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                                  |
+| `skills[].activity runs`      | `[]`    | activity run names that receive it; empty is every activity run. An instance suffix is stripped, so `revise` matches `revise_2`   |
+| `checks[].argv`               | —       | at least one token; never a shell string                                                                                          |
+| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                                         |
+| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                                           |
+| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                                              |
+| `unmatched`                   | `warn`  | `warn` reports an uncovered change without failing the gate (1.1.1); `block` restores the pre-issue-#2 behaviour of failing on it |
 
 ### `cwd`, and why changed paths are rebased onto it
 
@@ -329,16 +331,19 @@ Without the rebase, a root-relative path handed to a command running in a subdir
 
 ### Declaring nothing is not the same as declaring a rule that misses
 
-An empty `routing.checks` passes, saying it had nothing to run. A declared rule that matches nothing **fails**, and says which paths went unchecked.
+An empty `routing.checks` passes, saying it had nothing to run. A declared rule that matches nothing **also passes** by default — it says which paths went unverified, as a warning carried to the end of the run, rather than failing the gate (issue #2, 1.1.1).
 
-Those are different claims. Nothing declared is a repository that has not opted in to verification — and `checks: []` is what an install stamps, in a file `protected_files` keeps the agents out of, so failing on it made the shipped configuration unrunnable by construction. A rule that matched nothing is a repository that opted in and left this change uncovered, which is the "a rule reporting zero may be disabled rather than satisfied" failure worth catching.
+Those are different claims, even though neither fails on its own. Nothing declared is a repository that has not opted in to verification — and `checks: []` is what an install stamps, in a file `protected_files` keeps the agents out of, so failing on it made the shipped configuration unrunnable by construction. A rule that matched nothing is a repository that opted in and left this change uncovered, which used to fail the gate outright — the first time a change landed outside every declared rule, the build agent met a gate it could not pass and could not fix, which is a worse outcome than the gap it was trying to catch.
 
-| routing.checks | Changed paths | Matched | Verdict                                                |
-| -------------- | ------------- | ------- | ------------------------------------------------------ |
-| empty          | —             | —       | passed: nothing was declared, so nothing was promised  |
-| declared       | none          | —       | passed: nothing changed, no checks apply               |
-| declared       | some          | 0       | **failed**: N path(s) changed but no rule matched them |
-| declared       | some          | N       | whatever the commands said                             |
+Set `routing.unmatched: block` to restore the old, failing behaviour for a repository that wants an uncovered change to stop the gate rather than warn about it.
+
+| routing.checks | Changed paths | Matched | `routing.unmatched` | Verdict                                                                     |
+| -------------- | ------------- | ------- | ------------------- | --------------------------------------------------------------------------- |
+| empty          | —             | —       | —                   | passed: nothing was declared, so nothing was promised                       |
+| declared       | none          | —       | —                   | passed: nothing changed, no checks apply                                    |
+| declared       | some          | 0       | `warn` (default)    | **passed**, with a check and a warning naming the unverified paths          |
+| declared       | some          | 0       | `block`             | **failed**: N path(s) changed but no rule matched them                      |
+| declared       | some          | N       | either              | whatever the commands said, plus a warning for any remainder left unmatched |
 
 ### How a skill reaches the agent
 

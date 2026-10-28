@@ -107,3 +107,19 @@ export const matchingChecks = (
   cfg.routing.checks
     .filter((check) => applies(paths, check.when))
     .map((check) => checkSpec(check, paths))
+
+/**
+ * The changed paths no declared `routing.checks` rule reaches.
+ *
+ * A path is covered the moment ONE rule's `when` selects it — which rule, or
+ * how many, is not this question's business. An empty `when` always matches,
+ * same as `applies` above.
+ */
+export const unmatchedPaths = (
+  cfg: TPiCrustConfig,
+  paths: readonly string[],
+): readonly string[] =>
+  paths.filter(
+    (path) =>
+      !cfg.routing.checks.some((check) => applies([path], check.when)),
+  )

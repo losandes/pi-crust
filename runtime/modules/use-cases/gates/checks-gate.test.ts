@@ -110,7 +110,7 @@ test(
   [
     'given use-cases/gates::checks',
     'when paths changed and no declared rule matched them',
-    'it should fail, because zero checks passing is not zero checks failing',
+    'it should PASS, with a check naming the unmatched paths, because a gap is a reporting problem rather than a failure (1.1.1, 1.1.3, 1.4.1)',
   ].join(', '),
   () => {
     // given — a rule that cannot reach a nested file
@@ -123,8 +123,56 @@ test(
       'src/deep/a.ts',
     ])
 
-    // then
-    expect(violationsOf(actual)[0]).toContain('no routing.checks')
+    // then — the gate holds, but it SAYS so, naming the path — silence would
+    // read as coverage (1.1.3), and a count alone would tell nobody which
+    // rule to write (1.2.4)
+    expect(violationsOf(actual)).toEqual([])
+    const named = actual.checks.find((check) =>
+      check.note.includes('src/deep/a.ts'),
+    )
+    expect(named).toBeDefined()
+    expect(named?.ok).toEqual(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::checks',
+    'when some paths matched a declared rule and others did not',
+    'it should run the matching check, settle on its result, and still report the unmatched remainder (1.1.4, 1.4.2)',
+  ].join(', '),
+  () => {
+    // given — one rule reaches `.ts`; `README.md` reaches none of them
+    const run = runWith({
+      checks: [
+        {
+          name: 'typecheck',
+          when: ['**/*.ts'],
+          operation: 'typecheck',
+          argv: ['true'],
+        },
+      ],
+    })
+
+    // when
+    const actual = checks.check(
+      built(['src/a.ts', 'README.md']),
+      run,
+      ['src/a.ts', 'README.md'],
+    )
+
+    // then — the matching check actually ran and settled the gate
+    expect(violationsOf(actual)).toEqual([])
+    const matched = actual.checks.find((check) => check.item === 'typecheck')
+    expect(matched?.ok).toEqual(true)
+
+    // and — the unmatched remainder is still named, not swallowed by the
+    // partial match (1.1.4: "That remainder is invisible today.")
+    const unmatched = actual.checks.find((check) =>
+      check.note.includes('README.md'),
+    )
+    expect(unmatched).toBeDefined()
+    expect(unmatched?.ok).toEqual(true)
   },
 )
 

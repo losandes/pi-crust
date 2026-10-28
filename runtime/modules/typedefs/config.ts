@@ -230,9 +230,21 @@ export const routingCheckSchema = z.object({
 })
 export type TRoutingCheck = Readonly<z.infer<typeof routingCheckSchema>>
 
+/**
+ * What an unmatched changed path means, once `routing.checks` is declared.
+ *
+ *   warn   the default (1.1.1): a gap is reported, named, never failed.
+ *   block  opted in (1.3.1), beside the rules it governs: restores the
+ *          pre-fix behaviour of failing the gate on an uncovered change.
+ */
+export const ROUTING_UNMATCHED_POLICIES = ['warn', 'block'] as const
+export type TRoutingUnmatchedPolicy =
+  (typeof ROUTING_UNMATCHED_POLICIES)[number]
+
 export const routingConfigSchema = z.object({
   skills: z.array(routingSkillSchema).default([]),
   checks: z.array(routingCheckSchema).default([]),
+  unmatched: z.enum(ROUTING_UNMATCHED_POLICIES).default('warn'),
 })
 export type TRoutingConfig = Readonly<z.infer<typeof routingConfigSchema>>
 

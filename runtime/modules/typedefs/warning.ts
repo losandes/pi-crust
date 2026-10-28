@@ -36,6 +36,13 @@
  *               the workspace -- a monorepo workspace legitimately owning
  *               work that lives above it. Never fails the gate; see
  *               specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md -- 1.3.3.
+ *   unverified  changed paths no declared `routing.checks` rule reached. Never
+ *               fails the `checks` gate by default -- a repository that opted
+ *               in and left a gap is a reporting problem, not a failure
+ *               (issue #2, 1.1.1, 1.2.1). `routing.unmatched: "block"` turns
+ *               this into a real failure instead, at which point the gate
+ *               itself reports it and this warning is the same finding said
+ *               twice.
  */
 export type TWarningKind =
   | 'unexpected'
@@ -43,6 +50,7 @@ export type TWarningKind =
   | 'refusal'
   | 'uncommitted'
   | 'outside_workspace'
+  | 'unverified'
 
 /** The `log` event name every warning is written under, and read back by. */
 export const WARNING_EVENT = 'tree_warning'
@@ -86,9 +94,13 @@ export const warningExplanation = (kind: TWarningKind): string =>
           ? 'The work is in the working tree. Nothing was staged back, unstaged, ' +
             "or signed on anybody's behalf — commit it yourself when you are " +
             'ready.'
-          : 'These paths exist above the workspace, inside the repository it is ' +
-            'nested in — a supported layout, not a mistake. Resolved and acted ' +
-            'on exactly as a path inside the workspace would be.'
+          : kind === 'outside_workspace'
+            ? 'These paths exist above the workspace, inside the repository it is ' +
+              'nested in — a supported layout, not a mistake. Resolved and acted ' +
+              'on exactly as a path inside the workspace would be.'
+            : 'No routing.checks rule reached these paths. Add one to have the ' +
+              'change verified, or set routing.unmatched: "block" to fail on ' +
+              'this instead of warning.'
 
 const headline = (warning: TTreeWarning): string =>
   `${warning.activities.join(', ')} (${warning.stage})`
@@ -144,6 +156,26 @@ const renderOutsideWorkspace = (
 }
 
 /**
+ * Changed paths `routing.checks` never reached — counted and headlined on
+ * its own, with no \u26a0: under the default policy this is a gap in
+ * coverage, not a fault in the change (issue #2, 1.1.1).
+ */
+const renderUnverified = (
+  warnings: readonly TTreeWarning[],
+): readonly string[] => {
+  const group = warnings.filter((warning) => warning.kind === 'unverified')
+  if (group.length === 0) {
+    return []
+  }
+  const total = group.reduce((sofar, warning) => sofar + warning.paths.length, 0)
+
+  return [
+    `${total} path(s) changed with no routing.checks rule to verify them`,
+    ...renderGroup(group, 'unverified'),
+  ]
+}
+
+/**
  * Every warning a run raised, as lines a terminal or a report can print.
  *
  * Grouped by kind so a reader meets one explanation per class rather than one
@@ -189,6 +221,7 @@ export const renderWarnings = (
           ...renderGroup(uncommitted, 'uncommitted'),
         ]),
     ...renderOutsideWorkspace(warnings),
+    ...renderUnverified(warnings),
   ]
 }
 
@@ -206,7 +239,8 @@ export const warningFromPayload = (
     kind !== 'overstep' &&
     kind !== 'refusal' &&
     kind !== 'uncommitted' &&
-    kind !== 'outside_workspace'
+    kind !== 'outside_workspace' &&
+    kind !== 'unverified'
   ) {
     return undefined
   }

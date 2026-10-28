@@ -31,7 +31,7 @@ import type {
   TQualityResult,
 } from '../typedefs/quality'
 import type { TRun } from '../typedefs/run'
-import { matchingChecks } from './route-by-path'
+import { matchingChecks, unmatchedPaths } from './route-by-path'
 
 /**
  * How much of a failing command's output rides back inside the envelope. Enough
@@ -173,12 +173,12 @@ export const NOTHING_MATCHED = (paths: number): string =>
  *
  * Four outcomes, and the two middle ones are the reason this function exists:
  *
- *   | routing.checks | changed paths | matched | verdict                      |
- *   |----------------|---------------|---------|------------------------------|
- *   | empty          | —             | —       | passed: nothing was promised |
- *   | declared       | none          | —       | passed: nothing changed      |
- *   | declared       | some          | 0       | FAILED: nothing was verified |
- *   | declared       | some          | N       | the real verdict             |
+ *   | routing.checks | changed paths | matched | verdict                       |
+ *   |----------------|---------------|---------|-------------------------------|
+ *   | empty          | —             | —       | passed: nothing was promised  |
+ *   | declared       | none          | —       | passed: nothing changed       |
+ *   | declared       | some          | 0       | passed: gap is named, not failed (1.1.1) |
+ *   | declared       | some          | N       | the real verdict              |
  *
  * The first row is a correction. An empty registry used to fail every
  * `checks` gate, which made the SHIPPED configuration unrunnable: `checks:
@@ -187,37 +187,36 @@ export const NOTHING_MATCHED = (paths: number): string =>
  * could not fix. A factory whose first run cannot go green teaches nobody
  * anything about verification.
  *
- * Declaring nothing and declaring a rule that does not match are different
- * claims. Nothing declared is a repository that has not opted in; a rule that
- * matched nothing is a repository that opted in and left this change
- * uncovered, and only the second is evidence of a gap. Zero checks passing is
- * still not the same claim as zero checks failing — which is why the third
- * row is unchanged.
+ * The third row is the second correction (issue #2). Declaring nothing and
+ * declaring a rule that does not match are different claims — nothing
+ * declared is a repository that has not opted in, a rule that matched
+ * nothing is one that opted in and left this change uncovered — but neither
+ * is a FAILURE under the default policy: a repository that fails its own
+ * build the first time a change lands outside its rules learns nothing from
+ * that failure except to stop trusting the gate. The gap still rides back as
+ * `unmatchedPaths`, so zero checks run is never reported identically to zero
+ * checks failing. `routing.unmatched: "block"` (1.3.1) restores the old,
+ * failing behaviour for a repository that wants it.
  */
 export const runVerification = (
   run: TRun,
   changedPaths: readonly string[],
 ): TQualityResult => {
-  if (run.cfg.routing.checks.length === 0) {
-    return { passed: true, checks: [], failures: [], artifacts: [] }
-  }
-  if (changedPaths.length === 0) {
-    return { passed: true, checks: [], failures: [], artifacts: [] }
+  if (run.cfg.routing.checks.length === 0 || changedPaths.length === 0) {
+    return { passed: true, checks: [], failures: [], artifacts: [], unmatchedPaths: [] }
   }
   const specs = matchingChecks(run.cfg, changedPaths)
-  if (specs.length === 0) {
-    return {
-      passed: false,
-      checks: [],
-      failures: [NOTHING_MATCHED(changedPaths.length)],
-      artifacts: [],
-    }
-  }
+  const gaps = unmatchedPaths(run.cfg, changedPaths)
   const checks = specs.map((spec) => runCheck(spec, run))
+  const blocked = run.cfg.routing.unmatched === 'block' && gaps.length > 0
   return {
-    passed: checks.every((check) => check.passed),
+    passed: checks.every((check) => check.passed) && !blocked,
     checks,
-    failures: checks.filter((check) => !check.passed).map(failureOf),
+    failures: [
+      ...checks.filter((check) => !check.passed).map(failureOf),
+      ...(blocked ? [NOTHING_MATCHED(gaps.length)] : []),
+    ],
     artifacts: checks.map((check) => check.outputArtifact),
+    unmatchedPaths: gaps,
   }
 }

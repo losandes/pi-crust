@@ -22,7 +22,7 @@ import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
 import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
-import { matchingChecks } from './modules/use-cases/route-by-path'
+import { matchingChecks, unmatchedPaths } from './modules/use-cases/route-by-path'
 import {
   NOTHING_DECLARED,
   NOTHING_MATCHED,
@@ -68,15 +68,24 @@ export const main = (argv: readonly string[]): number => {
       return EXIT.SUCCESS
     }
     const specs = matchingChecks(cfg, paths)
+    const gaps = unmatchedPaths(cfg, paths)
     if (specs.length === 0) {
       /*
        * Rules exist and none of them covers this change. Zero checks passing
-       * is not the same claim as zero checks failing, and only one of them
-       * is evidence. Same rule the gate applies.
+       * is not the same claim as zero checks failing, but under the default
+       * policy neither is a failure — the same finding the `checks` gate
+       * reports for the same change (1.1.1, 1.2.3). `routing.unmatched:
+       * "block"` opts a repository back into the old, failing behaviour.
        */
-      writeLine(paint(NOTHING_MATCHED(paths.length), 'red'))
+      const blocked = cfg.routing.unmatched === 'block'
+      writeLine(
+        paint(
+          `${NOTHING_MATCHED(gaps.length)} (${gaps.join(', ')})`,
+          blocked ? 'red' : 'yellow',
+        ),
+      )
 
-      return EXIT.FAILED
+      return blocked ? EXIT.FAILED : EXIT.SUCCESS
     }
     /*
      * The logs land under the data directory the config already owns, and
@@ -98,8 +107,17 @@ export const main = (argv: readonly string[]): number => {
         ? paint(`all ${results.length} check(s) passed`, 'green')
         : paint(`${failed.length} of ${results.length} check(s) failed`, 'red'),
     )
+    const blockedGaps = cfg.routing.unmatched === 'block' && gaps.length > 0
+    if (gaps.length > 0) {
+      writeLine(
+        paint(
+          `${NOTHING_MATCHED(gaps.length)} (${gaps.join(', ')})`,
+          blockedGaps ? 'red' : 'yellow',
+        ),
+      )
+    }
 
-    return failed.length === 0 ? EXIT.SUCCESS : EXIT.FAILED
+    return failed.length === 0 && !blockedGaps ? EXIT.SUCCESS : EXIT.FAILED
   })
   if (settled.status === 'error') {
     process.stderr.write(`${errorMessage(settled.error)}\n`)
