@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createTracer } from '../data/trace-db'
+import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
@@ -103,6 +105,8 @@ const tracedRunTracer = (): Readonly<{
     },
     eventsNamed: (_runId: string, name: string) =>
       filed.filter((event) => event.name === name).map((event) => event.payload ?? {}),
+    // the end-of-run ratio is read from the trace now, and this run has no rows
+    activityRunsFor: () => [],
   } as unknown as TTracer
 
   return { tracer, messages }
@@ -161,5 +165,65 @@ test(
     // then — the end-of-run report names the uncovered path, in the same
     // channel the other tree warnings use
     expect(messages.some((line) => line.includes('src/add.ts'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::sessionFinished',
+    'when the run holds a superseded activity run alongside the successful retry that replaced it',
+    'it should count only the rows the verdict counted, so the printed total agrees with the printed status (1.4.1, 1.4.2)',
+  ].join(', '),
+  () => {
+    // given — a run shaped like 867e452d/b6f8f617: nine would read 9/9 fail
+    // when the right count, excluding the superseded attempt, is 8/8 success.
+    const dir = mkdtempSync(join(tmpdir(), 'crust-report-console-test-'))
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('aaaa2222', 'tester', 'quality')
+    const console_ = createConsole(tracer, 'aaaa2222')
+    tracer.activityRunUpsert({
+      activity_run_id: 'aaaa2222_01_build',
+      run_id: 'aaaa2222',
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      status: 'superseded',
+      error: undefined,
+      started_at: undefined,
+      ended_at: undefined,
+    })
+    tracer.activityRunUpsert({
+      activity_run_id: 'aaaa2222_02_build',
+      run_id: 'aaaa2222',
+      seq: 2,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      status: 'success',
+      error: undefined,
+      started_at: undefined,
+      ended_at: undefined,
+    })
+
+    // when
+    console_.sessionFinished(true, 0, 0, dbPath)
+
+    // then — the superseded row is excluded from both halves of the ratio
+    const messages = tracer
+      .eventsNamed('aaaa2222', 'console')
+      .map((payload) => String(payload.message ?? ''))
+      .join('\n')
+    expect(messages).toContain('1/1 activityRuns')
+    expect(messages).not.toContain('2/2 activityRuns')
+    expect(messages).not.toContain('1/2 activityRuns')
+    tracer.close()
   },
 )

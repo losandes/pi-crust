@@ -14,7 +14,7 @@ import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import { createRun } from './create-run'
-import { finish, runActivityRun } from './run-activity-run'
+import { counts, finish, runActivityRun } from './run-activity-run'
 
 const scratchRun = (): Readonly<{ run: TRun; dbPath: string }> => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-run-activityRun-test-'))
@@ -239,6 +239,249 @@ test(
 
 test(
   [
+    'given use-cases/run-activity-run::counts',
+    'when an activity run was superseded by a later retry of the same activity',
+    'it should not count towards the run, and a successful retry alone should finish the run successful (1.5.1)',
+  ].join(', '),
+  async () => {
+    // given \u2014 a gate retry: the first attempt is superseded, the second succeeds
+    const { run, dbPath } = scratchRun()
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      () => 'first attempt',
+    )
+    const firstRow = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    if (firstRow !== undefined) {
+      run.tracer.activityRunUpsert(
+        run.updateActivityRun(firstRow.activity_run_id, { status: 'superseded' }),
+      )
+    }
+    await activityRun(
+      activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      () => 'retry',
+    )
+
+    // when
+    const actual = finish(run)
+
+    // then
+    expect(actual).toEqual(0)
+    expect(
+      rowsOf<{ status: string }>(dbPath, 'SELECT status FROM sessions'),
+    ).toEqual([{ status: 'success' }])
+    run.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::finish',
+    'when an activity run holds status fail',
+    'it should report fail and name that activity run and its status in an error event (1.5.2)',
+  ].join(', '),
+  async () => {
+    // given
+    const { run, dbPath } = scratchRun()
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      () => 'ok',
+    )
+    const row = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    if (row !== undefined) {
+      run.tracer.activityRunUpsert(run.updateActivityRun(row.activity_run_id, { status: 'fail' }))
+    }
+
+    // when
+    const actual = finish(run)
+
+    // then
+    expect(actual).toEqual(1)
+    expect(
+      rowsOf<{ status: string }>(dbPath, 'SELECT status FROM sessions'),
+    ).toEqual([{ status: 'fail' }])
+    const events = rowsOf<{ name: string; payload_json: string }>(
+      dbPath,
+      "SELECT name, payload_json FROM events WHERE type='error'",
+    )
+    expect(events.map((event) => event.name)).toContain('activity_runs_failed')
+    const failedEvent = events.find((event) => event.name === 'activity_runs_failed')
+    expect(JSON.parse(failedEvent?.payload_json ?? '{}').activityRuns).toEqual([
+      { activity_run_id: row?.activity_run_id, status: 'fail' },
+    ])
+    run.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::finish',
+    'when every activity run recorded for the run is superseded',
+    'it should not report success (1.5.3)',
+  ].join(', '),
+  async () => {
+    // given
+    const { run, dbPath } = scratchRun()
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      () => 'ok',
+    )
+    const row = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    if (row !== undefined) {
+      run.tracer.activityRunUpsert(
+        run.updateActivityRun(row.activity_run_id, { status: 'superseded' }),
+      )
+    }
+
+    // when
+    const actual = finish(run)
+
+    // then
+    expect(actual).toEqual(1)
+    expect(
+      rowsOf<{ status: string }>(dbPath, 'SELECT status FROM sessions'),
+    ).toEqual([{ status: 'fail' }])
+    run.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::finish',
+    'when finish runs in a process that recorded none of the run\u2019s activity runs itself',
+    'it should still judge the rows recorded by an earlier process, reading them through the tracer (1.2.1, 1.5.4)',
+  ].join(', '),
+  async () => {
+    // given \u2014 one process opens and finishes an activity run
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-activityRun-test-'))
+    const dbPath = join(dir, 'crust.db')
+    const cfg = crustConfigSchema.parse({
+      defaults: { data_dir: join(dir, 'data') },
+      observability: { db: dbPath },
+      agents: [],
+    })
+    const firstTracer = createTracer(
+      dbPath,
+      join(dir, 'data', 'sessions', 'test0002', 'events.jsonl'),
+    )
+    firstTracer.sessionStart('test0002', 'tester', 'quality')
+    const firstRun = createRun({
+      cfg,
+      runId: 'test0002',
+      tracer: firstTracer,
+      engineer: 'tester',
+    })
+    await runActivityRun(firstRun)(
+      activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      () => 'ok',
+    )
+    firstTracer.close()
+
+    // when \u2014 a second process opens the SAME run, recording nothing of its own
+    const secondTracer = createTracer(
+      dbPath,
+      join(dir, 'data', 'sessions', 'test0002', 'events.jsonl'),
+    )
+    const secondRun = createRun({
+      cfg,
+      runId: 'test0002',
+      tracer: secondTracer,
+      engineer: 'tester',
+    })
+    expect(secondRun.activityRuns()).toEqual([])
+    const actual = finish(secondRun)
+
+    // then \u2014 judged on the recorded row, not the (empty) in-memory list
+    expect(actual).toEqual(0)
+    expect(
+      rowsOf<{ status: string }>(dbPath, 'SELECT status FROM sessions'),
+    ).toEqual([{ status: 'success' }])
+    secondTracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::finish',
+    'when the run is both unaccepted and holds a failed activity run',
+    'it should record both reasons (1.3.3, 1.5.5)',
+  ].join(', '),
+  async () => {
+    // given
+    const { run, dbPath } = scratchRun()
+    const activityRun = runActivityRun(run)
+    await activityRun(
+      activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Implement the design',
+      }),
+      () => 'ok',
+    )
+    const row = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    if (row !== undefined) {
+      run.tracer.activityRunUpsert(run.updateActivityRun(row.activity_run_id, { status: 'fail' }))
+    }
+
+    // when
+    const actual = finish(run, { accepted: false, reason: 'the suite still failed' })
+
+    // then \u2014 both reasons recorded, neither hiding behind the other
+    expect(actual).toEqual(1)
+    const events = rowsOf<{ name: string }>(
+      dbPath,
+      "SELECT name FROM events WHERE type='error'",
+    )
+    expect(events.map((event) => event.name)).toEqual(
+      expect.arrayContaining(['activity_runs_failed', 'not_accepted']),
+    )
+    run.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::counts',
+    'when an activity run status is superseded',
+    'it should not count',
+  ].join(', '),
+  () => {
+    expect(counts({ status: 'superseded' })).toEqual(false)
+    expect(counts({ status: 'success' })).toEqual(true)
+    expect(counts({ status: 'fail' })).toEqual(true)
+  },
+)
+
+test(
+  [
     'given use-cases/run-activity-run::runActivityRun',
     'when one activity overwrites a document an earlier activity wrote',
     'it should refuse the write, and restore the original if it lands anyway',
@@ -271,6 +514,7 @@ test(
         description: 'Implement the design',
       }),
       () => {
+        // biome-ignore lint/plugin/no-intermediate-try-catch: the test observes the lock's refusal and forces past it; there is no settlement boundary below this body
         try {
           writeFileSync(design, 'somebody else of the same name')
           return 'written'

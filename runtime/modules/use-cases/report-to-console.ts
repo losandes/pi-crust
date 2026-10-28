@@ -21,6 +21,7 @@ import { reportPassed, violationsOf } from '../typedefs/gate'
 import type { TActivityRun } from '../typedefs/activity-run'
 import type { TConsole } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
+import { counts } from './run-activity-run'
 import {
   renderWarnings,
   WARNING_EVENT,
@@ -33,7 +34,6 @@ const thousands = (value: number): string => value.toLocaleString('en-US')
 export const createConsole = (tracer: TTracer, runId: string): TConsole => {
   let activityRunId = '' // current lane — log events attach to it
   let activityRunName = ''
-  let results: readonly string[] = [] // activityRun statuses, for the summary
   let finished = false // the summary panel prints once
 
   // ── the one helper: print AND trace, always together ──────────────────────
@@ -92,11 +92,18 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
       )) {
         emit(line, 'warn', line === '' ? '' : paint(line, 'yellow'))
       }
-      const passed = results.filter((status) => status === 'success').length
+      /*
+       * Read from the trace rather than an in-memory tally: this is what
+       * makes the count agree with the verdict `finish` computed, including
+       * the superseded rows the same predicate excludes (1.4.1, 1.4.2 of
+       * specs/todos/FIX-SUPERSEDED-RUN-VERDICT.md).
+       */
+      const judged = tracer.activityRunsFor(runId).filter(counts)
+      const passed = judged.filter((activityRun) => activityRun.status === 'success').length
       const status = ok ? paint('✓ success', 'green') : paint('✗ fail', 'red')
       const rows = [
         `${paint('status', 'dim')}   ${status}`,
-        `${paint('activity runs', 'dim')}   ${passed}/${results.length} passed`,
+        `${paint('activity runs', 'dim')}   ${passed}/${judged.length} passed`,
         `${paint('tokens', 'dim')}   ${thousands(tokens)}`,
         `${paint('cost', 'dim')}     $${cost.toFixed(4)}`,
         `${paint('run_id', 'dim')}   ${runId}`,
@@ -105,7 +112,7 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
       ]
       const plainLine =
         `session ${runId} ${ok ? 'success' : 'fail'} · ` +
-        `${passed}/${results.length} activityRuns · ${thousands(tokens)} tokens · ` +
+        `${passed}/${judged.length} activityRuns · ${thousands(tokens)} tokens · ` +
         `$${cost.toFixed(4)}`
       emit(
         plainLine,
@@ -129,7 +136,6 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
 
     activityRunEnded: (activityRun: TActivityRun, seconds) => {
       const ok = activityRun.status === 'success'
-      results = [...results, activityRun.status]
       const mark = ok ? paint('✓', 'green') : paint('✗', 'red')
       emit(
         `  ${mark} ${activityRun.params.name} ${paint(`${seconds.toFixed(1)}s`, 'dim')}` +
