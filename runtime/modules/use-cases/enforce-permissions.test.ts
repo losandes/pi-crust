@@ -701,3 +701,67 @@ test(
     expect(committed.paths).toEqual(['.prodcontainer/spotify-gateway/Dockerfile'])
   },
 )
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when the workspace is nested inside the VCS root and `writes` names only a workspace-relative pattern',
+    'it should still report a file changed ABOVE the workspace as an overstep, because 1.6.5 of',
+    'specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md keeps `writes` resolving against the workspace root,',
+    'unaffected by the VCS root \u2014 unlike the `writes: [\'*\']` case covered above',
+  ].join(', '),
+  () => {
+    /*
+     * given \u2014 the same nested layout as 1.6.1, but an agent restricted to a
+     * workspace-relative pattern that would ALSO happen to match the VCS-root-
+     * relative spelling of the changed file, if resolution were ever to drift
+     * onto the wrong root. Config resolution (`writes`) must stay blind to
+     * `vcsRoot` entirely, so neither spelling may satisfy it.
+     */
+    const vcsRootDir = aRepo()
+    const workspaceDir = join(vcsRootDir, '_newstack')
+    mkdirSync(workspaceDir, { recursive: true })
+    const cfg = configWith([
+      { name: 'builder', writes: ['.prodcontainer/spotify-gateway/*'] },
+    ])
+    const before = snapshotTree({
+      workspaceRoot: workspaceDir,
+      vcsRoot: vcsRootDir,
+    })
+    mkdirSync(join(vcsRootDir, '.prodcontainer', 'spotify-gateway'), {
+      recursive: true,
+    })
+    writeFileSync(
+      join(vcsRootDir, '.prodcontainer', 'spotify-gateway', 'Dockerfile'),
+      'FROM scratch\n',
+    )
+    const run = {
+      cfg,
+      repoRoot: workspaceDir,
+      vcsRoot: vcsRootDir,
+      contextHandoffDir: join(
+        workspaceDir,
+        '.pi-crust/data/sessions/abc/context_handoff',
+      ),
+    } as unknown as TRun
+
+    // when
+    const actual = enforcePermissions(run, agentNamed(cfg, 'builder'), {
+      tree: before,
+      head: '',
+      committing: true,
+    })
+
+    // then \u2014 touched (the engine still sees and can commit it), but NOT
+    // permitted: a workspace-relative `writes` pattern cannot name a path
+    // whose normalised spelling is absolute, by construction
+    const absoluteDockerfile = join(
+      vcsRootDir,
+      '.prodcontainer',
+      'spotify-gateway',
+      'Dockerfile',
+    )
+    expect(actual.touched).toEqual([absoluteDockerfile])
+    expect(actual.overstepped).toEqual([absoluteDockerfile])
+  },
+)
