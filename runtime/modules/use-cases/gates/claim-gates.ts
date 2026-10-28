@@ -7,10 +7,12 @@
  * gate says WHAT it verified instead of only that it passed.
  */
 
+import { isAbsolute, join } from 'node:path'
 import { fileExists, humanSize, isFile, readText } from '../../data/files'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
+import type { TRun } from '../../typedefs/run'
 import { safeParseSettlement } from '../../typedefs/settlement'
 
 const claimedChangedFiles = (envelope: TEnvelopeBase): readonly string[] => {
@@ -20,50 +22,63 @@ const claimedChangedFiles = (envelope: TEnvelopeBase): readonly string[] => {
     : []
 }
 
+/**
+ * Resolve a claimed path against the repository the run is about, not the
+ * orchestrator's own cwd.
+ *
+ * An absolute claim is honoured as written. A relative one is read relative
+ * to `run.repoRoot` — the directory every agent was actually spawned to work
+ * in — falling back to `process.cwd()` only when a run carries no repoRoot
+ * at all (a TRun built without one, as a test double might).
+ */
+const atRepoRoot = (run: TRun, path: string): string =>
+  isAbsolute(path) ? path : join(run.repoRoot || process.cwd(), path)
+
 export const artifactsExist: TGate = {
   name: 'artifacts_exist',
-  check: (envelope) =>
-    envelope.artifacts.reduce<TGateReport>(
-      (report, path) =>
-        addCheck(
-          report,
-          path,
-          fileExists(path),
-          fileExists(path)
-            ? `exists, ${humanSize(path)}`
-            : 'declared artifact does not exist',
-        ),
-      emptyReport,
-    ),
+  check: (envelope, run) =>
+    envelope.artifacts.reduce<TGateReport>((report, path) => {
+      const target = atRepoRoot(run, path)
+      return addCheck(
+        report,
+        path,
+        fileExists(target),
+        fileExists(target)
+          ? `exists, ${humanSize(target)}`
+          : 'declared artifact does not exist',
+      )
+    }, emptyReport),
 }
 
 export const filesNonEmpty: TGate = {
   name: 'files_non_empty',
-  check: (envelope) =>
+  check: (envelope, run) =>
     envelope.artifacts.reduce<TGateReport>((report, path) => {
+      const target = atRepoRoot(run, path)
       // existence is artifactsExist's job
-      if (!isFile(path)) {
+      if (!isFile(target)) {
         return report
       }
-      const empty = humanSize(path) === '0B'
+      const empty = humanSize(target) === '0B'
       return addCheck(
         report,
         path,
         !empty,
-        empty ? 'declared artifact is empty' : humanSize(path),
+        empty ? 'declared artifact is empty' : humanSize(target),
       )
     }, emptyReport),
 }
 
 export const jsonParses: TGate = {
   name: 'json_parses',
-  check: (envelope) =>
+  check: (envelope, run) =>
     envelope.artifacts.reduce<TGateReport>((report, path) => {
-      if (!(path.endsWith('.json') && fileExists(path))) {
+      const target = atRepoRoot(run, path)
+      if (!(path.endsWith('.json') && fileExists(target))) {
         return report
       }
       const parsed = safeParseSettlement<unknown>(() =>
-        JSON.parse(readText(path)),
+        JSON.parse(readText(target)),
       )
       return parsed.status === 'ok'
         ? addCheck(
@@ -84,19 +99,18 @@ export const jsonParses: TGate = {
 /** Every file claimed changed must exist on disk. */
 export const diffMatchesClaims: TGate = {
   name: 'diff_matches_claims',
-  check: (envelope) =>
-    claimedChangedFiles(envelope).reduce<TGateReport>(
-      (report, path) =>
-        addCheck(
-          report,
-          path,
-          fileExists(path),
-          fileExists(path)
-            ? `exists, ${humanSize(path)}`
-            : 'claimed changed file does not exist',
-        ),
-      emptyReport,
-    ),
+  check: (envelope, run) =>
+    claimedChangedFiles(envelope).reduce<TGateReport>((report, path) => {
+      const target = atRepoRoot(run, path)
+      return addCheck(
+        report,
+        path,
+        fileExists(target),
+        fileExists(target)
+          ? `exists, ${humanSize(target)}`
+          : 'claimed changed file does not exist',
+      )
+    }, emptyReport),
 }
 
 /**
