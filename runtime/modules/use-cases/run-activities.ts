@@ -15,7 +15,7 @@
  */
 
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
-import { buildOutput, narrowEnvelope, regressionOf } from '../typedefs/envelope'
+import { regressionOf } from '../typedefs/envelope'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import { violationsOf } from '../typedefs/gate'
 import { activityRunParams } from '../typedefs/activity-run'
@@ -32,7 +32,7 @@ import {
   regressionCause,
 } from './attempts'
 import { commitActivity } from './deliver'
-import { observationsIn, unexpectedWarnings } from './observed-paths'
+import { observationsIn, touchedBy, unexpectedWarnings } from './observed-paths'
 import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
 import type { TGateReason } from './human-gate'
 import { TRUST_DEFAULT } from '../typedefs/trust'
@@ -186,18 +186,22 @@ const runUnit = async (
   return done
 }
 
-/** What an Activity says it changed — what a gate reading the tree judges. */
-const claimedPaths = (envelope: TEnvelopeBase): readonly string[] =>
-  narrowEnvelope(buildOutput, envelope)?.changed_files ?? []
-
 /**
  * Judge one Activity's gates, recording every one of them.
  *
  * At the UNIT boundary, which in a concurrent Stage is the Stage boundary.
  * That is not a nicety: `checks` runs the repository's own commands against
  * the working tree, and a sibling Activity may still be writing to it.
+ *
+ * `gate.check`'s third argument is what this Activity Run was OBSERVED to
+ * change — `touchedBy`, the same `enforcePermissions`/`snapshotTree`
+ * before-and-after diff `paths_touched` already traces, aggregated across
+ * every attempt this instance spent. It is never the envelope's own claim:
+ * feeding a gate its claim back as the "observation" it is supposed to
+ * check the claim against makes every claim unconditionally true, which is
+ * the exact failure `diff_matches_claims` exists to catch.
  */
-const judgeGates = (
+export const judgeGates = (
   run: TRun,
   activity: TActivity,
   envelope: TEnvelopeBase,
@@ -208,7 +212,7 @@ const judgeGates = (
   }
 
   return activity.gates.flatMap((gate) => {
-    const report = gate.check(envelope, run, claimedPaths(envelope))
+    const report = gate.check(envelope, run, touchedBy(run, activity.instance))
     const found = violationsOf(report)
     run.tracer.gateRow(activityRun, gate.name, report)
     run.tracer.event({

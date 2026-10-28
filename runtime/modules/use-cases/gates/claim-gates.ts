@@ -141,21 +141,49 @@ export const jsonParses: TGate = {
     }, emptyReport),
 }
 
-/** Every file claimed changed must exist on disk. */
+/**
+ * Every file claimed changed must be a file this run actually changed.
+ *
+ * Two kinds of evidence, because a change is not always a file you can stat.
+ * A path that exists was written. A path that is gone but shows up in what
+ * the run observed was deleted — the destination half of a move, or a
+ * removal, both of which an Activity is right to report. Only a claim with
+ * neither behind it is the thing this gate exists to catch: work reported
+ * that nobody can find.
+ */
 export const diffMatchesClaims: TGate = {
   name: 'diff_matches_claims',
-  check: (envelope, run) =>
-    claimedChangedFiles(envelope).reduce<TGateReport>((report, path) => {
+  check: (envelope, run, changedPaths) => {
+    const observed = new Set(
+      changedPaths.map((path) => resolve(run, path).target),
+    )
+
+    return claimedChangedFiles(envelope).reduce<TGateReport>((report, path) => {
       const { target, note } = resolve(run, path)
-      return addCheck(
-        report,
-        path,
-        fileExists(target),
-        fileExists(target)
-          ? `exists, ${humanSize(target)} ${note}`.trim()
-          : 'claimed changed file does not exist',
-      )
-    }, emptyReport),
+      if (fileExists(target)) {
+        return addCheck(
+          report,
+          path,
+          true,
+          `exists, ${humanSize(target)} ${note}`.trim(),
+        )
+      }
+
+      return observed.has(target)
+        ? addCheck(
+            report,
+            path,
+            true,
+            `gone from the tree, and observed as changed by this run ${note}`.trim(),
+          )
+        : addCheck(
+            report,
+            path,
+            false,
+            'claimed changed, but it is not on disk and this run did not change it',
+          )
+    }, emptyReport)
+  },
 }
 
 /**

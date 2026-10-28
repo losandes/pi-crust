@@ -118,6 +118,125 @@ test(
 
 test(
   [
+    'given use-cases/gates::diffMatchesClaims',
+    'when a claimed path was deleted during the run but appears in the observed set',
+    'it should settle the claim as satisfied, naming it as a deletion',
+  ].join(', '),
+  () => {
+    // given — a repo root WITHOUT the claimed file (it was deleted by the
+    // run), but the run's own observed changes name it
+    const repoRoot = mkdtempSync(join(tmpdir(), 'crust-diff-claims-deleted-'))
+    const claimedPath = 'old/removed.txt'
+
+    const run = runWithRepoRoot(repoRoot)
+    const envelope = envelopeClaiming([claimedPath])
+
+    // when
+    const report = diffMatchesClaims.check(envelope, run, [claimedPath])
+
+    // then — satisfied by observation, not existence, and says so
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(report.checks[0]?.ok).toBe(true)
+    expect(report.checks[0]?.note).toContain('gone from the tree')
+    expect(report.checks[0]?.note).toContain('observed as changed by this run')
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::diffMatchesClaims',
+    'when an envelope claims both the source and destination of a move',
+    'it should settle the destination by existence and the source by observation',
+  ].join(', '),
+  () => {
+    // given — a repo root containing only the destination of a move; the
+    // source no longer exists on disk
+    const repoRoot = mkdtempSync(join(tmpdir(), 'crust-diff-claims-move-'))
+    mkdirSync(join(repoRoot, 'new'), { recursive: true })
+    writeFileSync(join(repoRoot, 'new', 'moved.txt'), 'content\n')
+
+    const sourcePath = 'old/moved.txt'
+    const destPath = 'new/moved.txt'
+
+    const run = runWithRepoRoot(repoRoot)
+    const envelope = envelopeClaiming([sourcePath, destPath])
+
+    // when — the run observed both halves of the move
+    const report = diffMatchesClaims.check(envelope, run, [
+      sourcePath,
+      destPath,
+    ])
+
+    // then — both claims satisfied, for different reasons
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(report.checks).toHaveLength(2)
+    const sourceCheck = report.checks.find((check) => check.item === sourcePath)
+    const destCheck = report.checks.find((check) => check.item === destPath)
+    expect(sourceCheck?.ok).toBe(true)
+    expect(sourceCheck?.note).toContain('gone from the tree')
+    expect(destCheck?.ok).toBe(true)
+    expect(destCheck?.note).toContain('exists')
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::diffMatchesClaims',
+    'when a claimed path exists on disk',
+    'it should keep the existing note rather than widening into "anything claimed passes"',
+  ].join(', '),
+  () => {
+    // given — a file that exists, and is NOT in the observed set at all
+    const repoRoot = mkdtempSync(join(tmpdir(), 'crust-diff-claims-exists-'))
+    writeFileSync(join(repoRoot, 'kept.txt'), 'content\n')
+
+    const run = runWithRepoRoot(repoRoot)
+    const envelope = envelopeClaiming(['kept.txt'])
+
+    // when — the observed set is empty; only existence can satisfy this
+    const report = diffMatchesClaims.check(envelope, run, [])
+
+    // then
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(report.checks[0]?.note).toContain('exists')
+    expect(report.checks[0]?.note).not.toContain('observed as changed')
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::diffMatchesClaims',
+    'when a claim and an observed path name the same file through different spellings (relative vs. absolute)',
+    'it should resolve both and treat them as one path, not two strings',
+  ].join(', '),
+  () => {
+    /*
+     * given — a deleted file the agent claimed by its workspace-relative
+     * spelling, and an observed path for the same file given as the
+     * resolved absolute path (the spelling `changedPaths` may carry). Both
+     * must resolve through the same root resolution (1.1.4) to be
+     * recognised as one path rather than two unrelated strings.
+     */
+    const repoRoot = mkdtempSync(join(tmpdir(), 'crust-claims-roots-'))
+
+    const run = runWithRepoRoot(repoRoot)
+    const claim = 'nested/sub/removed.txt'
+    const envelope = envelopeClaiming([claim])
+    const absoluteObserved = join(repoRoot, claim)
+
+    // when — the file does not exist, but the observed path (given as an
+    // absolute path) names the same file the claim resolves to
+    const report = diffMatchesClaims.check(envelope, run, [absoluteObserved])
+
+    // then — settled as satisfied by observation, same path either way
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(report.checks[0]?.ok).toBe(true)
+    expect(report.checks[0]?.note).toContain('gone from the tree')
+  },
+)
+
+test(
+  [
     'given use-cases/gates::artifactsExist',
     'when the claimed artifact is relative to run.repoRoot but absent under process.cwd()',
     'it should resolve the claim against run.repoRoot',
@@ -224,11 +343,12 @@ test(
 test(
   [
     'given use-cases/gates::diffMatchesClaims',
-    'when a relative claim exists under neither run.repoRoot nor process.cwd()',
+    'when a relative claim exists under neither run.repoRoot nor process.cwd(), nor the observed set',
     'it should still fail, reporting the claimed spelling',
   ].join(', '),
   () => {
-    // given — a repo root that does NOT contain the claimed file
+    // given — a repo root that does NOT contain the claimed file, and a run
+    // that did not observe it changed either
     const repoRoot = mkdtempSync(join(tmpdir(), 'crust-diff-claims-wrong-'))
     const claimedPath = 'out/does-not-exist.txt'
 
@@ -236,7 +356,7 @@ test(
     const envelope = envelopeClaiming([claimedPath])
 
     // when
-    const report = diffMatchesClaims.check(envelope, run, [claimedPath])
+    const report = diffMatchesClaims.check(envelope, run, [])
 
     // then — exactly one violation, naming the claimed spelling
     const violations = violationsOf(report)
