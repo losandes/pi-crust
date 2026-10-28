@@ -32,8 +32,17 @@
  *   uncommitted an Activity's gates passed, it declared `commit: true`, and
  *               git refused the commit. The work is in the tree; nothing was
  *               staged back, unstaged, or signed on anybody's behalf.
+ *   outside_workspace  a claimed path resolved only against the VCS root, not
+ *               the workspace -- a monorepo workspace legitimately owning
+ *               work that lives above it. Never fails the gate; see
+ *               specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md -- 1.3.3.
  */
-export type TWarningKind = 'unexpected' | 'overstep' | 'refusal' | 'uncommitted'
+export type TWarningKind =
+  | 'unexpected'
+  | 'overstep'
+  | 'refusal'
+  | 'uncommitted'
+  | 'outside_workspace'
 
 /** The `log` event name every warning is written under, and read back by. */
 export const WARNING_EVENT = 'tree_warning'
@@ -73,9 +82,13 @@ export const warningExplanation = (kind: TWarningKind): string =>
         'Nothing was changed back — the tree is yours to settle.'
       : kind === 'refusal'
         ? 'The path policy governed these tool calls. A blocked call never ran.'
-        : 'The work is in the working tree. Nothing was staged back, unstaged, ' +
-          "or signed on anybody's behalf — commit it yourself when you are " +
-          'ready.'
+        : kind === 'uncommitted'
+          ? 'The work is in the working tree. Nothing was staged back, unstaged, ' +
+            "or signed on anybody's behalf — commit it yourself when you are " +
+            'ready.'
+          : 'These paths exist above the workspace, inside the repository it is ' +
+            'nested in — a supported layout, not a mistake. Resolved and acted ' +
+            'on exactly as a path inside the workspace would be.'
 
 const headline = (warning: TTreeWarning): string =>
   `${warning.activities.join(', ')} (${warning.stage})`
@@ -107,6 +120,27 @@ const renderGroup = (
           .split('\n')
           .map((line) => `  ${line}`),
       ]
+}
+
+/**
+ * Paths resolved outside the workspace are information, not a fault -- a
+ * nested workspace owning work above it is a supported layout (1.3.3,
+ * 1.5.3). Counted and headlined on its own, with no \u26a0, so a run of a
+ * correct configuration does not read as something gone wrong.
+ */
+const renderOutsideWorkspace = (
+  warnings: readonly TTreeWarning[],
+): readonly string[] => {
+  const group = warnings.filter((warning) => warning.kind === 'outside_workspace')
+  if (group.length === 0) {
+    return []
+  }
+  const total = group.reduce((sofar, warning) => sofar + warning.paths.length, 0)
+
+  return [
+    `${total} claim(s) resolved outside the workspace, inside the repository`,
+    ...renderGroup(group, 'outside_workspace'),
+  ]
 }
 
 /**
@@ -154,6 +188,7 @@ export const renderWarnings = (
           `\u26a0 ${uncommittedTotal} commit(s) this run could not make`,
           ...renderGroup(uncommitted, 'uncommitted'),
         ]),
+    ...renderOutsideWorkspace(warnings),
   ]
 }
 
@@ -170,7 +205,8 @@ export const warningFromPayload = (
     kind !== 'unexpected' &&
     kind !== 'overstep' &&
     kind !== 'refusal' &&
-    kind !== 'uncommitted'
+    kind !== 'uncommitted' &&
+    kind !== 'outside_workspace'
   ) {
     return undefined
   }

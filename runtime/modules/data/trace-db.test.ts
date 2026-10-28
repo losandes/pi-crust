@@ -124,6 +124,40 @@ test(
 
 test(
   [
+    'given data/trace-db::sessionWorkspace',
+    'when a workspace is nested inside a larger VCS root',
+    'it should record vcs_root alongside workspace_root, covering 1.5.2 of specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('a1b2c3d4', 'tester', 'quality')
+
+    // when
+    tracer.sessionWorkspace(
+      'a1b2c3d4',
+      '/trees/feature-x/_newstack',
+      'andy/feature-x',
+      '/trees/feature-x',
+    )
+    tracer.close()
+
+    // then
+    const db = new Database(dbPath, { readonly: true })
+    const row = db
+      .query<{ vcs_root: string | null }, [string]>(
+        'SELECT vcs_root FROM sessions WHERE run_id = ?',
+      )
+      .get('a1b2c3d4')
+    db.close()
+    expect(row?.vcs_root).toEqual('/trees/feature-x')
+  },
+)
+
+test(
+  [
     'given data/trace-db::MIGRATIONS',
     'when a database predates an additive column',
     'it should gain the column on the next open',

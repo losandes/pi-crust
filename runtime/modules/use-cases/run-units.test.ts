@@ -45,6 +45,26 @@ const aRun = (tracerOverride?: (tracer: TTracer) => TTracer): TRun => {
   return run
 }
 
+/**
+ * `aRun()`'s workspace is its own scratch dir, resolved from `process.cwd()`
+ * at creation -- ordinarily that IS the repository a test cares about, but a
+ * handful of tests below build a SEPARATE git repository with `aRepo()` and
+ * chdir into it only after `aRun()` already ran. Both roots are pinned to
+ * that repository here, the way `createRun` would have resolved them had the
+ * chdir happened first.
+ */
+const atRoot = (run: TRun, dir: string): TRun => {
+  const next = { ...run, repoRoot: dir, vcsRoot: dir }
+  // `eventsOf` keys off object identity, and the spread above makes a new
+  // one -- so the events file this `run` already points at travels with it.
+  const events = EVENTS.get(run)
+  if (events !== undefined) {
+    EVENTS.set(next, events)
+  }
+
+  return next
+}
+
 const eventsOf = (run: TRun): readonly Record<string, unknown>[] =>
   readFileSync(EVENTS.get(run) ?? '', 'utf8')
     .split('\n')
@@ -529,7 +549,7 @@ test(
      */
     const dir = aRepo()
     withFailingPreCommit(dir)
-    const run = aRun()
+    const run = atRoot(aRun(), dir)
     const firstRuns: string[] = []
     const secondRuns: string[] = []
     const given = [
@@ -604,16 +624,19 @@ test(
      */
     const dir = aRepo()
     withFailingPreCommit(dir)
-    const run = aRun((tracer) => ({
-      ...tracer,
-      event: (input: TEventInput): string => {
-        if (input.name === WARNING_EVENT) {
-          throw new Error('database is locked')
-        }
+    const run = atRoot(
+      aRun((tracer) => ({
+        ...tracer,
+        event: (input: TEventInput): string => {
+          if (input.name === WARNING_EVENT) {
+            throw new Error('database is locked')
+          }
 
-        return tracer.event(input)
-      },
-    }))
+          return tracer.event(input)
+        },
+      })),
+      dir,
+    )
     const firstRuns: string[] = []
     const secondRuns: string[] = []
     const given = [
@@ -673,7 +696,7 @@ test(
      * whichever was chosen.
      */
     const dir = aRepo()
-    const run = aRun()
+    const run = atRoot(aRun(), dir)
     const runs: string[] = []
     const feedbackSeen: string[][] = []
     const given = [
@@ -728,7 +751,7 @@ test(
      * from the factory's.
      */
     const dir = aRepo()
-    const run = aRun()
+    const run = atRoot(aRun(), dir)
     const runs: string[] = []
     const feedbackSeen: string[][] = []
     const given = [
@@ -787,7 +810,7 @@ test(
      * pull one in by running near it.
      */
     const dir = aRepo()
-    const run = aRun()
+    const run = atRoot(aRun(), dir)
     const runs: string[] = []
     const feedbackSeen: string[][] = []
     const given = [

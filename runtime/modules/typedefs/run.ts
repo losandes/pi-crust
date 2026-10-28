@@ -20,7 +20,19 @@ export type TAgentMapEntry = Readonly<{
 
 /** The terminal narrative. Every line printed is also traced as a `log`. */
 export type TConsole = Readonly<{
-  sessionStarted: (runId: string, engineer: string) => void
+  /**
+   * `workspaceRoot` and `vcsRoot` print together only when they differ --
+   * the nested-workspace layout (1.5.1 of
+   * specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md). Equal, the banner reads
+   * exactly as it always has: neither root is an error, and a line that
+   * fires on every run of a correct configuration teaches nobody to read it.
+   */
+  sessionStarted: (
+    runId: string,
+    engineer: string,
+    workspaceRoot: string,
+    vcsRoot: string,
+  ) => void
   sessionFinished: (
     ok: boolean,
     tokens: number,
@@ -76,6 +88,18 @@ export type TRun = Readonly<{
   trust: number
   /** absolute root of the codebase — where every agent is spawned to work */
   repoRoot: string
+  /**
+   * Absolute VCS root — `git rev-parse --show-toplevel`, resolved from
+   * `repoRoot` once at run creation and carried from there.
+   *
+   * Equal to `repoRoot` in the ordinary case. Differs when the workspace is
+   * one package of a monorepo, which is a supported layout: everything git
+   * prints — a diff, an untracked file — is relative to THIS root, whatever
+   * cwd git was given, where everything configuration names — prompts,
+   * extensions, skills, `data_dir`, `writes` — stays relative to `repoRoot`.
+   * See specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md.
+   */
+  vcsRoot: string
   sessionDir: string
   contextHandoffDir: string
   /**

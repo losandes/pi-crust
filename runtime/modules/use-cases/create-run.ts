@@ -7,7 +7,7 @@
 
 import { join, resolve } from 'node:path'
 import { ensureDir, fileExists, readText, writeText } from '../data/files'
-import { repoRoot } from '../data/git'
+import { repoRoot, vcsRoot } from '../data/git'
 import type { TPiCrustConfig } from '../typedefs/config'
 import type { TActivityRun } from '../typedefs/activity-run'
 import type { TAgentMapEntry, TRun } from '../typedefs/run'
@@ -32,6 +32,11 @@ export type TCreateRunParams = Readonly<{
 
 export const createRun = (params: TCreateRunParams): TRun => {
   const { cfg, runId, tracer, engineer } = params
+  // Resolved once, here, rather than wherever a consumer happens to need it:
+  // a worktree switched mid-run would make two calls at different moments
+  // disagree, and a root that changes underneath a comparison is worse than
+  // one that is wrong consistently.
+  const workspaceRoot = resolve(repoRoot())
   const sessionDir = ensureDir(join(cfg.defaults.data_dir, 'sessions', runId))
   const contextHandoffDir = ensureDir(
     params.handoffDir ?? join(sessionDir, 'context_handoff'),
@@ -55,7 +60,8 @@ export const createRun = (params: TCreateRunParams): TRun => {
     engineer,
     stream: params.stream ?? false,
     trust: params.trust ?? TRUST_DEFAULT,
-    repoRoot: resolve(repoRoot()),
+    repoRoot: workspaceRoot,
+    vcsRoot: vcsRoot(workspaceRoot),
     sessionDir,
     contextHandoffDir,
     resume: params.resume ?? new Set<string>(),
@@ -67,7 +73,9 @@ export const createRun = (params: TCreateRunParams): TRun => {
     },
 
     updateActivityRun: (activityRunId, patch) => {
-      const existing = activityRuns.find((activityRun) => activityRun.activity_run_id === activityRunId)
+      const existing = activityRuns.find(
+        (activityRun) => activityRun.activity_run_id === activityRunId,
+      )
       if (existing === undefined) {
         throw new Error(`no such activityRun on this run: ${activityRunId}`)
       }

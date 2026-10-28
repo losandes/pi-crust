@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema } from '../typedefs/config'
+import { commitPaths } from '../data/git'
 import { snapshotTree } from '../data/working-tree'
 import type { TRun } from '../typedefs/run'
 import {
@@ -427,6 +428,7 @@ const runIn = (dir: string, cfg: TPiCrustConfig): TRun =>
   ({
     cfg,
     repoRoot: dir,
+    vcsRoot: dir,
     contextHandoffDir: join(dir, '.pi-crust/data/sessions/abc/context_handoff'),
   }) as unknown as TRun
 
@@ -445,7 +447,7 @@ test(
      */
     const dir = aRepo()
     const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
-    const before = snapshotTree(dir)
+    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
     writeFileSync(join(dir, 'README.md'), 'changed while the run worked\n')
 
     // when
@@ -473,7 +475,7 @@ test(
     // given — an untracked file used to be unlinked on sight
     const dir = aRepo()
     const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
-    const before = snapshotTree(dir)
+    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
     writeFileSync(join(dir, 'notes.md'), 'mine\n')
 
     // when
@@ -507,7 +509,7 @@ test(
       { name: 'reviewer', writes: ['reviews/'] },
       { name: 'code-reviewer', writes: ['code-reviews/'] },
     ])
-    const before = snapshotTree(dir)
+    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
     mkdirSync(join(dir, 'reviews'))
     mkdirSync(join(dir, 'code-reviews'))
     writeFileSync(join(dir, 'reviews/mine.md'), 'mine\n')
@@ -581,9 +583,10 @@ test(
     const run = {
       cfg,
       repoRoot: dir,
+      vcsRoot: dir,
       contextHandoffDir: handoffDir,
     } as unknown as TRun
-    const before = snapshotTree(dir)
+    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
     writeFileSync(join(handoffDir, 'plan.md'), 'mine\n')
 
     // when
@@ -614,9 +617,10 @@ test(
     const run = {
       cfg,
       repoRoot: dir,
+      vcsRoot: dir,
       contextHandoffDir: handoffDir,
     } as unknown as TRun
-    const before = snapshotTree(dir)
+    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
     writeFileSync(join(dir, 'notes.md'), 'undeclared\n')
 
     // when
@@ -628,5 +632,72 @@ test(
 
     // then
     expect(actual.overstepped).toEqual(['notes.md'])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::enforcePermissions',
+    'when the workspace is nested one level inside the VCS root and a file changes ABOVE it',
+    'it should snapshot, report, and commit it \u2014 covering 1.6.1 of specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md end to end',
+  ].join(', '),
+  () => {
+    /*
+     * given \u2014 the real layout that motivated this spec: a VCS root with a
+     * WORKSPACE nested one level below it (`_newstack`), and an Activity
+     * that changed a file ABOVE the workspace \u2014 inside the repository, but
+     * not inside the directory the agent was spawned to work in.
+     */
+    const vcsRootDir = aRepo()
+    const workspaceDir = join(vcsRootDir, '_newstack')
+    mkdirSync(workspaceDir, { recursive: true })
+    const cfg = configWith([{ name: 'builder', writes: ['*'] }])
+    const before = snapshotTree({
+      workspaceRoot: workspaceDir,
+      vcsRoot: vcsRootDir,
+    })
+    mkdirSync(join(vcsRootDir, '.prodcontainer', 'spotify-gateway'), {
+      recursive: true,
+    })
+    writeFileSync(
+      join(vcsRootDir, '.prodcontainer', 'spotify-gateway', 'Dockerfile'),
+      'FROM scratch\n',
+    )
+    const run = {
+      cfg,
+      repoRoot: workspaceDir,
+      vcsRoot: vcsRootDir,
+      contextHandoffDir: join(workspaceDir, '.pi-crust/data/sessions/abc/context_handoff'),
+    } as unknown as TRun
+
+    // when \u2014 snapshotted and resolved
+    const actual = enforcePermissions(run, agentNamed(cfg, 'builder'), {
+      tree: before,
+      head: '',
+      committing: true,
+    })
+
+    // then \u2014 reported as OUTSIDE the workspace: the normalised spelling of
+    // a path above it is absolute, which no workspace-relative `writes`
+    // pattern could ever have meant
+    const absoluteDockerfile = join(
+      vcsRootDir,
+      '.prodcontainer',
+      'spotify-gateway',
+      'Dockerfile',
+    )
+    expect(actual.touched).toEqual([absoluteDockerfile])
+    expect(actual.overstepped).toEqual([])
+
+    // and \u2014 staged and committed, addressed from the VCS root: this is the
+    // defect itself (`nothing to commit` for a path above the workspace),
+    // closed by `commitPaths` taking an explicit `cwd`
+    const committed = commitPaths(
+      'feat: container config above the workspace',
+      actual.touched,
+      vcsRootDir,
+    )
+    expect(committed.sha).not.toEqual('')
+    expect(committed.paths).toEqual(['.prodcontainer/spotify-gateway/Dockerfile'])
   },
 )

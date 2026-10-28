@@ -221,7 +221,12 @@ export const startSession = (
   // Where the work is happening, not where the observer is. One UI can watch
   // several working trees at once, and a run that cannot name its own tree is
   // a run the reader cannot act on.
-  tracer.sessionWorkspace(id, run.repoRoot, currentBranch())
+  tracer.sessionWorkspace(
+    id,
+    run.repoRoot,
+    currentBranch(),
+    run.vcsRoot === run.repoRoot ? '' : run.vcsRoot,
+  )
   /*
    * Tell the machine this tree exists, so an observer started later can find
    * it. Registration happens here rather than from the UI because the first
@@ -253,7 +258,7 @@ export const startSession = (
     `${JSON.stringify({ argv: process.argv.slice(0, 2).concat(process.argv.slice(2)), cwd: process.cwd() }, null, 2)}\n`,
   )
   finalizeWhenKilled(run)
-  run.console.sessionStarted(id, run.engineer)
+  run.console.sessionStarted(id, run.engineer, run.repoRoot, run.vcsRoot)
   if (isSharedHandoffDir(handoffDir, id)) {
     run.console.note(
       `handoff directory ${handoffDir} carries no run id — it is shared with ` +

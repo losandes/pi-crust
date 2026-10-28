@@ -106,6 +106,11 @@ export const MIGRATIONS: ReadonlyArray<readonly [string, string, string]> = [
   ['sessions', 'workspace_root', 'TEXT'],
   ['sessions', 'branch', 'TEXT'],
   ['sessions', 'name', 'TEXT'],
+  // The VCS root, when it differs from workspace_root -- a workspace nested
+  // inside a larger repository. '' for an older row and for the ordinary
+  // case where the two are equal; see
+  // specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md -- 1.5.2.
+  ['sessions', 'vcs_root', 'TEXT'],
 ]
 
 /** Additive column migrations, so a db from an older pi-crust still opens. */
@@ -247,12 +252,11 @@ export const createTracer = (
      * column, which is why a reader must treat it as unknown rather than as
      * the observer's own tree.
      */
-    sessionWorkspace: (runId, workspaceRoot, branch) => {
-      db.run('UPDATE sessions SET workspace_root=?, branch=? WHERE run_id=?', [
-        workspaceRoot,
-        branch,
-        runId,
-      ])
+    sessionWorkspace: (runId, workspaceRoot, branch, vcsRoot = '') => {
+      db.run(
+        'UPDATE sessions SET workspace_root=?, branch=?, vcs_root=? WHERE run_id=?',
+        [workspaceRoot, branch, vcsRoot, runId],
+      )
     },
 
     sessionRequest: (runId, request) => {

@@ -60,11 +60,20 @@ export type TTracer = Readonly<{
     lifecycleName: string,
     name?: string,
   ) => void
-  /** The working tree and branch a run is executing in. */
+  /**
+   * The working tree and branch a run is executing in.
+   *
+   * `vcsRoot` is recorded alongside `workspaceRoot` only when a nested
+   * workspace makes the two differ (1.5.2 of
+   * specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md). Omitted, it is stored as
+   * '' -- the honest answer for a row that never said, and indistinguishable
+   * from the ordinary flat case, which is deliberate: neither is an error.
+   */
   sessionWorkspace: (
     runId: string,
     workspaceRoot: string,
     branch: string,
+    vcsRoot?: string,
   ) => void
   sessionRequest: (runId: string, request: string) => void
   sessionWaiting: (runId: string) => void

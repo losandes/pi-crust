@@ -3,6 +3,8 @@
  */
 
 import { gitOutput } from './git'
+import type { TRoots } from './roots'
+import { normaliseFromGit } from './roots'
 
 export type TTreeSnapshot = Readonly<Record<string, string>>
 
@@ -13,24 +15,40 @@ export type TTreeSnapshot = Readonly<Record<string, string>>
  * still registers as a change. Untracked files are listed by name. Gitignored
  * paths never appear, which is why the session runtime under `data_dir` — where
  * handoff files legitimately land — needs no special case.
+ *
+ * `git diff HEAD --numstat` and `git ls-files --others --exclude-standard`
+ * both print paths relative to the VCS root, whatever `cwd` they are given —
+ * so every path is normalised through `roots` before it is returned, rather
+ * than left for each of this snapshot's six consumers to reinterpret on its
+ * own. The result is workspace-relative for a path inside the workspace,
+ * which is what makes the ordinary case — `roots.workspaceRoot ===
+ * roots.vcsRoot` — read exactly as it did before this normalisation existed.
+ * See specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md.
  */
-export const snapshotTree = (repoRoot: string): TTreeSnapshot => {
-  const tracked = gitOutput(['diff', 'HEAD', '--numstat'], repoRoot)
+export const snapshotTree = (roots: TRoots): TTreeSnapshot => {
+  const tracked = gitOutput(['diff', 'HEAD', '--numstat'], roots.vcsRoot)
     .split('\n')
     .flatMap((line) => {
       const fields = line.split('\t')
       const path = fields.at(-1)?.trim() ?? ''
       return fields.length >= 3 && path
-        ? [[path, `${fields[0]},${fields[1]}`] as const]
+        ? [
+            [
+              normaliseFromGit(roots, path),
+              `${fields[0]},${fields[1]}`,
+            ] as const,
+          ]
         : []
     })
   const untracked = gitOutput(
     ['ls-files', '--others', '--exclude-standard'],
-    repoRoot,
+    roots.vcsRoot,
   )
     .split('\n')
     .flatMap((line) =>
-      line.trim() ? [[line.trim(), 'untracked'] as const] : [],
+      line.trim()
+        ? [[normaliseFromGit(roots, line.trim()), 'untracked'] as const]
+        : [],
     )
   return Object.fromEntries([...tracked, ...untracked])
 }

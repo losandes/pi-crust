@@ -22,17 +22,6 @@ const aRepo = (): string => {
   return dir
 }
 
-/** `commitPaths` shells out in the process's cwd, so the test stands there. */
-const inRepo = <TResult>(dir: string, body: () => TResult): TResult => {
-  const was = process.cwd()
-  process.chdir(dir)
-  try {
-    return body()
-  } finally {
-    process.chdir(was)
-  }
-}
-
 test(
   [
     'given data/git::commitPaths',
@@ -47,9 +36,11 @@ test(
     git(dir, 'rm', '-q', 'extra.test.ts')
 
     // when — the harness commits what it observed this Activity touched,
-    // which includes the now-removed path.
-    const actual = inRepo(dir, () =>
-      commitPaths('fix: drop the unwanted file', ['extra.test.ts']),
+    // which includes the now-removed path, addressed from the VCS root.
+    const actual = commitPaths(
+      'fix: drop the unwanted file',
+      ['extra.test.ts'],
+      dir,
     )
 
     // then
@@ -74,8 +65,10 @@ test(
     rmSync(join(dir, 'extra.test.ts'))
 
     // when
-    const actual = inRepo(dir, () =>
-      commitPaths('fix: drop the file removed without git', ['extra.test.ts']),
+    const actual = commitPaths(
+      'fix: drop the file removed without git',
+      ['extra.test.ts'],
+      dir,
     )
 
     // then — the commit records the deletion
@@ -101,8 +94,10 @@ test(
     writeFileSync(join(dir, 'new-file.ts'), 'added by the activity\n')
 
     // when
-    const actual = inRepo(dir, () =>
-      commitPaths('fix: add the new file', ['new-file.ts', 'nope.txt']),
+    const actual = commitPaths(
+      'fix: add the new file',
+      ['new-file.ts', 'nope.txt'],
+      dir,
     )
 
     // then — the commit exists and holds only the path git could match
@@ -127,12 +122,45 @@ test(
     const before = git(dir, 'rev-parse', 'HEAD')
 
     // when
-    const actual = inRepo(dir, () =>
-      commitPaths('fix: nothing to commit', ['nope.txt', 'also-nope.txt']),
+    const actual = commitPaths(
+      'fix: nothing to commit',
+      ['nope.txt', 'also-nope.txt'],
+      dir,
     )
 
     // then — no commit was made, and HEAD did not move
     expect(actual).toEqual({ sha: '', paths: [] })
     expect(git(dir, 'rev-parse', 'HEAD')).toEqual(before)
+  },
+)
+
+test(
+  [
+    'given data/git::commitPaths',
+    'when a touched path is addressed by its ABSOLUTE spelling, above the directory commitPaths is given as cwd',
+    'it should still stage and commit it — an absolute pathspec resolves inside the repository regardless of cwd',
+  ].join(', '),
+  () => {
+    /*
+     * given — the nested-workspace shape this fix exists for: a file that
+     * lives above the directory commitPaths is addressed from. `cwd` here
+     * stands in for a WORKSPACE nested inside a larger VCS root; the touched
+     * path is spelled absolute, the way deliver.ts resolves a touched path
+     * before handing it to commitPaths. See
+     * specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md — 1.4.1.
+     */
+    const dir = aRepo()
+    writeFileSync(join(dir, 'above-workspace.txt'), 'written above the workspace\n')
+
+    // when — addressed from the VCS root (`dir`), not a workspace below it
+    const actual = commitPaths(
+      'fix: commit work from above the workspace',
+      [join(dir, 'above-workspace.txt')],
+      dir,
+    )
+
+    // then
+    expect(actual.sha).not.toEqual('')
+    expect(actual.paths).toEqual(['above-workspace.txt'])
   },
 )

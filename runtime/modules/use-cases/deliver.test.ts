@@ -42,10 +42,15 @@ const EVENTS = new WeakMap<object, Record<string, unknown>[]>()
  * in which nothing was observed, which is exactly how an Activity that touched
  * no file behaves.
  */
-const runIn = (observed: Readonly<Record<string, readonly string[]>> = {}): TRun => {
+const runIn = (
+  observed: Readonly<Record<string, readonly string[]>> = {},
+  dir = '',
+): TRun => {
   const filed: Record<string, unknown>[] = []
   const run = {
     runId: 'aaaa1111',
+    repoRoot: dir,
+    vcsRoot: dir,
     console: { note: () => undefined },
     tracer: {
       event: (input: Readonly<Record<string, unknown>>) => {
@@ -124,7 +129,7 @@ test(
      */
     const dir = aRepo()
     writeFileSync(join(dir, 'README.md'), 'after\n')
-    const run = runIn({ build: ['README.md'] })
+    const run = runIn({ build: ['README.md'] }, dir)
 
     // when
     const actual = inRepo(dir, () =>
@@ -162,7 +167,7 @@ test(
     // when
     const actual = inRepo(dir, () =>
       commitActivity(
-        runIn({ build: ['src.ts'] }),
+        runIn({ build: ['src.ts'] }, dir),
         'build',
         'id',
         envelopeWith('feat: the thing'),
@@ -192,7 +197,7 @@ test(
 
     // when
     const actual = inRepo(dir, () =>
-      commitActivity(runIn(), 'review', 'id', envelopeWith('chore: nothing'), 'review'),
+      commitActivity(runIn({}, dir), 'review', 'id', envelopeWith('chore: nothing'), 'review'),
     )
 
 
@@ -231,7 +236,7 @@ test(
     const dir = aRepo()
     writeFileSync(join(dir, 'README.md'), 'after\n')
     withFailingPreCommit(dir)
-    const run = runIn({ build: ['README.md'] })
+    const run = runIn({ build: ['README.md'] }, dir)
 
     // when
     const actual = inRepo(dir, () =>
@@ -255,7 +260,7 @@ test(
     const dir = aRepo()
     writeFileSync(join(dir, 'README.md'), 'after\n')
     withFailingPreCommit(dir)
-    const run = runIn({ build: ['README.md'] })
+    const run = runIn({ build: ['README.md'] }, dir)
 
     // when
     inRepo(dir, () =>
@@ -283,7 +288,7 @@ test(
     const dir = aRepo()
     writeFileSync(join(dir, 'README.md'), 'after\n')
     withFailingPreCommit(dir)
-    const run = runIn({ build: ['README.md'] })
+    const run = runIn({ build: ['README.md'] }, dir)
 
     // when
     inRepo(dir, () =>

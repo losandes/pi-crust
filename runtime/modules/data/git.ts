@@ -7,7 +7,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 
 const run = (
   args: readonly string[],
@@ -33,6 +33,15 @@ const git = (...args: readonly string[]): string => {
   return result.stdout.trim()
 }
 
+/** `git`, addressed from an explicit `cwd` rather than the process's own. */
+const gitAt = (cwd: string, ...args: readonly string[]): string => {
+  const result = run(args, cwd)
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.stderr.trim()}`)
+  }
+  return result.stdout.trim()
+}
+
 /** Run git, keeping the output only when it succeeded. Never throws. */
 export const gitOutput = (args: readonly string[], cwd?: string): string => {
   const result = run(args, cwd)
@@ -50,8 +59,8 @@ export const createBranch = (name: string): string => {
   return name
 }
 
-export const isRepo = (): boolean =>
-  run(['rev-parse', '--git-dir']).status === 0
+export const isRepo = (cwd?: string): boolean =>
+  run(['rev-parse', '--git-dir'], cwd).status === 0
 
 /**
  * Absolute root of the WORKSPACE — where agents are spawned to work.
@@ -82,6 +91,25 @@ export const repoRoot = (): string => {
   return walk(start) ?? start
 }
 
+/**
+ * Absolute root of the VCS — `git rev-parse --show-toplevel`, resolved from
+ * the workspace root.
+ *
+ * Falls back to the workspace root itself when it is not inside a git
+ * repository at all, so an unversioned tree keeps working with both roots
+ * equal — the same fallback `repoRoot` gives a tree with no `.pi-crust/`
+ * above it.
+ *
+ * Called once, at run creation (`createRun`), and carried on `TRun` from
+ * there: two calls at different moments can disagree once a worktree is
+ * switched mid-run, and a root that changes underneath a comparison is worse
+ * than one that is wrong consistently.
+ */
+export const vcsRoot = (workspaceRoot: string): string => {
+  const result = run(['rev-parse', '--show-toplevel'], workspaceRoot)
+  return result.status === 0 ? result.stdout.trim() : workspaceRoot
+}
+
 /** A commit that happened, and what went into it. `sha: ''` means it did not. */
 export type TCommit = Readonly<{
   sha: string
@@ -102,9 +130,9 @@ export type TCommit = Readonly<{
  * the half that covers an untracked new file — `ls-files` says no to that
  * one, and skipping it would leave an Activity's new work uncommitted.
  */
-const stageable = (path: string): boolean =>
-  existsSync(path) ||
-  run(['ls-files', '--error-unmatch', '--', path]).status === 0
+const stageable = (cwd: string, path: string): boolean =>
+  existsSync(isAbsolute(path) ? path : join(cwd, path)) ||
+  run(['ls-files', '--error-unmatch', '--', path], cwd).status === 0
 
 /**
  * Does git hold anything for this path — working tree, index, or an
@@ -119,9 +147,9 @@ const stageable = (path: string): boolean =>
  * `diff --cached --quiet` exits 1 when there is a staged change and 0 when
  * there is none, so 1 is the only answer meaning "git is holding something".
  */
-const knownToGit = (path: string): boolean =>
-  stageable(path) ||
-  run(['diff', '--cached', '--quiet', '--', path]).status === 1
+const knownToGit = (cwd: string, path: string): boolean =>
+  stageable(cwd, path) ||
+  run(['diff', '--cached', '--quiet', '--', path], cwd).status === 1
 
 /**
  * Stage exactly these paths and commit them.
@@ -145,12 +173,20 @@ const knownToGit = (path: string): boolean =>
  *
  * An empty staged set is not an error. An Activity whose gates passed without
  * leaving anything behind has done its job.
+ *
+ * `cwd` is the VCS root, not the workspace: a touched path can sit above the
+ * workspace — the layout a nested workspace exists to allow — and a pathspec
+ * given with no cwd (or the workspace as cwd) resolves against the wrong
+ * directory, matching nothing above it. Addressing from the VCS root is what
+ * makes a path outside the workspace stageable at all. See
+ * specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md.
  */
 export const commitPaths = (
   message: string,
   paths: readonly string[],
+  cwd: string,
 ): TCommit => {
-  if (!isRepo()) {
+  if (!isRepo(cwd)) {
     throw new Error(
       'not a git repository — a commit activityRun needs one. Run `git init` in the ' +
         'repo root (and make a first commit) before running a workflow that commits.',
@@ -159,13 +195,13 @@ export const commitPaths = (
   if (paths.length === 0) {
     return { sha: '', paths: [] }
   }
-  const addable = paths.filter(stageable)
+  const addable = paths.filter((path) => stageable(cwd, path))
   if (addable.length > 0) {
-    git('add', '--', ...addable)
+    gitAt(cwd, 'add', '--', ...addable)
   }
   // Everything git can still be asked about: a staged deletion is committed
   // from here, and a path git never knew would fail the commit outright.
-  const committable = paths.filter(knownToGit)
+  const committable = paths.filter((path) => knownToGit(cwd, path))
   if (committable.length === 0) {
     return { sha: '', paths: [] }
   }
@@ -173,14 +209,14 @@ export const commitPaths = (
   // path the Activity rewrote back to its committed content stages nothing,
   // and a path it deleted stages a deletion.
   const staged = lines(
-    git('diff', '--cached', '--name-only', '--', ...committable),
+    gitAt(cwd, 'diff', '--cached', '--name-only', '--', ...committable),
   )
   if (staged.length === 0) {
     return { sha: '', paths: [] }
   }
-  git('commit', '-m', message, '--', ...committable)
+  gitAt(cwd, 'commit', '-m', message, '--', ...committable)
 
-  return { sha: git('rev-parse', '--short', 'HEAD'), paths: staged }
+  return { sha: gitAt(cwd, 'rev-parse', '--short', 'HEAD'), paths: staged }
 }
 
 /**

@@ -12,11 +12,30 @@ import {
   jsonParses,
 } from './claim-gates'
 
-const runWithRepoRoot = (repoRoot: string): TRun =>
-  ({
-    repoRoot,
+const traced = (): { run: TRun; events: Readonly<Record<string, unknown>>[] } => {
+  const events: Record<string, unknown>[] = []
+  const run = {
+    runId: 'aaaa1111',
     activityRuns: () => [],
-  }) as unknown as TRun
+    tracer: {
+      event: (input: Readonly<Record<string, unknown>>) => {
+        // biome-ignore lint/plugin/no-array-mutation: recording what was filed is the test
+        events.push(input)
+        return ''
+      },
+    },
+  } as unknown as TRun
+
+  return { run, events }
+}
+
+const runWithRoots = (workspaceRoot: string, vcsRoot: string): TRun => {
+  const { run } = traced()
+  return { ...run, repoRoot: workspaceRoot, vcsRoot } as unknown as TRun
+}
+
+const runWithRepoRoot = (repoRoot: string): TRun =>
+  runWithRoots(repoRoot, repoRoot)
 
 const envelopeClaiming = (changed: readonly string[]): TEnvelopeBase =>
   ({
@@ -36,20 +55,28 @@ const envelopeWithArtifacts = (artifacts: readonly string[]): TEnvelopeBase =>
     changed_files: [],
   }) as unknown as TEnvelopeBase
 
-const runWithoutRepoRoot = (): TRun =>
-  ({
-    activityRuns: () => [],
-  }) as unknown as TRun
+const runWithoutRepoRoot = (): TRun => {
+  const { run } = traced()
+  return run
+}
 
 test(
   [
     'given use-cases/gates::diffMatchesClaims',
-    'when the orchestrator is invoked from a subdirectory of run.repoRoot',
-    'it should resolve a claimed path against run.repoRoot rather than process.cwd()',
+    'when the orchestrator process cwd sits BELOW run.repoRoot (workspace), not the other way round',
+    'it should resolve a claimed path against run.repoRoot rather than process.cwd() -- the defect commit 49b2ab0 fixed',
   ].join(', '),
   () => {
     /*
-     * given — a repo root containing the claimed file, and an orchestrator
+     * given -- the INVERSE of the nesting that motivated this spec
+     * (specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md): here the WORKSPACE is the
+     * repo root and the ORCHESTRATOR's own cwd is one level below it in
+     * `_newstack`. That is the layout commit 49b2ab0 fixed -- resolving
+     * against `run.repoRoot` rather than `process.cwd()` -- and it is a
+     * different case from a workspace nested INSIDE a larger VCS root, which
+     * the tests below cover.
+     *
+     * original given — a repo root containing the claimed file, and an orchestrator
      * process whose cwd is a SUBDIRECTORY of that root (the monorepo case in
      * specs/todos/FIX-RELATIVE-DIFF-CHECKS.md: the run was kicked off from
      * `_newstack`, one level below the root that actually contains the
@@ -270,5 +297,77 @@ test(
     } finally {
       process.chdir(was)
     }
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::diffMatchesClaims',
+    'when the workspace is nested inside the VCS root and the claim lives above the workspace',
+    'it should resolve against the VCS root, naming it in the check, and warn without failing the gate',
+  ].join(', '),
+  () => {
+    /*
+     * given — the real shape of the run that motivated this spec: a VCS root
+     * containing the claimed file, and a workspace ONE LEVEL BELOW it (the
+     * `_newstack` layout), the inverse of the pre-existing fixture above.
+     */
+    const vcsRootDir = mkdtempSync(join(tmpdir(), 'crust-claims-nested-vcs-'))
+    mkdirSync(join(vcsRootDir, '.prodcontainer', 'spotify-gateway'), {
+      recursive: true,
+    })
+    writeFileSync(
+      join(vcsRootDir, '.prodcontainer', 'spotify-gateway', 'Dockerfile'),
+      'FROM scratch\n',
+    )
+    const workspaceDir = join(vcsRootDir, '_newstack')
+    mkdirSync(workspaceDir, { recursive: true })
+
+    const { run, events } = traced()
+    const nested = {
+      ...run,
+      repoRoot: workspaceDir,
+      vcsRoot: vcsRootDir,
+    } as unknown as TRun
+    const claim = '.prodcontainer/spotify-gateway/Dockerfile'
+    const envelope = envelopeClaiming([claim])
+
+    // when
+    const report = diffMatchesClaims.check(envelope, nested, [claim])
+
+    // then — resolved, not failed
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(report.checks[0]?.note).toContain('(vcs)')
+    // and — a warning was raised naming the path, never a gate failure
+    const warning = events.find((event) => event.name === 'tree_warning')
+    expect(warning?.payload).toMatchObject({
+      kind: 'outside_workspace',
+      paths: [claim],
+    })
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::diffMatchesClaims',
+    'when the workspace equals the VCS root and the claim resolves inside it',
+    'it should name the workspace in the check and raise no warning',
+  ].join(', '),
+  () => {
+    // given — the ordinary, unnested case
+    const repoRoot = mkdtempSync(join(tmpdir(), 'crust-claims-flat-'))
+    writeFileSync(join(repoRoot, 'README.md'), 'hi\n')
+
+    const { run, events } = traced()
+    const flat = { ...run, repoRoot, vcsRoot: repoRoot } as unknown as TRun
+    const envelope = envelopeClaiming(['README.md'])
+
+    // when
+    const report = diffMatchesClaims.check(envelope, flat, ['README.md'])
+
+    // then
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(report.checks[0]?.note).toContain('(workspace)')
+    expect(events.find((event) => event.name === 'tree_warning')).toBeUndefined()
   },
 )

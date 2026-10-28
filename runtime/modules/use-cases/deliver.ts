@@ -15,6 +15,7 @@
  * nobody reading the registry could predict.
  */
 
+import { resolve } from 'node:path'
 import { commitPaths } from '../data/git'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
@@ -77,7 +78,18 @@ export const commitActivity = (
 ): string => {
   const message = commitMessage(run, envelope)
   const touched = touchedBy(run, instance)
-  const settlement = safeParseSettlement(() => commitPaths(message, touched))
+  /*
+   * `touched` is spelled relative to the WORKSPACE (or absolute, for a path
+   * above it) -- the single convention `snapshotTree` normalises to. A commit
+   * addresses the VCS root (1.4.1), so each path is resolved to absolute
+   * first: `resolve(workspaceRoot, path)` leaves an already-absolute path
+   * untouched and anchors a workspace-relative one correctly, whichever root
+   * the commit itself runs from.
+   */
+  const atVcsRoot = touched.map((path) => resolve(run.repoRoot, path))
+  const settlement = safeParseSettlement(() =>
+    commitPaths(message, atVcsRoot, run.vcsRoot),
+  )
   if (settlement.status === 'error') {
     run.console.note(
       `${instance}: commit failed — ${firstLine(errorMessage(settlement.error))}` +

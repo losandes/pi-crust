@@ -9,11 +9,13 @@
 
 import { isAbsolute, join } from 'node:path'
 import { fileExists, humanSize, isFile, readText } from '../../data/files'
+import { resolveClaim } from '../../data/roots'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'
 import { safeParseSettlement } from '../../typedefs/settlement'
+import { WARNING_EVENT, warningPayload } from '../../typedefs/warning'
 
 const claimedChangedFiles = (envelope: TEnvelopeBase): readonly string[] => {
   const claimed = (envelope as { changed_files?: unknown }).changed_files
@@ -24,27 +26,70 @@ const claimedChangedFiles = (envelope: TEnvelopeBase): readonly string[] => {
 
 /**
  * Resolve a claimed path against the repository the run is about, not the
- * orchestrator's own cwd.
+ * orchestrator's own cwd — workspace-first (the behaviour commit `49b2ab0`
+ * landed), then VCS-root-wide (what this spec adds).
  *
- * An absolute claim is honoured as written. A relative one is read relative
- * to `run.repoRoot` — the directory every agent was actually spawned to work
- * in — falling back to `process.cwd()` only when a run carries no repoRoot
- * at all (a TRun built without one, as a test double might).
+ * `run.repoRoot` is the directory every agent was actually spawned to work
+ * in; absent on a TRun built without one, as a test double might, this falls
+ * back to `process.cwd()` and treats the VCS root as equal to it, which is
+ * the honest answer for a tree this function knows nothing else about.
+ *
+ * A resolved claim is reported as this gate's `note`, naming which root
+ * answered (1.3.2). A claim that resolves only against the VCS root also
+ * raises a warning naming the path (1.3.3) — never a failure, because a
+ * monorepo workspace may legitimately own work that lives above it.
  */
-const atRepoRoot = (run: TRun, path: string): string =>
-  isAbsolute(path) ? path : join(run.repoRoot || process.cwd(), path)
+const resolve = (
+  run: TRun,
+  path: string,
+): Readonly<{ target: string; note: string }> => {
+  const workspaceRoot = run.repoRoot || process.cwd()
+  const vcsRoot = run.vcsRoot || workspaceRoot
+  const resolved = resolveClaim({ workspaceRoot, vcsRoot }, path)
+  if (resolved === undefined) {
+    return {
+      target: isAbsolute(path) ? path : join(workspaceRoot, path),
+      note: '',
+    }
+  }
+  if (resolved.root === 'vcs' && !isAbsolute(path)) {
+    const activityRun = run.activityRuns().at(-1)
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRun?.activity_run_id ?? '',
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload({
+        kind: 'outside_workspace',
+        activities: activityRun === undefined ? [] : [activityRun.params.name],
+        activityRunIds:
+          activityRun === undefined ? [] : [activityRun.activity_run_id],
+        stage: activityRun?.params.name ?? '',
+        paths: [path],
+        note:
+          `resolved against the VCS root at ${vcsRoot}, not the ` +
+          `workspace at ${workspaceRoot}`,
+      }),
+    })
+  }
+
+  return {
+    target: resolved.path,
+    note: resolved.root === 'workspace' ? '(workspace)' : '(vcs)',
+  }
+}
 
 export const artifactsExist: TGate = {
   name: 'artifacts_exist',
   check: (envelope, run) =>
     envelope.artifacts.reduce<TGateReport>((report, path) => {
-      const target = atRepoRoot(run, path)
+      const { target, note } = resolve(run, path)
       return addCheck(
         report,
         path,
         fileExists(target),
         fileExists(target)
-          ? `exists, ${humanSize(target)}`
+          ? `exists, ${humanSize(target)} ${note}`.trim()
           : 'declared artifact does not exist',
       )
     }, emptyReport),
@@ -54,7 +99,7 @@ export const filesNonEmpty: TGate = {
   name: 'files_non_empty',
   check: (envelope, run) =>
     envelope.artifacts.reduce<TGateReport>((report, path) => {
-      const target = atRepoRoot(run, path)
+      const { target } = resolve(run, path)
       // existence is artifactsExist's job
       if (!isFile(target)) {
         return report
@@ -73,7 +118,7 @@ export const jsonParses: TGate = {
   name: 'json_parses',
   check: (envelope, run) =>
     envelope.artifacts.reduce<TGateReport>((report, path) => {
-      const target = atRepoRoot(run, path)
+      const { target } = resolve(run, path)
       if (!(path.endsWith('.json') && fileExists(target))) {
         return report
       }
@@ -101,13 +146,13 @@ export const diffMatchesClaims: TGate = {
   name: 'diff_matches_claims',
   check: (envelope, run) =>
     claimedChangedFiles(envelope).reduce<TGateReport>((report, path) => {
-      const target = atRepoRoot(run, path)
+      const { target, note } = resolve(run, path)
       return addCheck(
         report,
         path,
         fileExists(target),
         fileExists(target)
-          ? `exists, ${humanSize(target)}`
+          ? `exists, ${humanSize(target)} ${note}`.trim()
           : 'claimed changed file does not exist',
       )
     }, emptyReport),

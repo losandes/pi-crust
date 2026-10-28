@@ -49,11 +49,20 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
   }
 
   return {
-    sessionStarted: (startedAdwId, engineer) => {
+    sessionStarted: (startedAdwId, engineer, workspaceRoot, vcsRoot) => {
       emit(
         `${paint('run_id:', 'bold', 'cyan')} ${paint(startedAdwId, 'bold')}` +
           `   ${paint('engineer', 'dim')} ${engineer}`,
       )
+      // Neither root is an error (1.5.3) -- said once, plainly, only when a
+      // nested workspace makes them differ, so a flat repository's banner
+      // is unchanged from before this line existed.
+      if (vcsRoot !== '' && vcsRoot !== workspaceRoot) {
+        emit(
+          `${paint('workspace', 'dim')} ${workspaceRoot}   ` +
+            `${paint('vcs root', 'dim')} ${vcsRoot}`,
+        )
+      }
     },
 
     sessionFinished: (ok, tokens, cost, dbPath) => {

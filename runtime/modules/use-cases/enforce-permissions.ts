@@ -326,7 +326,7 @@ export const enforcePermissions = (
   siblings: readonly TAgentConfig[] = [],
 ): TPermissionReport => {
   const before = repoBefore.tree
-  const after = snapshotTree(run.repoRoot)
+  const after = snapshotTree({ workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot })
   const touched = changedPaths(before, after)
   const resolveFor = (one: TAgentConfig): readonly string[] =>
     resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)

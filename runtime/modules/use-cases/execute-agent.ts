@@ -503,7 +503,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // What the tree looked like before this agent got its hands on it. Every
   // send in this activityRun — first prompt, JSON retries — is measured against
   // this one baseline.
-  const treeBefore = snapshotTree(run.repoRoot)
+  const treeBefore = snapshotTree({ workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot })
   /*
    * And where history was, so a commit this Activity was not asked to make is
    * caught. No prompt asks an agent to commit, but a prompt is advice:
