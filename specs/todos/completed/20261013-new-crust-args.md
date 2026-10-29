@@ -1,3 +1,0 @@
-Add support for `--handoff relative/path/{session_id}` to `just crust`, so I can direct all handoffs of a run to a specific directory, such as specs. The `{handoff}` variable in crust.activities.yaml already exists, and should continue to default to the location it does today. Only when `--handoff` is passed as an argument to `just crust` should it be overridden.
-
-Add support for `--name "custom name"`. When it is not present, things should work as they do today, with the lifecycle being the name of the run, or compose, etc. When it _is_ present, this name should be used instead. I likeley needs to be truncated beyond a certain length. Only truncate in display, not in written data.

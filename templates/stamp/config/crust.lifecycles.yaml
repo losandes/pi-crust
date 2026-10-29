@@ -28,21 +28,6 @@
 
 
 lifecycles:
-  - name: tdd
-    description: >-
-      The whole lifecycle, identify through code-review with test-driven
-      development: success criteria written before the build.
-    stages:
-      - name: discover
-        strategy: serial
-        activities: [identify, conceptualize]
-      - name: deliver
-        strategy: serial
-        activities: [plan, design, test-tdd, build]
-      - name: accept
-        strategy: concurrent
-        activities: [outcome-review, code-review]
-
   - name: sdlc
     description: >-
       The whole lifecycle, identify through code-review. Success criteria
@@ -65,17 +50,6 @@ lifecycles:
       - name: discover
         strategy: serial
         activities: [identify, conceptualize, plan]
-
-  - name: deliver-tdd
-    description: >-
-      The engineering lifecycle: test-first, build, and review.
-    stages:
-      - name: deliver-tdd
-        strategy: serial
-        activities: [test-tdd, build]
-      - name: accept
-        strategy: concurrent
-        activities: [outcome-review, code-review]
 
   - name: deliver
     description: >-
@@ -125,3 +99,17 @@ lifecycles:
       - name: prove
         strategy: serial
         activities: [plan, build]
+
+  # Named `gh-triage`, not `triage`: the latter is already the name of both
+  # a Planner and its `just crust triage` recipe, and
+  # `modules/use-cases/recipes.test.ts` refuses any Lifecycle whose name a
+  # recipe already owns -- a real collision, not merely the cosmetic one
+  # `just crust list` shows between a Lifecycle and a Planner section.
+  - name: gh-triage
+    description: >-
+      Analyze a topic, plan the work, and open a github issue. Not the triage
+      PLANNER, which recommends a chain and stops.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, plan, gh-issue]

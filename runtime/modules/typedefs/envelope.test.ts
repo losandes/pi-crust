@@ -3,6 +3,7 @@ import {
   buildOutput,
   contextEnvelopeSchema,
   genericOutputSchema,
+  ghIssueOutputSchema,
   narrowEnvelope,
   reviewOutput,
   type TEnvelopeBase,
@@ -195,5 +196,94 @@ test(
 
     // then
     expect(actual.success).toBe(true)
+  },
+)
+
+const ghIssueFields = {
+  status: 'success',
+  summary: 'opened an issue',
+  artifacts: ['.pi-crust/data/sessions/abc/context_handoff/gh_issue.md'],
+  notes_for_next_agent: '',
+  facts: [],
+  decisions: [],
+  assumptions: [],
+  unresolved: [],
+  risks: [],
+  objective_met: { met: true, evidence: 'gh issue create exited 0' },
+  regress_to: { activity: '', because: '' },
+  issue_url: 'https://github.com/losandes/pi-crust/issues/42',
+  issue_number: 42,
+  repo: 'losandes/pi-crust',
+}
+
+test(
+  [
+    'given typedefs/envelope::ghIssueOutputSchema',
+    'when every field, including issue_url, issue_number and repo, is present',
+    'it should parse',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = { ...ghIssueFields }
+
+    // when
+    const actual = ghIssueOutputSchema.safeParse(envelope)
+
+    // then
+    expect(actual.success).toBe(true)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::ghIssueOutputSchema',
+    'when issue_url is omitted',
+    'it should fail to parse rather than default to an empty reference',
+  ].join(', '),
+  () => {
+    // given
+    const { issue_url: _issue_url, ...envelope } = ghIssueFields
+
+    // when
+    const actual = ghIssueOutputSchema.safeParse(envelope)
+
+    // then
+    expect(actual.success).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::ghIssueOutputSchema',
+    'when issue_number is omitted',
+    'it should fail to parse',
+  ].join(', '),
+  () => {
+    // given
+    const { issue_number: _issue_number, ...envelope } = ghIssueFields
+
+    // when
+    const actual = ghIssueOutputSchema.safeParse(envelope)
+
+    // then
+    expect(actual.success).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::ghIssueOutputSchema',
+    'when repo is omitted',
+    'it should fail to parse',
+  ].join(', '),
+  () => {
+    // given
+    const { repo: _repo, ...envelope } = ghIssueFields
+
+    // when
+    const actual = ghIssueOutputSchema.safeParse(envelope)
+
+    // then
+    expect(actual.success).toBe(false)
   },
 )

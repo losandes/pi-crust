@@ -47,6 +47,7 @@
 # - checks                runs this repository's own commands from routing.checks
 # - reproductionSupported ensures a diagnosis's reproduced, steps and confidence are mutually consistent
 # - verdictConsistent     ensures the review verdict is consistent with the repository's conventions
+# - issueCreated          ensures a reported GitHub issue URL, number and repo agree
 
 activities:
   # Implements the selected plan, and lands it.
@@ -180,6 +181,23 @@ activities:
       - write
       - web_search
       - web_fetch
+
+  # Opens ONE GitHub issue from the chain that came before it. Its effect is
+  # external, so there is no `commit:` here: nothing in the working tree
+  # changes, and the handoff document is the record of what was filed.
+  - name: gh-issue
+    output: ghIssueOutput
+    gates: [artifactsExist, filesNonEmpty, issueCreated]
+    color: indigo
+    purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
+    prompt_engineering:
+      system: prompt-engineering/gh-issue/system.md
+      user: prompt-engineering/gh-issue/user.md
+    writes: ['{handoff}/gh_issue.md'] # .pi-crust/data/sessions/{session_id}/context_handoff/
+    tools:                       # bash is how `gh` is reached; no edit -- it changes no existing file
+      - bash
+      - read
+      - write
 
   # 1.2 Identify. Outcome and success criteria, never implementation — the
   # criteria it writes are what `review` rules against and what a human checks

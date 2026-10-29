@@ -70,6 +70,7 @@ The lifecycle above is a structured set of Activities. The registry ships more, 
 | `diagnose` | reproducing a reported behaviour and naming its cause, with evidence. The first Activity of `bugfix` |
 | `ux-design` | turning validated needs into an interface specification somebody can implement. Decides, so it is not research |
 | `document` | writing up what the diff shows, from the run's own baseline |
+| `gh-issue` | opening one GitHub issue carrying a discovery chain's findings; changes nothing in the repository |
 
 Two more are **Planners** rather than Activities: `operator` chooses the chain and runs it in the same trace, `triage` chooses the same chain and hands it back as a command. A Lifecycle cannot name either — they are what chooses a Lifecycle — and configuration can tune them but never add a third.
 

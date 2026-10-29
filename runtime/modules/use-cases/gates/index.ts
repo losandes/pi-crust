@@ -10,6 +10,7 @@ import {
 } from './claim-gates'
 import { checks } from './checks-gate'
 import { disputesSupported } from './dispute-gates'
+import { issueCreated } from './issue-gates'
 import { stepsValid } from './plan-gates'
 import { verdictConsistent } from './verdict-gates'
 
@@ -21,8 +22,8 @@ export {
   reproductionSupported,
 } from './claim-gates'
 export { checks, checkedPaths, checksReport } from './checks-gate'
-export { testsPass } from './command-gates'
 export { disputesSupported } from './dispute-gates'
+export { issueCreated } from './issue-gates'
 export { plannedNames, stepsValid } from './plan-gates'
 export { verdictConsistent } from './verdict-gates'
 
@@ -40,15 +41,10 @@ export const GATE_CATALOGUE: Readonly<Record<string, TGate>> = {
   diffMatchesClaims,
   disputesSupported,
   filesNonEmpty,
+  issueCreated,
   jsonParses,
   reproductionSupported,
   stepsValid,
-  /*
-   * A factory, not a gate: it takes the argv of the suite to run. Named
-   * here so a reader sees the whole set, and absent from the catalogue
-   * because an Activity names a gate and cannot pass it an argument —
-   * `checks` is how a repository's commands are reached by name.
-   */
   verdictConsistent,
 }
 

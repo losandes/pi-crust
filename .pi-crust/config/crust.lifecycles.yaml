@@ -37,7 +37,7 @@ lifecycles:
         activities: [identify, conceptualize]
       - name: deliver
         strategy: serial
-        activities: [plan, design, test-tdd, build]
+        activities: [plan, design, build, test]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
@@ -65,9 +65,9 @@ lifecycles:
     description: >-
       The engineering lifecycle: test-first, build, and review.
     stages:
-      - name: deliver-tdd
+      - name: deliver
         strategy: serial
-        activities: [test-tdd, build]
+        activities: [build, test]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]

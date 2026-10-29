@@ -16,7 +16,7 @@ const event = (overrides: Partial<EventRow> = {}): EventRow =>
   ({ event_id: 'e1', rowid: 1, type: 'agent_end', ...overrides }) as EventRow
 
 const gate = (overrides: Partial<GateResult> = {}): GateResult =>
-  ({ id: 1, gate: 'tests_pass', passed: 1, ...overrides }) as GateResult
+  ({ id: 1, gate: 'checks', passed: 1, ...overrides }) as GateResult
 
 test(
   [
