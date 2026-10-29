@@ -97,12 +97,10 @@ const aPrimaryAndLinkedWorktree = (
   return { primary, linked }
 }
 
-// Issue #24 stage 2 (1.6.1) is not implemented yet: the `crust` variable in
-// `crust.just` has no git-common-dir fallback. `test.failing` keeps this
-// known-red assertion in the suite without breaking the repository-wide
-// `bun test` gate; once the chain is implemented this test starts passing,
-// which `test.failing` reports as a FAILURE — the signal to drop `.failing`.
-test.failing(
+// Issue #24 stage 2 (1.6.1): the `crust` variable falls back through the
+// pointer beside the shared git directory when a linked worktree has no
+// pointer of its own.
+test(
   [
     'given crust.just’s crust variable',
     'when evaluated in a linked worktree that was never stamped, with no CRUST_HOME',
@@ -164,9 +162,9 @@ test(
   },
 )
 
-// Issue #24 stage 2 (1.6.4) is not implemented yet: today's failure is a
-// bare bun "module not found", naming none of the three resolution links.
-test.failing(
+// Issue #24 stage 2 (1.6.4): naming all three resolution links in the
+// failure, rather than a bare bun "module not found".
+test(
   [
     'given crust.just’s crust-dependent recipes',
     'when none of CRUST_HOME, a local pointer, or the shared git directory names a package',
@@ -189,9 +187,9 @@ test.failing(
   },
 )
 
-// Issue #24 stage 2 (1.6.2) is not implemented yet: `update` only checks
-// CRUST_HOME and the local pointer, not the git-common-dir fallback.
-test.failing(
+// Issue #24 stage 2 (1.6.2): `update` falls back through the shared git
+// directory too, not only CRUST_HOME and the local pointer.
+test(
   [
     'given crust.just’s update recipe',
     'when run in a linked worktree with no local pointer file',
@@ -224,9 +222,9 @@ test.failing(
   },
 )
 
-// Issue #24 stage 2 (1.6.2) is not implemented yet: `observe` only checks
-// CRUST_HOME and the local pointer, not the git-common-dir fallback.
-test.failing(
+// Issue #24 stage 2 (1.6.2): `observe` falls back through the shared git
+// directory too, not only CRUST_HOME and the local pointer.
+test(
   [
     'given crust.just’s observe recipe',
     'when run in a linked worktree with no local pointer file',

@@ -355,9 +355,9 @@ A code-review agent handed `(none)` must say so and withhold approval. A review 
 
 ## Overriding the roster on one machine
 
-`crust.config.local.yaml`, beside the config it overrides, is gitignored and loaded automatically when present. A committed `crust.config.local.example.yaml` sits next to it showing the whole surface — copy it, drop the `.example`, and it is in force on the next run. Nothing reads the example; it exists so a developer joining the repository can see what a local layer may do without finding out by trial.
+`crust.config.local.yaml`, beside the config it overrides, is gitignored and loaded automatically when present. `cookbooks/examples/crust.config.local.example.yaml` in the pi-crust package shows the whole surface — copy it into `.pi-crust/config/crust.config.local.yaml` in your own repository and it is in force on the next run. Nothing reads the example; it exists so a developer joining a stamped repository can see what a local layer may do without finding out by trial.
 
-The example is refreshed by `install.ts --force` even though everything else in `config/` is left alone. It is documentation rather than tuning, and a copy frozen at whatever shipped first would quietly start describing keys that no longer exist. In a repository with several developers it is how one person's licences, models and preferences stay out of everyone else's runs.
+The examples live in `cookbooks/` rather than in a stamped repository's own `config/` (issue #24, 1.10.1): they are documentation about the factory, not a repository's tuning, and a copy frozen in every stamp at whatever shipped first would quietly start describing keys that no longer exist. Reading the current one straight out of the package is how it stays accurate without `install.ts --force` having to refresh it per repository.
 
 It may override exactly four things, per agent or on `defaults`: `model`, `thinking`, `color`, `coding_agent`. Those are the keys that differ because a *person* differs — which models their credentials reach, how much thinking those models support, which harness they run, what colour they want a lane to be.
 
@@ -385,6 +385,58 @@ Naming an agent the roster does not have is a **warning**, not an error. Names g
 A run with a local layer in force says so on its first line, with the path. A gitignored file that silently changes which models are billed is the failure this prevents.
 
 The path follows the config in force, so `--config other.yaml` reads `other.local.yaml`.
+
+## Overriding the roster on this machine, for every repository
+
+`~/.pi-crust/config/crust.config.yaml` is a second layer, beside the repository-scoped one above: a MACHINE's answer rather than a repository's, read by every repository this machine runs pi-crust against. Its absence changes nothing — a repository that never hears about it behaves exactly as it does today. It sits beside the `workspaces.jsonl` the factory already keeps at `~/.pi-crust/` to remember which trees have run. `CRUST_MACHINE_CONFIG` overrides its path, trimmed-or-unset the same way `CRUST_CONFIG` and `CRUST_DB` already are, so the loader can be tested without writing to a home directory.
+
+It has two sections with different strength:
+
+```yaml
+# ~/.pi-crust/config/crust.config.yaml — this machine, never committed, read by every repository
+
+# Ordinary layer: my preferences. Any repository's own crust.config.yaml overrules these.
+defaults:
+  model: anthropic/claude-sonnet-5
+  thinking: high
+
+# Forced layer: these beat a repository's crust.config.yaml, deliberately.
+override:
+  defaults:
+    data_dir: "{primary_worktree}/.pi-crust/data"
+  observability:
+    db: "{primary_worktree}/.pi-crust/data/crust.db"
+```
+
+The TOP LEVEL is an ordinary layer: a repository's own `crust.config.yaml` overrules it, key by key, exactly the way `crust.config.local.yaml` overrules the committed file. `override:` is the same document shape, but it beats the repository's config instead of losing to it — visible and named, rather than a precedence rule nobody watching the two files side by side could see. The `override:` key itself is stripped before either layer reaches the schema; it is not a config key of its own.
+
+Merging happens on the RAW parsed documents, before the schema fills in its own defaults — the same reason `crust.config.local.yaml` merges the way it does (above). A key a repository's `crust.config.yaml` never mentions does not shadow the machine layer just because the schema would otherwise have filled it in.
+
+A name the machine layer sets that the repository's roster does not have is a **warning**, the same as a stale name in `crust.config.local.yaml`. The machine layer applies only to the assembled `crust.config.yaml` document — including what `crust.observe.yaml` merges into it — and never to the Activity or Lifecycle registries; those stay repository-scoped through their own `.local` files, which this adds a layer alongside rather than replaces.
+
+### The full precedence chain
+
+Strongest first:
+
+| # | Layer | Where |
+| --- | --- | --- |
+| 1 | Command-line flag | `--config`, `--handoff` |
+| 2 | Environment | `CRUST_CONFIG`, `CRUST_DB`, `CRUST_DATA_DIR` |
+| 3 | Repository, private | `.pi-crust/config/crust.config.local.yaml` |
+| 4 | Machine, forced | `~/.pi-crust/config/crust.config.yaml`, under `override:` |
+| 5 | Repository, committed | `.pi-crust/config/crust.config.yaml` and the files merged into it |
+| 6 | Machine, ordinary | `~/.pi-crust/config/crust.config.yaml`, top level |
+| 7 | Built-in | `runtime/modules/typedefs/config.ts` |
+
+Repository-wins over the ordinary machine layer, rather than the other way round, because a committed roster is the team's answer and a home directory is not a place to overrule it from silently. `override:` exists because the developer running the code can edit the repository's config anyway — the question is only whether forcing a value is *visible*, and a named section is visible where an unseen precedence rule is not.
+
+### The `{primary_worktree}` token
+
+`data_dir` and `observability.db` are the two keys this exists for, and a literal path naming one machine's home directory is wrong for every other repository on it. `{primary_worktree}` is a token that resolves PER REPOSITORY rather than a literal: it expands to `dirname($(git rev-parse --git-common-dir))`, resolved to an absolute path. In a main clone this is the clone itself; in a linked worktree (`git worktree add`) it is the main clone that worktree was branched from — the one thing a linked worktree reliably shares with its clone. When `git rev-parse --git-common-dir` fails, or the tree is not a git repository at all, the token falls back to the repository root, the same fallback `vcsRoot` already takes. A bare clone — where `--git-common-dir` names the repository itself, with no working tree at its parent — fails loudly naming the configured value and the path it expanded to, rather than writing into the directory that happens to hold the bare repository.
+
+Resolution in full, for `defaults.data_dir` and `observability.db` however they were set: expand a leading `~` to the user's home directory; expand `{primary_worktree}`; use the result unchanged when it is already absolute; otherwise resolve it against the repository root — never the shell's current directory, so the answer agrees regardless of where `just` was invoked from.
+
+See `cookbooks/centralize_worktree_data.md` for the worktree workflow this exists to support: configure the machine once, create worktrees freely, delete them without losing a run.
 
 ## Agent colours are theme roles
 

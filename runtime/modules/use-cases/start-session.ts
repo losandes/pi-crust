@@ -6,9 +6,10 @@
  * minted and printed so the next workflow can pick it up.
  */
 
-import { writeText } from '../data/files'
+import { fileExists, writeText } from '../data/files'
 import { basename, join, resolve } from 'node:path'
 import { engineerName } from '../data/engineer'
+import { resolveDataPaths } from '../data/data-paths'
 import { currentBranch, repoRoot } from '../data/git'
 import { recordedHandoffDir, writeHandoffPointer } from '../data/handoff-pointer'
 import { newId } from '../data/ids'
@@ -129,7 +130,7 @@ export const resumeVerdict = (
  * resuming an unnamed session is resuming nothing.
  */
 const completedActivityRuns = (
-  cfg: TPiCrustConfig,
+  dbPath: string,
   runId: string | undefined,
 ): ReadonlySet<string> => {
   if (runId === undefined || runId === '') {
@@ -138,9 +139,9 @@ const completedActivityRuns = (
         'Run `just crust report` to see the most recent one.',
     )
   }
-  const state = readRunState(cfg.observability.db, runId)
+  const state = readRunState(dbPath, runId)
   const hasLiveProcess =
-    state?.status === 'running' && runHasLiveProcess(cfg.observability.db, runId)
+    state?.status === 'running' && runHasLiveProcess(dbPath, runId)
   const verdict = resumeVerdict(state, runId, hasLiveProcess)
   if (!verdict.ok) {
     throw new Error(verdict.reason)
@@ -159,14 +160,15 @@ const completedActivityRuns = (
  * across two places.
  */
 const resolvedHandoffDirFor = (
-  cfg: TPiCrustConfig,
+  workspaceRoot: string,
+  dataDir: string,
   runId: string,
   sessionDir: string,
   options: TSessionOptions,
 ): string => {
   const resolved = resolveHandoffDir({
-    repoRoot: resolve(repoRoot()),
-    dataDir: cfg.defaults.data_dir,
+    repoRoot: workspaceRoot,
+    dataDir,
     runId,
     override: options.handoff,
   })
@@ -184,20 +186,48 @@ const resolvedHandoffDirFor = (
   return existing
 }
 
+/**
+ * A session directory id that is not already taken (1.4.2).
+ *
+ * A pooled store (1.4.1) holds every tree's sessions in one directory, which
+ * reaches a 32-bit id's (`newId(8)`) collision odds sooner than a per-tree
+ * store did. Joining an existing directory would interleave two runs'
+ * prompts, envelopes and handoff documents, so a collision is retried
+ * rather than reused — this never fires for a PINNED id (`--run-id`,
+ * including a resume), which is supposed to find an existing directory.
+ *
+ * `mint` and `taken` are parameters so this is provable without 2^32 tries:
+ * a test can make `taken` answer true for exactly the ids it wants refused.
+ */
+export const freshSessionId = (
+  mint: () => string,
+  taken: (candidate: string) => boolean,
+): string => {
+  const candidate = mint()
+  return taken(candidate) ? freshSessionId(mint, taken) : candidate
+}
+
 export const startSession = (
   cfg: TPiCrustConfig,
   runId?: string,
   options: TSessionOptions = {},
 ): TRun => {
+  const workspaceRoot = resolve(repoRoot())
+  const { dataDir, db } = resolveDataPaths(cfg, workspaceRoot)
   const resume = options.resume
-    ? completedActivityRuns(cfg, runId)
+    ? completedActivityRuns(db, runId)
     : new Set<string>()
-  const id = runId || newId(8)
-  const sessionDir = join(cfg.defaults.data_dir, 'sessions', id)
-  const handoffDir = resolvedHandoffDirFor(cfg, id, sessionDir, options)
+  const id =
+    runId ||
+    freshSessionId(
+      () => newId(8),
+      (candidate) => fileExists(join(dataDir, 'sessions', candidate)),
+    )
+  const sessionDir = join(dataDir, 'sessions', id)
+  const handoffDir = resolvedHandoffDirFor(workspaceRoot, dataDir, id, sessionDir, options)
   const tracer = createTracer(
-    cfg.observability.db,
-    join(cfg.defaults.data_dir, 'sessions', id, 'events.jsonl'),
+    db,
+    join(dataDir, 'sessions', id, 'events.jsonl'),
   )
   const run = createRun({
     cfg,

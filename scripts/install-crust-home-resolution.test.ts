@@ -38,12 +38,9 @@ const crustRecipeBody = (root: string): string => {
     .join('\n')
 }
 
-// Issue #24 stage 2 (1.6.3) is not implemented yet: install.ts still emits
-// the old single-path `cat .pi-crust/data/pi-crust-home` body. `test.failing`
-// keeps this known-red assertion in the suite without breaking the
-// repository-wide `bun test` gate; it starts reporting FAILURE once the
-// chain is implemented, which is the signal to drop `.failing`.
-test.failing(
+// Issue #24 stage 2 (1.6.3): install.ts emits the resolving chain into a
+// fresh stamp's crust recipe, rather than the old single-path `cat` body.
+test(
   [
     'given install.ts',
     'when it stamps a fresh repository',
@@ -64,8 +61,8 @@ test.failing(
   },
 )
 
-// Same reason as the test above: not implemented yet.
-test.failing(
+// Same as the test above, for a repository that already carries the old body.
+test(
   [
     'given install.ts',
     'when a repository already carries the old single-path crust recipe and is re-stamped with --force',

@@ -80,7 +80,7 @@ These run in a repository pi-crust has been stamped into: `bun <pi-crust>/script
 
 ```bash
 just crust please                          # answer questions, get the command
-# your own models/colours: cp .pi-crust/config/crust.config.local.example.yaml \
+# your own models/colours: cp <pi-crust>/cookbooks/examples/crust.config.local.example.yaml \
 #                             .pi-crust/config/crust.config.local.yaml
 just crust list                            # every Lifecycle and Activity this repo offers
 just crust run "<...>" --lifecycle sdlc    # the whole lifecycle, nine agent calls

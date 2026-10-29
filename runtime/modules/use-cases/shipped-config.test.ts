@@ -20,6 +20,8 @@ import { loadLifecycles } from './load-lifecycles'
  * `concurrent` the suite says so rather than the run doing.
  */
 const STAMP = join(import.meta.dir, '../../../templates/stamp/config')
+/** Examples live in cookbooks/ (issue #24, 1.10.1) — documentation, not a stamp. */
+const EXAMPLES = join(import.meta.dir, '../../../cookbooks/examples')
 
 const lifecyclesAt = (yaml: string): string => {
   const path = join(
@@ -156,7 +158,7 @@ test(
     const base = join(dir, 'crust.lifecycles.yaml')
     copyFileSync(join(STAMP, 'crust.lifecycles.yaml'), base)
     copyFileSync(
-      join(STAMP, 'crust.lifecycles.local.example.yaml'),
+      join(EXAMPLES, 'crust.lifecycles.local.example.yaml'),
       join(dir, 'crust.lifecycles.local.yaml'),
     )
 
@@ -186,7 +188,7 @@ test(
     const base = join(dir, 'crust.lifecycles.yaml')
     writeFileSync(base, 'lifecycles: []')
     copyFileSync(
-      join(STAMP, 'crust.lifecycles.local.example.yaml'),
+      join(EXAMPLES, 'crust.lifecycles.local.example.yaml'),
       join(dir, 'crust.lifecycles.local.yaml'),
     )
 

@@ -29,6 +29,8 @@ git worktree add ../pi-crust-wip -b <topic>
 
 This should be rare. Most changes are invisible to a running run.
 
+This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` is set explicitly above so the worktree deliberately does not fall back to the live checkout it was branched from. It is not the general case: a worktree of a repository pi-crust has been STAMPED INTO (an ordinary target repository, not this package) no longer needs its own stamp at all to run `just crust ...` — `crust.just`'s passthrough recipe resolves the package home through `CRUST_HOME`, then its own stamp pointer, then the pointer beside the shared git directory `git rev-parse --git-common-dir` names, which finds the main clone a linked worktree was branched from with no re-install (issue #24, `references/config.md`). `git worktree add` followed directly by `just crust run ...`, with no `bun <pi-crust>/scripts/install.ts` in between, is the supported shape for that case.
+
 ## Never destroy a user's data
 
 `.pi-crust/data/` holds the trace database and every session directory. It is worth more than any config file, because it cannot be regenerated.

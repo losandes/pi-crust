@@ -34,3 +34,11 @@ export const configPathFromEnv = (env: TEnv = process.env): string | undefined =
 /** `CRUST_DB`, when it names something. */
 export const dbPathFromEnv = (env: TEnv = process.env): string | undefined =>
   trimmedOrUndefined(env.CRUST_DB)
+
+/** `CRUST_DATA_DIR`, when it names something — overrides `defaults.data_dir` (1.1.7). */
+export const dataDirFromEnv = (env: TEnv = process.env): string | undefined =>
+  trimmedOrUndefined(env.CRUST_DATA_DIR)
+
+/** `CRUST_MACHINE_CONFIG`, when it names something — overrides the machine config file's path (1.2.8). */
+export const machineConfigPathFromEnv = (env: TEnv = process.env): string | undefined =>
+  trimmedOrUndefined(env.CRUST_MACHINE_CONFIG)

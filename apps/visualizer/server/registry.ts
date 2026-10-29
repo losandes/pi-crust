@@ -15,6 +15,7 @@
  * - a tree that has been removed while the server runs. Its runs disappear
  *   from the list; the other trees keep working.
  */
+import { existsSync } from "node:fs";
 import type { SessionSummary } from "../shared/types.ts";
 import { PiCrustDb } from "./db.ts";
 import type { TWorkspace } from "./workspaces.ts";
@@ -81,7 +82,21 @@ export class WorkspaceRegistry {
    */
   private connect(workspace: TWorkspace): PiCrustDb | undefined {
     const existing = this.open.get(workspace.label);
-    if (existing) return existing;
+    if (existing) {
+      // A tree can vanish — a worktree removed, a store relocated — after we
+      // opened it. bun:sqlite keeps serving reads against a deleted file's
+      // inode until the fd closes, so the only reliable signal is checking
+      // the path still names something, not waiting for a query to throw.
+      if (existsSync(existing.path)) return existing;
+      existing.close();
+      this.open.delete(workspace.label);
+      this.failures.set(workspace.label, "workspace is gone");
+      return undefined;
+    }
+    // This IS the boundary: PiCrustDb's constructor throws on a missing or
+    // unreadable file, and this registry's whole contract is reporting that
+    // as a per-workspace failure instead of taking the server down with it.
+    // biome-ignore lint/plugin/no-intermediate-try-catch: converting a thrown open failure into the failures map is this method's job
     try {
       const db = new PiCrustDb(workspace.dbPath, workspace.label);
       this.open.set(workspace.label, db);

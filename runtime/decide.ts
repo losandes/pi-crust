@@ -21,7 +21,9 @@
  */
 
 import { join } from 'node:path'
+import { resolveDataPaths } from './modules/data/data-paths'
 import { fileExists, readText, writeText } from './modules/data/files'
+import { repoRoot } from './modules/data/git'
 import { handoffDirFor } from './modules/data/handoff-pointer'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
@@ -122,10 +124,10 @@ export const answerText = (args: TDecideArgs): string => {
 export const main = async (argv: readonly string[]): Promise<number> => {
   const args = parseDecideArgs(argv)
   const cfg = safeParseSettlement(() => loadConfig(args.config))
-  const dbPath =
-    args.db ?? (cfg.status === 'ok' ? cfg.data.observability.db : DEFAULT_DB)
-  const dataDir =
-    cfg.status === 'ok' ? cfg.data.defaults.data_dir : '.pi-crust/data'
+  const resolved =
+    cfg.status === 'ok' ? resolveDataPaths(cfg.data, repoRoot()) : undefined
+  const dbPath = args.db ?? resolved?.db ?? DEFAULT_DB
+  const dataDir = resolved?.dataDir ?? '.pi-crust/data'
 
   const state = readRunState(dbPath, args.runId)
   if (state === undefined) {

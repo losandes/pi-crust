@@ -311,8 +311,24 @@ test(
         ),
       )
     const base = activitiesFileSchema.parse(read('crust.activities.yaml'))
+    // The example moved to cookbooks/ (issue #24, 1.10.1): documentation, not
+    // a stamp — a repository's own stamped config/ never had an opinion
+    // worth shipping twice.
     const local = activityPatchFileSchema.parse(
-      read('crust.activities.local.example.yaml'),
+      Bun.YAML.parse(
+        readFileSync(
+          join(
+            import.meta.dir,
+            '..',
+            '..',
+            '..',
+            'cookbooks',
+            'examples',
+            'crust.activities.local.example.yaml',
+          ),
+          'utf8',
+        ),
+      ),
     )
 
     // when

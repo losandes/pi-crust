@@ -28,6 +28,21 @@ export type TPrunable = Readonly<{
   started_at: string | null | undefined
 }>
 
+/**
+ * The distinct working trees a set of sessions names (1.8.1), from the
+ * trace's own `workspace_root` column "this becomes the only way to tell
+ * whose run a row is once a store holds several trees" (1.4.3).
+ */
+export const workspacesIn = (
+  runs: readonly Readonly<{ workspace_root: string | null | undefined }>[],
+): readonly string[] => {
+  const found = new Set<string>()
+  for (const run of runs) {
+    if (run.workspace_root) found.add(run.workspace_root)
+  }
+  return [...found].toSorted()
+}
+
 export type TPruneVerdict = Readonly<{
   /** runs to delete, oldest first */
   doomed: readonly string[]

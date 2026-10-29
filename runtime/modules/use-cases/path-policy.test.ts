@@ -610,3 +610,43 @@ test(
     expect(actual.verb).toEqual(resolved.ignoredPolicy.write)
   },
 )
+
+test(
+  [
+    'given use-cases/path-policy-run::settingsFor',
+    'when data_dir resolves OUTSIDE the repository, a pooled store (issue #24, 1.9.2)',
+    'it should leave an agent writing into its own session directory ungoverned, exactly as it is when data_dir sits inside the repository',
+  ].join(', '),
+  () => {
+    // given — a pooled store the repository does not contain
+    const dir = aRepo()
+    const pooledStore = mkdtempSync(join(tmpdir(), 'crust-policy-pooled-'))
+    const cfg = crustConfigSchema.parse({
+      defaults: {
+        protected_files: ['.pi-crust/config/'],
+        data_dir: pooledStore,
+      },
+    })
+    const handoffDir = join(pooledStore, 'sessions', 'run_01', 'context_handoff')
+    const resolved = settingsFor(cfg, dir, handoffDir)
+
+    // when — an agent writes into this run's own session directory, named
+    // the way a real tool call would: absolute, since it falls outside the
+    // repository the call is otherwise addressed relative to
+    const actual = governToolCall({
+      call: {
+        toolName: 'write',
+        input: {
+          path: join(pooledStore, 'sessions', 'run_01', 'agent_map.json'),
+          content: '{}',
+        },
+      },
+      settings: resolved,
+      isIgnored: () => false,
+    })
+
+    // then
+    expect(actual.blocked).toBeUndefined()
+    expect(actual.refusals).toEqual([])
+  },
+)

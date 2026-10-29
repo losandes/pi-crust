@@ -19,17 +19,28 @@
 
 import { Database } from 'bun:sqlite'
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
-import { dbPathFromEnv } from './modules/data/env-overrides'
+import { basename, join } from 'node:path'
+import { resolveDataPaths } from './modules/data/data-paths'
+import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
+import { repoRoot } from './modules/data/git'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { fileExists } from './modules/data/files'
-import { DEFAULT_DB } from './modules/typedefs/config'
+import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import { parseAge, pruneVerdict, type TPrunable } from './modules/use-cases/prune'
+import { safeParseSettlement } from './modules/typedefs/settlement'
+import { loadConfig } from './modules/use-cases/load-config'
+import {
+  parseAge,
+  pruneVerdict,
+  type TPrunable,
+  workspacesIn,
+} from './modules/use-cases/prune'
 
 export const USAGE =
-  'usage: just crust prune <14d|36h> [--yes] [--db <path>]\n' +
-  'env: CRUST_DB overrides the db path; --db still wins.'
+  'usage: just crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]\n' +
+  'env: CRUST_DB overrides the db path; --db still wins.\n' +
+  '--tree restricts pruning to runs whose workspace_root matches exactly; ' +
+  'omitted, the whole store is pruned (1.8.2, 1.8.3).'
 
 /** Every table that keys on a run, in an order no foreign key objects to. */
 const RUN_TABLES = [
@@ -47,24 +58,52 @@ const flag = (argv: readonly string[], name: string): string | undefined => {
   return index === -1 ? undefined : argv[index + 1]
 }
 
+const defaultDbPath = (): string => {
+  const cfg = safeParseSettlement(() =>
+    loadConfig(configPathFromEnv() ?? DEFAULT_CONFIG_PATH),
+  )
+  return cfg.status === 'ok' ? resolveDataPaths(cfg.data, repoRoot()).db : DEFAULT_DB
+}
+
 export const main = (argv: readonly string[]): number => {
   const age = parseAge(flag(argv, '--older-than'))
   if (age === undefined) {
     writeLine(`--older-than is required, as 14d or 36h\n${USAGE}`)
     return EXIT.USAGE
   }
-  const dbPath = flag(argv, '--db') ?? dbPathFromEnv() ?? DEFAULT_DB
+  const dbPath = flag(argv, '--db') ?? dbPathFromEnv() ?? defaultDbPath()
   if (!fileExists(dbPath)) {
     writeLine(`no trace database at ${dbPath} — nothing to prune`)
     return EXIT.SUCCESS
   }
+  const treeFilter = flag(argv, '--tree')
 
   const db = new Database(dbPath)
-  const runs = db
-    .query('SELECT run_id, status, started_at FROM sessions')
-    .all() as TPrunable[]
-  const verdict = pruneVerdict(runs, age, Date.now())
+  // The sessions directory is a sibling of the database (1.8.3): a pooled
+  // store relocated with the config's data_dir is followed with no change
+  // here, because this derives it from the db path rather than assuming
+  // `.pi-crust/data`.
   const sessionsDir = join(dbPath, '..', 'sessions')
+  const everyRun = db
+    .query('SELECT run_id, status, started_at, workspace_root FROM sessions')
+    .all() as (TPrunable & Readonly<{ workspace_root: string | null }>)[]
+
+  // Say how many working trees this store holds, and name them, before
+  // anything is deleted (1.8.1) — a pooled store can hold runs from several
+  // trees nobody deleting runs today would expect to find there.
+  const trees = workspacesIn(everyRun)
+  writeLine(
+    paint(
+      `${dbPath} holds ${trees.length} working tree(s): ${trees.join(', ') || '(none recorded)'}`,
+      'dim',
+    ),
+  )
+
+  const runs =
+    treeFilter === undefined
+      ? everyRun
+      : everyRun.filter((run) => run.workspace_root === treeFilter)
+  const verdict = pruneVerdict(runs, age, Date.now())
 
   if (verdict.doomed.length === 0) {
     writeLine(`nothing older than ${flag(argv, '--older-than')} to prune`)
@@ -100,6 +139,14 @@ export const main = (argv: readonly string[]): number => {
     for (const table of RUN_TABLES) {
       db.run(`DELETE FROM ${table} WHERE run_id = ?`, [runId])
     }
+  }
+  // Check logs for a working tree this prune just emptied MAY go too (1.8.4):
+  // they describe uncommitted state that is gone. Only when a --tree filter
+  // named the tree being pruned — an unfiltered prune has no single tree to
+  // single out, and deletes nothing here that 1.8.3 did not already cover.
+  if (treeFilter !== undefined) {
+    const checksDir = join(dbPath, '..', 'checks', basename(treeFilter))
+    rmSync(checksDir, { recursive: true, force: true })
   }
   // Reclaim the pages, or the file keeps the space a pruned run used.
   db.run('VACUUM')
