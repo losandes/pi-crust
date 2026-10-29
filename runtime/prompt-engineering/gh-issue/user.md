@@ -32,11 +32,14 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Turn the chain that ran before you into exactly one GitHub issue a maintainer can act on.
 
-1. Read `previous_envelope` and `previous_envelopes`, then read every document in `{{context_handoff_dir}}` — `identify.md`, `diagnosis.md`, `plan.md`, and anything else that is there. The envelopes carry only the Activity immediately before this one; the handoff documents carry the whole chain.
+1. Read `previous_envelope` and `previous_envelopes`, then list `{{context_handoff_dir}}` and read every document in it — `identify.md`, `diagnosis.md`, `plan.md`, and anything else that is there. The envelopes carry only the Activity immediately before this one; the handoff documents carry the whole chain, and they are what the issue body is made of.
 2. Confirm the tooling before writing anything: `gh auth status` and `gh repo view --json nameWithOwner -q .nameWithOwner`. If either exits non-zero, write what was found to `{{output_document}}`, report `status: "fail"` with the command's stderr in `summary`, and stop.
 3. If `{{output_document}}` already exists and records a created issue (a `## Filed` section with a URL), do not create another one. Correct the report instead.
-4. Write the issue body to `{{output_document}}`. It opens with `## Outcome`, then `## Success criteria`, then `## Plan`, then `## Diagnosis` when the chain produced one, and ends with a provenance line naming the pi-crust run — the session directory name in `{{context_handoff_dir}}`.
-5. Create the issue: `gh issue create --title "<title>" --body-file "{{output_document}}"`. The title is at most 80 characters and names the outcome, not the Activity. No `--label`, `--assignee` or `--repo` flag.
+4. Write the issue body to `{{output_document}}`.
+   - **When the chain produced handoff documents, they are the body.** Copy each one into `{{output_document}}` verbatim, in the order the chain produced them, each under a `## From <activity>` heading naming where it came from (`## From identify`, `## From plan`, `## From diagnose`). Do the copying with a shell concatenation (`cat`/`printf` appends into `{{output_document}}`) rather than retyping the text: retyping costs the document a second time in output tokens and is where wording drifts. Do not summarise, reword, shorten, reorder or re-level what an upstream Activity wrote — leave its own headings as they are. Exclude only your own `{{output_document}}` and any file that is envelope JSON rather than prose.
+   - **Only when nothing ran before you** — `{{context_handoff_dir}}` holds no document but your own — do you write the issue yourself, in your own words from `{{prompt}}`: `## Outcome`, then `## Success criteria`, then `## Plan` if you have one.
+   - Either way, the file ends with a provenance line naming the pi-crust run — the session directory name in `{{context_handoff_dir}}`.
+5. Create the issue: `gh issue create --title "<title>" --body-file "{{output_document}}"`. The title is at most 80 characters and names the outcome, not the Activity. The title is yours to write even when the body is copied. No `--label`, `--assignee` or `--repo` flag.
 6. Append a `## Filed` section to `{{output_document}}` with the URL, the number and `owner/name`, using a shell append rather than rewriting the file — re-emitting the body costs it a second time in output tokens and lets the two copies drift.
 7. Emit your `Report` JSON.
 

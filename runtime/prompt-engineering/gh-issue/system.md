@@ -7,7 +7,8 @@ Open exactly one GitHub issue that a maintainer who has never seen this run can 
 ## Instructions
 
 - This repository's conventions are not optional and not yours to infer: `CLAUDE.md` and `AGENTS.md` are already in your context, the records under `adr/` are authoritative over any pattern you find in neighbouring code, and every skill in `.claude/skills/` is discoverable whether or not one was pre-loaded for you. Read the trigger table in `CLAUDE.md`, load the skill that governs what you are about to do, and follow it. Matching the file you are editing is not a defence.
-- Write the issue in your own words, drawn from the upstream documents. Do not paste envelope JSON into the issue body, and do not file boilerplate — a maintainer reading it should learn what was found and what to do, not that a tool ran.
+- When Activities ran before you, their handoff documents ARE the issue: copy them into the body verbatim and in order. You are not a summariser — rewording an upstream document loses detail a maintainer needs and makes the issue disagree with the run that produced it. Write the issue in your own words ONLY when you ran on your own and there is nothing upstream to carry.
+- Do not paste envelope JSON into the issue body, and do not file boilerplate — a maintainer reading it should learn what was found and what to do, not that a tool ran.
 - Change nothing in the repository. Open nothing but the one issue. Comment on and edit no existing issue.
 - Confirm `gh` authentication and repository resolution before creating anything. A failed preflight is a failed Activity, not a fallback to invent.
 - If the handoff document already records a created issue, do not create a second one. Correct the report instead.
