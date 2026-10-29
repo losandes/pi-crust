@@ -28,21 +28,6 @@
 
 
 lifecycles:
-  - name: tdd
-    description: >-
-      The whole lifecycle, identify through code-review with test-driven
-      development: success criteria written before the build.
-    stages:
-      - name: discover
-        strategy: serial
-        activities: [identify, conceptualize]
-      - name: deliver
-        strategy: serial
-        activities: [plan, design, test-tdd, build]
-      - name: accept
-        strategy: concurrent
-        activities: [outcome-review, code-review]
-
   - name: sdlc
     description: >-
       The whole lifecycle, identify through code-review. Success criteria
@@ -65,17 +50,6 @@ lifecycles:
       - name: discover
         strategy: serial
         activities: [identify, conceptualize, plan]
-
-  - name: deliver-tdd
-    description: >-
-      The engineering lifecycle: test-first, build, and review.
-    stages:
-      - name: deliver-tdd
-        strategy: serial
-        activities: [test-tdd, build]
-      - name: accept
-        strategy: concurrent
-        activities: [outcome-review, code-review]
 
   - name: deliver
     description: >-
