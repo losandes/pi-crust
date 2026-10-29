@@ -2,10 +2,13 @@ import { expect, test } from 'bun:test'
 import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { isFile } from '../data/files'
+import { resolvePromptPath } from '../data/prompt-files'
 import { activitiesFileSchema } from '../typedefs/activity'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TPiCrustConfig } from '../typedefs/config'
 import { activityOrder, lifecyclesFileSchema } from '../typedefs/lifecycle'
+import { registryFaults } from './activity-registry'
 import { loadLifecycles } from './load-lifecycles'
 
 /*
@@ -281,6 +284,46 @@ test(
 
     // when
     const actual = subagentWiring(given)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when the shipped activities are checked against this package\'s own catalogues',
+    'it should name no fault, because output and gates are names this package actually publishes',
+  ].join(', '),
+  () => {
+    // given
+    const given = shippedConfig()
+
+    // when
+    const actual = registryFaults(given.activities)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/shipped-config::shippedConfig',
+    'when every shipped Activity and Planner is checked',
+    'it should resolve both of its prompt files to a real file',
+  ].join(', '),
+  () => {
+    // given
+    const given = shippedConfig()
+
+    // when
+    const actual = given.agents.flatMap((agent) =>
+      [agent.prompt_engineering.system, agent.prompt_engineering.user]
+        .filter((reference) => !isFile(resolvePromptPath(reference)))
+        .map((reference) => `${agent.name}: ${reference}`),
+    )
 
     // then
     expect(actual).toEqual([])

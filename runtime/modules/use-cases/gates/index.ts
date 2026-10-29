@@ -10,6 +10,7 @@ import {
 } from './claim-gates'
 import { checks } from './checks-gate'
 import { disputesSupported } from './dispute-gates'
+import { issueCreated } from './issue-gates'
 import { stepsValid } from './plan-gates'
 import { verdictConsistent } from './verdict-gates'
 
@@ -23,6 +24,7 @@ export {
 export { checks, checkedPaths, checksReport } from './checks-gate'
 export { testsPass } from './command-gates'
 export { disputesSupported } from './dispute-gates'
+export { issueCreated } from './issue-gates'
 export { plannedNames, stepsValid } from './plan-gates'
 export { verdictConsistent } from './verdict-gates'
 
@@ -40,6 +42,7 @@ export const GATE_CATALOGUE: Readonly<Record<string, TGate>> = {
   diffMatchesClaims,
   disputesSupported,
   filesNonEmpty,
+  issueCreated,
   jsonParses,
   reproductionSupported,
   stepsValid,

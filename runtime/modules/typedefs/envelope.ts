@@ -629,6 +629,26 @@ export const designOutputSchema = contextEnvelopeSchema.extend({
 export type TDesignOutput = Readonly<z.infer<typeof designOutputSchema>>
 export const designOutput = envelopeSpec('DesignOutput', designOutputSchema)
 
+/**
+ * The GitHub issue a discovery chain ended by opening.
+ *
+ * Not a `documentOutput`: that reports where a file landed in this
+ * repository, and an issue is an external resource with a number somebody
+ * else assigned. The three fields are required and mutually checkable —
+ * `issueCreated` refuses an envelope whose number or repository disagrees
+ * with the URL, so a chain cannot report success on an issue nobody opened.
+ */
+export const ghIssueOutputSchema = contextEnvelopeSchema.extend({
+  /** e.g. https://github.com/losandes/pi-crust/issues/42 */
+  issue_url: z.string(),
+  /** the number GitHub assigned, as a number */
+  issue_number: z.number().int().positive(),
+  /** owner/name, as `gh` resolved it from the working directory's remote */
+  repo: z.string(),
+})
+export type TGhIssueOutput = Readonly<z.infer<typeof ghIssueOutputSchema>>
+export const ghIssueOutput = envelopeSpec('GhIssueOutput', ghIssueOutputSchema)
+
 /*
  * There is no `verifyOutput`.
  *
@@ -684,6 +704,7 @@ export const ENVELOPE_CATALOGUE: Readonly<
   conceptualizeOutput,
   designOutput,
   changesOutput,
+  ghIssueOutput,
 } as unknown as Readonly<Record<string, TEnvelopeSpec<TEnvelopeBase>>>
 
 export const ENVELOPE_NAMES: readonly string[] = Object.keys(ENVELOPE_CATALOGUE)
