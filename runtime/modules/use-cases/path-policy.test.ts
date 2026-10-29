@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crustConfigSchema } from '../typedefs/config'
 import { renderWarnings } from '../typedefs/warning'
-import type { TGoverned, TPathSettings, TRefusal } from './path-policy'
+import type { TGoverned, TPathSettings, TRefusal, TToolCall } from './path-policy'
 import {
   bashTokens,
   decidePath,
@@ -618,35 +618,79 @@ test(
     'it should leave an agent writing into its own session directory ungoverned, exactly as it is when data_dir sits inside the repository',
   ].join(', '),
   () => {
-    // given — a pooled store the repository does not contain
+    /*
+     * given — a pooled store the repository does not contain, named in
+     * `protected_files` as a team protecting a shared store would name it.
+     * `protected.write` is `block`, so this call is refused unless the
+     * `data_dir` exemption fires first — that is what makes the assertions
+     * below mean something. `isIgnored` stays false because the real one
+     * shells out to `git check-ignore` inside the repository, which cannot
+     * answer for a path outside it.
+     */
     const dir = aRepo()
     const pooledStore = mkdtempSync(join(tmpdir(), 'crust-policy-pooled-'))
     const cfg = crustConfigSchema.parse({
       defaults: {
-        protected_files: ['.pi-crust/config/'],
+        protected_files: ['.pi-crust/config/', `${pooledStore}/`],
         data_dir: pooledStore,
       },
     })
     const handoffDir = join(pooledStore, 'sessions', 'run_01', 'context_handoff')
     const resolved = settingsFor(cfg, dir, handoffDir)
+    const call: TToolCall = {
+      toolName: 'write',
+      input: {
+        path: join(pooledStore, 'sessions', 'run_01', 'agent_map.json'),
+        content: '{}',
+      },
+    }
 
     // when — an agent writes into this run's own session directory, named
     // the way a real tool call would: absolute, since it falls outside the
     // repository the call is otherwise addressed relative to
     const actual = governToolCall({
-      call: {
-        toolName: 'write',
-        input: {
-          path: join(pooledStore, 'sessions', 'run_01', 'agent_map.json'),
-          content: '{}',
-        },
-      },
+      call,
       settings: resolved,
+      isIgnored: () => false,
+    })
+    // and the same call with the exemption disabled, which is what keeps the
+    // assertions above from passing for want of anything to refuse them
+    const without = governToolCall({
+      call,
+      settings: { ...resolved, dataDir: join(tmpdir(), 'no-such-store') },
       isIgnored: () => false,
     })
 
     // then
+    expect(resolved.dataDir).toEqual(pooledStore)
     expect(actual.blocked).toBeUndefined()
     expect(actual.refusals).toEqual([])
+    expect(without.blocked?.reason).toEqual('protected')
+  },
+)
+
+test(
+  [
+    'given use-cases/path-policy-run::settingsFor',
+    'when data_dir resolves OUTSIDE the repository, a pooled store (issue #24, 1.9.2)',
+    'it should spell dataDir as the pooled store itself, not as a path relative to the repository',
+  ].join(', '),
+  () => {
+    // given — a data_dir outside the repository, called directly rather than
+    // through governToolCall, so this pins settingsFor's own contract
+    // regardless of how any particular call happens to be governed
+    const dir = aRepo()
+    const pooledStore = mkdtempSync(join(tmpdir(), 'crust-policy-pooled-direct-'))
+    const cfg = crustConfigSchema.parse({ defaults: { data_dir: pooledStore } })
+    const handoffDir = join(pooledStore, 'sessions', 'run_02', 'context_handoff')
+
+    // when
+    const resolved = settingsFor(cfg, dir, handoffDir)
+
+    // then — the pooled store is outside the repository, so repoRelative must
+    // leave it absolute; `relative(root, resolvedDataDir)` would instead spell
+    // it as `../crust-policy-pooled-direct-…`, which this catches
+    expect(resolved.dataDir).toEqual(pooledStore)
+    expect(resolved.dataDir.startsWith('..')).toBe(false)
   },
 )
