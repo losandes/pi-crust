@@ -67,7 +67,7 @@ Lint is wired up — `biome.json` at the root, with the convention plugins in `.
 bunx @biomejs/biome lint --max-diagnostics=500 .
 ```
 
-It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [specs/REFACTOR-LINT-GREEN-PLAN.md](specs/REFACTOR-LINT-GREEN-PLAN.md). Do not report lint as passing on a narrowed path: the claim is only ever settled by the whole-repository run above, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
+It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [issue #5](https://github.com/losandes/pi-crust/issues/5). Do not report lint as passing on a narrowed path: the claim is only ever settled by the whole-repository run above, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
 
 ## Contributing
 
