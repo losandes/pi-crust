@@ -24,9 +24,49 @@ set positional-arguments
 # Where pi-crust itself is installed. The runtime ships with the package
 # rather than with the stamp, so every recipe resolves it rather than
 # assuming a path. The installer writes it down; CRUST_HOME overrides.
-crust  := env_var_or_default("CRUST_HOME", `cat .pi-crust/data/pi-crust-home 2>/dev/null || echo ""` / "runtime")
+#
+# Resolution chain (1.6.1): CRUST_HOME; this tree's own stamp pointer at
+# .pi-crust/data/pi-crust-home; then the pointer beside the shared git
+# directory every worktree of one clone names through
+# `git rev-parse --git-common-dir` — so a linked worktree that was never
+# re-stamped still finds the package through the clone it came from.
+#
+# The backtick below is evaluated EAGERLY by `just`, even when CRUST_HOME is
+# already set (proven: a `just` backtick runs before `env_var_or_default`
+# gets to look at its first argument) — which is why it checks CRUST_HOME
+# itself and exits 0 with nothing to say when it is set, rather than failing
+# a run that would never have used its answer anyway.
+crust := env_var_or_default("CRUST_HOME", `
+  if [ -n "${CRUST_HOME:-}" ]; then
+    exit 0
+  fi
+  if [ -f .pi-crust/data/pi-crust-home ]; then
+    cat .pi-crust/data/pi-crust-home
+    exit 0
+  fi
+  common="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+  if [ -n "$common" ]; then
+    root="$(cd "$(dirname "$common")" && pwd)"
+    if [ -f "$root/.pi-crust/data/pi-crust-home" ]; then
+      cat "$root/.pi-crust/data/pi-crust-home"
+      exit 0
+    fi
+  fi
+  echo "pi-crust: cannot find the package home." >&2
+  echo "  checked CRUST_HOME, .pi-crust/data/pi-crust-home, and \$(git rev-parse --git-common-dir)/../.pi-crust/data/pi-crust-home." >&2
+  echo "  set CRUST_HOME to repair it." >&2
+  exit 2
+` / "runtime")
 config := env_var_or_default("CRUST_CONFIG", ".pi-crust/config/crust.config.yaml")
-db     := ".pi-crust/data/crust.db"
+# Resolved from the configuration in force (1.6.5) rather than assumed, so
+# `sessions`, `activity-runs`, `tail`, `procs` and `observe` agree with every
+# other reader of `observability.db` once a store is relocated or pooled.
+#
+# This, like `crust` above, is evaluated EAGERLY by every recipe in this
+# file, including ones that never read {{db}} — so a failure here falls
+# back to the old literal default rather than taking down `list`, `run` and
+# everything else that does not touch the trace database at all.
+db := shell('bun "$1/print-db-path.ts" --config "$2" 2>/dev/null || echo ".pi-crust/data/crust.db"', crust, config)
 
 # list every crust recipe
 default:
@@ -60,6 +100,13 @@ demo:
 # what this repository offers, read from its own configuration: just crust list
 list *ARGS:
     @bun "{{crust}}/catalogue.ts" --config {{config}} "$@"
+
+# Every effective defaults.* and observability.* value, and the file that set
+# it \u2014 a repository's own crust.config.yaml, its gitignored .local layer, or
+# ~/.pi-crust/config/crust.config.yaml's ordinary or override: section.
+# what is actually in force, and where it came from: just crust config
+config *ARGS:
+    @bun "{{crust}}/show-config.ts" --config {{config}} "$@"
 
 # A Lifecycle by name:
 #     just crust run "add a /health endpoint" --lifecycle sdlc
@@ -210,9 +257,22 @@ forget-tree *PATHS:
 update:
     #!/usr/bin/env bash
     set -euo pipefail
-    home="${CRUST_HOME:-$(cat .pi-crust/data/pi-crust-home 2>/dev/null || true)}"
+    home="${CRUST_HOME:-}"
+    if [[ -z "$home" && -f .pi-crust/data/pi-crust-home ]]; then
+      home="$(cat .pi-crust/data/pi-crust-home)"
+    fi
+    if [[ -z "$home" ]]; then
+      common="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+      if [[ -n "$common" ]]; then
+        root="$(cd "$(dirname "$common")" && pwd)"
+        if [[ -f "$root/.pi-crust/data/pi-crust-home" ]]; then
+          home="$(cat "$root/.pi-crust/data/pi-crust-home")"
+        fi
+      fi
+    fi
     if [[ -z "$home" || ! -f "$home/scripts/install.ts" ]]; then
       echo "update: cannot find pi-crust${home:+ at $home}." >&2
+      echo "  checked CRUST_HOME, .pi-crust/data/pi-crust-home, and \$(git rev-parse --git-common-dir)/../.pi-crust/data/pi-crust-home." >&2
       echo "  run its installer from this directory, or set CRUST_HOME to the package." >&2
       exit 2
     fi
@@ -228,9 +288,22 @@ update:
 observe *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    home="${CRUST_HOME:-$(cat .pi-crust/data/pi-crust-home 2>/dev/null || true)}"
+    home="${CRUST_HOME:-}"
+    if [[ -z "$home" && -f .pi-crust/data/pi-crust-home ]]; then
+      home="$(cat .pi-crust/data/pi-crust-home)"
+    fi
+    if [[ -z "$home" ]]; then
+      common="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+      if [[ -n "$common" ]]; then
+        root="$(cd "$(dirname "$common")" && pwd)"
+        if [[ -f "$root/.pi-crust/data/pi-crust-home" ]]; then
+          home="$(cat "$root/.pi-crust/data/pi-crust-home")"
+        fi
+      fi
+    fi
     if [[ -z "$home" || ! -f "$home/scripts/observe.ts" ]]; then
       echo "observe: cannot find pi-crust${home:+ at $home}." >&2
+      echo "  checked CRUST_HOME, .pi-crust/data/pi-crust-home, and \$(git rev-parse --git-common-dir)/../.pi-crust/data/pi-crust-home." >&2
       echo "  re-run its installer from this directory, or set CRUST_HOME to the package." >&2
       exit 2
     fi

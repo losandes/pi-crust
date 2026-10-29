@@ -10,19 +10,12 @@ import { resolveDbPath } from "./db.ts";
  * `{primary_worktree}`, use an absolute value unchanged, otherwise resolve
  * against the repository root.
  *
- * `resolveDbPath` today only checks `isAbsolute` and falls back to
- * `resolve(process.cwd(), raw)`, so a `~`-prefixed value is treated as a
- * literal relative segment under the current working directory instead of
- * being expanded to the user's home directory.
- *
- * Wrapped in `test.failing` — the same convention
- * `runtime/crust-home-resolution.test.ts` used for stage 2 before that
- * resolution chain was implemented — so this known gap is tracked without
- * failing the whole-repository `bun test` gate. When the builder routes
- * `resolveDbPath` through the shared resolver, these three assertions will
- * start passing, and `test.failing` must then be dropped so they run as
- * ordinary tests (the same requirement issue #24's own prompt states for
- * stage 2's tests).
+ * `resolveDbPath` now expands `~` the same way (`db.ts`'s own `expandHome`,
+ * duplicated from the shared resolver rather than imported — the server and
+ * the factory are separate packages). `{primary_worktree}` is deliberately
+ * NOT expanded here: that token exists for a value stated in a repository's
+ * own `crust.config.yaml`, not for a flag or environment variable a single
+ * developer types at a shell, which is all this function ever sees.
  */
 
 const sealed = (
@@ -32,7 +25,7 @@ const sealed = (
   ...overrides,
 });
 
-test.failing(
+test(
   [
     "given server/db::resolveDbPath",
     "when CRUST_DB starts with ~",
@@ -50,7 +43,7 @@ test.failing(
   },
 );
 
-test.failing(
+test(
   [
     "given server/db::resolveDbPath",
     "when --db is given a ~-prefixed value",
@@ -71,7 +64,7 @@ test.failing(
   },
 );
 
-test.failing(
+test(
   [
     "given server/db::resolveDbPath",
     "when the value is a bare ~ with nothing after it",
