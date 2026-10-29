@@ -73,7 +73,7 @@ const ORPHANED = [
   'workspaces.ts',
 ]
 
-const removeOrphans = (root: string, tally: TTally): void => {
+const removeOrphans = (root: string): TTally => {
   const gone = ORPHANED.filter((name) => {
     const path = join(root, '.pi-crust', name)
     if (!existsSync(path)) {
@@ -83,11 +83,9 @@ const removeOrphans = (root: string, tally: TTally): void => {
 
     return true
   })
-  if (gone.length > 0) {
-    tally.stamped.push(
-      `removed ${gone.length} path(s) the runtime no longer owns`,
-    )
-  }
+  return gone.length > 0
+    ? tallyOf('stamped', `removed ${gone.length} path(s) the runtime no longer owns`)
+    : EMPTY_TALLY
 }
 
 const GITIGNORE_ENTRIES = [
@@ -112,6 +110,39 @@ const GITIGNORE_ENTRIES = [
  */
 const JUST_SETTING = 'set positional-arguments'
 
+/**
+ * The recipe body: resolve the package home through CRUST_HOME, this tree's
+ * own stamp pointer, then the pointer beside the shared git directory every
+ * worktree of one clone names through `git rev-parse --git-common-dir`
+ * (1.6.1–1.6.4) — so a linked worktree that was never re-stamped still
+ * runs `just crust ...`. Mirrors the chain `crust.just`'s own `crust`
+ * variable resolves.
+ */
+const HOME_RESOLUTION_BODY = [
+  '    #!/usr/bin/env bash',
+  '    set -euo pipefail',
+  '    home="${CRUST_HOME:-}"',
+  '    if [[ -z "$home" && -f .pi-crust/data/pi-crust-home ]]; then',
+  '      home="$(cat .pi-crust/data/pi-crust-home)"',
+  '    fi',
+  '    if [[ -z "$home" ]]; then',
+  '      common="$(git rev-parse --git-common-dir 2>/dev/null || true)"',
+  '      if [[ -n "$common" ]]; then',
+  '        root="$(cd "$(dirname "$common")" && pwd)"',
+  '        if [[ -f "$root/.pi-crust/data/pi-crust-home" ]]; then',
+  '          home="$(cat "$root/.pi-crust/data/pi-crust-home")"',
+  '        fi',
+  '      fi',
+  '    fi',
+  '    if [[ -z "$home" ]]; then',
+  '      echo "crust: cannot find the package home." >&2',
+  '      echo "  checked CRUST_HOME, .pi-crust/data/pi-crust-home, and \\$(git rev-parse --git-common-dir)/../.pi-crust/data/pi-crust-home." >&2',
+  '      echo "  set CRUST_HOME to repair it." >&2',
+  '      exit 2',
+  '    fi',
+  '    exec bun "$home/runtime/cli.ts" "$@"',
+].join('\n')
+
 const JUST_RECIPE = [
   '# pi-crust: every recipe lives in the package, not in this repository.',
   '# `just crust <recipe>` reaches them; `just crust default` lists them.',
@@ -121,7 +152,7 @@ const JUST_RECIPE = [
   JUST_SETTING,
   '',
   'crust *ARGS:',
-  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"',
+  HOME_RESOLUTION_BODY,
 ].join('\n')
 
 /** The same block, for a justfile that already carries the setting. */
@@ -132,7 +163,7 @@ const JUST_RECIPE_ONLY = [
   '# Relies on this file\'s `set positional-arguments`: without it, {{ARGS}}',
   '# interpolation re-splits a quoted prompt on whitespace.',
   'crust *ARGS:',
-  '    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"',
+  HOME_RESOLUTION_BODY,
 ].join('\n')
 
 /**
@@ -152,34 +183,50 @@ const JUST_RECIPE_ONLY = [
  */
 const HOME_FILENAME = join('data', 'pi-crust-home')
 
-const recordHome = (root: string, tally: TTally): void => {
+const recordHome = (root: string): TTally => {
   const home = resolve(dirname(new URL(import.meta.url).pathname), '..')
   const path = join(root, '.pi-crust', HOME_FILENAME)
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, `${home}\n`, 'utf8')
-  tally.stamped.push(`${path} (${home})`)
+  return tallyOf('stamped', `${path} (${home})`)
 }
 
 /** Never stamped into a target repo: the skill's own tests and its installs. */
 const isSkipped = (name: string): boolean =>
   name === 'node_modules' || name.endsWith('.test.ts')
 
-type TTally = { readonly stamped: string[]; readonly skipped: string[] }
+type TTally = Readonly<{ stamped: readonly string[]; skipped: readonly string[] }>
+
+const EMPTY_TALLY: TTally = { stamped: [], skipped: [] }
+
+/** One entry, as a `TTally` ready to merge \u2014 the unit every helper below returns. */
+const tallyOf = (kind: 'stamped' | 'skipped', entry: string): TTally =>
+  kind === 'stamped' ? { stamped: [entry], skipped: [] } : { stamped: [], skipped: [entry] }
+
+/** Combine tallies in the order they happened, which is the order they are reported in. */
+const mergeTally = (tallies: readonly TTally[]): TTally =>
+  tallies.reduce(
+    (merged, next) => ({
+      stamped: [...merged.stamped, ...next.stamped],
+      skipped: [...merged.skipped, ...next.skipped],
+    }),
+    EMPTY_TALLY,
+  )
 
 const stamp = (
   source: string,
   destination: string,
   force: boolean,
-  tally: TTally,
-): void => {
+): TTally => {
   if (isSkipped(source.split('/').at(-1) ?? '')) {
-    return
+    return EMPTY_TALLY
   }
   if (statSync(source).isDirectory()) {
-    for (const child of readdirSync(source).toSorted()) {
-      stamp(join(source, child), join(destination, child), force, tally)
-    }
-    return
+    return mergeTally(
+      readdirSync(source)
+        .toSorted()
+        .map((child) => stamp(join(source, child), join(destination, child), force)),
+    )
   }
   /*
    * The roster is the repository's, not the template's.
@@ -203,29 +250,28 @@ const stamp = (
   const isExample = destination.endsWith('.example.yaml')
   const repoOwned = destination.includes('/.pi-crust/config/') && !isExample
   if (existsSync(destination) && (!force || repoOwned)) {
-    tally.skipped.push(destination)
-    return
+    return tallyOf('skipped', destination)
   }
   mkdirSync(dirname(destination), { recursive: true })
   copyFileSync(source, destination)
-  tally.stamped.push(destination)
+  return tallyOf('stamped', destination)
 }
 
-const ensureGitignore = (root: string, tally: TTally): void => {
+const ensureGitignore = (root: string): TTally => {
   const gitignore = join(root, '.gitignore')
   const existing = existsSync(gitignore)
     ? readFileSync(gitignore, 'utf8').split('\n')
     : []
   const missing = GITIGNORE_ENTRIES.filter((entry) => !existing.includes(entry))
   if (missing.length === 0) {
-    return
+    return EMPTY_TALLY
   }
   appendFileSync(
     gitignore,
     `\n# crust runtime\n${missing.join('\n')}\n`,
     'utf8',
   )
-  tally.stamped.push(`${gitignore} (+${missing.length} entries)`)
+  return tallyOf('stamped', `${gitignore} (+${missing.length} entries)`)
 }
 
 /**
@@ -257,13 +303,9 @@ const OLD_PASSTHROUGH =
 const NEW_PASSTHROUGH =
   '@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"'
 
-const repairInterpolation = (
-  justfile: string,
-  existing: string,
-  tally: TTally,
-): void => {
+const repairInterpolation = (justfile: string, existing: string): TTally => {
   if (!existing.includes(OLD_PASSTHROUGH)) {
-    return
+    return EMPTY_TALLY
   }
   const settled = existing
     .split('\n')
@@ -277,12 +319,34 @@ const repairInterpolation = (
     settled ? repaired : `${JUST_SETTING}\n\n${repaired}`,
     'utf8',
   )
-  tally.stamped.push(
+  return tallyOf(
+    'stamped',
     `${justfile} (crust recipe repaired: a quoted prompt stayed one word)`,
   )
 }
 
-const ensureJustRecipe = (root: string, tally: TTally): void => {
+/**
+ * A repository whose `crust` recipe still reads ONE path — `NEW_PASSTHROUGH`
+ * above, the form every stamp carried before this chain existed. A linked
+ * worktree with no pointer of its own cannot run it (1.6.1–1.6.4), so a
+ * re-stamp replaces the single line with the resolving body (1.6.3), the
+ * same way `repairInterpolation` replaces the `{{ARGS}}` body today.
+ */
+const repairHomeResolution = (justfile: string, existing: string): TTally => {
+  const target = `    ${NEW_PASSTHROUGH}`
+  if (!existing.includes(target)) {
+    return EMPTY_TALLY
+  }
+  const repaired = existing.replace(target, HOME_RESOLUTION_BODY)
+  writeFileSync(justfile, repaired, 'utf8')
+  return tallyOf(
+    'stamped',
+    `${justfile} (crust recipe repaired: package home now resolves through ` +
+      'CRUST_HOME, the stamp pointer, and the shared git directory)',
+  )
+}
+
+const ensureJustRecipe = (root: string): TTally => {
   const justfile = join(root, 'justfile')
   const existing = existsSync(justfile) ? readFileSync(justfile, 'utf8') : ''
   /*
@@ -295,13 +359,15 @@ const ensureJustRecipe = (root: string, tally: TTally): void => {
   const lines = existing.split('\n').map((line) => line.trim())
   const installed = lines.some((line) => line === 'crust *ARGS:')
   if (installed) {
-    repairInterpolation(justfile, existing, tally)
-    return
+    const afterInterpolation = repairInterpolation(justfile, existing)
+    const current = existsSync(justfile)
+      ? readFileSync(justfile, 'utf8')
+      : existing
+    return mergeTally([afterInterpolation, repairHomeResolution(justfile, current)])
   }
   if (existing === '') {
     writeFileSync(justfile, `${JUST_RECIPE}\n`, 'utf8')
-    tally.stamped.push(`${justfile} (created, +crust recipe)`)
-    return
+    return tallyOf('stamped', `${justfile} (created, +crust recipe)`)
   }
   /*
    * A second `set positional-arguments` is a parse error, so a justfile that
@@ -313,7 +379,8 @@ const ensureJustRecipe = (root: string, tally: TTally): void => {
   )
   const block = settled ? JUST_RECIPE_ONLY : JUST_RECIPE
   appendFileSync(justfile, `\n${block}\n`, 'utf8')
-  tally.stamped.push(
+  return tallyOf(
+    'stamped',
     `${justfile} (+crust recipe${settled ? '' : ', +positional-arguments'})`,
   )
 }
@@ -325,22 +392,19 @@ const say = (line: string): void => {
 const main = (): number => {
   const force = process.argv.includes('--force')
   const root = process.cwd()
-  const tally: TTally = { stamped: [], skipped: [] }
-
-  stamp(join(TEMPLATES, 'stamp'), join(root, '.pi-crust'), force, tally)
-  // Namespaced rather than `.env.example`: the root of somebody else's
-  // repository is not ours to claim, and a project with its own example would
-  // otherwise have it overwritten by an install.
-  stamp(
-    join(TEMPLATES, 'env.example'),
-    join(root, '.env.pi-crust.example'),
-    force,
-    tally,
-  )
-  removeOrphans(root, tally)
-  ensureGitignore(root, tally)
-  ensureJustRecipe(root, tally)
-  recordHome(root, tally)
+  // Order matters only for the report below, which lists entries in the
+  // order they happened; every step here is an independent side effect.
+  const tally = mergeTally([
+    stamp(join(TEMPLATES, 'stamp'), join(root, '.pi-crust'), force),
+    // Namespaced rather than `.env.example`: the root of somebody else's
+    // repository is not ours to claim, and a project with its own example
+    // would otherwise have it overwritten by an install.
+    stamp(join(TEMPLATES, 'env.example'), join(root, '.env.pi-crust.example'), force),
+    removeOrphans(root),
+    ensureGitignore(root),
+    ensureJustRecipe(root),
+    recordHome(root),
+  ])
 
   say(`crust installed into ${root}`)
   say(`  stamped: ${tally.stamped.length} file(s)`)

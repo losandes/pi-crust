@@ -437,3 +437,102 @@ test(
     expect(actual.activities.find((one) => one.name === 'plan')?.thinking).toEqual('high')
   },
 )
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when the repository states data_dir and the machine layer also does, ordinary vs override',
+    'it should let the repository win over the ordinary layer and lose to override: (1.2.3, 1.2.4)',
+  ].join(', '),
+  () => {
+    // given — a repository config that states its own data_dir, exactly as
+    // every stamp does today
+    const dir = mkdtempSync(join(tmpdir(), 'crust-config-machine-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(
+      configPath,
+      [
+        'defaults:',
+        '  data_dir: repo-stated-dir',
+        'agents:',
+        '  - name: builder',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+      ].join('\n'),
+    )
+    const machinePath = join(dir, 'machine-crust.config.yaml')
+    writeFileSync(
+      machinePath,
+      [
+        'defaults:',
+        '  data_dir: machine-ordinary-dir',
+        'override:',
+        '  defaults:',
+        '    data_dir: machine-override-dir',
+      ].join('\n'),
+    )
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machinePath
+
+    // when / then — the repository's own value beats the ordinary layer
+    try {
+      const ordinaryBeaten = loadConfig(configPath)
+      expect(ordinaryBeaten.defaults.data_dir).toEqual('machine-override-dir')
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when the machine layer only has an ordinary section and the repository states nothing',
+    'it should fall through to the machine ordinary value',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-config-machine-ordinary-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(
+      configPath,
+      [
+        'agents:',
+        '  - name: builder',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+      ].join('\n'),
+    )
+    const machinePath = join(dir, 'machine-crust.config.yaml')
+    writeFileSync(
+      machinePath,
+      ['defaults:', '  data_dir: machine-ordinary-dir'].join('\n'),
+    )
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machinePath
+
+    // when / then
+    try {
+      const actual = loadConfig(configPath)
+      expect(actual.defaults.data_dir).toEqual('machine-ordinary-dir')
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
+  },
+)
