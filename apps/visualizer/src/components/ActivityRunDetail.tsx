@@ -676,9 +676,9 @@ export const ActivityRunDetail = ({
                               <span className={styles.checkMark}>{check.ok ? '✓' : '✗'}</span>
                               <span className={styles.checkItem}>{check.item}</span>
                               {/*
-                                A failed tests_pass note is "exit N" plus a
-                                command-output tail: multi-line evidence gets a
-                                block, one-liners stay inline.
+                                A failed `checks` note is "`<command>` exited
+                                N" plus a command-output tail: multi-line
+                                evidence gets a block, one-liners stay inline.
                               */}
                               {check.note?.includes('\n') ? (
                                 <pre className={styles.checkNoteBlock}>{check.note}</pre>
