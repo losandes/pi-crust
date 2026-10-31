@@ -49,8 +49,31 @@ if (browser === undefined) {
   )
 }
 
+// One Vite dev server for the whole file, not one per `withPage` call.
+// Eleven calls across these tests each used to pay for their own
+// listen/close cycle, which left this file (and the Chromium instance
+// `SessionCard.layout.test.ts` launches at the same time, in the same
+// `bun test` process) competing for ports and process teardown for
+// several seconds longer than the assertions themselves take — long
+// enough, under load, to blow the 5s default hook timeout on
+// `afterAll(() => browser.close())` in either file. A page reload sees
+// the same server, so nothing about what each test exercises changes.
+const server = await createServer({
+  root: new URL('../../', import.meta.url).pathname,
+  server: {
+    host: '127.0.0.1',
+    port: HARNESS_PORT,
+    strictPort: true,
+    hmr: false,
+  },
+  logLevel: 'silent',
+})
+await server.listen()
+const BASE = `http://127.0.0.1:${HARNESS_PORT}`
+
 afterAll(async () => {
   await browser?.close()
+  await server.close()
 })
 
 const withPage = async (
@@ -63,19 +86,6 @@ const withPage = async (
   activeBrowser: Browser,
   run: (page: Page, base: string) => Promise<void>,
 ) => {
-  const server = await createServer({
-    root: new URL('../../', import.meta.url).pathname,
-    server: {
-      host: '127.0.0.1',
-      port: HARNESS_PORT,
-      strictPort: true,
-      hmr: false,
-    },
-    logLevel: 'silent',
-  })
-  await server.listen()
-  const base = `http://127.0.0.1:${HARNESS_PORT}`
-
   // A fresh context per call: `localStorage` persists across pages that
   // share a context, and the "choosing a row" test would otherwise leak its
   // chosen theme into the keyboard-navigation test that assumes `auto`.
@@ -91,12 +101,11 @@ const withPage = async (
         body: JSON.stringify({ themes }),
       }),
     )
-    await page.goto(`${base}/__diag__/index.html`)
+    await page.goto(`${BASE}/__diag__/index.html`)
     await page.waitForSelector('#picker button')
-    await run(page, base)
+    await run(page, BASE)
   } finally {
     await context.close()
-    await server.close()
   }
 }
 
@@ -244,7 +253,7 @@ test.skipIf(browser === undefined)(
     if (browser === undefined) return // unreachable; narrows the type for tsc
 
     // One page, with the stored preference changed under it and the page
-    // reloaded, rather than two separate `withPage` calls \u2014 this suite
+    // reloaded, rather than two separate `withPage` calls — this suite
     // already pays for a server and a browser context once per test, and a
     // second full lifecycle here would buy nothing a reload does not. (Not
     // `addInitScript`: it would re-run, and re-apply, on every reload this
