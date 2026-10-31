@@ -1,0 +1,75 @@
+.wrap {
+  /* The list is positioned against this wrapper, so opening it never
+     changes the topbar's layout. */
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  /* Same chip the old per-theme buttons sat inside: a bordered, rounded
+     swatch, fixed size regardless of how many themes are registered. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: var(--border-width) solid var(--border-soft);
+  border-radius: 7px;
+  background: rgb(var(--panel-2-rgb) / 0.6);
+  color: var(--faint);
+  cursor: pointer;
+}
+
+.trigger:hover {
+  color: var(--text);
+  background: rgb(var(--accent-rgb) / var(--fill-soft));
+}
+
+.trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  /* Above the sticky topbar's own stacking context (App.module.css: 10). */
+  z-index: 20;
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: var(--border-width) solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--panel-2);
+  box-shadow: var(--shadow-panel);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--faint);
+  cursor: pointer;
+}
+
+.option:hover {
+  color: var(--text);
+  background: rgb(var(--accent-rgb) / var(--fill-soft));
+}
+
+.option:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.on {
+  color: var(--accent);
+  background: rgb(var(--accent-rgb) / var(--fill-medium));
+}
