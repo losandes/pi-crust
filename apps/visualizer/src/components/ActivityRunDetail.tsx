@@ -425,7 +425,7 @@ export const ActivityRunDetail = ({
         )}
       </div>
 
-      <div className={active === 'context' ? styles.grid : styles.hidden}>
+      <div className={active === 'context' ? styles.context : styles.hidden}>
         <div className={styles.col}>
           {ask !== undefined && (
             <DetailSection

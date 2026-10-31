@@ -286,17 +286,17 @@
   padding: 16px 18px 20px;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: 28px;
+/*
+ * The context tab, the full width of the panel like the three tabs beside
+ * it.
+ *
+ * It was a `2fr / 3fr` grid left over from when configuration sat beside the
+ * conversation. The move to tabs took the second column away and left the
+ * split behind, so the one child that remained was laid out in the 2fr track
+ * and the right three fifths of the panel were empty.
+ */
+.context {
   padding: 16px 18px 20px;
-}
-
-@media (max-width: 1100px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 h3 {
