@@ -1,7 +1,8 @@
 import { afterAll, expect, test } from 'bun:test'
-import type { Browser, Page } from 'playwright'
+import type { Browser, BrowserContext, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
+import { THEME_STORAGE_KEY } from '../theme/theme'
 
 // Fixed and off the dev-server/preview/other-harness ports this app
 // otherwise uses (4600/4601 — vite.config.ts; 59_743 — SessionCard.layout.test.ts),
@@ -78,7 +79,7 @@ const withPage = async (
   // A fresh context per call: `localStorage` persists across pages that
   // share a context, and the "choosing a row" test would otherwise leak its
   // chosen theme into the keyboard-navigation test that assumes `auto`.
-  const context = await activeBrowser.newContext()
+  const context: BrowserContext = await activeBrowser.newContext()
   const page = await context.newPage()
   try {
     await page.route('**/__diag__/index.html', (route) =>
@@ -232,6 +233,143 @@ test.skipIf(browser === undefined)(
           document.activeElement === document.querySelector('#picker button'),
       )
       expect(focused).toBe(true)
+    })
+  },
+  20_000,
+)
+
+test.skipIf(browser === undefined)(
+  'the closed trigger shows exactly one icon matching the theme currently applied, falling back to the generic icon for a theme the icon map has never heard of',
+  async () => {
+    if (browser === undefined) return // unreachable; narrows the type for tsc
+
+    // One page, with the stored preference changed under it and the page
+    // reloaded, rather than two separate `withPage` calls \u2014 this suite
+    // already pays for a server and a browser context once per test, and a
+    // second full lifecycle here would buy nothing a reload does not. (Not
+    // `addInitScript`: it would re-run, and re-apply, on every reload this
+    // test makes.)
+    await withPage(TWELVE_THEMES, browser, async (page) => {
+      await page.evaluate(
+        ([key, value]) => window.localStorage.setItem(key, value),
+        [THEME_STORAGE_KEY, 'dark'] as const,
+      )
+      await page.reload()
+      await page.waitForSelector('#picker button')
+
+      const darkIcons = await page.$$eval('#picker button svg', (svgs) =>
+        svgs.map((svg) => svg.getAttribute('class') ?? ''),
+      )
+      expect(darkIcons).toHaveLength(1)
+      expect(darkIcons[0]).toContain('lucide-moon')
+
+      await page.evaluate(
+        ([key, value]) => window.localStorage.setItem(key, value),
+        [THEME_STORAGE_KEY, 'ocean'] as const,
+      )
+      await page.reload()
+      await page.waitForSelector('#picker button')
+
+      const oceanTriggerIcons = await page.$$eval(
+        '#picker button svg',
+        (svgs) => svgs.map((svg) => svg.getAttribute('class') ?? ''),
+      )
+      expect(oceanTriggerIcons).toHaveLength(1)
+      expect(oceanTriggerIcons[0]).toContain('lucide-palette')
+
+      await page.click('#picker button')
+      const oceanOptionIcon = await page.$eval(
+        '[role="option"]:has-text("Ocean") svg',
+        (svg) => svg.getAttribute('class') ?? '',
+      )
+      expect(oceanOptionIcon).toContain('lucide-palette')
+    })
+  },
+  20_000,
+)
+
+test.skipIf(browser === undefined)(
+  'the trigger and the open list carry the ARIA a listbox needs, and only the option matching the current theme name is marked selected',
+  async () => {
+    if (browser === undefined) return // unreachable; narrows the type for tsc
+
+    await withPage(
+      TWELVE_THEMES,
+      browser,
+      async (page) => {
+        await page.evaluate(
+          ([key, value]) => window.localStorage.setItem(key, value),
+          [THEME_STORAGE_KEY, 'high-contrast'] as const,
+        )
+        await page.reload()
+        await page.waitForSelector('#picker button')
+
+        const trigger = page.locator('#picker button')
+        expect(await trigger.getAttribute('aria-haspopup')).toBe('listbox')
+        expect(await trigger.getAttribute('aria-expanded')).toBe('false')
+
+        const accessibleName = await trigger.evaluate(
+          (el) => el.getAttribute('aria-label') ?? el.textContent ?? '',
+        )
+        expect(accessibleName).toContain('High contrast')
+
+        await trigger.click()
+        expect(await trigger.getAttribute('aria-expanded')).toBe('true')
+
+        const listbox = page.locator('[role="listbox"]')
+        expect(await listbox.count()).toBe(1)
+        const listAccessibleName = await listbox.evaluate(
+          (el) => el.getAttribute('aria-label') ?? '',
+        )
+        expect(listAccessibleName.length).toBeGreaterThan(0)
+
+        const options = await page.$$eval('[role="option"]', (rows) =>
+          rows.map((row) => ({
+            text: row.textContent ?? '',
+            selected: row.getAttribute('aria-selected'),
+          })),
+        )
+        expect(options).toHaveLength(TWELVE_THEMES.length)
+
+        const selected = options.filter((row) => row.selected === 'true')
+        expect(selected).toHaveLength(1)
+        expect(selected[0]?.text).toContain('High contrast')
+
+        // 'high-contrast' (the name) and 'High contrast' (the label) only
+        // disagree by punctuation and case, which alone would not prove
+        // selection is keyed on `name` rather than `label`. No other theme
+        // in this fixture starts with "High", so an accidental label-prefix
+        // match is ruled out directly.
+        const notSelected = options.filter((row) => row.selected !== 'true')
+        expect(notSelected).toHaveLength(TWELVE_THEMES.length - 1)
+        for (const row of notSelected) {
+          expect(row.text.startsWith('High')).toBe(false)
+        }
+      },
+    )
+  },
+  20_000,
+)
+
+test.skipIf(browser === undefined)(
+  'removing a theme from the registered list removes its row, and adding one adds a row, with no code change here',
+  async () => {
+    if (browser === undefined) return // unreachable; narrows the type for tsc
+
+    await withPage(BUILTIN_THEMES, browser, async (page) => {
+      await page.click('#picker button')
+      const labels = await page.$$eval('[role="option"]', (rows) =>
+        rows.map((row) => row.textContent ?? ''),
+      )
+      expect(labels.some((text) => text.includes('Ocean'))).toBe(false)
+    })
+
+    await withPage(TWELVE_THEMES, browser, async (page) => {
+      await page.click('#picker button')
+      const labels = await page.$$eval('[role="option"]', (rows) =>
+        rows.map((row) => row.textContent ?? ''),
+      )
+      expect(labels.some((text) => text.includes('Ocean'))).toBe(true)
     })
   },
   20_000,
