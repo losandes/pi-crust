@@ -72,7 +72,7 @@ import { recordedHandoffDir } from '../data/handoff-pointer'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TRunState } from '../typedefs/run-state'
 import { defaultHandoffDir } from './handoff-location'
-import { resumeVerdict, startSession } from './start-session'
+import { freshSessionId, resumeVerdict, startSession } from './start-session'
 
 const stateWith = (
   overrides: Partial<Pick<TRunState, 'status' | 'resume_from' | 'resumable'>>,
@@ -290,5 +290,54 @@ test(
 
     // then
     expect(actual).toEqual({ ok: true, reason: '' })
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::freshSessionId',
+    'when the first minted id is already taken',
+    'it should retry rather than hand back an id whose directory already exists (1.4.2)',
+  ].join(', '),
+  () => {
+    // given — a pooled store that already holds 'aaaa1111'
+    const minted = ['aaaa1111', 'bbbb2222']
+    let mintCalls = 0
+    const mint = () => {
+      const candidate = minted.at(mintCalls) as string
+      mintCalls += 1
+      return candidate
+    }
+    const taken = (candidate: string) => candidate === 'aaaa1111'
+
+    // when
+    const actual = freshSessionId(mint, taken)
+
+    // then
+    expect(actual).toEqual('bbbb2222')
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::freshSessionId',
+    'when the first minted id is free',
+    'it should use it without minting a second one',
+  ].join(', '),
+  () => {
+    // given
+    let calls = 0
+    const mint = () => {
+      calls += 1
+      return 'free0000'
+    }
+    const taken = () => false
+
+    // when
+    const actual = freshSessionId(mint, taken)
+
+    // then
+    expect(actual).toEqual('free0000')
+    expect(calls).toEqual(1)
   },
 )

@@ -29,7 +29,8 @@ import {
   runCommand,
 } from './modules/use-cases/run-checks'
 import { requireSelected, selectRange } from './modules/use-cases/select-range'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
+import { resolveDataPaths } from './modules/data/data-paths'
 import { ensureDir } from './modules/data/files'
 import { repoRoot } from './modules/data/git'
 
@@ -91,9 +92,18 @@ export const main = (argv: readonly string[]): number => {
      * The logs land under the data directory the config already owns, and
      * not in a session: there is no session here, and writing one would be
      * a trace row claiming an Activity Run that never happened.
+     *
+     * <tree> is this repository root's basename (1.5.1): a pooled store
+     * holds several working trees, and `checks/<name>.log` is unique to
+     * nothing once two of them share it — nor is it unique within ONE tree,
+     * since two concurrent `just crust verify` invocations here still
+     * overwrite each other's log (1.5.4). That collision is not fixed here;
+     * `run-checks.ts` writes gate checks to a per-run, per-Activity-Run path
+     * instead (1.5.2), which is why only the standalone runner needs this.
      */
     const root = repoRoot()
-    const logs = ensureDir(join(root, cfg.defaults.data_dir, 'checks'))
+    const { dataDir } = resolveDataPaths(cfg, root)
+    const logs = ensureDir(join(dataDir, 'checks', basename(root)))
     const results = specs.map((spec) =>
       runCommand(spec, {
         repoRoot: root,

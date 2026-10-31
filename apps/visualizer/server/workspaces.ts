@@ -12,7 +12,7 @@
  * missing: it is which database the row came from.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { DEFAULT_DB_RELATIVE, resolveDbPath } from "./db.ts";
@@ -64,13 +64,33 @@ const parseSpec = (spec: string): TWorkspace | undefined => {
   const dbPath = asDbPath(named ? trimmed.slice(split + 1) : trimmed);
   const label = named
     ? slugify(trimmed.slice(0, split))
-    : slugify(workspaceRootOf(dbPath).split(sep).pop() ?? "");
+    : slugify(workspaceRootOf(dbPath).split(sep).at(-1) ?? "");
   return { label, dbPath };
+};
+
+/**
+ * A database's real path, resolving any symlink in the way — or its raw
+ * path unchanged when it does not (yet) exist on disk, which is ordinary for
+ * a vanished tree (1.7.3) and must not stop deduplication from working.
+ */
+const realOrRaw = (path: string): string => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: a path that cannot be resolved is reported as itself, not an error — a vanished tree's db has no real path to find
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 };
 
 /**
  * Collapse duplicates: same database twice is one workspace, same label twice
  * is two workspaces that both need addressing.
+ *
+ * Keyed by REAL path (1.7.5), not the string each tree happened to spell it
+ * with: several worktrees can resolve `{primary_worktree}/.pi-crust/data` to
+ * the identical pooled store through different `data_dir` values, or through
+ * a symlink, and a pooled store is one workspace rather than one per tree
+ * that points at it.
  *
  * Order is preserved because the first entry is the one the developer named
  * first, and a stable list means a stable UI.
@@ -81,12 +101,13 @@ export const dedupe = (
   const byPath = new Map<string, TWorkspace>();
   const taken = new Set<string>();
   for (const workspace of found) {
-    if (byPath.has(workspace.dbPath)) continue;
+    const real = realOrRaw(workspace.dbPath);
+    if (byPath.has(real)) continue;
     const label = taken.has(workspace.label)
       ? uniqueLabel(workspace.label, taken)
       : workspace.label;
     taken.add(label);
-    byPath.set(workspace.dbPath, { label, dbPath: workspace.dbPath });
+    byPath.set(real, { label, dbPath: workspace.dbPath });
   }
   return [...byPath.values()];
 };
@@ -98,6 +119,7 @@ const uniqueLabel = (base: string, taken: ReadonlySet<string>): string => {
 
 /** Every path `git worktree list` reports, including the main one. */
 export const worktreePaths = (root: string): readonly string[] => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: not a repository, or git is not installed \u2014 discovery finding nothing is a legitimate answer and this IS the boundary that reports it that way
   try {
     const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
       cwd: root,
@@ -135,12 +157,13 @@ export const discover = (dbPath: string): readonly TWorkspace[] => {
     .map((tree) => join(tree, offset))
     .filter((candidate) => existsSync(candidate))
     .map((candidate) => ({
-      label: slugify(workspaceRootOf(candidate).split(sep).pop() ?? ""),
+      label: slugify(workspaceRootOf(candidate).split(sep).at(-1) ?? ""),
       dbPath: candidate,
     }));
 };
 
 const gitRoot = (from: string): string | undefined => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: not a git repository, or git is not installed \u2014 this IS the boundary that converts that into "no root to discover from"
   try {
     return execFileSync("git", ["rev-parse", "--show-toplevel"], {
       cwd: from,
@@ -175,13 +198,14 @@ export const readRegistry = (path: string): readonly TWorkspace[] => {
   const byDb = new Map<string, TWorkspace>();
   for (const line of readFileSync(path, "utf8").split("\n")) {
     if (line.trim() === "") continue;
+    // biome-ignore lint/plugin/no-intermediate-try-catch: a half-written or newer-than-this-reader line is tolerated, not reported \u2014 this IS the boundary that decides a torn line does not refuse the rest
     try {
       const parsed = JSON.parse(line) as { db?: unknown; root?: unknown };
       if (typeof parsed.db !== "string" || parsed.db === "") continue;
       const root =
         typeof parsed.root === "string" ? parsed.root : workspaceRootOf(parsed.db);
       byDb.set(parsed.db, {
-        label: slugify(root.split(sep).pop() ?? ""),
+        label: slugify(root.split(sep).at(-1) ?? ""),
         dbPath: parsed.db,
       });
     } catch {
@@ -199,6 +223,7 @@ export const readRegistry = (path: string): readonly TWorkspace[] => {
  * registered yet" — the two are the same state and need no distinction.
  */
 export const registryStamp = (path: string): number => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: no file and "nothing has registered yet" are the same state \u2014 this IS the boundary that collapses a missing file into that zero
   try {
     return statSync(path).mtimeMs;
   } catch {

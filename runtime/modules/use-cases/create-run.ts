@@ -6,6 +6,7 @@
  */
 
 import { join, resolve } from 'node:path'
+import { resolveDataPaths } from '../data/data-paths'
 import { ensureDir, fileExists, readText, writeText } from '../data/files'
 import { repoRoot, vcsRoot } from '../data/git'
 import type { TPiCrustConfig } from '../typedefs/config'
@@ -37,7 +38,8 @@ export const createRun = (params: TCreateRunParams): TRun => {
   // disagree, and a root that changes underneath a comparison is worse than
   // one that is wrong consistently.
   const workspaceRoot = resolve(repoRoot())
-  const sessionDir = ensureDir(join(cfg.defaults.data_dir, 'sessions', runId))
+  const { dataDir } = resolveDataPaths(cfg, workspaceRoot)
+  const sessionDir = ensureDir(join(dataDir, 'sessions', runId))
   const contextHandoffDir = ensureDir(
     params.handoffDir ?? join(sessionDir, 'context_handoff'),
   )

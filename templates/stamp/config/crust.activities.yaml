@@ -37,6 +37,7 @@
 # wins, with no other change.
 #
 # Personal deviations go in crust.activities.local.yaml, which is gitignored.
+# See <pi-crust>/cookbooks/examples/crust.activities.local.example.yaml for the whole surface.
 # A local layer may set any key and may add an Activity this file lacks.
 #
 # Available Gates:

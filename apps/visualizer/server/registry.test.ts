@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WorkspaceRegistry } from "./registry.ts";
@@ -157,6 +157,33 @@ test(
     expect(mismatched).toBeUndefined();
     expect(unnamed?.label).toEqual("two");
     expect(unknown).toBeUndefined();
+    registry.close();
+  },
+);
+
+test(
+  [
+    "given server/registry::WorkspaceRegistry.states",
+    "when a tree's database file is deleted after the registry opened it",
+    "it should evict the cached connection and report the workspace as unavailable",
+  ].join(", "),
+  () => {
+    // given — a worktree removed out from under an already-open connection,
+    // which is exactly the shape a deleted git worktree leaves behind
+    const vanishing = tree("vanishing", [["dddd1111", "2026-10-06T09:00:00Z"]]);
+    const registry = new WorkspaceRegistry([vanishing]);
+    const opened = registry.states();
+    expect(opened.map((state) => state.db !== undefined)).toEqual([true]);
+
+    // when — the file goes away, and the registry is asked again
+    unlinkSync(vanishing.dbPath);
+    const actual = registry.states();
+
+    // then — reported as unavailable, not thrown, and not served from a stale
+    // cached connection
+    expect(actual.map((state) => [state.label, state.db !== undefined, state.error])).toEqual([
+      ["vanishing", false, "workspace is gone"],
+    ]);
     registry.close();
   },
 );

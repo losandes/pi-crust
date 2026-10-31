@@ -34,7 +34,9 @@
 import { join, resolve } from 'node:path'
 import { Database } from 'bun:sqlite'
 import { nowIso } from './modules/data/clock'
+import { resolveDataPaths } from './modules/data/data-paths'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
+import { repoRoot } from './modules/data/git'
 import { appendSteering } from './modules/data/steering'
 import { handoffDirFor } from './modules/data/handoff-pointer'
 import { seedBranch } from './modules/data/branch-seed'
@@ -297,8 +299,9 @@ const main = (): Promise<number> => {
   }
 
   const cfg = loadConfig(configPathFromEnv())
-  const dbPath = resolve(dbPathFromEnv() ?? cfg.observability.db ?? DEFAULT_DB)
-  const dataDir = cfg.defaults.data_dir
+  const resolved = resolveDataPaths(cfg, repoRoot())
+  const dbPath = resolve(dbPathFromEnv() ?? resolved.db ?? DEFAULT_DB)
+  const dataDir = resolved.dataDir
 
   if (target === 'overwrite') {
     return runOverwrite({ dbPath, dataDir, runId, activity, note })

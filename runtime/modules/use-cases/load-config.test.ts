@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadConfig, parseConfig, resolveAgent } from './load-config'
+import { configProvenance, loadConfig, parseConfig, resolveAgent } from './load-config'
 import { runnableActivities } from './activities'
 
 const ROSTER = `
@@ -435,5 +435,206 @@ test(
     expect(modelOf('build')).toEqual('openai/gpt-5.6-terra')
     expect(actual.planners[0]?.model).toEqual('anthropic/claude-sonnet-5')
     expect(actual.activities.find((one) => one.name === 'plan')?.thinking).toEqual('high')
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when the repository states data_dir and the machine layer also does, ordinary vs override',
+    'it should let the repository win over the ordinary layer and lose to override: (1.2.3, 1.2.4)',
+  ].join(', '),
+  () => {
+    // given — a repository config that states its own data_dir, exactly as
+    // every stamp does today
+    const dir = mkdtempSync(join(tmpdir(), 'crust-config-machine-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(
+      configPath,
+      [
+        'defaults:',
+        '  data_dir: repo-stated-dir',
+        'agents:',
+        '  - name: builder',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+      ].join('\n'),
+    )
+    const machinePath = join(dir, 'machine-crust.config.yaml')
+    writeFileSync(
+      machinePath,
+      [
+        'defaults:',
+        '  data_dir: machine-ordinary-dir',
+        'override:',
+        '  defaults:',
+        '    data_dir: machine-override-dir',
+      ].join('\n'),
+    )
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machinePath
+
+    // when / then — the repository's own value beats the ordinary layer
+    try {
+      const ordinaryBeaten = loadConfig(configPath)
+      expect(ordinaryBeaten.defaults.data_dir).toEqual('machine-override-dir')
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when the machine layer only has an ordinary section and the repository states nothing',
+    'it should fall through to the machine ordinary value',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-config-machine-ordinary-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(
+      configPath,
+      [
+        'agents:',
+        '  - name: builder',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+      ].join('\n'),
+    )
+    const machinePath = join(dir, 'machine-crust.config.yaml')
+    writeFileSync(
+      machinePath,
+      ['defaults:', '  data_dir: machine-ordinary-dir'].join('\n'),
+    )
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machinePath
+
+    // when / then
+    try {
+      const actual = loadConfig(configPath)
+      expect(actual.defaults.data_dir).toEqual('machine-ordinary-dir')
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::configProvenance',
+    'when a key is stated nowhere at all',
+    'it should name the built-in default as its source',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-builtin-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(configPath, 'agents: []')
+
+    // when
+    const actual = configProvenance(configPath)
+    const thinking = actual.find((entry) => entry.key === 'defaults.thinking')
+
+    // then
+    expect(thinking?.value).toEqual('medium')
+    expect(thinking?.source).toContain('built-in default')
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::configProvenance',
+    'when the repository states a value itself',
+    'it should name the repository\u2019s own config path as the source',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-repo-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(configPath, 'defaults:\n  data_dir: repo-stated-dir\nagents: []')
+
+    // when
+    const actual = configProvenance(configPath)
+    const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
+
+    // then
+    expect(dataDir?.value).toEqual('repo-stated-dir')
+    expect(dataDir?.source).toEqual(`${configPath} (repository, committed)`)
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::configProvenance',
+    'when the machine override: layer beats a value the repository also states',
+    'it should name the machine file as the source, not the repository',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-override-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(configPath, 'defaults:\n  data_dir: repo-stated-dir\nagents: []')
+    const machinePath = join(dir, 'machine-crust.config.yaml')
+    writeFileSync(
+      machinePath,
+      ['override:', '  defaults:', '    data_dir: machine-override-dir'].join('\n'),
+    )
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machinePath
+
+    // when / then
+    try {
+      const actual = configProvenance(configPath)
+      const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
+      expect(dataDir?.value).toEqual('machine-override-dir')
+      expect(dataDir?.source).toEqual(`${machinePath} (machine, override:)`)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::configProvenance',
+    'when CRUST_DATA_DIR is set in the environment',
+    'it should beat every file-based layer, including the machine override:',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-env-'))
+    const configPath = join(dir, 'crust.config.yaml')
+    writeFileSync(configPath, 'agents: []')
+
+    // when
+    const actual = configProvenance(configPath, { CRUST_DATA_DIR: '/env/data' })
+    const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
+
+    // then
+    expect(dataDir?.source).toEqual('CRUST_DATA_DIR (environment)')
   },
 )

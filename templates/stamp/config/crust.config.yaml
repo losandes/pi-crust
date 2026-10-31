@@ -81,7 +81,11 @@ defaults:
   # obvious spellings are matched and the rest are not, so if a path MUST NOT
   # leak, do not give that Activity `bash` — a partial defence described as
   # protection is worse than none.
-  data_dir: .pi-crust/data         # runtime home: {data_dir}/sessions/{run_id}/{agent_name}/
+  # data_dir defaults to .pi-crust/data — runtime home: {data_dir}/sessions/{run_id}/{agent_name}/.
+  # Stating it here overrides a machine-level `defaults.data_dir` or
+  # `override: defaults.data_dir` in ~/.pi-crust/config/crust.config.yaml
+  # (references/config.md), which is how a worktree workflow centralises
+  # where runs live. Leave it unstated to let that machine layer answer.
 
 # What this repository offers — the Activities and the Lifecycles — is in
 # crust.activities.yaml and crust.lifecycles.yaml beside this file. The order

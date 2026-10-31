@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -186,6 +186,32 @@ test(
       { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db' },
       { label: 'stats-2', dbPath: '/trees/b/.pi-crust/data/crust.db' },
     ])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::dedupe',
+    'when two trees name the same database through different spellings \u2014 a direct path and a symlink to it',
+    'it should collapse them by REAL path, so a pooled store is one workspace rather than one per tree that points at it (1.7.5)',
+  ].join(', '),
+  () => {
+    // given
+    const root = tree('primary')
+    const realDb = join(root, '.pi-crust', 'data', 'crust.db')
+    const linkedRoot = mkdtempSync(join(tmpdir(), 'crust-workspaces-linked-'))
+    const linkedDb = join(linkedRoot, 'crust.db')
+    symlinkSync(realDb, linkedDb)
+    const found = [
+      { label: 'primary', dbPath: realDb },
+      { label: 'linked', dbPath: linkedDb },
+    ]
+
+    // when
+    const actual = dedupe(found)
+
+    // then — the first entry's own spelling is kept
+    expect(actual).toEqual([{ label: 'primary', dbPath: realDb }])
   },
 )
 

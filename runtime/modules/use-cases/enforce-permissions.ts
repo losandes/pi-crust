@@ -191,6 +191,17 @@ export const permitted = (
   /** this run's handoff directory; widens the always-writable grant to match */
   handoffDir?: string,
 ): boolean => {
+  /*
+   * 1.9.3: `path` here is a CHANGED path from the working tree's own diff —
+   * always repository-relative — matched against `alwaysWritable`'s patterns,
+   * which are themselves repository-relative whenever `data_dir` resolves
+   * inside the repository. A `data_dir` outside the repository (1.1, a
+   * pooled store) never appears in that diff at all, so this grant simply
+   * never has anything to fire against for it; `permitted` has nothing to
+   * widen because there is nothing out-of-tree to report a changed path
+   * against in the first place. The in-repository case is unchanged: an
+   * agent's own session runtime stays always-writable there.
+   */
   if (
     alwaysWritable(cfg, handoffDir).some((pattern) => matchesPattern(path, pattern))
   ) {

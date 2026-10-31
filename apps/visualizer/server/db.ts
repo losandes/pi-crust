@@ -13,7 +13,8 @@
  */
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import type {
   AgentSession,
   AgentStartPayload,
@@ -34,6 +35,21 @@ const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
 
 /**
+ * Expand a leading `~` to the user's home directory (issue #24, 1.1.1,
+ * 1.1.2). Duplicated rather than imported from `runtime/modules/data/data-paths.ts`:
+ * the server and the factory are separate packages that ship independently
+ * (see `workspaces.ts`'s own `realOrRaw` and registry-reading duplication for
+ * the same reason), and this is the one rule of that resolver which applies
+ * to a value a developer TYPES \u2014 into `--db` or `CRUST_DB` \u2014 rather than one
+ * read out of a repository's `crust.config.yaml`. `{primary_worktree}` is not
+ * expanded here: that token exists for a committed config value a team
+ * shares, not for a one-off flag or environment variable a single developer
+ * types at a shell, which is all `resolveDbPath` ever sees.
+ */
+const expandHome = (value: string): string =>
+  value === "~" || value.startsWith("~/") ? join(homedir(), value.slice(1)) : value;
+
+/**
  * Resolve the db path: --db arg wins, then CRUST_DB, then <cwd>/.pi-crust/data/crust.db.
  * The db lives in the TARGET repo, so cwd is the repo the visualizer is pointed at.
  */
@@ -43,11 +59,12 @@ export function resolveDbPath(
 ): string {
   const flagIndex = argv.indexOf("--db");
   const inline = argv.find((a) => a.startsWith("--db="));
-  const raw =
-    (flagIndex !== -1 ? argv[flagIndex + 1] : undefined) ??
-    inline?.slice("--db=".length) ??
-    env.CRUST_DB ??
-    DEFAULT_DB_RELATIVE;
+  const raw = expandHome(
+    (flagIndex === -1 ? undefined : argv[flagIndex + 1]) ??
+      inline?.slice("--db=".length) ??
+      env.CRUST_DB ??
+      DEFAULT_DB_RELATIVE,
+  );
 
   return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
 }
@@ -196,27 +213,23 @@ export class PiCrustDb {
     const byRun = new Map<string, ActivityRun[]>();
     for (const activityRun of activityRunRows) {
       const list = byRun.get(activityRun.run_id);
-      if (list) list.push(activityRun);
-      else byRun.set(activityRun.run_id, [activityRun]);
+      byRun.set(activityRun.run_id, list ? [...list, activityRun] : [activityRun]);
     }
 
     // Agents come along too: an L1 card draws a per-agent dot timeline, and its
     // dots are colored per agent — without this it would be one request per card.
     const agentsByAdw = this.agentsFor(ids);
 
-    const summaries: SessionSummary[] = [];
-    for (const session of rows) {
+    return rows.map((session) => {
       const activityRuns = byRun.get(session.run_id) ?? [];
-      summaries.push(
-        Object.assign(session, {
-          workspace: this.label,
-          activityRuns,
-          activity_run_count: activityRuns.length,
-          agents: agentsByAdw.get(session.run_id) ?? [],
-        }),
-      );
-    }
-    return summaries;
+      return {
+        ...session,
+        workspace: this.label,
+        activityRuns,
+        activity_run_count: activityRuns.length,
+        agents: agentsByAdw.get(session.run_id) ?? [],
+      };
+    });
   }
 
   session(runId: string): Session | null {
@@ -234,7 +247,7 @@ export class PiCrustDb {
       .get(runId);
     return row === null || row === undefined
       ? null
-      : Object.assign(row, { workspace: this.label });
+      : { ...row, workspace: this.label };
   }
 
   activityRuns(runId: string): ActivityRun[] {
@@ -267,8 +280,7 @@ export class PiCrustDb {
 
     const append = (runId: string, agent: AgentSession) => {
       const list = byRun.get(runId);
-      if (list) list.push(agent);
-      else byRun.set(runId, [agent]);
+      byRun.set(runId, list ? [...list, agent] : [agent]);
     };
 
     const color = this.optionalColumn("agent_sessions", "color");
@@ -307,6 +319,7 @@ export class PiCrustDb {
       // A finished row is authoritative; only fill genuine gaps.
       if (byRun.get(row.run_id)?.some((a) => a.agent === row.agent)) continue;
       let payload: AgentStartPayload = {};
+      // biome-ignore lint/plugin/no-intermediate-try-catch: a malformed payload just means no label, never a failed request — this IS the boundary that decides so
       try {
         payload = JSON.parse(row.payload_json ?? "{}") as AgentStartPayload;
       } catch {
@@ -370,6 +383,7 @@ export class PiCrustDb {
     let written = 0;
     for (const row of rows) {
       if (!row.payload_json) continue;
+      // biome-ignore lint/plugin/no-intermediate-try-catch: a payload written by an older tracer contributes nothing rather than failing the whole total — this IS the boundary that decides so
       try {
         const u = (JSON.parse(row.payload_json) as { usage?: Record<string, number> }).usage;
         if (!u) continue;

@@ -15,6 +15,7 @@
  */
 
 import { join, resolve } from 'node:path'
+import { resolveDataPaths } from '../data/data-paths'
 import { fileExists, readText, writeText } from '../data/files'
 import type { TPiCrustConfig } from '../typedefs/config'
 import { repoRelative } from './path-policy'
@@ -41,18 +42,35 @@ export const policyPaths = (
   refusals: resolve(join(agentDir, `path_refusals_${activityRunId}.jsonl`)),
 })
 
+/**
+ * `dataDir` MUST be resolved (1.1.1) and spelled through `repoRelative`
+ * (1.9.1) — the SAME function `decidePath` uses on the path of every call it
+ * governs. `repoRelative` keeps a path relative when it falls inside
+ * `repoRoot` and ABSOLUTE when it does not, so a comparison between the two
+ * only holds when both sides went through it: a call into an IN-repository
+ * `data_dir` arrives at `underDataDir` already relative, and a raw resolved
+ * absolute `dataDir` would no longer match it. An out-of-tree `data_dir`
+ * (1.9.2, a pooled store) takes the other branch — both sides stay
+ * absolute — and a RAW configured value (`{primary_worktree}/...`, or
+ * anything relative) would have silently stopped matching altogether the
+ * moment the store moved outside the repository.
+ */
 export const settingsFor = (
   cfg: TPiCrustConfig,
   repoRoot: string,
   handoffDir: string,
-): TPathSettings => ({
-  repoRoot: resolve(repoRoot),
-  dataDir: cfg.defaults.data_dir.replace(/\/+$/, ''),
-  handoffDir: repoRelative(resolve(repoRoot), handoffDir),
-  protectedFiles: cfg.defaults.protected_files,
-  protectedPolicy: cfg.defaults.protected,
-  ignoredPolicy: cfg.defaults.ignored,
-})
+): TPathSettings => {
+  const root = resolve(repoRoot)
+  const resolvedDataDir = resolveDataPaths(cfg, root).dataDir
+  return {
+    repoRoot: root,
+    dataDir: repoRelative(root, resolvedDataDir).replace(/\/+$/, ''),
+    handoffDir: repoRelative(root, handoffDir),
+    protectedFiles: cfg.defaults.protected_files,
+    protectedPolicy: cfg.defaults.protected,
+    ignoredPolicy: cfg.defaults.ignored,
+  }
+}
 
 /**
  * Write the policy this call runs under, and return the variable naming it.

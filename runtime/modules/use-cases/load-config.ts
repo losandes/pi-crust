@@ -3,6 +3,7 @@
  */
 
 import { dirname, join } from 'node:path'
+import { dataDirFromEnv, type TEnv } from '../data/env-overrides'
 import { fileExists, readText } from '../data/files'
 import {
   activitiesFileSchema,
@@ -13,6 +14,7 @@ import {
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema, DEFAULT_CONFIG_PATH } from '../typedefs/config'
 import { applyLocalOverrides, localConfigPath } from './merge-config'
+import { applyMachineLayer, readMachineConfig } from './machine-config'
 
 /** Keys an agent inherits from `defaults` only when it has not stated its own. */
 const INHERITED = [
@@ -72,6 +74,8 @@ export type TLoadedConfig = Readonly<{
   config: TPiCrustConfig
   /** '' when no local layer was found */
   localPath: string
+  /** '' when no machine layer was found (1.2.1, 1.2.10) */
+  machinePath: string
   warnings: readonly string[]
 }>
 
@@ -183,9 +187,14 @@ const observabilitySettings = (configPath: string): TRawRecord => {
   return settings
 }
 
-export const loadConfigWithNotes = (
-  path: string = DEFAULT_CONFIG_PATH,
-): TLoadedConfig => {
+/**
+ * Assemble this repository's own document \u2014 `crust.config.yaml`, with the
+ * registry and `crust.observe.yaml` merged in \u2014 BEFORE the machine layer or
+ * `.local` apply. Shared by `loadConfigWithNotes` and `configProvenance`
+ * (1.2.10) so the two can never disagree about what "the repository's own
+ * config" means.
+ */
+const assembleBaseDocument = (path: string): unknown => {
   const document = Bun.YAML.parse(readText(path))
   const registry = activitiesBeside(path)
   const observability = observabilitySettings(path)
@@ -212,25 +221,49 @@ export const loadConfigWithNotes = (
           activities: registry.activities,
           planners: registry.planners,
         }
-  const base =
-    Object.keys(observability).length === 0
-      ? withAgents
-      : {
-          ...asRecord(withAgents),
-          observability: {
-            ...asRecord(asRecord(withAgents).observability),
-            ...observability,
-          },
-        }
+  return Object.keys(observability).length === 0
+    ? withAgents
+    : {
+        ...asRecord(withAgents),
+        observability: {
+          ...asRecord(asRecord(withAgents).observability),
+          ...observability,
+        },
+      }
+}
+
+export const loadConfigWithNotes = (
+  path: string = DEFAULT_CONFIG_PATH,
+): TLoadedConfig => {
+  const base = assembleBaseDocument(path)
+  /*
+   * The machine layer (1.2.1–1.2.7) sits between the schema's own defaults
+   * and this repository's config: its ORDINARY section is weaker than
+   * anything stated here, and its `override:` section is stronger than
+   * everything except this repository's OWN `.local` file and an
+   * environment variable or flag — which is why it is applied here, before
+   * `.local`, rather than after.
+   */
+  const machine = readMachineConfig()
+  const layered = applyMachineLayer(base, machine)
   const localPath = localConfigPath(path)
   if (!fileExists(localPath)) {
-    return { config: resolveConfig(base), localPath: '', warnings: [] }
+    return {
+      config: resolveConfig(layered.document),
+      localPath: '',
+      machinePath: machine.path,
+      warnings: layered.warnings,
+    }
   }
-  const applied = applyLocalOverrides(base, Bun.YAML.parse(readText(localPath)))
+  const applied = applyLocalOverrides(
+    layered.document,
+    Bun.YAML.parse(readText(localPath)),
+  )
   return {
     config: resolveConfig(applied.document),
     localPath,
-    warnings: applied.warnings,
+    machinePath: machine.path,
+    warnings: [...layered.warnings, ...applied.warnings],
   }
 }
 
@@ -250,4 +283,100 @@ export const resolveAgent = (
     )
   }
   return agent
+}
+
+/**
+ * Every effective `defaults.*` and `observability.*` value, together with
+ * the file that set it (issue #24, 1.2.10).
+ *
+ * Scoped to exactly the two sections the machine layer is allowed to touch
+ * (1.2.7) \u2014 `agents`, `activities`, `planners` and `routing` are not
+ * reported here because the machine layer, and this provenance report that
+ * exists for it, never reaches them.
+ */
+export type TProvenanceEntry = Readonly<{
+  key: string
+  value: unknown
+  source: string
+}>
+
+const DEFAULTS_LEAF_KEYS = [
+  'coding_agent',
+  'model',
+  'thinking',
+  'color',
+  'harness_engineering',
+  'tools',
+  'protected_files',
+  'protected.read',
+  'protected.write',
+  'ignored.read',
+  'ignored.write',
+  'data_dir',
+] as const
+
+const OBSERVABILITY_LEAF_KEYS = [
+  'db',
+  'poll_ms',
+  'ports.backend',
+  'ports.frontend',
+] as const
+
+const atPath = (value: unknown, dotted: string): unknown =>
+  dotted.split('.').reduce<unknown>((node, part) => {
+    if (node === null || typeof node !== 'object') return undefined
+    return (node as TRawRecord)[part]
+  }, value)
+
+const statesKey = (section: unknown, dotted: string): boolean =>
+  atPath(section, dotted) !== undefined
+
+export const configProvenance = (
+  path: string = DEFAULT_CONFIG_PATH,
+  env: TEnv = process.env,
+): readonly TProvenanceEntry[] => {
+  const base = assembleBaseDocument(path)
+  const machine = readMachineConfig(env)
+  const localPath = localConfigPath(path)
+  const localDoc = fileExists(localPath)
+    ? Bun.YAML.parse(readText(localPath))
+    : undefined
+  const config = loadConfigWithNotes(path).config
+
+  const sourceFor = (
+    section: 'defaults' | 'observability',
+    dotted: string,
+  ): string => {
+    if (section === 'defaults' && dotted === 'data_dir' && dataDirFromEnv(env) !== undefined) {
+      return 'CRUST_DATA_DIR (environment)'
+    }
+    if (localDoc !== undefined && statesKey(asRecord(localDoc)[section], dotted)) {
+      return `${localPath} (repository, private)`
+    }
+    if (machine.override !== undefined && statesKey(asRecord(machine.override)[section], dotted)) {
+      return `${machine.path} (machine, override:)`
+    }
+    if (statesKey(asRecord(base)[section], dotted)) {
+      return `${path} (repository, committed)`
+    }
+    if (machine.ordinary !== undefined && statesKey(asRecord(machine.ordinary)[section], dotted)) {
+      return `${machine.path} (machine, ordinary)`
+    }
+    return 'runtime/modules/typedefs/config.ts (built-in default)'
+  }
+
+  const entriesFor = (
+    section: 'defaults' | 'observability',
+    keys: readonly string[],
+  ): readonly TProvenanceEntry[] =>
+    keys.map((key) => ({
+      key: `${section}.${key}`,
+      value: atPath(config[section], key),
+      source: sourceFor(section, key),
+    }))
+
+  return [
+    ...entriesFor('defaults', DEFAULTS_LEAF_KEYS),
+    ...entriesFor('observability', OBSERVABILITY_LEAF_KEYS),
+  ]
 }

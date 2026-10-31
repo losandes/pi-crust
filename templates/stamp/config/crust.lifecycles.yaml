@@ -25,6 +25,7 @@
 # else in these chains needs what came before it.
 #
 # Personal deviations go in crust.lifecycles.local.yaml, which is gitignored.
+# See <pi-crust>/cookbooks/examples/crust.lifecycles.local.example.yaml for the whole surface.
 
 
 lifecycles:

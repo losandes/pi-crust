@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { parseAge, pruneVerdict, type TPrunable } from './prune'
+import { parseAge, pruneVerdict, type TPrunable, workspacesIn } from './prune'
 
 const DAY = 86_400_000
 const NOW = Date.parse('2026-03-01T00:00:00.000Z')
@@ -124,5 +124,29 @@ test(
     // then
     expect(actual.doomed).toEqual([])
     expect(actual.spared[0]?.because).toContain('no start time')
+  },
+)
+
+test(
+  [
+    'given use-cases/prune::workspacesIn',
+    'when sessions come from several working trees',
+    'it should name each one once, sorted, with nulls dropped',
+  ].join(', '),
+  () => {
+    // given
+    const runs = [
+      { workspace_root: '/home/dev/pi-crust-issue-9' },
+      { workspace_root: '/home/dev/pi-crust' },
+      { workspace_root: '/home/dev/pi-crust' },
+      { workspace_root: null },
+      { workspace_root: undefined },
+    ]
+
+    // when
+    const actual = workspacesIn(runs)
+
+    // then
+    expect(actual).toEqual(['/home/dev/pi-crust', '/home/dev/pi-crust-issue-9'])
   },
 )

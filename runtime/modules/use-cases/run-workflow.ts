@@ -29,6 +29,7 @@ import {
   writeDecisionRequest,
 } from './human-gate'
 import { attemptLedger } from './attempts'
+import { dataDirFromEnv } from '../data/env-overrides'
 import { loadConfigWithNotes } from './load-config'
 import { readRunState } from './read-run-state'
 import type { TWorkflowArgs } from './parse-cli'
@@ -227,8 +228,23 @@ export const runWorkflow = async (
     if (loaded.localPath !== '') {
       run.console.note(`local config in force: ${loaded.localPath} (not in git)`)
     }
+    if (loaded.machinePath !== '') {
+      run.console.note(`machine config in force: ${loaded.machinePath} (not in git, not this repository)`)
+    }
     for (const warning of loaded.warnings) {
       run.console.note(warning)
+    }
+    /*
+     * 1.1.8: a run whose resolved data_dir did not come from this
+     * repository's own crust.config.yaml says so, once, at run start — the
+     * provenance a developer needs to tell "my repository put it here" from
+     * "the machine layer or CRUST_DATA_DIR put it somewhere else".
+     */
+    if (loaded.machinePath !== '' || dataDirFromEnv() !== undefined) {
+      run.console.note(
+        `data_dir resolved to ${run.sessionDir.replace(/\/sessions\/.*$/, '')}` +
+          ` — set by ${dataDirFromEnv() === undefined ? loaded.machinePath : 'CRUST_DATA_DIR'}`,
+      )
     }
 
     run.console.note(describeTrust(trust))
