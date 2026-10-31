@@ -1,7 +1,7 @@
 import styles from './App.module.css'
 import { SessionsList } from './components/SessionsList'
 import { SessionTrace } from './components/SessionTrace'
-import { ThemeToggle } from './components/ThemeToggle'
+import { ThemePicker } from './components/ThemePicker'
 import { hrefFor } from './lib/router'
 import { useRoute } from './lib/use-route'
 
@@ -51,7 +51,7 @@ export const App = () => {
           <span className={styles.liveHint}>
             <span className={styles.liveDot} /> live
           </span>
-          <ThemeToggle />
+          <ThemePicker />
         </div>
       </header>
       <main>
