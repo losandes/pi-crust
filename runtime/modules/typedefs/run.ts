@@ -33,6 +33,15 @@ export type TConsole = Readonly<{
     workspaceRoot: string,
     vcsRoot: string,
   ) => void
+  /**
+   * The ask, exactly as this process received it, before anything is spent.
+   *
+   * Verbatim and ungrouped with `note`, which clips and collapses whitespace:
+   * a prompt the shell truncated at an embedded quote, or substituted at a
+   * backtick, is diagnosed by the characters themselves, and a reporter that
+   * tidies them away reports the tidying instead of the damage.
+   */
+  promptReceived: (prompt: string) => void
   sessionFinished: (
     ok: boolean,
     tokens: number,

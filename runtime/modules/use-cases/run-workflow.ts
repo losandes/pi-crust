@@ -211,6 +211,15 @@ export const runWorkflow = async (
   // biome-ignore lint/plugin: this layer owns the boundary and rethrows
   try {
     /*
+     * The ask, as this process received it, before a token is spent on it.
+     *
+     * A prompt is pasted into a shell, and the shell gets a vote: an embedded
+     * double quote truncates it, a backtick runs it. Printed here, the damage
+     * is visible while killing the run still costs nothing; discovered from
+     * behaviour, it costs the run.
+     */
+    run.console.promptReceived(args.prompt)
+    /*
      * Said on every run, including the default one.
      *
      * This used to be silent at the default because the default asked about

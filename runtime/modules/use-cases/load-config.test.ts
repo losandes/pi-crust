@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { configProvenance, loadConfig, parseConfig, resolveAgent } from './load-config'
 import { runnableActivities } from './activities'
 
@@ -175,17 +175,31 @@ test(
         'ports:\n  backend: 5600\n  frontend: 5601\n' +
         "themes:\n  - name: dark\n    builtin: true\n",
     })
+    // Isolated from whatever machine layer this developer's own $HOME may
+    // carry (issue #24): a path naming no file reads as 'no machine config'
+    // regardless of what ~/.pi-crust/config/crust.config.yaml says on the
+    // machine the suite happens to run on.
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = join(dirname(path), 'no-machine-config.yaml')
 
-    // when
-    const actual = loadConfig(path)
-
-    // then
-    expect(actual.observability.db).toEqual('.pi-crust/data/other.db')
-    expect(actual.observability.poll_ms).toBe(100)
-    expect(actual.observability.ports).toEqual({
-      backend: 5600,
-      frontend: 5601,
-    })
+    // when / then
+    try {
+      const actual = loadConfig(path)
+      expect(actual.observability.db).toEqual('.pi-crust/data/other.db')
+      expect(actual.observability.poll_ms).toBe(100)
+      expect(actual.observability.ports).toEqual({
+        backend: 5600,
+        frontend: 5601,
+      })
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
   },
 )
 
@@ -224,16 +238,28 @@ test(
   () => {
     // given
     const path = stamped({ 'crust.config.yaml': 'agents: []\n' })
+    // Isolated from this developer's own $HOME machine layer — see the
+    // identically-reasoned fixture two tests above.
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = join(dirname(path), 'no-machine-config.yaml')
 
-    // when
-    const actual = loadConfig(path)
-
-    // then
-    expect(actual.observability.db).toEqual('.pi-crust/data/crust.db')
-    expect(actual.observability.ports).toEqual({
-      backend: 4600,
-      frontend: 4601,
-    })
+    // when / then
+    try {
+      const actual = loadConfig(path)
+      expect(actual.observability.db).toEqual('.pi-crust/data/crust.db')
+      expect(actual.observability.ports).toEqual({
+        backend: 4600,
+        frontend: 4601,
+      })
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
   },
 )
 
@@ -570,14 +596,26 @@ test(
     const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-repo-'))
     const configPath = join(dir, 'crust.config.yaml')
     writeFileSync(configPath, 'defaults:\n  data_dir: repo-stated-dir\nagents: []')
+    // Isolated from this developer's own $HOME machine layer — see the
+    // identically-reasoned loadConfig fixtures above.
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = join(dir, 'no-machine-config.yaml')
 
-    // when
-    const actual = configProvenance(configPath)
-    const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
-
-    // then
-    expect(dataDir?.value).toEqual('repo-stated-dir')
-    expect(dataDir?.source).toEqual(`${configPath} (repository, committed)`)
+    // when / then
+    try {
+      const actual = configProvenance(configPath)
+      const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
+      expect(dataDir?.value).toEqual('repo-stated-dir')
+      expect(dataDir?.source).toEqual(`${configPath} (repository, committed)`)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CRUST_MACHINE_CONFIG
+      } else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
+        process.env.CRUST_MACHINE_CONFIG = previous
+      }
+    }
   },
 )
 

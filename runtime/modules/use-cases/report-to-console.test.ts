@@ -9,7 +9,11 @@ import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
 import { checks } from './gates/checks-gate'
-import { createConsole } from './report-to-console'
+import {
+  createConsole,
+  PROMPT_BODY_CHARS,
+  PROMPT_BODY_LINES,
+} from './report-to-console'
 
 /** A tracer that records every `message` the console emitted, as plain text. */
 const tracedMessages = (): Readonly<{
@@ -225,5 +229,71 @@ test(
     expect(messages).not.toContain('2/2 activityRuns')
     expect(messages).not.toContain('1/2 activityRuns')
     tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when promptReceived is called with a prompt containing an embedded quote, a backtick and a newline',
+    'it should trace the whole prompt verbatim, as one exact substring (1.1.2, 1.1.5)',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const prompt = 'say "hello" then run `rm -rf /`\nand stop'
+
+    // when
+    console_.promptReceived(prompt)
+
+    // then
+    expect(messages.some((line) => line.includes(prompt))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when promptReceived is called with a prompt of 60 identical lines',
+    'it should still trace the whole prompt, and the header should report the full character count (1.1.3, 1.1.5)',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const line = 'x'.repeat(100)
+    const prompt = Array.from({ length: 60 }, () => line).join('\n')
+    expect(prompt.split('\n').length).toBeGreaterThan(PROMPT_BODY_LINES)
+    expect(prompt.length).toBeGreaterThan(PROMPT_BODY_CHARS)
+
+    // when
+    console_.promptReceived(prompt)
+
+    // then
+    expect(messages.some((entry) => entry.includes(prompt))).toBe(true)
+    expect(
+      messages.some((entry) => entry.includes(`${prompt.length} chars`)),
+    ).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when promptReceived is called with an empty string',
+    'it should emit exactly one event whose message contains 0 chars, and should not throw (1.1.4)',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    expect(() => console_.promptReceived('')).not.toThrow()
+
+    // then
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toContain('0 chars')
   },
 )

@@ -30,6 +30,13 @@ import {
 
 const thousands = (value: number): string => value.toLocaleString('en-US')
 
+/** How much of a prompt the TERMINAL shows. The traced copy is never cut. */
+export const PROMPT_BODY_LINES = 40
+export const PROMPT_BODY_CHARS = 2000
+
+const promptBody = (prompt: string): string =>
+  prompt.split('\n').slice(0, PROMPT_BODY_LINES).join('\n').slice(0, PROMPT_BODY_CHARS)
+
 /** Bound to one run's tracer. Reachable as `run.console` everywhere. */
 export const createConsole = (tracer: TTracer, runId: string): TConsole => {
   let activityRunId = '' // current lane — log events attach to it
@@ -63,6 +70,36 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
             `${paint('vcs root', 'dim')} ${vcsRoot}`,
         )
       }
+    },
+
+    promptReceived: (prompt) => {
+      const lineCount = prompt === '' ? 0 : prompt.split('\n').length
+      const shown = promptBody(prompt)
+      const header =
+        `${paint('prompt:', 'bold', 'cyan')} ` +
+        paint(
+          `${prompt.length} chars · ${lineCount} line${lineCount === 1 ? '' : 's'}`,
+          'dim',
+        )
+      const body =
+        shown === ''
+          ? []
+          : shown.split('\n').map((line) => `${paint('│', 'dim')} ${line}`)
+      const elided =
+        shown.length === prompt.length
+          ? []
+          : [
+              paint(
+                `│ … ${prompt.length - shown.length} more characters — ` +
+                  'the whole prompt is in the trace',
+                'dim',
+              ),
+            ]
+      emit(
+        `prompt received (${prompt.length} chars): ${prompt}`,
+        'info',
+        [header, ...body, ...elided].join('\n'),
+      )
     },
 
     sessionFinished: (ok, tokens, cost, dbPath) => {
