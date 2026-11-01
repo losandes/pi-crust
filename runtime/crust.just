@@ -113,6 +113,10 @@ config *ARGS:
 # or any chain, Stage by Stage — `,` ends a Stage, `+` runs Activities at once:
 #     just crust run "add a /health endpoint" --activities plan,build,review+code-review
 #     just crust run "where is auth handled" --activities scout
+#
+# `run` only, six short flags: -a --activities, -c --commit, -l --lifecycle,
+# -n --name, -r --resume, -id --run-id, e.g.:
+#     just crust run "add a /health endpoint" -l sdlc
 
 # run a Lifecycle, or any chain of Activities: just crust run "..." --lifecycle sdlc
 run *ARGS:

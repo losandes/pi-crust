@@ -7,6 +7,9 @@
  *     just crust run "<prompt>" --lifecycle sdlc [--run-id a1b2c3d4] [--resume]
  *     just crust run "<prompt>" --activities plan,test,build [--run-id a1b2c3d4] [--resume]
  *
+ *     short: -a --activities, -c --commit, -l --lifecycle, -n --name,
+ *            -r --resume, -id --run-id
+ *
  * The Composer does not decide what is appropriate for an objective — Triage
  * and the Operator do that. It validates the plan it is handed and runs it.
  * It is the third Planner, and the only one with no agent and no entry in

@@ -24,11 +24,13 @@ import { nowIso } from './modules/data/clock'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { appendSteering } from './modules/data/steering'
 import { handoffDirFor } from './modules/data/handoff-pointer'
+import { RESUME_CLI, positionalArgs } from './modules/use-cases/cli-positionals'
 import { readRunState } from './modules/use-cases/read-run-state'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import { developerNote, flagValue } from './modules/use-cases/steer'
 import { loadConfig } from './modules/use-cases/load-config'
 import { DEFAULT_DB } from './modules/typedefs/config'
+import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
 import { Database } from 'bun:sqlite'
 
 const say = (line: string): void => {
@@ -47,7 +49,13 @@ const USAGE = [
 
 const main = async (): Promise<number> => {
   const argv = process.argv.slice(2)
-  const runId = argv.find((arg) => !arg.startsWith('--'))
+  const positionals = safeParseSettlement(() => positionalArgs(argv, RESUME_CLI))
+  if (positionals.status === 'error') {
+    say(errorMessage(positionals.error))
+    say(USAGE)
+    return 2
+  }
+  const runId = positionals.data[0]
   if (runId === undefined) {
     say(USAGE)
     return 2

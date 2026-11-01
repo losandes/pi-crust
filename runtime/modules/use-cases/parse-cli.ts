@@ -104,24 +104,62 @@ const REMOVED_FLAG = '--steps'
 export const REMOVED_FLAG_MESSAGE =
   '--steps was removed. Use --activities; a concurrent Stage is written a+b.'
 
-const FLAGS = [
-  '--config',
-  '--run-id',
-  '--base',
-  '--scope',
-  '--activities',
-  '--lifecycle',
-  '--approve-after',
-  '--commit',
-  '--trust-level',
-  '--handoff',
-  '--name',
-] as const
+/**
+ * One flag, in one place: its canonical long name, its optional short alias,
+ * and whether the parser consumes the next token as its value.
+ *
+ * This replaces two parallel arrays (`FLAGS` and `BOOLEAN_FLAGS`) that used
+ * to drift from the usage line and from each other — a short name could live
+ * here and be missing from `usage` until somebody typed it and got refused
+ * for a flag that looked documented. Everything derived below reads this
+ * table instead of repeating it.
+ */
+export type TFlagSpec = Readonly<{
+  /** the canonical name — the only one anything past `read` ever sees */
+  long: string
+  /** the single-dash alias, absent for flags nobody types in a hurry */
+  short?: string
+  /** true when the parser consumes the next token as this flag's value */
+  takesValue: boolean
+}>
+
+export const FLAG_TABLE: readonly TFlagSpec[] = [
+  { long: '--config', takesValue: true },
+  { long: '--run-id', short: '-id', takesValue: true },
+  { long: '--base', takesValue: true },
+  { long: '--scope', takesValue: true },
+  { long: '--activities', short: '-a', takesValue: true },
+  { long: '--lifecycle', short: '-l', takesValue: true },
+  { long: '--approve-after', takesValue: true },
+  /*
+   * `-c` is `--commit`'s letter, not `--config`'s: `--commit` takes exactly
+   * one value (`false`), so `-c false` is unambiguous, and `--config` can
+   * never have this letter as a result.
+   */
+  { long: '--commit', short: '-c', takesValue: true },
+  { long: '--trust-level', takesValue: true },
+  { long: '--handoff', takesValue: true },
+  { long: '--name', short: '-n', takesValue: true },
+  { long: '--resume', short: '-r', takesValue: false },
+  { long: '--stream', takesValue: false },
+]
+
+const FLAGS = FLAG_TABLE.filter((flag) => flag.takesValue).map((flag) => flag.long)
 
 // Flags that take NO value. The parser assumes every flag is followed by its
 // value, so a boolean one listed above would swallow the prompt — and the
 // failure reads as "a prompt is required" rather than as a parsing bug.
-const BOOLEAN_FLAGS = ['--resume', '--stream'] as const
+const BOOLEAN_FLAGS = FLAG_TABLE.filter((flag) => !flag.takesValue).map((flag) => flag.long)
+
+/**
+ * `-id` is a two-letter single-dash token, not a cluster — it is unambiguous
+ * only because flag clustering is refused. Adding `-ra`-style clustering
+ * later would silently turn `-id` into `-i -d`; this map, and the guard in
+ * `read`, both assume clustering stays out of scope.
+ */
+const LONG_OF: ReadonlyMap<string, string> = new Map(
+  FLAG_TABLE.flatMap((flag) => (flag.short === undefined ? [] : [[flag.short, flag.long] as const])),
+)
 
 const usage = (recipe: string): string =>
   `usage: just crust ${recipe} "<prompt or path/to/prompt.md>" ` +
@@ -131,7 +169,44 @@ const usage = (recipe: string): string =>
   '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
   '[--trust-level 50] [--stream] [--resume] ' +
   '[--handoff <path/{session_id}>] [--name <label>]\n' +
+  '  short: ' +
+  FLAG_TABLE.filter((flag) => flag.short !== undefined)
+    .map((flag) => `${flag.short} ${flag.long}`)
+    .join(', ') +
+  '\n' +
   'env: CRUST_CONFIG overrides the config path; --config still wins.'
+
+/**
+ * argv with every short flag rewritten to its long name; values untouched.
+ *
+ * Walks left to right, rewrites a token that is exactly a short name or
+ * starts with `<short>=`, and skips the token after a value-taking flag so a
+ * value is never mistaken for a flag.
+ */
+export const longFlagArgv = (argv: readonly string[]): readonly string[] => {
+  const rewrite = (token: string): string => {
+    const name = token.includes('=') ? token.slice(0, token.indexOf('=')) : token
+    const long = LONG_OF.get(name)
+    return long === undefined ? token : long + token.slice(name.length)
+  }
+
+  type TAcc = Readonly<{ tokens: readonly string[]; skipNext: boolean }>
+  const { tokens } = argv.reduce<TAcc>(
+    (acc, token) => {
+      if (acc.skipNext) {
+        return { tokens: [...acc.tokens, token], skipNext: false }
+      }
+      const rewritten = rewrite(token)
+      const spec = FLAG_TABLE.find((flag) => flag.long === rewritten)
+      return {
+        tokens: [...acc.tokens, rewritten],
+        skipNext: (spec?.takesValue ?? false) && !token.includes('='),
+      }
+    },
+    { tokens: [], skipNext: false },
+  )
+  return tokens
+}
 
 /**
  * `--commit` accepts one value, and it is `false`.
@@ -178,7 +253,7 @@ export const handoffFlag = (value: string | undefined): string | undefined => {
  */
 export const unknownFlag = (token: string, recipe: string): string => {
   const given = token.split('=')[0] ?? token
-  const near = [...FLAGS, ...BOOLEAN_FLAGS].find(
+  const near = [...FLAGS, ...BOOLEAN_FLAGS, ...LONG_OF.keys()].find(
     (flag) =>
       flag.startsWith(given) ||
       given.startsWith(flag) ||
@@ -207,7 +282,14 @@ export const parseCli = (
     if (index >= argv.length) {
       return so_far
     }
-    const token = argv[index] ?? ''
+    const raw = argv[index] ?? ''
+    // A short alias is resolved to its long name before anything else runs,
+    // so the removed-flag check, the switch match and the value-flag match
+    // all see only long names — nothing past this point knows a short one
+    // was typed.
+    const name = raw.includes('=') ? raw.slice(0, raw.indexOf('=')) : raw
+    const long = LONG_OF.get(name)
+    const token = long === undefined ? raw : long + raw.slice(name.length)
     const flag = BOOLEAN_FLAGS.find((candidate) => token === candidate)
     if (flag !== undefined) {
       return read(index + 1, {
@@ -230,8 +312,13 @@ export const parseCli = (
        * (one letter wrong) left `--lifecycle` unset and the run failed
        * complaining that `--activities` was required, which is a true
        * sentence about the wrong problem. A typo in a flag has to say so.
+       *
+       * A single-dash token used to fall through the same way, so
+       * `-l sdlc "add a /health endpoint"` made `-l` the prompt before short
+       * aliases existed to resolve it — the guard now refuses ANY leading
+       * dash it did not recognise, not only `--`.
        */
-      if (token.startsWith('--')) {
+      if (token.startsWith('-')) {
         throw new Error(unknownFlag(token, recipe))
       }
       return read(index + 1, {

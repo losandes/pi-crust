@@ -51,6 +51,43 @@ test(
 test(
   [
     'given use-cases/resume-run::resumeArgv',
+    'when the run was launched with short flags',
+    'it should canonicalise to long names with no duplicated flag',
+  ].join(', '),
+  () => {
+    // given — the strip filter only matches `--run-id` and `--resume` by
+    // their long names, so a short-launched run would otherwise carry both
+    // the old short flag and the newly appended long one
+    const argv = [
+      'bun',
+      '/x/compose.ts',
+      'p',
+      '-l',
+      'sdlc',
+      '-id',
+      'old',
+      '-r',
+    ]
+
+    // when
+    const actual = resumeArgv(argv, 'new')
+
+    // then
+    expect(actual).toEqual([
+      '/x/compose.ts',
+      'p',
+      '--lifecycle',
+      'sdlc',
+      '--run-id',
+      'new',
+      '--resume',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/resume-run::resumeArgv',
     'when the run being resumed was itself a resumed run',
     'it should not stack a second --run-id or --resume',
   ].join(', '),
