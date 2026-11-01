@@ -107,8 +107,10 @@ activities:
       - edit
       - read
       - write
+      - web_enable
       - web_search
-      - web_fetch
+      - fetch_content
+      - source_check
 
   - name: design
     output: designOutput
@@ -178,8 +180,10 @@ activities:
       - edit
       - read
       - write
+      - web_enable
       - web_search
-      - web_fetch
+      - fetch_content
+      - source_check
 
   # Opens ONE GitHub issue from the chain that came before it. Its effect is
   # external, so there is no `commit:` here: nothing in the working tree
@@ -284,8 +288,10 @@ activities:
       - edit
       - read
       - write
+      - web_enable
       - web_search
-      - web_fetch
+      - fetch_content
+      - source_check
 
   # The repository is its primary source; documentation and specs corroborate it.
   - name: technical-research
@@ -302,8 +308,10 @@ activities:
       - edit
       - read
       - write
+      - web_enable
       - web_search
-      - web_fetch
+      - fetch_content
+      - source_check
 
   # Writing a test and running one are different jobs, so only one of them is
   # an Activity. `test` is an agent because deciding what would prove a change
@@ -359,8 +367,10 @@ activities:
       - edit
       - read
       - write
+      - web_enable
       - web_search
-      - web_fetch
+      - fetch_content
+      - source_check
 
   # Reads support requests, feedback and interfaces — never treats a proposed feature as a need.
   - name: ux-research
@@ -377,8 +387,10 @@ activities:
       - edit
       - read
       - write
+      - web_enable
       - web_search
-      - web_fetch
+      - fetch_content
+      - source_check
 
 
 # ── Planners ─────────────────────────────────────────────────────────────────
