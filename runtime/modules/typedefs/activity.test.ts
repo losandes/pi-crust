@@ -10,6 +10,8 @@ import {
   mergeActivities,
   PLANNER_NAMES,
   plannerFaults,
+  TERMINAL_NAMES,
+  terminalFaults,
 } from './activity'
 
 /**
@@ -19,21 +21,23 @@ import {
  * keeps passing after somebody adds a key to the real registry that the
  * schema cannot express, which is the regression this guards.
  */
-const shippedActivities = () => {
-  const path = join(
-    import.meta.dir,
-    '..',
-    '..',
-    '..',
-    'templates',
-    'stamp',
-    'config',
-    'crust.activities.yaml',
+const SHIPPED_ACTIVITIES_PATH = join(
+  import.meta.dir,
+  '..',
+  '..',
+  '..',
+  'templates',
+  'stamp',
+  'config',
+  'crust.activities.yaml',
+)
+
+const shippedFile = () =>
+  activitiesFileSchema.parse(
+    Bun.YAML.parse(readFileSync(SHIPPED_ACTIVITIES_PATH, 'utf8')),
   )
 
-  return activitiesFileSchema.parse(Bun.YAML.parse(readFileSync(path, 'utf8')))
-    .activities
-}
+const shippedActivities = () => shippedFile().activities
 
 test(
   [
@@ -390,5 +394,64 @@ test(
     // then
     expect(actual).toEqual([])
     expect(PLANNER_NAMES).toEqual(['operator', 'triage'])
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::terminalFaults',
+    'when the shipped terminal: block is checked',
+    'it should find nothing wrong',
+  ].join(', '),
+  () => {
+    // given
+    const given = shippedFile().terminal
+
+    // when
+    const actual = terminalFaults(given)
+
+    // then
+    expect(actual).toEqual([])
+    expect(TERMINAL_NAMES).toEqual(['gh-pull-request'])
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::terminalFaults',
+    'when a terminal Activity has no entry at all',
+    'it should refuse, because configuration cannot remove one',
+  ].join(', '),
+  () => {
+    // given
+    const given: readonly Readonly<{ name: string }>[] = []
+
+    // when
+    const actual = terminalFaults(given)
+
+    // then
+    expect(actual.join('\n')).toMatch(
+      /terminal Activity 'gh-pull-request' has no entry under terminal:/,
+    )
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::terminalFaults',
+    'when something under terminal: is not a terminal Activity',
+    'it should refuse, because configuration cannot add one',
+  ].join(', '),
+  () => {
+    // given
+    const given = [{ name: 'gh-pull-request' }, { name: 'gh-merge-request' }]
+
+    // when
+    const actual = terminalFaults(given)
+
+    // then
+    expect(actual.join('\n')).toMatch(
+      /'gh-merge-request' is under terminal: and is not a terminal Activity/,
+    )
   },
 )

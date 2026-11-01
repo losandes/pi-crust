@@ -23,8 +23,9 @@
  */
 
 import type { TActivityConfig } from '../typedefs/activity'
-import { isPlannerName, PLANNER_NAMES } from '../typedefs/activity'
+import { isPlannerName, isTerminalName, PLANNER_NAMES } from '../typedefs/activity'
 import type { TLifecycleConfig, TStage } from '../typedefs/lifecycle'
+import { misplacedTerminal } from '../typedefs/lifecycle'
 import { concurrencyFaults } from './concurrency-faults'
 
 /** What a derived Stage is called when the developer named no Stage at all. */
@@ -99,7 +100,8 @@ const nameFaults = (
 ): readonly string[] => {
   const planners = names.filter(isPlannerName)
   const unknown = names.filter(
-    (name) => !(isPlannerName(name) || offered.includes(name)),
+    (name) =>
+      !(isPlannerName(name) || isTerminalName(name) || offered.includes(name)),
   )
 
   return [
@@ -153,6 +155,21 @@ export const parseActivities = (
     name: ADHOC_LIFECYCLE,
     description: 'a chain named on the command line',
     stages: stages.map((stage) => ({ ...stage, activities: [...stage.activities] })),
+  }
+  /*
+   * Position rules are the Lifecycle's own — `build,gh-pull-request` loads and
+   * `gh-pull-request,build` or `build+gh-pull-request` are refused with the
+   * same reason a Lifecycle would be: a chain typed at a prompt and a chain
+   * written in YAML are the same claim about where a terminal Activity runs.
+   *
+   * Only the placement rule, not every Lifecycle fault: a repeat is
+   * legitimate here (`build,review,build,review` is a fix loop written
+   * longhand) where it is a probable mistake in a declared Lifecycle, so
+   * `repeatedActivities` must not run against an ad-hoc chain.
+   */
+  const placement = misplacedTerminal(asLifecycle)
+  if (placement.length > 0) {
+    throw new Error(placement.map((fault) => fault.message).join('\n'))
   }
   const collisions = concurrencyFaults(asLifecycle, activities)
   if (collisions.length > 0) {

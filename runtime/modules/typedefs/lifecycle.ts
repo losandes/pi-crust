@@ -31,6 +31,7 @@
  */
 
 import { z } from 'zod'
+import { isTerminalName } from './activity'
 
 export const DEFAULT_LIFECYCLES_PATH =
   '.pi-crust/config/crust.lifecycles.yaml'
@@ -115,12 +116,58 @@ const repeatedActivities = (
     }))
   })
 
+/**
+ * A terminal Activity, named anywhere except the last entry of the last
+ * Stage — or named in a concurrent Stage at all.
+ *
+ * It is wired to execute after the whole chain has settled, outside the fold
+ * — so the only position that does not lie to a reader of the Lifecycle is
+ * the position it actually runs in.
+ */
+export const misplacedTerminal = (
+  lifecycle: TLifecycleConfig,
+): readonly TLifecycleFault[] =>
+  lifecycle.stages.flatMap((stage, stageAt) =>
+    stage.activities.flatMap((name, activityAt) => {
+      if (!isTerminalName(name)) {
+        return []
+      }
+      const lastStage = stageAt === lifecycle.stages.length - 1
+      const lastActivity = activityAt === stage.activities.length - 1
+      if (stage.strategy === 'concurrent') {
+        return [
+          {
+            lifecycle: lifecycle.name,
+            message:
+              `'${name}' is a terminal Activity and cannot run in a ` +
+              `concurrent stage ('${stage.name}') — it does not run alongside ` +
+              'anything. It must be the last entry of the last stage.',
+          },
+        ]
+      }
+      if (lastStage && lastActivity) {
+        return []
+      }
+      return [
+        {
+          lifecycle: lifecycle.name,
+          message:
+            `'${name}' is a terminal Activity and is named in stage ` +
+            `'${stage.name}'${lastActivity ? '' : ` (not its last entry)`} — ` +
+            'it may only be the last entry of the last stage, because that is ' +
+            'the position it executes in.',
+        },
+      ]
+    }),
+  )
+
 /** Every structural fault in a Lifecycle, in the order worth fixing them. */
 export const lifecycleFaults = (
   lifecycle: TLifecycleConfig,
 ): readonly TLifecycleFault[] => [
   ...duplicateStages(lifecycle),
   ...repeatedActivities(lifecycle),
+  ...misplacedTerminal(lifecycle),
 ]
 
 /**
@@ -147,6 +194,23 @@ export const activityOrder = (
   lifecycle: TLifecycleConfig,
 ): readonly string[] =>
   lifecycle.stages.flatMap((stage) => stage.activities)
+
+/** The terminal Activity a Lifecycle names, if any — there is at most one legal position. */
+export const terminalIn = (
+  stages: readonly TStage[],
+): string | undefined =>
+  stages.flatMap((stage) => stage.activities).find(isTerminalName)
+
+/** The Stages with any terminal Activity removed, dropping a Stage left empty. */
+export const withoutTerminal = (
+  stages: readonly TStage[],
+): readonly TStage[] =>
+  stages
+    .map((stage) => ({
+      ...stage,
+      activities: stage.activities.filter((name) => !isTerminalName(name)),
+    }))
+    .filter((stage) => stage.activities.length > 0)
 
 /** The Stage an Activity belongs to, or nothing when it is in none of them. */
 export const stageOf = (

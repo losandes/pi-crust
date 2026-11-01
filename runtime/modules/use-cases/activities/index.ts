@@ -11,7 +11,8 @@
  * developer asked for.
  */
 
-import { isPlannerName } from '../../typedefs/activity'
+import { isPlannerName, isTerminalName } from '../../typedefs/activity'
+import type { TTerminalConfig } from '../../typedefs/activity'
 import type { TPiCrustConfig } from '../../typedefs/config'
 import type { TActivity, TActivityOptions } from '../../typedefs/runnable-activity'
 import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
@@ -19,6 +20,8 @@ import type { TResolvedActivity } from '../activity-registry'
 import { resolveActivities, resolvedNamed } from '../activity-registry'
 import { agentActivity } from './agent-activity'
 import { plannerActivity } from './planner-activity'
+import type { TTerminalActivity } from './gh-pull-request'
+import { ghPullRequestActivity } from './gh-pull-request'
 
 export { agentActivity } from './agent-activity'
 export { plannerActivity } from './planner-activity'
@@ -36,8 +39,32 @@ export const unknownActivities = (
 ): readonly string[] =>
   names.filter(
     (name) =>
-      !isPlannerName(name) && resolvedNamed(registry, name) === undefined,
+      !(isPlannerName(name) || isTerminalName(name)) &&
+      resolvedNamed(registry, name) === undefined,
   )
+
+/**
+ * The terminal Activity a Lifecycle named, built and ready for `runTerminal`.
+ *
+ * It is never resolved through `runnableActivities` — nothing in the fold
+ * may ever hold one, which is exactly what `TTerminalActivity` (distinct from
+ * `TActivity`) exists to make a type error rather than a runtime surprise.
+ */
+export const terminalActivityFor = (
+  name: string,
+  cfg: TPiCrustConfig,
+  options: TActivityOptions,
+): TTerminalActivity => {
+  const config = cfg.terminal.find((one) => one.name === name)
+  if (config === undefined) {
+    throw new Error(
+      `terminal Activity '${name}' has no entry under terminal: in ` +
+        'crust.activities.yaml, so it has no prompts to run with',
+    )
+  }
+
+  return ghPullRequestActivity(config as TTerminalConfig, options)
+}
 
 /** The Activities a run may name, in the order the registry declares them. */
 export const offeredActivities = (
@@ -72,6 +99,13 @@ export const runnableActivities = (
       ...options,
       instance:
         names.slice(0, index).filter((seen) => seen === name).length + 1,
+    }
+    if (isTerminalName(name)) {
+      throw new Error(
+        `'${name}' is a terminal Activity — the engine runs it once the ` +
+          'chain has settled, after runReviseLoop and before finish. Nothing ' +
+          'in the fold resolves it.',
+      )
     }
     if (!isPlannerName(name)) {
       return agentActivity(resolvedNamed(registry, name) as TResolvedActivity, at)

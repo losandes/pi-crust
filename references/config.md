@@ -119,6 +119,20 @@ An Activity entry carries what the work IS as well as who performs it, because t
 
 Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
 
+### `terminal[]`
+
+A second closed set, beside the Planners: `gh-pull-request` is the only member. A terminal Activity runs once, after a run's revise loop has settled with an accepted result, outside the fold entirely — after `runReviseLoop` returns and before `finish`. A Lifecycle may only name it as the LAST entry of its LAST Stage, and never inside a `concurrent` Stage; naming it anywhere else is refused at load, with the reason. Configuration tunes `model`, `thinking`, `color`, `tools`, `writes` and `prompt_engineering`, exactly as it tunes a Planner — it carries no `output`, `gates`, `input`, `attempts` or `commit`, and cannot add a second terminal Activity. A name under `terminal:` that is not in the closed set, or a member with no entry at all, is refused at load.
+
+Each entry also carries `delivery`, the deterministic half's own settings — where it pushes and what it opens against:
+
+| Field             | Required | Meaning                                                                                                   |
+| ----------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `delivery.remote` | no       | The git remote it pushes to. Default `origin`.                                                                |
+| `delivery.base`   | no       | The branch it opens the pull request against. Default `main`. pi-crust refuses to push FROM this branch — it never creates one for you. |
+| `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                            |
+
+The agent half gets `read` only and no `write` or `bash`: every git and `gh` operation — pushing the branch, finding, creating or updating the pull request — is the harness's, the way `commitActivity` already performs every commit for a `commit: true` Activity. The agent composes a title and body from the draft the harness writes to `{context_handoff_dir}/pull_request.md` before it runs; when the agent call fails, or answers an empty title or body, the harness delivers that trace-generated draft instead and says so, rather than failing the run over a prose upgrade that did not land.
+
 ## Defaults merging
 
 `execute-agent.ts` merges each entry **over** `defaults`, key by key. An entry states only what differs; anything unset inherits. `validateAgents(cfg, REQUIRED_AGENTS)` then confirms every name a workflow declares exists, resolves to a usable coding agent + model, and has both prompt files present on disk. Any miss fails the run immediately — **no agent is ever spawned against a half-valid config.**

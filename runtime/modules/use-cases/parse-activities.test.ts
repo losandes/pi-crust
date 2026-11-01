@@ -222,3 +222,57 @@ test(
     ])
   },
 )
+
+test(
+  [
+    'given use-cases/parse-activities::parseActivities',
+    'when a terminal Activity ends the chain',
+    'it should load it as the last entry of the last stage',
+  ].join(', '),
+  () => {
+    // given
+    const given = 'build,gh-pull-request'
+
+    // when
+    const actual = parseActivities(given, cfg.activities)
+
+    // then
+    expect(actual.at(-1)?.activities.at(-1)).toEqual('gh-pull-request')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-activities::parseActivities',
+    'when a terminal Activity is named before the end of the chain',
+    'it should refuse',
+  ].join(', '),
+  () => {
+    // given
+    const given = 'gh-pull-request,build'
+
+    // when
+    const actual = () => parseActivities(given, cfg.activities)
+
+    // then
+    expect(actual).toThrow(/'gh-pull-request' is a terminal Activity/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-activities::parseActivities',
+    'when a terminal Activity is grouped concurrently with another',
+    'it should refuse, because it does not run alongside anything',
+  ].join(', '),
+  () => {
+    // given
+    const given = 'build+gh-pull-request'
+
+    // when
+    const actual = () => parseActivities(given, cfg.activities)
+
+    // then
+    expect(actual).toThrow(/'gh-pull-request' is a terminal Activity/)
+  },
+)

@@ -9,7 +9,12 @@
  */
 
 import type { TActivityConfig } from '../typedefs/activity'
-import { isPlannerName, PLANNER_NAMES } from '../typedefs/activity'
+import {
+  isPlannerName,
+  isTerminalName,
+  PLANNER_NAMES,
+  TERMINAL_NAMES,
+} from '../typedefs/activity'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
 import { ENVELOPE_NAMES, envelopeNamed } from '../typedefs/envelope'
 import type { TGate } from '../typedefs/gate'
@@ -66,8 +71,21 @@ export const activityFaults = (
           'under planners:, where a Lifecycle cannot name them',
       ]
     : []
+  /*
+   * A terminal Activity is not an Activity either, for the same reason: it is
+   * wired into the engine and runs after the chain settles, not somewhere a
+   * Lifecycle names it mid-chain.
+   */
+  const terminal = isTerminalName(activity.name)
+    ? [
+        `activity '${activity.name}': that is a terminal Activity, not an ` +
+          `Activity — the terminal Activities are ${TERMINAL_NAMES.join(', ')} ` +
+          'and are configured under terminal:, where a Lifecycle may only name ' +
+          'them last',
+      ]
+    : []
 
-  return [...planner, ...output, ...gates, ...input]
+  return [...planner, ...terminal, ...output, ...gates, ...input]
 }
 
 export const registryFaults = (

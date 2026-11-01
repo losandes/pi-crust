@@ -286,6 +286,13 @@ planners:
     prompt_engineering:
       system: prompt-engineering/triage/system.md
       user: prompt-engineering/triage/user.md
+terminal:
+  - name: gh-pull-request
+    purpose: Push the run's branch and open or update one GitHub pull request
+    writes: []
+    prompt_engineering:
+      system: prompt-engineering/gh-pull-request/system.md
+      user: prompt-engineering/gh-pull-request/user.md
 `
 
 test(
@@ -369,14 +376,18 @@ test(
     // given
     const path = stamped({
       'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': `${ACTIVITIES}
-  - name: strategist
-    purpose: Choose the chain, differently
-    writes: []
-    prompt_engineering:
-      system: s.md
-      user: u.md
-`,
+      'crust.activities.yaml': ACTIVITIES.replace(
+        'terminal:',
+        [
+          '  - name: strategist',
+          '    purpose: Choose the chain, differently',
+          '    writes: []',
+          '    prompt_engineering:',
+          '      system: s.md',
+          '      user: u.md',
+          'terminal:',
+        ].join('\n'),
+      ),
     })
 
     // when
@@ -444,6 +455,12 @@ test(
         '      system: s.md',
         '      user: u.md',
         '  - name: triage',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+        'terminal:',
+        '  - name: gh-pull-request',
         '    writes: []',
         '    prompt_engineering:',
         '      system: s.md',

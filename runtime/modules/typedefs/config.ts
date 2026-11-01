@@ -12,6 +12,7 @@ import {
   DEFAULT_MODEL,
   plannerConfigSchema,
   promptEngineeringSchema,
+  terminalConfigSchema,
 } from './activity'
 import { QUALITY_AREAS, QUALITY_OPERATIONS } from './quality'
 
@@ -266,5 +267,7 @@ export const crustConfigSchema = z.object({
   activities: z.array(activityConfigSchema).default([]),
   /** the closed set of Planners, tuned by configuration and never extended */
   planners: z.array(plannerConfigSchema).default([]),
+  /** the closed set of terminal Activities, tuned by configuration and never extended */
+  terminal: z.array(terminalConfigSchema).default([]),
 })
 export type TPiCrustConfig = Readonly<z.infer<typeof crustConfigSchema>>

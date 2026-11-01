@@ -55,7 +55,8 @@ const shippedConfig = (): TPiCrustConfig => {
   return crustConfigSchema.parse({
     activities: registry.activities,
     planners: registry.planners,
-    agents: [...registry.activities, ...registry.planners],
+    terminal: registry.terminal,
+    agents: [...registry.activities, ...registry.planners, ...registry.terminal],
   })
 }
 

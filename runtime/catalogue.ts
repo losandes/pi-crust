@@ -44,6 +44,7 @@ export type TCatalogue = Readonly<{
   lifecycles: readonly TEntry[]
   planners: readonly TEntry[]
   activities: readonly TEntry[]
+  terminal: readonly TEntry[]
 }>
 
 /**
@@ -59,6 +60,7 @@ export const renderCatalogue = (catalogue: TCatalogue): string => {
       ...catalogue.lifecycles,
       ...catalogue.planners,
       ...catalogue.activities,
+      ...catalogue.terminal,
     ].map((entry) => entry.name.length),
     4,
   )
@@ -93,6 +95,11 @@ export const renderCatalogue = (catalogue: TCatalogue): string => {
       `just crust ${RUN_RECIPE} "<prompt>" --activities a,b,c   (a+b runs at once)`,
       catalogue.activities,
     ),
+    ...section(
+      'terminal',
+      'named last in a Lifecycle; the engine runs it once the run has settled',
+      catalogue.terminal,
+    ),
     '',
   ].join('\n')
 }
@@ -123,6 +130,10 @@ export const catalogueOf = (configPath: string): TCatalogue => {
       detail: activity.hidden
         ? `${activity.purpose} (hidden from menus)`
         : activity.purpose,
+    })),
+    terminal: cfg.terminal.map((entry) => ({
+      name: entry.name,
+      detail: entry.purpose,
     })),
   }
 }

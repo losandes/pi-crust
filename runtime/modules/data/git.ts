@@ -325,6 +325,45 @@ export const diffCounts = (
 
 export const diffText = (base: string): string => git('diff', base)
 
+/** Does this remote exist, by name? */
+export const remoteExists = (remote: string, cwd?: string): boolean =>
+  run(['remote', 'get-url', remote], cwd).status === 0
+
+/**
+ * `<remote>/<base>` when it resolves, else `<base>` when it does, else ''.
+ *
+ * The remote-tracking ref is preferred: it is what the forge actually holds,
+ * and a local `<base>` can be stale — ahead of, behind, or simply never
+ * fetched. Falling back to the local ref keeps a repository with no remote
+ * usable for the commits-ahead check; an empty string means neither exists,
+ * which the caller reports as its own refusal rather than this throwing.
+ */
+export const upstreamBase = (remote: string, base: string, cwd?: string): string => {
+  const tracking = `refs/remotes/${remote}/${base}`
+  if (run(['rev-parse', '--verify', '--quiet', `${tracking}^{commit}`], cwd).status === 0) {
+    return tracking
+  }
+  return run(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], cwd).status === 0
+    ? base
+    : ''
+}
+
+/** How many commits `head` has that `baseRef` does not. */
+export const commitsAhead = (baseRef: string, head: string, cwd?: string): number => {
+  const count = gitOutput(['rev-list', '--count', `${baseRef}..${head}`], cwd).trim()
+  return /^\d+$/.test(count) ? Number(count) : 0
+}
+
+/**
+ * `git push --set-upstream <remote> <branch>`. Never forced — no `--force`,
+ * `-f` or `--force-with-lease` is ever constructed here or anywhere this
+ * feature pushes from. Throws git's own stderr; no reason of pi-crust's own
+ * is substituted for it.
+ */
+export const pushBranch = (remote: string, branch: string, cwd: string): void => {
+  gitAt(cwd, 'push', '--set-upstream', remote, branch)
+}
+
 /*
  * There is no `checkoutPath` here, and there must not be one.
  *
