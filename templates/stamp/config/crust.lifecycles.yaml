@@ -43,6 +43,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: discover
     description: >-
@@ -62,6 +65,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: ship
     description: >-
@@ -73,6 +79,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: bugfix
     description: >-
@@ -88,6 +97,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: de-risk
     description: >-

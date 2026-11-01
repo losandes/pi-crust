@@ -421,3 +421,37 @@ planners:
     tools:      # enough to size the work, not to do it
       - read
       - write
+
+# The terminal Activities: they run once, after a run's revise loop has
+# settled with an accepted result, outside the fold entirely — after
+# runReviseLoop and before finish. A CLOSED set, in code, exactly as the
+# Planners are above: configuration tunes who answers and where it delivers,
+# and cannot add a second one, because a terminal Activity is wired into the
+# engine. A Lifecycle may only name one as the LAST entry of its LAST stage;
+# anywhere else is refused at load.
+#
+# `delivery` is the deterministic half's own settings — where it pushes and
+# opens a pull request — and belongs to the entry rather than to
+# crust.config.yaml, because it describes what THIS Activity delivers rather
+# than how the run as a whole behaves.
+#
+#   remote   the git remote it pushes to (default origin)
+#   base     the branch it opens the pull request against (default main);
+#            also the one branch pi-crust refuses to push FROM, since it
+#            never creates a branch for you
+#   draft    open the pull request as a draft (default false)
+
+terminal:
+  - name: gh-pull-request
+    color: teal
+    purpose: Push the run's branch and open or update one GitHub pull request describing it.
+    prompt_engineering:
+      system: prompt-engineering/gh-pull-request/system.md
+      user: prompt-engineering/gh-pull-request/user.md
+    writes: []                  # read-only: the harness writes the body and runs every git/gh command
+    tools:                      # no bash, deliberately -- it composes prose and nothing else
+      - read
+    delivery:
+      remote: origin
+      base: main
+      draft: false
