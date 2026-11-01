@@ -491,6 +491,21 @@ There is no `steps` block any more. It held an `order` and a `hidden` list, and 
 
 When a chain needs a different order for one run, press `r` at the menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the selected item.
 
+## An Activity may answer to other names, resolved before anything downstream sees them
+
+An entry in `crust.activities.yaml` (or the gitignored local layer beside it) may declare `aliases: [...]`. A human naming the Activity by one of them — on `--activities`, or in a Lifecycle's `stages[].activities` — reaches the same Activity as naming it canonically.
+
+```yaml
+# crust.activities.local.yaml
+activities:
+  - name: build
+    aliases: [b]
+```
+
+Resolution happens at exactly those two boundaries, where a human types a name, and nowhere after them. The registry, the revise loop, the attempt ledger, an activity-run row, the trace, `--resume`, `just crust list` and `just crust activity runs` see and record the canonical name only — `build`, never `b`. A Planner may not be aliased: it is chosen rather than named in a chain, so there is nothing for an alias to resolve.
+
+An alias colliding with another Activity's name, a Planner's name, or another entry's alias is refused when the registry resolves, naming both colliding entries. There is no prefix or fuzzy matching: `gh-p` stays unknown unless an entry declares it, because a name whose meaning changes the next time an Activity is added would warn nobody.
+
 ## The trust dial has four behaviours, so it has four names
 
 ```text

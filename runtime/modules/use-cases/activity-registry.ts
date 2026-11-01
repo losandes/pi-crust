@@ -10,6 +10,7 @@
 
 import type { TActivityConfig } from '../typedefs/activity'
 import {
+  activityNamed,
   isPlannerName,
   isTerminalName,
   PLANNER_NAMES,
@@ -88,6 +89,56 @@ export const activityFaults = (
   return [...planner, ...terminal, ...output, ...gates, ...input]
 }
 
+/**
+ * Every alias collision: against another Activity's name, against a
+ * Planner's name, and against another entry's alias (or the entry's own,
+ * declared twice). Alias-vs-alias compares against entries declared EARLIER
+ * only, so one colliding pair produces one fault rather than two.
+ */
+const aliasFaults = (
+  activities: readonly TActivityConfig[],
+): readonly string[] =>
+  activities.flatMap((activity, index) => {
+    const earlier = activities.slice(0, index)
+
+    return activity.aliases.flatMap((alias, aliasIndex) => {
+      const namesActivity = activities.find((one) => one.name === alias)
+      if (namesActivity !== undefined) {
+        return [
+          `activity '${activity.name}': alias '${alias}' is the name of ` +
+            `activity '${namesActivity.name}' — a chain naming it could not ` +
+            'say which Activity it meant',
+        ]
+      }
+
+      if (isPlannerName(alias)) {
+        return [
+          `activity '${activity.name}': alias '${alias}' is a Planner — the ` +
+            `Planners are ${PLANNER_NAMES.join(', ')} and configuration cannot ` +
+            'make one nameable in a chain',
+        ]
+      }
+
+      const aliasedEarlier = earlier.find((one) =>
+        one.aliases.includes(alias),
+      )
+      if (aliasedEarlier !== undefined) {
+        return [
+          `activity '${activity.name}': alias '${alias}' is already an alias ` +
+            `of activity '${aliasedEarlier.name}' — one name cannot resolve to ` +
+            'two Activities',
+        ]
+      }
+
+      const declaredTwice = activity.aliases.indexOf(alias) !== aliasIndex
+      if (declaredTwice) {
+        return [`activity '${activity.name}': declares alias '${alias}' twice`]
+      }
+
+      return []
+    })
+  })
+
 export const registryFaults = (
   activities: readonly TActivityConfig[],
 ): readonly string[] => {
@@ -100,8 +151,27 @@ export const registryFaults = (
         'could not say which one it meant',
     )
 
-  return [...duplicates, ...activities.flatMap(activityFaults)]
+  return [
+    ...aliasFaults(activities),
+    ...duplicates,
+    ...activities.flatMap(activityFaults),
+  ]
 }
+
+/** An alias resolved to the Activity's own name; anything else, unchanged. */
+export const canonicalActivityName = (
+  activities: readonly TActivityConfig[],
+  name: string,
+): string =>
+  activityNamed(activities, name) === undefined
+    ? (activities.find((one) => one.aliases.includes(name))?.name ?? name)
+    : name
+
+export const canonicalActivityNames = (
+  activities: readonly TActivityConfig[],
+  names: readonly string[],
+): readonly string[] =>
+  names.map((name) => canonicalActivityName(activities, name))
 
 /**
  * The registry, runnable, or a refusal naming everything that is wrong.

@@ -144,3 +144,135 @@ test(
     )
   },
 )
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an alias is the name of another Activity',
+    'it should refuse, naming both the entry and the Activity it collides with',
+  ].join(', '),
+  () => {
+    // given
+    const given = [
+      activity({ name: 'gh-pull-request', aliases: ['build'] }),
+      activity({ name: 'build' }),
+    ]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'gh-pull-request': alias 'build' is the name of activity " +
+        "'build' — a chain naming it could not say which Activity it meant",
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an alias is a Planner name',
+    'it should refuse, naming both the entry and the Planner it collides with',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ name: 'gh-pull-request', aliases: ['triage'] })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'gh-pull-request': alias 'triage' is a Planner — the " +
+        'Planners are operator, triage and configuration cannot make one ' +
+        'nameable in a chain',
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an alias was already declared by an earlier entry',
+    'it should refuse, naming both the entry and the Activity that already has it',
+  ].join(', '),
+  () => {
+    // given
+    const given = [
+      activity({ name: 'publish', aliases: ['pr'] }),
+      activity({ name: 'gh-pull-request', aliases: ['pr'] }),
+    ]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'gh-pull-request': alias 'pr' is already an alias of " +
+        "activity 'publish' — one name cannot resolve to two Activities",
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when a registry declares aliases that collide with nothing',
+    'it should resolve, because a rule that refuses everything passes every refusal test on its own',
+  ].join(', '),
+  () => {
+    // given
+    const given = [
+      activity({ name: 'publish', aliases: ['pub'] }),
+      activity({ name: 'build' }),
+    ]
+
+    // when
+    const actual = () => resolveActivities(given)
+
+    // then
+    expect(actual).not.toThrow()
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an alias is equal to its own entry\'s name',
+    'it should refuse, because it is harmless to run and pointless to write',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ name: 'build', aliases: ['build'] })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'build': alias 'build' is the name of activity 'build' — a " +
+        'chain naming it could not say which Activity it meant',
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when one entry declares the same alias twice',
+    'it should refuse, naming the entry and the repeated alias',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ name: 'gh-pull-request', aliases: ['pr', 'pr'] })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'gh-pull-request': declares alias 'pr' twice",
+    )
+  },
+)

@@ -17,7 +17,11 @@ import type { TPiCrustConfig } from '../../typedefs/config'
 import type { TActivity, TActivityOptions } from '../../typedefs/runnable-activity'
 import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
 import type { TResolvedActivity } from '../activity-registry'
-import { resolveActivities, resolvedNamed } from '../activity-registry'
+import {
+  canonicalActivityNames,
+  resolveActivities,
+  resolvedNamed,
+} from '../activity-registry'
 import { agentActivity } from './agent-activity'
 import { plannerActivity } from './planner-activity'
 import type { TTerminalActivity } from './gh-pull-request'
@@ -37,7 +41,10 @@ export const unknownActivities = (
   names: readonly string[],
   registry: readonly TResolvedActivity[],
 ): readonly string[] =>
-  names.filter(
+  canonicalActivityNames(
+    registry.map((one) => one.config),
+    names,
+  ).filter(
     (name) =>
       !(isPlannerName(name) || isTerminalName(name)) &&
       resolvedNamed(registry, name) === undefined,
@@ -85,7 +92,8 @@ export const runnableActivities = (
   options: Readonly<Partial<TActivityOptions>> = {},
 ): readonly TActivity[] => {
   const registry = resolveActivities(cfg.activities)
-  const unknown = unknownActivities(names, registry)
+  const canonical = canonicalActivityNames(cfg.activities, names)
+  const unknown = unknownActivities(canonical, registry)
   if (unknown.length > 0) {
     throw new Error(
       `unknown activity(s): ${unknown.join(', ')} — this repository offers ` +
@@ -93,12 +101,12 @@ export const runnableActivities = (
     )
   }
 
-  return names.map((name, index) => {
+  return canonical.map((name, index) => {
     const at = {
       ...DEFAULT_ACTIVITY_OPTIONS,
       ...options,
       instance:
-        names.slice(0, index).filter((seen) => seen === name).length + 1,
+        canonical.slice(0, index).filter((seen) => seen === name).length + 1,
     }
     if (isTerminalName(name)) {
       throw new Error(

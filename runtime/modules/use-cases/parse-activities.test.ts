@@ -16,6 +16,7 @@ const cfg = crustConfigSchema.parse({
     { name: 'test', writes: ['*'] },
     { name: 'review', writes: ['{handoff}/review.md'] },
     { name: 'code-review', writes: ['{handoff}/code-review.md'] },
+    { name: 'gh-pull-request', writes: [], aliases: ['gh-pr'] },
   ].map((activity) => ({
     purpose: `Do the ${activity.name} work`,
     prompt_engineering: { system: 's.md', user: 'u.md' },
@@ -160,6 +161,45 @@ test(
     // then
     expect(actual).toThrow(/unknown activity\(s\): deploy/)
     expect(actual).toThrow(/code-review/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-activities::parseActivities',
+    'when --activities names an alias',
+    'it should produce a Stage whose activities and name are canonical',
+  ].join(', '),
+  () => {
+    // given
+    const given = 'plan,gh-pr'
+
+    // when
+    const actual = parseActivities(given, cfg.activities)
+
+    // then
+    expect(actual.flatMap((stage) => stage.activities)).toEqual([
+      'plan',
+      'gh-pull-request',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-activities::parseActivities',
+    'when a name is an undeclared prefix of a canonical name',
+    'it should remain unknown, because there is no prefix matching',
+  ].join(', '),
+  () => {
+    // given
+    const given = 'gh-p'
+
+    // when
+    const actual = () => parseActivities(given, cfg.activities)
+
+    // then
+    expect(actual).toThrow(/unknown activity\(s\): gh-p/)
   },
 )
 

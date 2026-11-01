@@ -26,6 +26,7 @@ import type { TActivityConfig } from '../typedefs/activity'
 import { isPlannerName, isTerminalName, PLANNER_NAMES } from '../typedefs/activity'
 import type { TLifecycleConfig, TStage } from '../typedefs/lifecycle'
 import { misplacedTerminal } from '../typedefs/lifecycle'
+import { canonicalActivityNames } from './activity-registry'
 import { concurrencyFaults } from './concurrency-faults'
 
 /** What a derived Stage is called when the developer named no Stage at all. */
@@ -135,7 +136,10 @@ export const parseActivities = (
   activities: readonly TActivityConfig[],
 ): readonly TStage[] => {
   const offered = activities.map((one) => one.name)
-  const groups = groupsOf(value ?? '')
+  const groups = groupsOf(value ?? '').map((group) => ({
+    ...group,
+    names: canonicalActivityNames(activities, group.names),
+  }))
   if (groups.length === 0) {
     throw new Error(
       '--activities is required: an ordered list, `,` between Stages and ' +

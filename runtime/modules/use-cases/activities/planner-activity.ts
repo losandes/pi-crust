@@ -36,6 +36,7 @@ export const plannerActivity = (
         input: 'upstream',
         attempts: DEFAULT_ATTEMPTS,
         commit: false,
+        aliases: [],
       },
       spec: operatorPlanOutput,
       gates: [stepsValid],

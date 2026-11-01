@@ -99,6 +99,22 @@ export const activityConfigSchema = z.object({
    * without changing what the team ships.
    */
   hidden: z.boolean().default(false),
+  /*
+   * Other names this Activity answers to, where a human types one.
+   *
+   * Resolved at exactly two boundaries — the `--activities` chain and a
+   * Lifecycle's `stages[].activities` — and nowhere after them: an
+   * activity-run row, a resume and the attempt budget all key on the
+   * Activity's name, and two names for one Activity inside one trace is
+   * corruption wearing the appearance of convenience.
+   *
+   * A preference rather than a permission, and on the entry rather than in a
+   * list elsewhere, so a personal shorthand can live in the gitignored local
+   * layer without the team inheriting it. There is no prefix matching: a name
+   * whose meaning changes the next time an Activity is added would warn
+   * nobody.
+   */
+  aliases: z.array(z.string()).default([]),
   // What this Activity may MODIFY in the repo, enforced in code after every
   // call (see modules/use-cases/enforce-permissions.ts). `tools` cannot
   // express this: `bash` runs anything and `write` reaches any path, so an
@@ -159,6 +175,7 @@ export const plannerConfigSchema = activityConfigSchema.omit({
   input: true,
   attempts: true,
   commit: true,
+  aliases: true,
 })
 export type TPlannerConfig = Readonly<z.infer<typeof plannerConfigSchema>>
 
@@ -313,15 +330,15 @@ const isPlainObject = (value: unknown): value is TMergeable =>
  * silently rewrites a list whose order means nothing.
  */
 const mergeInto = (base: TMergeable, local: TMergeable): TMergeable =>
-  Object.entries(local).reduce<TMergeable>(
-    (merged, [key, value]) => ({
-      ...merged,
-      [key]:
-        isPlainObject(value) && isPlainObject(merged[key])
-          ? mergeInto(merged[key], value)
-          : value,
-    }),
-    base,
+  Object.fromEntries(
+    [...new Set([...Object.keys(base), ...Object.keys(local)])].map((key) => [
+      key,
+      Object.hasOwn(local, key)
+        ? isPlainObject(local[key]) && isPlainObject(base[key])
+          ? mergeInto(base[key], local[key])
+          : local[key]
+        : base[key],
+    ]),
   )
 
 /**
