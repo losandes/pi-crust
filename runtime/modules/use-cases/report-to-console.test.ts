@@ -1,8 +1,9 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TEnvelopeBase } from '../typedefs/envelope'
@@ -15,8 +16,8 @@ import {
   PROMPT_BODY_LINES,
 } from './report-to-console'
 
-/** Asserts stay on the traced copy; this never touches the real terminal. */
-const silentWrite = (): void => undefined
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 /** A tracer that records every `message` the console emitted, as plain text. */
 const tracedMessages = (): Readonly<{
@@ -49,7 +50,7 @@ test(
   () => {
     // given
     const { tracer, messages } = tracedMessages()
-    const console_ = createConsole(tracer, 'aaaa1111', silentWrite)
+    const console_ = createConsole(tracer, 'aaaa1111')
 
     // when
     console_.sessionStarted('aaaa1111', 'tester', '/repo/_newstack', '/repo')
@@ -69,7 +70,7 @@ test(
   () => {
     // given — the ordinary, unnested case
     const { tracer, messages } = tracedMessages()
-    const console_ = createConsole(tracer, 'aaaa1111', silentWrite)
+    const console_ = createConsole(tracer, 'aaaa1111')
 
     // when
     console_.sessionStarted('aaaa1111', 'tester', '/repo', '/repo')
@@ -166,7 +167,7 @@ test(
     // when — the gate runs over a change the declared rule cannot reach,
     // then the run ends
     checks.check(builtEnvelope(['src/add.ts']), run, ['src/add.ts'])
-    const console_ = createConsole(tracer, run.runId, silentWrite)
+    const console_ = createConsole(tracer, run.runId)
     console_.sessionFinished(true, 0, 0, '/tmp/crust.db')
 
     // then — the end-of-run report names the uncovered path, in the same
@@ -188,7 +189,7 @@ test(
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.sessionStart('aaaa2222', 'tester', 'quality')
-    const console_ = createConsole(tracer, 'aaaa2222', silentWrite)
+    const console_ = createConsole(tracer, 'aaaa2222')
     tracer.activityRunUpsert({
       activity_run_id: 'aaaa2222_01_build',
       run_id: 'aaaa2222',
@@ -244,7 +245,7 @@ test(
   () => {
     // given
     const { tracer, messages } = tracedMessages()
-    const console_ = createConsole(tracer, 'aaaa1111', silentWrite)
+    const console_ = createConsole(tracer, 'aaaa1111')
     const prompt = 'say "hello" then run `rm -rf /`\nand stop'
 
     // when
@@ -264,7 +265,7 @@ test(
   () => {
     // given
     const { tracer, messages } = tracedMessages()
-    const console_ = createConsole(tracer, 'aaaa1111', silentWrite)
+    const console_ = createConsole(tracer, 'aaaa1111')
     const line = 'x'.repeat(100)
     const prompt = Array.from({ length: 60 }, () => line).join('\n')
     expect(prompt.split('\n').length).toBeGreaterThan(PROMPT_BODY_LINES)
@@ -290,7 +291,7 @@ test(
   () => {
     // given
     const { tracer, messages } = tracedMessages()
-    const console_ = createConsole(tracer, 'aaaa1111', silentWrite)
+    const console_ = createConsole(tracer, 'aaaa1111')
 
     // when
     expect(() => console_.promptReceived('')).not.toThrow()

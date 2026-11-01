@@ -1,13 +1,17 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import { createRun } from './create-run'
 import { skipIfDone } from './resume'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 const runWith = (completed: readonly string[]): TRun => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-resume-'))
@@ -21,7 +25,6 @@ const runWith = (completed: readonly string[]): TRun => {
     runId: 'aaaa1111',
     tracer,
     engineer: 'tester',
-    write: () => undefined,
     resume: new Set(completed),
   })
 }

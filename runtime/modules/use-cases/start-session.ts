@@ -75,12 +75,6 @@ export type TSessionOptions = Readonly<{
   handoff?: string | undefined
   /** the validated --name value */
   name?: string | undefined
-  /**
-   * Where `run.console` prints. Defaults to the real terminal writer in
-   * production; tests supply a no-op or recording function so exercising
-   * `startSession` never writes to the real `process.stdout`.
-   */
-  write?: (text: string) => void
 }>
 
 /**
@@ -244,7 +238,6 @@ export const startSession = (
     stream: options.stream ?? false,
     trust: options.trust ?? TRUST_DEFAULT,
     handoffDir,
-    ...(options.write === undefined ? {} : { write: options.write }),
   })
   if (recordedHandoffDir(sessionDir) === undefined) {
     writeHandoffPointer(sessionDir, handoffDir)

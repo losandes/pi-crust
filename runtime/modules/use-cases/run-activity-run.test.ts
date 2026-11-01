@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite'
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import {
   chmodSync,
   mkdtempSync,
@@ -10,11 +10,15 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TRun } from '../typedefs/run'
 import { createRun } from './create-run'
 import { counts, finish, runActivityRun } from './run-activity-run'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 const scratchRun = (): Readonly<{ run: TRun; dbPath: string }> => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-run-activityRun-test-'))
@@ -30,13 +34,7 @@ const scratchRun = (): Readonly<{ run: TRun; dbPath: string }> => {
   )
   tracer.sessionStart('test0001', 'tester', 'quality')
   return {
-    run: createRun({
-      cfg,
-      runId: 'test0001',
-      tracer,
-      engineer: 'tester',
-      write: () => undefined,
-    }),
+    run: createRun({ cfg, runId: 'test0001', tracer, engineer: 'tester' }),
     dbPath,
   }
 }
@@ -398,7 +396,6 @@ test(
       runId: 'test0002',
       tracer: firstTracer,
       engineer: 'tester',
-      write: () => undefined,
     })
     await runActivityRun(firstRun)(
       activityRunParams({
@@ -421,7 +418,6 @@ test(
       runId: 'test0002',
       tracer: secondTracer,
       engineer: 'tester',
-      write: () => undefined,
     })
     expect(secondRun.activityRuns()).toEqual([])
     const actual = finish(secondRun)

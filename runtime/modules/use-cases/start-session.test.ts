@@ -1,6 +1,10 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { basename } from 'node:path'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { sessionLifecycle } from './start-session'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 /** What the fallback resolves to in whatever process is running the suite. */
 const scriptName = (): string =>
@@ -126,7 +130,7 @@ test(
     const cfg = scratchConfig()
 
     // when
-    const run = startSession(cfg, 'a1b2c3d4', { write: () => undefined })
+    const run = startSession(cfg, 'a1b2c3d4')
 
     // then
     const expected = defaultHandoffDir(cfg.defaults.data_dir, 'a1b2c3d4')
@@ -149,10 +153,7 @@ test(
     const cfg = scratchConfig()
 
     // when
-    const run = startSession(cfg, 'a1b2c3d4', {
-      handoff: 'specs/{session_id}',
-      write: () => undefined,
-    })
+    const run = startSession(cfg, 'a1b2c3d4', { handoff: 'specs/{session_id}' })
 
     // then
     const expected = resolve(repoRoot(), 'specs', 'a1b2c3d4')
@@ -175,7 +176,7 @@ test(
   () => {
     // given — a run that started, recorded a pointer, then stopped for a gate
     const cfg = scratchConfig()
-    const first = startSession(cfg, 'a1b2c3d4', { write: () => undefined })
+    const first = startSession(cfg, 'a1b2c3d4')
     first.tracer.sessionWaiting('a1b2c3d4')
     first.tracer.close()
 
@@ -184,7 +185,6 @@ test(
       startSession(cfg, 'a1b2c3d4', {
         resume: true,
         handoff: 'specs/{session_id}',
-        write: () => undefined,
       }),
     ).toThrow(/already recorded/)
   },
