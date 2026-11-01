@@ -235,3 +235,44 @@ test(
     expect(actual).not.toThrow()
   },
 )
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an alias is equal to its own entry\'s name',
+    'it should refuse, because it is harmless to run and pointless to write',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ name: 'build', aliases: ['build'] })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'build': alias 'build' is the name of activity 'build' — a " +
+        'chain naming it could not say which Activity it meant',
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when one entry declares the same alias twice',
+    'it should refuse, naming the entry and the repeated alias',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ name: 'gh-pull-request', aliases: ['pr', 'pr'] })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual).toContain(
+      "activity 'gh-pull-request': declares alias 'pr' twice",
+    )
+  },
+)
