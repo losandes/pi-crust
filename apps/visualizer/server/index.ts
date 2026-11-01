@@ -172,6 +172,12 @@ function intQuery(req: Request, key: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/** `"1"` or `"true"` only — anything absent or else preserves today's behaviour. */
+function boolQuery(req: Request, key: string): boolean {
+  const raw = new URL(req.url).searchParams.get(key);
+  return raw === "1" || raw === "true";
+}
+
 /**
  * Every file in a run's handoff directory, with the heading it opens with.
  *
@@ -314,13 +320,18 @@ const server = Bun.serve({
     "/api/sessions": safely((req) => {
       const label = workspaceQuery(req);
       const limit = intQuery(req, "limit", 200);
+      const includeArchived = boolQuery(req, "include_archived");
       // A named workspace narrows the list; absent means every tree, which is
       // the whole reason this endpoint changed.
       const named = label === undefined ? undefined : registry.byLabel(label);
       if (label !== undefined && named === undefined) {
         return notFound(`no workspace ${label}`);
       }
-      return json(named === undefined ? registry.sessions(limit) : named.sessions(limit));
+      return json(
+        named === undefined
+          ? registry.sessions(limit, includeArchived)
+          : named.sessions(limit, includeArchived),
+      );
     }),
 
     "/api/sessions/:run_id": safely((req) => {

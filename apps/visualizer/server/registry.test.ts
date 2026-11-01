@@ -214,5 +214,28 @@ test(
     expect(actual[0]?.root).toEqual(carriedRoot);
     expect(actual[0]?.root).not.toEqual(workspaceRootOf(pooled.dbPath));
     registry.close();
-  },
-);
+  })
+
+test(
+  [
+    "given server/registry::WorkspaceRegistry.sessions",
+    "when a row is archived",
+    "it should exclude it by default and include it when include_archived is asked for",
+  ].join(", "),
+  () => {
+    // given
+    const workspace = tree("archival", [["gggg1111", "2026-10-06T09:00:00Z"]]);
+    const db = new Database(workspace.dbPath);
+    db.run("UPDATE sessions SET archived = 1 WHERE run_id = ?", ["gggg1111"]);
+    db.close();
+    const registry = new WorkspaceRegistry([workspace]);
+
+    // when
+    const defaultView = registry.sessions();
+    const withArchived = registry.sessions(200, true);
+
+    // then
+    expect(defaultView.map((session) => session.run_id)).toEqual([]);
+    expect(withArchived.map((session) => session.run_id)).toEqual(["gggg1111"]);
+    registry.close();
+  })
