@@ -51,6 +51,14 @@ Run these from the repository root before claiming anything works:
 bun scripts/typecheck-harness.ts
 ```
 
+Test output is the runner's and nothing else. bun writes its own lines to stderr and exactly one banner line to stdout, so anything else on stdout came from the code under test — and a suite that prints CLI banners hides the one failure a reader opened the log for:
+
+```sh
+test "$(cd runtime && bun test 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')" = 0
+```
+
+A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/modules/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
+
 `runtime/tsconfig.json` excludes `harness-engineering/`, so the first line does not check it. The third does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one.
 
 `apps/visualizer`'s suite also includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing `bun test` — a skipped check, not a passed one. Run `bunx playwright install chromium` to make it run for real.

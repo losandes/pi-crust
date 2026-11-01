@@ -1,8 +1,9 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TEnvelopeBase } from '../typedefs/envelope'
@@ -14,6 +15,9 @@ import {
   PROMPT_BODY_CHARS,
   PROMPT_BODY_LINES,
 } from './report-to-console'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 /** A tracer that records every `message` the console emitted, as plain text. */
 const tracedMessages = (): Readonly<{

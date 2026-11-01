@@ -1,9 +1,10 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
 import { EXIT } from '../typedefs/run-state'
@@ -16,6 +17,9 @@ import { createRun } from './create-run'
 import { observedPayload, PATHS_TOUCHED } from './observed-paths'
 import { finish } from './run-activity-run'
 import { runUnits } from './run-activities'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 /** Where this run's events land, so a test can read what it recorded. */
 const EVENTS = new WeakMap<object, string>()

@@ -20,7 +20,11 @@ import { join } from 'node:path'
 const CRUST_JUST = join(import.meta.dir, 'crust.just')
 
 const git = (cwd: string, ...args: readonly string[]): string =>
-  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim()
 
 const justEvaluate = (
   cwd: string,
@@ -34,7 +38,12 @@ const justEvaluate = (
     const stdout = execFileSync(
       'just',
       ['--working-directory', cwd, '--justfile', CRUST_JUST, '--evaluate', variable],
-      { cwd, encoding: 'utf8', env: { ...process.env, ...env } },
+      {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, ...env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
     )
     return { stdout: stdout.trim(), status: 0 }
   } catch (error) {
@@ -53,7 +62,12 @@ const justRecipe = (
     const stdout = execFileSync(
       'just',
       ['--working-directory', cwd, '--justfile', CRUST_JUST, recipe],
-      { cwd, encoding: 'utf8', env: { ...process.env, ...env } },
+      {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, ...env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
     )
     return { stdout: stdout.trim(), stderr: '', status: 0 }
   } catch (error) {

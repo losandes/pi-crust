@@ -1,6 +1,10 @@
-import { expect, spyOn, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { restoreTerminal, silenceTerminal, terminalOutput } from '../testing/terminal-capture'
 import type { TTracer } from '../typedefs/trace'
 import { createConsole, PROMPT_BODY_CHARS, PROMPT_BODY_LINES } from './report-to-console'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 /*
  * Independent, additional coverage for
@@ -45,24 +49,6 @@ const tracedMessages = (): Readonly<{
   return { tracer, messages }
 }
 
-/** Captures every chunk written to `process.stdout.write` during `run`. */
-const terminalOutputOf = (run: () => void): string => {
-  const chunks: string[] = []
-  const write = spyOn(process.stdout, 'write').mockImplementation(
-    (chunk: unknown): boolean => {
-      // biome-ignore lint/plugin/no-array-mutation: recording what was written is the test
-      chunks.push(String(chunk))
-      return true
-    },
-  )
-  try {
-    run()
-  } finally {
-    write.mockRestore()
-  }
-  return chunks.join('')
-}
-
 test(
   [
     'given use-cases/report-to-console::createConsole',
@@ -79,7 +65,8 @@ test(
     expect(prompt.length).toBeGreaterThan(PROMPT_BODY_CHARS)
 
     // when
-    const terminal = terminalOutputOf(() => console_.promptReceived(prompt))
+    console_.promptReceived(prompt)
+    const terminal = terminalOutput()
 
     // then — the terminal never receives the whole prompt as one substring
     expect(terminal.includes(prompt)).toBe(false)
@@ -105,7 +92,8 @@ test(
     const prompt = 'fix the login bug\nand add a test for it'
 
     // when
-    const terminal = terminalOutputOf(() => console_.promptReceived(prompt))
+    console_.promptReceived(prompt)
+    const terminal = terminalOutput()
 
     // then — short enough that nothing is cut, so the terminal shows it all
     expect(terminal).toContain('fix the login bug')
@@ -128,7 +116,8 @@ test(
     const prompt = 'say "hello" then run `rm -rf /`'
 
     // when
-    const terminal = terminalOutputOf(() => console_.promptReceived(prompt))
+    console_.promptReceived(prompt)
+    const terminal = terminalOutput()
 
     // then
     expect(terminal).toContain(prompt)
@@ -147,7 +136,8 @@ test(
     const console_ = createConsole(tracer, 'aaaa1111')
 
     // when
-    const terminal = terminalOutputOf(() => console_.promptReceived(''))
+    console_.promptReceived('')
+    const terminal = terminalOutput()
 
     // then
     expect(terminal).toContain('0 chars')

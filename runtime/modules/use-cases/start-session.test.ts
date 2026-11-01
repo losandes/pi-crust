@@ -1,6 +1,10 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { basename } from 'node:path'
+import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { sessionLifecycle } from './start-session'
+
+beforeEach(silenceTerminal)
+afterEach(restoreTerminal)
 
 /** What the fallback resolves to in whatever process is running the suite. */
 const scriptName = (): string =>
