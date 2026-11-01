@@ -162,9 +162,72 @@ export const plannerConfigSchema = activityConfigSchema.omit({
 })
 export type TPlannerConfig = Readonly<z.infer<typeof plannerConfigSchema>>
 
+/**
+ * The terminal Activities: they run after the chain has settled, and act on
+ * the outside world with the run's actual verdict in hand.
+ *
+ * A CLOSED set, in code, exactly as the Planners are. Configuration tunes who
+ * answers and where it delivers; it cannot add one, because a terminal
+ * Activity is wired into the engine. The forge is in the name deliberately: a
+ * GitLab merge request is a different Activity, not a flag on this one.
+ */
+export const TERMINAL_NAMES = ['gh-pull-request'] as const
+export type TTerminalName = (typeof TERMINAL_NAMES)[number]
+
+export const isTerminalName = (name: string): name is TTerminalName =>
+  (TERMINAL_NAMES as readonly string[]).includes(name)
+
+/** Where the deterministic half delivers. It belongs to the entry, not to the run. */
+export const deliverySchema = z.object({
+  remote: z.string().default('origin'),
+  base: z.string().default('main'),
+  draft: z.boolean().default(false),
+})
+export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
+
+/**
+ * A terminal entry's config: a Planner's shape, plus where it delivers.
+ *
+ * No `output`, `gates`, `input`, `attempts` or `commit` — same reasoning as
+ * `plannerConfigSchema`: a terminal Activity's work configuration is the
+ * engine's, not a team's.
+ */
+export const terminalConfigSchema = plannerConfigSchema.extend({
+  delivery: deliverySchema.default({ remote: 'origin', base: 'main', draft: false }),
+})
+export type TTerminalConfig = Readonly<z.infer<typeof terminalConfigSchema>>
+
+/**
+ * Every Terminal Activity is configured, and nothing else is — in
+ * `plannerFaults`'s voice, for the same reason.
+ */
+export const terminalFaults = (
+  terminal: readonly Readonly<{ name: string }>[],
+): readonly string[] => {
+  const named = terminal.map((one) => one.name)
+  const missing = TERMINAL_NAMES.filter((one) => !named.includes(one))
+  const unknown = named.filter((one) => !isTerminalName(one))
+
+  return [
+    ...missing.map(
+      (one) =>
+        `terminal Activity '${one}' has no entry under terminal: — the ` +
+        `terminal Activities are ${TERMINAL_NAMES.join(', ')}, and every ` +
+        'one of them must be configured',
+    ),
+    ...unknown.map(
+      (one) =>
+        `'${one}' is under terminal: and is not a terminal Activity — the ` +
+        `terminal Activities are ${TERMINAL_NAMES.join(', ')}, and ` +
+        'configuration cannot add one. Add it under activities: instead.',
+    ),
+  ]
+}
+
 export const activitiesFileSchema = z.object({
   activities: z.array(activityConfigSchema).default([]),
   planners: z.array(plannerConfigSchema).default([]),
+  terminal: z.array(terminalConfigSchema).default([]),
 })
 export type TActivitiesFile = Readonly<z.infer<typeof activitiesFileSchema>>
 
@@ -209,6 +272,7 @@ export const plannerFaults = (
 export const activityPatchFileSchema = z.object({
   activities: z.array(z.record(z.string(), z.unknown())).default([]),
   planners: z.array(z.record(z.string(), z.unknown())).default([]),
+  terminal: z.array(z.record(z.string(), z.unknown())).default([]),
 })
 
 /** Look an Activity up by name. Absent means the registry does not have it. */

@@ -10,6 +10,7 @@ import {
   activityPatchFileSchema,
   mergeActivities,
   plannerFaults,
+  terminalFaults,
 } from '../typedefs/activity'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema, DEFAULT_CONFIG_PATH } from '../typedefs/config'
@@ -62,6 +63,7 @@ export const resolveConfig = (document: unknown): TPiCrustConfig => {
     agents: inherit(raw.agents),
     activities: inherit(raw.activities),
     planners: inherit(raw.planners),
+    terminal: inherit(raw.terminal),
   }
   return crustConfigSchema.parse(merged)
 }
@@ -96,9 +98,10 @@ export type TLoadedConfig = Readonly<{
 type TRegistryFile = Readonly<{
   activities: readonly unknown[]
   planners: readonly unknown[]
+  terminal: readonly unknown[]
 }>
 
-const EMPTY_REGISTRY: TRegistryFile = { activities: [], planners: [] }
+const EMPTY_REGISTRY: TRegistryFile = { activities: [], planners: [], terminal: [] }
 
 /**
  * The registry file as WRITTEN, having been checked.
@@ -121,6 +124,7 @@ const checkedRegistry = (path: string): TRegistryFile => {
   return {
     activities: Array.isArray(raw.activities) ? raw.activities : [],
     planners: Array.isArray(raw.planners) ? raw.planners : [],
+    terminal: Array.isArray(raw.terminal) ? raw.terminal : [],
   }
 }
 
@@ -152,6 +156,11 @@ const activitiesBeside = (configPath: string): TRegistryFile => {
     planners: mergeActivities(
       base.planners as unknown as readonly Record<string, unknown>[],
       local.planners,
+    ),
+    /** Same rule, same reason, for the terminal Activities. */
+    terminal: mergeActivities(
+      base.terminal as unknown as readonly Record<string, unknown>[],
+      local.terminal,
     ),
   }
 }
@@ -206,12 +215,24 @@ const assembleBaseDocument = (path: string): unknown => {
       `the Planner configuration cannot run:\n- ${faults.join('\n- ')}`,
     )
   }
+  const terminalFaultList = terminalFaults(
+    registry.terminal as readonly Readonly<{ name: string }>[],
+  )
+  if (registry.activities.length > 0 && terminalFaultList.length > 0) {
+    throw new Error(
+      `the terminal Activity configuration cannot run:\n- ${terminalFaultList.join('\n- ')}`,
+    )
+  }
   /*
-   * The roster is the two lists together, because an Activity IS an agent.
+   * The roster is the three lists together, because an Activity IS an agent.
    * `agents` keeps its name and its shape so that resolving an owner,
    * enforcing a writes boundary and rendering a prompt stay one code path.
    */
-  const roster = [...registry.activities, ...registry.planners]
+  const roster = [
+    ...registry.activities,
+    ...registry.planners,
+    ...registry.terminal,
+  ]
   const withAgents =
     roster.length === 0
       ? document
@@ -220,6 +241,7 @@ const assembleBaseDocument = (path: string): unknown => {
           agents: roster,
           activities: registry.activities,
           planners: registry.planners,
+          terminal: registry.terminal,
         }
   return Object.keys(observability).length === 0
     ? withAgents

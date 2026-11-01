@@ -389,3 +389,79 @@ test(
     expect(actual).toBeUndefined()
   },
 )
+
+test(
+  [
+    'given typedefs/lifecycle::lifecycleFaults',
+    'when a terminal Activity is the last entry of the last stage',
+    'it should accept the lifecycle',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: deliver
+    activities: [build]
+  - name: open
+    activities: [code-review, gh-pull-request]
+`)
+
+    // when
+    const actual = lifecycleFaults(given)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::lifecycleFaults',
+    'when a terminal Activity is named mid-chain',
+    'it should refuse, naming the Activity and where it must go',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: open
+    activities: [gh-pull-request, build]
+`)
+
+    // when
+    const actual = lifecycleFaults(given)
+
+    // then
+    expect(actual.map((one) => one.message).join('\n')).toMatch(
+      /'gh-pull-request' is a terminal Activity.*last entry of the last stage/,
+    )
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::lifecycleFaults',
+    "when a terminal Activity is the last entry of a concurrent stage",
+    'it should refuse, because it does not run alongside anything',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: open
+    strategy: concurrent
+    activities: [code-review, gh-pull-request]
+`)
+
+    // when
+    const actual = lifecycleFaults(given)
+
+    // then
+    expect(actual.map((one) => one.message).join('\n')).toMatch(
+      /cannot run in a concurrent stage/,
+    )
+  },
+)

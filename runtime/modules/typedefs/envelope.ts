@@ -679,6 +679,23 @@ export type TChangesOutput = Readonly<z.infer<typeof changesOutputSchema>>
 export const changesOutput = envelopeSpec('ChangesOutput', changesOutputSchema)
 
 /**
+ * The terminal Activity's agent half: title and body for the pull request the
+ * harness opens. The harness performs every git and `gh` operation; the
+ * agent only composes prose.
+ */
+export const pullRequestOutputSchema = contextEnvelopeSchema.extend({
+  /** at most 72 characters, naming the outcome rather than the Activity */
+  title: z.string().default(''),
+  /** the PR description, markdown, without the attribution block */
+  body: z.string().default(''),
+})
+export type TPullRequestOutput = Readonly<z.infer<typeof pullRequestOutputSchema>>
+export const pullRequestOutput = envelopeSpec(
+  'PullRequestOutput',
+  pullRequestOutputSchema,
+)
+
+/**
  * Every envelope spec an Activity may name, by the name it is named by.
  *
  * Published rather than discovered: `crust.activities.yaml` says
@@ -705,6 +722,7 @@ export const ENVELOPE_CATALOGUE: Readonly<
   designOutput,
   changesOutput,
   ghIssueOutput,
+  pullRequestOutput,
 } as unknown as Readonly<Record<string, TEnvelopeSpec<TEnvelopeBase>>>
 
 export const ENVELOPE_NAMES: readonly string[] = Object.keys(ENVELOPE_CATALOGUE)

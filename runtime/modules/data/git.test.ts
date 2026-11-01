@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commitPaths } from './git'
+import { commitPaths, commitsAhead, pushBranch, remoteExists, upstreamBase } from './git'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -162,5 +162,137 @@ test(
     // then
     expect(actual.sha).not.toEqual('')
     expect(actual.paths).toEqual(['above-workspace.txt'])
+  },
+)
+
+/** A repo with a bare clone registered as `origin`, and a feature branch ahead of main. */
+const aRepoWithRemote = (): Readonly<{ dir: string; bare: string }> => {
+  const dir = aRepo()
+  const bare = mkdtempSync(join(tmpdir(), 'crust-git-bare-'))
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare])
+  git(dir, 'remote', 'add', 'origin', bare)
+  git(dir, 'push', '-q', 'origin', 'main')
+
+  return { dir, bare }
+}
+
+test(
+  [
+    'given data/git::remoteExists',
+    'when the remote was registered',
+    'it should say so',
+  ].join(', '),
+  () => {
+    // given
+    const { dir } = aRepoWithRemote()
+
+    // when / then
+    expect(remoteExists('origin', dir)).toBe(true)
+    expect(remoteExists('upstream', dir)).toBe(false)
+  },
+)
+
+test(
+  [
+    'given data/git::upstreamBase',
+    'when the remote-tracking ref exists',
+    'it should resolve refs/remotes/<remote>/<base>',
+  ].join(', '),
+  () => {
+    // given
+    const { dir } = aRepoWithRemote()
+    git(dir, 'fetch', '-q', 'origin')
+
+    // when
+    const actual = upstreamBase('origin', 'main', dir)
+
+    // then
+    expect(actual).toEqual('refs/remotes/origin/main')
+  },
+)
+
+test(
+  [
+    'given data/git::upstreamBase',
+    'when neither the remote-tracking ref nor the local branch resolves',
+    'it should answer with an empty string',
+  ].join(', '),
+  () => {
+    // given
+    const { dir } = aRepoWithRemote()
+
+    // when
+    const actual = upstreamBase('origin', 'does-not-exist', dir)
+
+    // then
+    expect(actual).toEqual('')
+  },
+)
+
+test(
+  [
+    'given data/git::commitsAhead',
+    'when the branch has commits the base does not',
+    'it should count them',
+  ].join(', '),
+  () => {
+    // given
+    const { dir } = aRepoWithRemote()
+    git(dir, 'checkout', '-qb', 'feature')
+    writeFileSync(join(dir, 'new.txt'), 'content\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-qm', 'one commit ahead')
+
+    // when
+    const actual = commitsAhead('main', 'feature', dir)
+
+    // then
+    expect(actual).toEqual(1)
+  },
+)
+
+test(
+  [
+    'given data/git::commitsAhead',
+    'when the branch equals the base',
+    'it should answer zero',
+  ].join(', '),
+  () => {
+    // given
+    const { dir } = aRepoWithRemote()
+    git(dir, 'checkout', '-qb', 'feature')
+
+    // when
+    const actual = commitsAhead('main', 'feature', dir)
+
+    // then
+    expect(actual).toEqual(0)
+  },
+)
+
+test(
+  [
+    'given data/git::pushBranch',
+    'when pushing a branch ahead of the remote',
+    'it should land on the remote with --set-upstream and no --force',
+  ].join(', '),
+  () => {
+    // given
+    const { dir, bare } = aRepoWithRemote()
+    git(dir, 'checkout', '-qb', 'feature')
+    writeFileSync(join(dir, 'new.txt'), 'content\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-qm', 'one commit ahead')
+
+    // when
+    pushBranch('origin', 'feature', dir)
+
+    // then
+    const onRemote = execFileSync(
+      'git',
+      ['branch', '--list', 'feature'],
+      { cwd: bare, encoding: 'utf8' },
+    )
+    expect(onRemote).toContain('feature')
   },
 )

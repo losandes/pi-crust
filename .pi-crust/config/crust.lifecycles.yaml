@@ -41,6 +41,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: analyze
     description: >-
@@ -71,6 +74,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: ship
     description: >-
@@ -82,6 +88,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: bugfix
     description: >-
@@ -97,6 +106,9 @@ lifecycles:
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: de-risk
     description: >-
@@ -109,6 +121,9 @@ lifecycles:
       - name: prove
         strategy: serial
         activities: [plan, build]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   # Named `gh-triage`, not `triage`: the latter is already the name of both
   # a Planner and its `just crust triage` recipe, and

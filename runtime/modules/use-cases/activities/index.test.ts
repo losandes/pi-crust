@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { crustConfigSchema } from '../../typedefs/config'
 import type { TPiCrustConfig } from '../../typedefs/config'
 import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
-import { requiredAgents, runnableActivities } from './index'
+import { requiredAgents, runnableActivities, terminalActivityFor } from './index'
 
 const prompts = { system: 'p/system.md', user: 'p/user.md' }
 
@@ -162,6 +162,40 @@ test(
   () => {
     // given, when, then
     expect(DEFAULT_ACTIVITY_OPTIONS.base).toEqual('')
+  },
+)
+
+test(
+  [
+    'given use-cases/activities::runnableActivities',
+    'when a terminal Activity is named',
+    'it should throw rather than resolve it, because nothing in the fold may hold one',
+  ].join(', '),
+  () => {
+    // given
+    const given = aConfig([anActivity('build', { output: 'buildOutput' })])
+
+    // when, then
+    expect(() => runnableActivities(['build', 'gh-pull-request'], given)).toThrow(
+      /'gh-pull-request' is a terminal Activity.*runs it once the/,
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activities::terminalActivityFor',
+    'when the Lifecycle names a terminal Activity with no entry under terminal:',
+    'it should throw, naming the file the entry belongs in',
+  ].join(', '),
+  () => {
+    // given
+    const given = aConfig([anActivity('build', { output: 'buildOutput' })])
+
+    // when, then
+    expect(() =>
+      terminalActivityFor('gh-pull-request', given, DEFAULT_ACTIVITY_OPTIONS),
+    ).toThrow(/'gh-pull-request' has no entry under terminal:.*crust\.activities\.yaml/)
   },
 )
 

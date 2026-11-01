@@ -19,6 +19,7 @@
 import { runLink, visualizerIsUp } from '../data/visualizer'
 import { isRepo, rev, shortSha } from '../data/git'
 import type { TActivityContext, TActivityOptions } from '../typedefs/runnable-activity'
+import { DEFAULT_ACTIVITY_OPTIONS } from '../typedefs/runnable-activity'
 import type { TAttemptLedger } from './attempts'
 import type { TPiCrustConfig } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
@@ -38,6 +39,7 @@ import { selfAnsweredIn } from './human-gate'
 import { counts, finish, finishWaiting } from './run-activity-run'
 import type { TWaiting } from './run-activities'
 import type { TStage } from '../typedefs/lifecycle'
+import { terminalIn, withoutTerminal } from '../typedefs/lifecycle'
 import { plannedNames, unitsFrom } from './plan-units'
 import { recordRequest, runActivities, runUnits } from './run-activities'
 import { chainNote, plannedChain } from './operator-plan'
@@ -47,8 +49,13 @@ import {
   trustLevel,
 } from '../typedefs/trust'
 import { startSession } from './start-session'
-import { requiredAgents, runnableActivities } from './activities'
+import {
+  requiredAgents,
+  runnableActivities,
+  terminalActivityFor,
+} from './activities'
 import { validateAgents } from './validate-agents'
+import { runTerminal } from './run-terminal'
 
 export const NOT_ACCEPTED =
   'a activity did not meet its own criterion — a check failed, or a review was ' +
@@ -166,7 +173,15 @@ export const runWorkflow = async (
   args: TWorkflowArgs,
   plan: readonly TStage[],
 ): Promise<number> => {
-  const names = plannedNames(plan)
+  /*
+   * A terminal Activity never enters the fold — it is wired to run once the
+   * chain has settled, after runReviseLoop and before finish, outside the
+   * Stages that get folded. Removed here, before anything downstream (the
+   * names list, the attempt ledger, trailingReviews) ever sees it.
+   */
+  const terminalName = terminalIn(plan)
+  const foldPlan = withoutTerminal(plan)
+  const names = plannedNames(foldPlan)
   const loaded = loadConfigWithNotes(args.config)
   const cfg = loaded.config
   const options: Readonly<Partial<TActivityOptions>> = {
@@ -174,10 +189,22 @@ export const runWorkflow = async (
     committing: args.commit !== 'false',
   }
   const activities = runnableActivities(names, cfg, options)
+  const terminalOptions: TActivityOptions = {
+    ...DEFAULT_ACTIVITY_OPTIONS,
+    ...options,
+  }
+  const terminal =
+    terminalName === undefined
+      ? undefined
+      : terminalActivityFor(terminalName, cfg, terminalOptions)
   // The loop can spawn the reviser even when the named chain never does, so
   // its agent is validated here rather than discovered halfway through.
   validateAgents(cfg, [
-    ...new Set([...requiredAgents(activities), ...loopAgents(cfg, names)]),
+    ...new Set([
+      ...requiredAgents(activities),
+      ...loopAgents(cfg, names),
+      ...(terminal === undefined ? [] : [terminal.name]),
+    ]),
   ])
   /*
    * One budget for the whole run, seeded from what this session already
@@ -271,12 +298,13 @@ export const runWorkflow = async (
 
     const baseline = pinBaseline(names)
 
+    const wholeChain = [...names, ...(terminal === undefined ? [] : [terminal.name])]
     await recordRequest(
       run,
       args.prompt,
       baseline === ''
-        ? { activities: names.join(' -> ') }
-        : { activities: names.join(' -> '), baseline: shortSha(baseline) },
+        ? { activities: wholeChain.join(' -> ') }
+        : { activities: wholeChain.join(' -> '), baseline: shortSha(baseline) },
     )
 
     const start: TActivityContext = {
@@ -296,7 +324,7 @@ export const runWorkflow = async (
     let waiting: TWaiting | undefined
     const ctx = await runUnits({
       run,
-      units: unitsFrom(plan, activities),
+      units: unitsFrom(foldPlan, activities),
       start,
       approveAfter: parseApproveAfter(args.approveAfter),
       onWaiting: (stopped) => {
@@ -357,6 +385,15 @@ export const runWorkflow = async (
           `      → ${entry.answer}`,
         ]),
       ])
+    }
+
+    if (terminal !== undefined) {
+      await runTerminal({
+        run,
+        activity: terminal,
+        ctx: settled.ctx,
+        accepted: settled.accepted,
+      })
     }
 
     return finish(run, { accepted: settled.accepted, reason: settled.reason })

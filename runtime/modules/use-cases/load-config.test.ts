@@ -286,6 +286,13 @@ planners:
     prompt_engineering:
       system: prompt-engineering/triage/system.md
       user: prompt-engineering/triage/user.md
+terminal:
+  - name: gh-pull-request
+    purpose: Push the run's branch and open or update one GitHub pull request
+    writes: []
+    prompt_engineering:
+      system: prompt-engineering/gh-pull-request/system.md
+      user: prompt-engineering/gh-pull-request/user.md
 `
 
 test(
@@ -362,6 +369,91 @@ test(
 test(
   [
     'given use-cases/load-config::loadConfig',
+    'when a terminal: entry is declared',
+    'it should reach cfg.terminal and resolve on cfg.agents, the way a Planner does',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'defaults: {}\n',
+      'crust.activities.yaml': ACTIVITIES,
+    })
+
+    // when
+    const actual = loadConfig(path)
+
+    // then
+    expect(actual.terminal.map((one) => one.name)).toEqual(['gh-pull-request'])
+    expect(actual.agents.map((one) => one.name)).toContain('gh-pull-request')
+    expect(
+      resolveAgent(actual, 'gh-pull-request').prompt_engineering.system,
+    ).toEqual('prompt-engineering/gh-pull-request/system.md')
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a local layer tunes the terminal Activity',
+    'it should take the override and keep gh-pull-request the only terminal entry',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'defaults: {}\n',
+      'crust.activities.yaml': ACTIVITIES,
+      'crust.activities.local.yaml':
+        'terminal:\n  - name: gh-pull-request\n    model: anthropic/claude-haiku-4-5\n',
+    })
+
+    // when
+    const actual = loadConfig(path)
+
+    // then
+    expect(actual.terminal.map((one) => one.name)).toEqual(['gh-pull-request'])
+    expect(
+      actual.terminal.find((one) => one.name === 'gh-pull-request')?.model,
+    ).toEqual('anthropic/claude-haiku-4-5')
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
+    'when a file puts something under terminal: that is not a terminal Activity',
+    'it should refuse, because configuration cannot add one',
+  ].join(', '),
+  () => {
+    // given
+    const path = stamped({
+      'crust.config.yaml': 'defaults: {}\n',
+      'crust.activities.yaml': ACTIVITIES.replace(
+        '  - name: gh-pull-request',
+        [
+          '  - name: gh-merge-request',
+          '    purpose: Open a GitLab merge request, differently',
+          '    writes: []',
+          '    prompt_engineering:',
+          '      system: s.md',
+          '      user: u.md',
+          '  - name: gh-pull-request',
+        ].join('\n'),
+      ),
+    })
+
+    // when
+    const actual = () => loadConfig(path)
+
+    // then
+    expect(actual).toThrow(
+      /'gh-merge-request' is under terminal: and is not a terminal Activity/,
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/load-config::loadConfig',
     'when a file puts something under planners: that is not a Planner',
     'it should refuse, because configuration cannot add one',
   ].join(', '),
@@ -369,14 +461,18 @@ test(
     // given
     const path = stamped({
       'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': `${ACTIVITIES}
-  - name: strategist
-    purpose: Choose the chain, differently
-    writes: []
-    prompt_engineering:
-      system: s.md
-      user: u.md
-`,
+      'crust.activities.yaml': ACTIVITIES.replace(
+        'terminal:',
+        [
+          '  - name: strategist',
+          '    purpose: Choose the chain, differently',
+          '    writes: []',
+          '    prompt_engineering:',
+          '      system: s.md',
+          '      user: u.md',
+          'terminal:',
+        ].join('\n'),
+      ),
     })
 
     // when
@@ -444,6 +540,12 @@ test(
         '      system: s.md',
         '      user: u.md',
         '  - name: triage',
+        '    writes: []',
+        '    prompt_engineering:',
+        '      system: s.md',
+        '      user: u.md',
+        'terminal:',
+        '  - name: gh-pull-request',
         '    writes: []',
         '    prompt_engineering:',
         '      system: s.md',
