@@ -29,6 +29,13 @@ export type TCreateRunParams = Readonly<{
   trust?: number
   /** absolute; defaults to join(sessionDir, 'context_handoff') */
   handoffDir?: string
+  /**
+   * Where `run.console` prints. Defaults to the real terminal writer
+   * (`data/terminal.ts`'s `writeLine`) in production; tests supply a
+   * no-op or recording function so exercising `run.console` never writes
+   * to the real `process.stdout`.
+   */
+  write?: (text: string) => void
 }>
 
 export const createRun = (params: TCreateRunParams): TRun => {
@@ -58,7 +65,7 @@ export const createRun = (params: TCreateRunParams): TRun => {
     cfg,
     runId,
     tracer,
-    console: createConsole(tracer, runId),
+    console: createConsole(tracer, runId, params.write),
     engineer,
     stream: params.stream ?? false,
     trust: params.trust ?? TRUST_DEFAULT,

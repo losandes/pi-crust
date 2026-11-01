@@ -126,7 +126,7 @@ test(
     const cfg = scratchConfig()
 
     // when
-    const run = startSession(cfg, 'a1b2c3d4')
+    const run = startSession(cfg, 'a1b2c3d4', { write: () => undefined })
 
     // then
     const expected = defaultHandoffDir(cfg.defaults.data_dir, 'a1b2c3d4')
@@ -149,7 +149,10 @@ test(
     const cfg = scratchConfig()
 
     // when
-    const run = startSession(cfg, 'a1b2c3d4', { handoff: 'specs/{session_id}' })
+    const run = startSession(cfg, 'a1b2c3d4', {
+      handoff: 'specs/{session_id}',
+      write: () => undefined,
+    })
 
     // then
     const expected = resolve(repoRoot(), 'specs', 'a1b2c3d4')
@@ -172,7 +175,7 @@ test(
   () => {
     // given — a run that started, recorded a pointer, then stopped for a gate
     const cfg = scratchConfig()
-    const first = startSession(cfg, 'a1b2c3d4')
+    const first = startSession(cfg, 'a1b2c3d4', { write: () => undefined })
     first.tracer.sessionWaiting('a1b2c3d4')
     first.tracer.close()
 
@@ -181,6 +184,7 @@ test(
       startSession(cfg, 'a1b2c3d4', {
         resume: true,
         handoff: 'specs/{session_id}',
+        write: () => undefined,
       }),
     ).toThrow(/already recorded/)
   },

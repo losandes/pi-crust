@@ -27,6 +27,7 @@ const aRun = (workspace: string) => {
     runId: 'aaaa1111',
     tracer,
     engineer: 'tester',
+    write: () => undefined,
   })
 }
 

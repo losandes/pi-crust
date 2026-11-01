@@ -37,15 +37,26 @@ export const PROMPT_BODY_CHARS = 2000
 const promptBody = (prompt: string): string =>
   prompt.split('\n').slice(0, PROMPT_BODY_LINES).join('\n').slice(0, PROMPT_BODY_CHARS)
 
-/** Bound to one run's tracer. Reachable as `run.console` everywhere. */
-export const createConsole = (tracer: TTracer, runId: string): TConsole => {
+/**
+ * Bound to one run's tracer. Reachable as `run.console` everywhere.
+ *
+ * `write` defaults to the real `writeLine` — the function every production
+ * CLI entry point uses to print. A test supplies a silent (or recording)
+ * `write` instead, so exercising `createConsole`'s methods never touches the
+ * real `process.stdout` as a side effect of asserting on the traced copy.
+ */
+export const createConsole = (
+  tracer: TTracer,
+  runId: string,
+  write: (text: string) => void = writeLine,
+): TConsole => {
   let activityRunId = '' // current lane — log events attach to it
   let activityRunName = ''
   let finished = false // the summary panel prints once
 
   // ── the one helper: print AND trace, always together ──────────────────────
   const emit = (line: string, level = 'info', renderable?: string): void => {
-    writeLine(renderable ?? line)
+    write(renderable ?? line)
     tracer.event({
       run_id: runId,
       activity_run_id: activityRunId,

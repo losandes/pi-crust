@@ -21,6 +21,7 @@ const runWith = (completed: readonly string[]): TRun => {
     runId: 'aaaa1111',
     tracer,
     engineer: 'tester',
+    write: () => undefined,
     resume: new Set(completed),
   })
 }

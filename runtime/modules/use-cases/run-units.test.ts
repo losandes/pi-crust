@@ -38,6 +38,7 @@ const aRun = (tracerOverride?: (tracer: TTracer) => TTracer): TRun => {
     runId: 'aaaa1111',
     tracer: tracerOverride === undefined ? tracer : tracerOverride(tracer),
     engineer: 'tester',
+    write: () => undefined,
     resume: new Set<string>(),
   })
   EVENTS.set(run, join(dir, 'events.jsonl'))

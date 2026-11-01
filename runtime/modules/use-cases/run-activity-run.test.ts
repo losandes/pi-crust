@@ -30,7 +30,13 @@ const scratchRun = (): Readonly<{ run: TRun; dbPath: string }> => {
   )
   tracer.sessionStart('test0001', 'tester', 'quality')
   return {
-    run: createRun({ cfg, runId: 'test0001', tracer, engineer: 'tester' }),
+    run: createRun({
+      cfg,
+      runId: 'test0001',
+      tracer,
+      engineer: 'tester',
+      write: () => undefined,
+    }),
     dbPath,
   }
 }
@@ -392,6 +398,7 @@ test(
       runId: 'test0002',
       tracer: firstTracer,
       engineer: 'tester',
+      write: () => undefined,
     })
     await runActivityRun(firstRun)(
       activityRunParams({
@@ -414,6 +421,7 @@ test(
       runId: 'test0002',
       tracer: secondTracer,
       engineer: 'tester',
+      write: () => undefined,
     })
     expect(secondRun.activityRuns()).toEqual([])
     const actual = finish(secondRun)
