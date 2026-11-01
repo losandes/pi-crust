@@ -176,9 +176,9 @@ export class WorkspaceRegistry {
    * numbers alone — each contributes its own newest `limit` and the merge
    * keeps the newest overall.
    */
-  sessions(limit = 200): readonly SessionSummary[] {
+  sessions(limit = 200, includeArchived = false): readonly SessionSummary[] {
     return this.live()
-      .flatMap((db) => db.sessions(limit))
+      .flatMap((db) => db.sessions(limit, includeArchived))
       .toSorted(compareStarted)
       .slice(0, limit);
   }

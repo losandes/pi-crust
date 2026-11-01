@@ -179,8 +179,19 @@ export class PiCrustDb {
     return this.session(runId) !== null;
   }
 
-  /** Sessions, most recent first, each with its activityRun statuses for the progress dots. */
-  sessions(limit = 200): SessionSummary[] {
+  /**
+   * Sessions, most recent first, each with its activityRun statuses for the
+   * progress dots.
+   *
+   * `includeArchived` omits the `archived = 0` constraint entirely rather
+   * than widening it, so the default path's SQL and result set are exactly
+   * what they were before this flag existed.
+   */
+  sessions(limit = 200, includeArchived = false): SessionSummary[] {
+    const where =
+      includeArchived || !this.hasColumn("sessions", "archived")
+        ? ""
+        : "WHERE COALESCE(archived, 0) = 0";
     const rows = this.db
       .query<Session, [number]>(
         `SELECT run_id, ${this.optionalColumn("sessions", "lifecycle")}, request,
@@ -191,7 +202,7 @@ export class PiCrustDb {
                 ${this.optionalColumn("sessions", "branch")},
                 ${this.optionalColumn("sessions", "name")}
            FROM sessions
-          WHERE COALESCE(${this.hasColumn("sessions", "archived") ? "archived" : "0"}, 0) = 0
+          ${where}
           ORDER BY started_at DESC, rowid DESC
           LIMIT ?`,
       )

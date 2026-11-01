@@ -1,9 +1,22 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchSessions } from '../lib/api'
+import {
+  FILTER_KEYS,
+  FILTER_LABELS,
+  isOptimisticallyHidden,
+  matchesFilters,
+  needsArchived,
+  optionsFor,
+  readFilters,
+  saveFilters,
+  type TFilterKey,
+  type TFilters,
+} from '../lib/filters'
 import { ts } from '../lib/format'
-import { paletteColor, workspaceRoles } from '../lib/palette'
+import { workspaceRoles } from '../lib/palette'
 import type { SessionSummary } from '../lib/types'
 import { usePoll } from '../lib/use-poll'
+import { FilterDropdown } from './FilterDropdown'
 import { SessionCard } from './SessionCard'
 import styles from './SessionsList.module.css'
 import { TokenNotice } from './TokenNotice'
@@ -11,12 +24,30 @@ import { TokenNotice } from './TokenNotice'
 const NO_SESSIONS: readonly SessionSummary[] = []
 
 export const SessionsList = () => {
-  const poll = usePoll<readonly SessionSummary[]>(fetchSessions, NO_SESSIONS)
+  /*
+   * Which values each of the five categories is narrowed to. Read once from
+   * sessionStorage and written back on every change, so a same-tab refresh
+   * restores the reader's filters without asking again.
+   */
+  const [filters, setFilters] = useState<TFilters>(() =>
+    readFilters(window.sessionStorage),
+  )
+  useEffect(() => {
+    saveFilters(window.sessionStorage, filters)
+  }, [filters])
+
+  const poll = usePoll<readonly SessionSummary[]>(
+    () => fetchSessions(undefined, needsArchived(filters)),
+    NO_SESSIONS,
+  )
 
   /**
    * Archiving removes the card immediately rather than waiting for the next
    * poll, which could be half a second away. An empty id means the write
-   * failed, so the optimistic removal is undone by re-syncing.
+   * failed, so the optimistic removal is undone by re-syncing. Once the
+   * server confirms the write, the `archived` category governs whether the
+   * row is shown, so filtering to `archived` sees the run just archived
+   * instead of one invisible until remount.
    */
   const [archived, setArchived] = useState<readonly string[]>([])
   /*
@@ -38,17 +69,11 @@ export const SessionsList = () => {
   )
 
   /*
-   * Which tree the reader is looking at, or all of them.
-   *
-   * Derived from the runs themselves rather than from /api/workspaces: a tree
-   * with nothing in it has nothing to filter to, and a filter offering an
-   * empty answer is a filter that wastes a click.
+   * Tree labels and roles, derived from the loaded sessions rather than from
+   * /api/workspaces: a tree with nothing in it has nothing to filter to, and
+   * a tree's colour in the dropdown has to be the colour on its cards.
    */
-  const [only, setOnly] = useState('')
-  const labels = useMemo(
-    () => [...new Set(poll.value.map((session) => session.workspace))].filter(Boolean),
-    [poll.value],
-  )
+  const labels = useMemo(() => optionsFor(poll.value, 'workspace'), [poll.value])
   const roles = useMemo(() => workspaceRoles(labels), [labels])
   // One tree is the ordinary case, and naming it on every card would be the
   // same word repeated down the page.
@@ -57,11 +82,62 @@ export const SessionsList = () => {
   const ordered = useMemo(
     () =>
       poll.value
-        .filter((session) => !archived.includes(session.run_id))
-        .filter((session) => only === '' || session.workspace === only)
+        .filter((session) => !isOptimisticallyHidden(session, archived))
+        .filter((session) => matchesFilters(session, filters))
         .toSorted((a, b) => (ts(b.started_at) || 0) - (ts(a.started_at) || 0)),
-    [poll.value, archived, only],
+    [poll.value, archived, filters],
   )
+
+  const [openKey, setOpenKey] = useState<TFilterKey | ''>('')
+  const rowRef = useRef<HTMLSpanElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (openKey === '') return
+
+    // The dropdown button that opened the panel, found by its aria state
+    // rather than threaded through FilterDropdown's props — Escape (1.2.9)
+    // needs to return focus to it, and nothing else in this component does.
+    triggerRef.current =
+      rowRef.current?.querySelector<HTMLElement>('button[aria-expanded="true"]') ?? null
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (rowRef.current && !rowRef.current.contains(event.target as Node)) {
+        setOpenKey('')
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenKey('')
+        triggerRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [openKey])
+
+  const openDropdown = (key: TFilterKey, open: boolean) => {
+    setOpenKey(open ? key : '')
+  }
+
+  const toggleOption = (key: TFilterKey, value: string) => {
+    setFilters((previous) => {
+      const selection = previous[key]
+      const next = selection.includes(value)
+        ? selection.filter((existing) => existing !== value)
+        : [...selection, value]
+      return { ...previous, [key]: next }
+    })
+  }
+
+  const selectAll = (key: TFilterKey) => {
+    setFilters((previous) => ({ ...previous, [key]: [] }))
+  }
 
   return (
     <div className={styles.sessions}>
@@ -78,47 +154,60 @@ export const SessionsList = () => {
         onSaved={() => setRefused('Token saved — archive that run again.')}
       />
 
-      {ordered.length > 0 ? (
+      {poll.value.length > 0 ? (
         <>
           <div className={`${styles.head} dim`}>
             {ordered.length} runs
-            {several && (
-              <span className={styles.filters}>
-                <button
-                  type="button"
-                  className={only === '' ? styles.onFilter : styles.filter}
-                  onClick={() => setOnly('')}
-                >
-                  all trees
-                </button>
-                {labels.map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    className={only === label ? styles.onFilter : styles.filter}
-                    style={{ color: paletteColor(roles.get(label) ?? 'blue') }}
-                    onClick={() => setOnly(only === label ? '' : label)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </span>
-            )}
+            <span className={styles.filters} ref={rowRef}>
+              {FILTER_KEYS.map((key) => {
+                const options = optionsFor(poll.value, key)
+                // The `archived` pill always renders; the rest need at least
+                // two options to be worth a click, or an active selection the
+                // reader must still be able to clear.
+                const shouldRender =
+                  key === 'archived' ||
+                  options.length > 1 ||
+                  filters[key].length > 0
+                if (!shouldRender) return null
+
+                return (
+                  <FilterDropdown
+                    key={key}
+                    label={FILTER_LABELS[key]}
+                    options={options}
+                    selected={filters[key]}
+                    open={openKey === key}
+                    colorOf={
+                      key === 'workspace'
+                        ? (option: string) => roles.get(option)
+                        : undefined
+                    }
+                    onOpen={(open) => openDropdown(key, open)}
+                    onToggle={(value) => toggleOption(key, value)}
+                    onSelectAll={() => selectAll(key)}
+                  />
+                )
+              })}
+            </span>
           </div>
-          <div className={styles.cards}>
-            {ordered.map((session) => (
-              <SessionCard
-                key={`${session.workspace}:${session.run_id}`}
-                session={session}
-                nowMs={poll.at}
-                workspaceRole={
-                  several ? (roles.get(session.workspace) ?? 'blue') : undefined
-                }
-                onArchived={onArchived}
-                onRefused={setRefused}
-              />
-            ))}
-          </div>
+          {ordered.length > 0 ? (
+            <div className={styles.cards}>
+              {ordered.map((session) => (
+                <SessionCard
+                  key={`${session.workspace}:${session.run_id}`}
+                  session={session}
+                  nowMs={poll.at}
+                  workspaceRole={
+                    several ? (roles.get(session.workspace) ?? 'blue') : undefined
+                  }
+                  onArchived={onArchived}
+                  onRefused={setRefused}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">no runs match these filters</div>
+          )}
         </>
       ) : poll.loaded ? (
         <div className="empty-state">no sessions yet — run an lifecycle to see it here</div>

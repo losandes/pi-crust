@@ -31,8 +31,15 @@ const scope = (workspace: string | undefined, separator = '?'): string =>
     ? ''
     : `${separator}workspace=${encodeURIComponent(workspace)}`
 
-export function fetchSessions(workspace?: string): Promise<SessionSummary[]> {
-  return getJson(`/api/sessions${scope(workspace)}`) as Promise<SessionSummary[]>
+export function fetchSessions(
+  workspace?: string,
+  includeArchived = false,
+): Promise<SessionSummary[]> {
+  const base = scope(workspace)
+  const archived = includeArchived
+    ? `${base === '' ? '?' : '&'}include_archived=1`
+    : ''
+  return getJson(`/api/sessions${base}${archived}`) as Promise<SessionSummary[]>
 }
 
 export function fetchWorkspaces(): Promise<WorkspaceInfo[]> {
