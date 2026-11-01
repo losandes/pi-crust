@@ -131,7 +131,7 @@ Each entry also carries `delivery`, the deterministic half's own settings — wh
 | `delivery.base`   | no       | The branch it opens the pull request against. Default `main`. pi-crust refuses to push FROM this branch — it never creates one for you. |
 | `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                            |
 
-The agent half gets `read` only and no `write` or `bash`: every git and `gh` operation — pushing the branch, finding, creating or updating the pull request — is the harness's, the way `commitActivity` already performs every commit for a `commit: true` Activity. The agent composes a title and body from the draft the harness writes to `{context_handoff_dir}/pull_request.md` before it runs; when the agent call fails, or answers an empty title or body, the harness delivers that trace-generated draft instead and says so, rather than failing the run over a prose upgrade that did not land.
+The agent half gets `read` only and no `write` or `bash`: every git and `gh` operation — pushing the branch, finding, creating or updating the pull request — is the harness's, the way `commitActivity` already performs every commit for a `commit: true` Activity. The agent composes a title and body from the draft the harness writes to `{context_handoff_dir}/pull_request.md` before it runs; the harness owns the issue link, the `## Activities` section and the `## Checks` section, and replaces whatever the agent wrote under those with its own, computed from `TRunState`'s recorded gate outcomes, before delivering either the agent's body or, when the agent call fails or answers an empty title or body, that trace-generated draft instead.
 
 ## Defaults merging
 

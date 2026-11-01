@@ -34,8 +34,8 @@ Read `{{context_handoff_dir}}/pull_request.md` — the harness has already writt
 
 Write a better title and body than the draft, in your own words:
 
-- `title`: at most 72 characters, naming the outcome this run produced rather than the Activity that produced it.
-- `body`: markdown, describing what changed and why a reviewer should accept it. Do **not** include an attribution line — the harness adds one to every body it delivers, before and after yours, and a second one you wrote would contradict it.
+- `title`: at most 72 characters, naming the outcome this run produced rather than the Activity that produced it. Do not put an issue number in it — the harness appends that reference itself, from the request and the run's own envelopes, not from your title.
+- `body`: markdown. Write `## What changed` as outcome-level bullets describing what changed and why, and `## Out of scope` when the run established one — do not restate file-by-file or line-level mechanics, which the reviewer already gets from the diff and the code review. Do **not** include an attribution line — the harness adds one to every body it delivers, before and after yours, and a second one you wrote would contradict it. Do **not** write a `closes #N` / `fixes #N` / `refs #N` line, a `## Activities` heading, or a `## Checks` heading — the harness owns the issue link and both of those sections, computes them from the run's recorded gate outcomes, and discards anything you write under those headings. Never argue that the change is safe, ready, or should be merged.
 
 You run no git or `gh` command, and you push nothing. Every git and `gh` operation is the harness's; your only output is the two strings above.
 

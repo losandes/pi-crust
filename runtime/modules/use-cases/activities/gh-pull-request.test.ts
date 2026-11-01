@@ -64,6 +64,7 @@ const fakePorts = (
     remoteExists: () => true,
     baseRef: () => 'refs/remotes/origin/main',
     commitsAhead: () => 1,
+    uncommitted: () => [],
     push: (remote, branch) => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push({ op: 'push', remote, branch })
@@ -84,7 +85,10 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
     sessionDir,
     contextHandoffDir,
     resume: new Set<string>(),
-    cfg: { observability: { db: join(contextHandoffDir, 'no-such.db') } },
+    cfg: {
+      observability: { db: join(contextHandoffDir, 'no-such.db') },
+      routing: { skills: [], checks: [], unmatched: 'warn' },
+    },
     console: { note: () => undefined },
     tracer: { event: () => undefined },
     ...overrides,
@@ -459,6 +463,85 @@ test(
 
 test(
   [
+    'given use-cases/activities/gh-pull-request::ghPullRequestActivity',
+    'when the run prompt names an issue',
+    'it should carry a closing keyword and a Checks section, and title the issue suffix',
+  ].join(', '),
+  async () => {
+    // given
+    let created: TPullRequestParams | undefined
+    const { ports } = fakePorts(
+      {},
+      {
+        create: (params) => {
+          created = params
+          return 'https://example.com/owner/repo/pull/1'
+        },
+      },
+    )
+    const activity = ghPullRequestActivity(config(), OPTIONS, ports)
+    const run = aRun({ resume: new Set(['gh-pull-request']) })
+    resumedEnvelope(run, {
+      status: 'success',
+      summary: 'done',
+      title: 'Ship the feature',
+      body: 'This does the thing.\n\ncloses #999\n\n## Checks\n\n- [x] a lie',
+    })
+
+    // when
+    await activity.deliver(aCtx(run, { prompt: 'ship it, closes #54' }), aHandle())
+
+    // then
+    const body = readText(created?.bodyPath ?? '')
+    expect(body).toMatch(/closes #54/)
+    expect(body).not.toMatch(/closes #999/)
+    expect(body).toContain('## Checks')
+    expect(body).not.toContain('a lie')
+    expect(created?.title).toEqual('Ship the feature (#54)')
+  },
+)
+
+test(
+  [
+    'given use-cases/activities/gh-pull-request::ghPullRequestActivity',
+    'when the agent call fails and the harness falls back to the trace-generated draft',
+    'it should still deliver a body carrying Activities and Checks',
+  ].join(', '),
+  async () => {
+    // given
+    let created: TPullRequestParams | undefined
+    const { ports } = fakePorts(
+      {},
+      {
+        create: (params) => {
+          created = params
+          return 'https://example.com/owner/repo/pull/1'
+        },
+      },
+    )
+    const activity = ghPullRequestActivity(config(), OPTIONS, ports)
+    const run = aRun({ resume: new Set(['gh-pull-request']) })
+    resumedEnvelope(run, {
+      status: 'fail',
+      summary: 'could not compose',
+      title: '',
+      body: '',
+    })
+
+    // when
+    await activity.deliver(aCtx(run), aHandle())
+
+    // then — this fixture's db does not exist, so the run has no recorded
+    // state and '## Activities' has nothing to render (1.3.1); '## Checks'
+    // always renders, down to its working-tree line (1.4.5).
+    const body = readText(created?.bodyPath ?? '')
+    expect(body).toContain('## Checks')
+    expect(body).toContain('every change committed')
+  },
+)
+
+test(
+  [
     'given use-cases/activities/gh-pull-request::fallbackPullRequest',
     'when given a prompt, a reason and no trace state',
     'it should produce a title and a body that names the reason',
@@ -470,6 +553,9 @@ test(
       prompt: 'add the widget',
       because: 'the agent never answered',
       state: undefined,
+      declaredChecks: [],
+      uncommitted: [],
+      composedBy: 'gh-pull-request',
     })
 
     // then

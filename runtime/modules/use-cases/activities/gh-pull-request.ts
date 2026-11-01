@@ -13,11 +13,13 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { writeText } from '../../data/files'
 import {
+  changedFiles,
   commitsAhead,
   currentBranch,
   isRepo,
   remoteExists,
   pushBranch,
+  untrackedFiles,
   upstreamBase,
 } from '../../data/git'
 import type { TTerminalConfig } from '../../typedefs/activity'
@@ -36,6 +38,15 @@ import { fail, succeed } from '../../typedefs/settlement'
 import { callAgent } from '../execute-agent'
 import { readEnvelope } from '../read-envelope'
 import { readRunState } from '../read-run-state'
+import type { TBodyFacts } from './pull-request-body'
+import {
+  activitiesSection,
+  checksSection,
+  composedBody,
+  issueLine,
+  issueRefs,
+  titleWithIssues,
+} from './pull-request-body'
 
 /** What the harness sends to the forge. */
 export type TPullRequestParams = Readonly<{
@@ -66,6 +77,8 @@ export type TDeliveryPorts = Readonly<{
   baseRef: (remote: string, base: string, cwd: string) => string
   commitsAhead: (baseRef: string, branch: string, cwd: string) => number
   push: (remote: string, branch: string, cwd: string) => void
+  /** uncommitted + untracked paths, for the Checks section's working-tree line */
+  uncommitted: (cwd: string) => readonly string[]
   forge: TForge
 }>
 
@@ -151,6 +164,13 @@ export const liveDelivery: TDeliveryPorts = {
   baseRef: (remote, base, cwd) => upstreamBase(remote, base, cwd),
   commitsAhead: (baseRef, branch, cwd) => commitsAhead(baseRef, branch, cwd),
   push: (remote, branch, cwd) => pushBranch(remote, branch, cwd),
+  uncommitted: (cwd) => {
+    // changedFiles() and untrackedFiles() read process cwd, not an arbitrary
+    // one — same as the `branch` port above, callers here always run from
+    // the run's own vcsRoot, which is the process cwd for the whole run.
+    void cwd
+    return [...changedFiles(), ...untrackedFiles()]
+  },
   forge: {
     authenticated: (cwd) => ghArgv(['auth', 'status'], cwd).status === 0,
     whoami: (cwd) => {
@@ -210,25 +230,36 @@ export const fallbackPullRequest = (
     prompt: string
     because: string
     state: TRunState | undefined
+    declaredChecks: readonly string[]
+    uncommitted: readonly string[]
+    composedBy: string
   }>,
 ): Readonly<{ title: string; body: string }> => {
-  const activities = params.state?.activityRuns ?? []
+  const facts: TBodyFacts = {
+    runId: params.runId,
+    prompt: params.prompt,
+    state: params.state,
+    declaredChecks: params.declaredChecks,
+    uncommitted: params.uncommitted,
+    composedBy: params.composedBy,
+  }
   const title = (params.prompt || `pi-crust run ${params.runId}`)
     .split('\n')[0]
     ?.slice(0, 72) || `pi-crust run ${params.runId}`
-  const body = [
+  const prose = [
     `> Generated from the trace because ${params.because}.`,
     '',
     '## Request',
     '',
     params.prompt || '(no prompt recorded)',
-    '',
-    '## Activities',
-    '',
-    ...(activities.length === 0
-      ? ['(none recorded)']
-      : activities.map((one) => `- ${one.name}: ${one.status}`)),
   ].join('\n')
+  const harness = [activitiesSection(facts), checksSection(facts)]
+    .filter((section) => section !== '')
+    .join('\n\n')
+  const withHarness = harness === '' ? prose : `${prose}\n\n${harness}`
+  const body = [issueLine(issueRefs(facts)), withHarness]
+    .filter((part) => part !== '')
+    .join('\n\n')
 
   return { title, body }
 }
@@ -340,11 +371,22 @@ export const ghPullRequestActivity = (
 
     const branch = ports.branch(cwd)
     const state = readRunState(run.cfg.observability.db, run.runId)
+    const facts: TBodyFacts = {
+      runId: run.runId,
+      prompt: ctx.prompt,
+      state,
+      declaredChecks: run.cfg.routing.checks.map((one) => one.name),
+      uncommitted: ports.uncommitted(cwd),
+      composedBy: config.name,
+    }
     const draft = fallbackPullRequest({
       runId: run.runId,
       prompt: ctx.prompt,
       because: 'the agent has not answered yet',
       state,
+      declaredChecks: facts.declaredChecks,
+      uncommitted: facts.uncommitted,
+      composedBy: facts.composedBy,
     })
     writeText(draftPath(run.contextHandoffDir), draft.body)
 
@@ -392,12 +434,15 @@ export const ghPullRequestActivity = (
           : 'the agent answered with an empty title or body'
 
     const chosen = usable
-      ? { title: answered.title.trim(), body: answered.body.trim() }
+      ? { title: answered.title.trim(), body: composedBody(answered.body.trim(), facts) }
       : fallbackPullRequest({
           runId: run.runId,
           prompt: ctx.prompt,
           because: fallbackBecause,
           state,
+          declaredChecks: facts.declaredChecks,
+          uncommitted: facts.uncommitted,
+          composedBy: facts.composedBy,
         })
     const fellBack = !usable
     if (fellBack) {
@@ -413,7 +458,7 @@ export const ghPullRequestActivity = (
     ports.push(config.delivery.remote, branch, cwd)
 
     const params: TPullRequestParams = {
-      title: chosen.title.slice(0, 72),
+      title: titleWithIssues(chosen.title, issueRefs(facts)),
       bodyPath,
       base: config.delivery.base,
       branch,
