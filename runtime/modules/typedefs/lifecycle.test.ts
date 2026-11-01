@@ -7,6 +7,8 @@ import {
   lifecyclesFileSchema,
   stageOf,
   stagePlan,
+  terminalIn,
+  withoutTerminal,
 } from './lifecycle'
 
 const lifecycle = (yaml: string) =>
@@ -463,5 +465,103 @@ stages:
     expect(actual.map((one) => one.message).join('\n')).toMatch(
       /cannot run in a concurrent stage/,
     )
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::terminalIn',
+    'when a lifecycle names a terminal Activity',
+    'it should find it, wherever it sits in the stages',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: accept
+    activities: [review]
+  - name: deliver
+    activities: [gh-pull-request]
+`)
+
+    // when
+    const actual = terminalIn(given.stages)
+
+    // then
+    expect(actual).toEqual('gh-pull-request')
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::terminalIn',
+    'when a lifecycle names no terminal Activity at all',
+    'it should answer undefined, rather than guess at one',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: accept
+    activities: [review]
+`)
+
+    // when
+    const actual = terminalIn(given.stages)
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::withoutTerminal',
+    'when a stage holds only the terminal Activity',
+    'it should drop the whole stage, rather than leave it empty',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: accept
+    activities: [review]
+  - name: deliver
+    activities: [gh-pull-request]
+`)
+
+    // when
+    const actual = withoutTerminal(given.stages)
+
+    // then
+    expect(actual.map((stage) => stage.name)).toEqual(['accept'])
+  },
+)
+
+test(
+  [
+    'given typedefs/lifecycle::withoutTerminal',
+    'when the terminal Activity shares a stage with something else',
+    'it should drop only the terminal name, keeping the rest of the stage',
+  ].join(', '),
+  () => {
+    // given
+    const given = lifecycle(`
+name: ship
+stages:
+  - name: accept
+    strategy: concurrent
+    activities: [code-review, gh-pull-request]
+`)
+
+    // when
+    const actual = withoutTerminal(given.stages)
+
+    // then
+    expect(actual).toHaveLength(1)
+    expect(actual[0]?.activities).toEqual(['code-review'])
   },
 )

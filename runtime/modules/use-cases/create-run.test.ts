@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
+import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import { createRun } from './create-run'
 
@@ -143,5 +144,107 @@ test(
     } finally {
       process.chdir(was)
     }
+  },
+)
+
+test(
+  [
+    'given use-cases/create-run::createRun',
+    'when an activityRun is recorded, updated, usage is added, and an agent is saved',
+    'it should fold every mutation into the closures it returns, and persist the agent map',
+  ].join(', '),
+  () => {
+    // given
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'crust-create-run-state-')))
+    const run = inDir(dir, () => aRun(dir))
+    const params = activityRunParams({
+      name: 'build',
+      kind: 'code',
+      owner: 'quality',
+      description: 'exercise the run closures',
+    })
+    const activityRun = {
+      activity_run_id: 'build-1',
+      run_id: run.runId,
+      seq: run.nextSeq(),
+      params,
+      status: 'running',
+      started_at: new Date().toISOString(),
+    } as unknown as ReturnType<typeof run.activityRuns>[number]
+
+    // when
+    run.recordActivityRun(activityRun)
+    const updated = run.updateActivityRun('build-1', { status: 'success' })
+    run.addUsage(10, 0.5)
+    run.saveAgentMap('technical-architect', {
+      sessionId: 'session-1',
+    } as unknown as Parameters<typeof run.saveAgentMap>[1])
+
+    // then
+    expect(run.activityRuns()).toHaveLength(1)
+    expect(updated.status).toEqual('success')
+    expect(run.tokens()).toEqual(10)
+    expect(run.cost()).toEqual(0.5)
+    expect(run.agentMap()['technical-architect']).toEqual({
+      sessionId: 'session-1',
+    } as unknown as ReturnType<typeof run.agentMap>['technical-architect'])
+  },
+)
+
+test(
+  [
+    'given use-cases/create-run::createRun',
+    'when updateActivityRun is asked for an id that was never recorded',
+    'it should throw naming the id, rather than silently doing nothing',
+  ].join(', '),
+  () => {
+    // given
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'crust-create-run-missing-')))
+    const run = inDir(dir, () => aRun(dir))
+
+    // when, then
+    expect(() => run.updateActivityRun('does-not-exist', { status: 'success' })).toThrow(
+      /no such activityRun on this run: does-not-exist/,
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/create-run::createRun',
+    'when the run is created with an explicit handoffDir and a resume set',
+    'it should use the given handoff directory and carry the resume set through',
+  ].join(', '),
+  () => {
+    // given
+    const workspace = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-create-run-handoff-')),
+    )
+    mkdirSync(join(workspace, '.pi-crust'), { recursive: true })
+    const handoffDir = mkdtempSync(join(tmpdir(), 'crust-create-run-handoff-dir-'))
+    const tracer = createTracer(
+      join(workspace, 'crust.db'),
+      join(workspace, 'events.jsonl'),
+    )
+
+    // when
+    const run = inDir(workspace, () =>
+      createRun({
+        cfg: crustConfigSchema.parse({
+          defaults: { data_dir: join(workspace, '.pi-crust', 'data') },
+          observability: { db: join(workspace, 'crust.db') },
+          agents: [],
+        }),
+        runId: 'bbbb2222',
+        tracer,
+        engineer: 'tester',
+        resume: new Set(['build']),
+        handoffDir,
+      }),
+    )
+
+    // then
+    expect(run.contextHandoffDir).toEqual(handoffDir)
+    expect(run.resume.has('build')).toBe(true)
   },
 )

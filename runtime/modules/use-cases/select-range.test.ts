@@ -58,7 +58,6 @@ test(
   () => {
     // given
     const git = gitWith({
-      untrackedFiles: () => ['src/scratch.ts'],
       diffFilesBetween: (from, to, symmetric) =>
         symmetric ? ['wrong.ts'] : [`${from}-${to}.ts`],
     })
@@ -81,7 +80,6 @@ test(
   () => {
     // given
     const git = gitWith({
-      untrackedFiles: () => ['src/scratch.ts'],
       diffFilesBetween: (_from, _to, symmetric) =>
         symmetric ? ['src/a.ts'] : ['wrong.ts'],
       mergeBase: () => 'abcdef1234',
@@ -237,6 +235,24 @@ test(
 
     // then
     expect(actual.paths).toEqual(['lib/one.ts', 'lib/two.ts'])
+  },
+)
+
+test(
+  [
+    'given use-cases/select-range::selectRangeWith',
+    'when a single ref is given and diffFiles/filesUnder are left at their defaults',
+    'it should still fall through to resolveBase without blowing up',
+  ].join(', '),
+  () => {
+    // given
+    const git = gitWith({})
+
+    // when
+    const actual = selectRangeWith(git)('HEAD~1')
+
+    // then
+    expect(actual.paths).toEqual([])
   },
 )
 

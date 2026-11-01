@@ -239,6 +239,11 @@ test(
     try {
       // when — every liveDelivery operation this Activity can invoke,
       // exercised directly against the real (spied) process boundary
+      liveDelivery.isRepo('/does-not-matter')
+      liveDelivery.branch('/does-not-matter')
+      liveDelivery.remoteExists('origin', '/does-not-matter')
+      liveDelivery.baseRef('origin', 'main', '/does-not-matter')
+      liveDelivery.commitsAhead('main', 'feature', '/does-not-matter')
       // biome-ignore lint/plugin/no-array-mutation: liveDelivery's own push port, not Array.prototype.push
       liveDelivery.push('origin', 'feature', '/does-not-matter')
       liveDelivery.forge.authenticated('/does-not-matter')

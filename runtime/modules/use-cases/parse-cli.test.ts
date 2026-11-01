@@ -1,6 +1,16 @@
-import { expect, test } from 'bun:test'
-import { FLAG_TABLE, parseCli } from './parse-cli'
+import { expect, spyOn, test } from 'bun:test'
+import { FLAG_TABLE, longFlagArgv, parseCli, runCli, workflowArgs } from './parse-cli'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
+
+/**
+ * `process.argv` is the external API `runCli` reads, and pointing it at a
+ * fixture is the only way to exercise the entry boundary. Assigning to it is
+ * the adapter, said once here rather than at every call site.
+ */
+const setArgv = (value: readonly string[]): void => {
+  // biome-ignore lint/plugin/no-object-mutation: process.argv is the external API runCli reads, and this function is the adapter that owns the assignment
+  process.argv = [...value]
+}
 
 test(
   [
@@ -491,5 +501,174 @@ test(
     for (const pair of expectedPairs) {
       expect(message).toContain(pair)
     }
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::workflowArgs',
+    'when a prompt has already been resolved from a file',
+    'it should fold it into the parsed args, carrying everything else through',
+  ].join(', '),
+  () => {
+    // given
+    const args = parseCli(['build it'])
+
+    // when
+    const actual = workflowArgs(args, 'the resolved prompt text')
+
+    // then
+    expect(actual).toEqual({ ...args, prompt: 'the resolved prompt text' })
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::runCli',
+    'when argv fails to parse',
+    'it should print the error and exit 2, never reaching the handler',
+  ].join(', '),
+  async () => {
+    // given
+    const originalArgv = process.argv
+    setArgv(['bun', 'run.ts'])
+    const exitSpy = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`)
+    }) as never)
+    const writes: string[] = []
+    const stderrSpy = spyOn(process.stderr, 'write').mockImplementation(((
+      chunk: string,
+    ) => {
+      // biome-ignore lint/plugin/no-array-mutation: recording what was written is the test
+      writes.push(chunk)
+      return true
+    }) as never)
+    let handlerCalled = false
+
+    try {
+      // when, then
+      await expect(
+        runCli('run.ts', () => {
+          handlerCalled = true
+          return Promise.resolve(0)
+        }),
+      ).rejects.toThrow('exit:2')
+    } finally {
+      setArgv(originalArgv)
+      exitSpy.mockRestore()
+      stderrSpy.mockRestore()
+    }
+
+    // then
+    expect(handlerCalled).toBe(false)
+    expect(writes.join('')).toContain('usage')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::runCli',
+    'when argv parses but the handler throws',
+    'it should print the error and exit 1',
+  ].join(', '),
+  async () => {
+    // given
+    const originalArgv = process.argv
+    setArgv(['bun', 'run.ts', 'add a /health endpoint'])
+    const exitSpy = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`)
+    }) as never)
+    const stderrSpy = spyOn(process.stderr, 'write').mockImplementation(
+      (() => true) as never,
+    )
+
+    try {
+      // when, then
+      await expect(
+        runCli('run.ts', () => Promise.reject(new Error('the handler blew up'))),
+      ).rejects.toThrow('exit:1')
+    } finally {
+      setArgv(originalArgv)
+      exitSpy.mockRestore()
+      stderrSpy.mockRestore()
+    }
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::runCli',
+    'when argv parses and the handler succeeds',
+    'it should exit with the handler\u2019s own code',
+  ].join(', '),
+  async () => {
+    // given
+    const originalArgv = process.argv
+    setArgv(['bun', 'run.ts', 'add a /health endpoint'])
+    const exitSpy = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`)
+    }) as never)
+
+    try {
+      // when, then
+      await expect(runCli('run.ts', () => Promise.resolve(0))).rejects.toThrow('exit:0')
+    } finally {
+      setArgv(originalArgv)
+      exitSpy.mockRestore()
+    }
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::longFlagArgv',
+    'when argv mixes short and long flags, with a value after a value-taking short flag',
+    'it should rewrite every short flag to its long name and leave values untouched',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['-a', 'build,review', '--resume', '-r']
+
+    // when
+    const actual = longFlagArgv(argv)
+
+    // then
+    expect(actual).toEqual(['--activities', 'build,review', '--resume', '--resume'])
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::longFlagArgv',
+    'when a short flag is given inline with =',
+    'it should rewrite only the flag name, keeping the inline value',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['-a=build,review']
+
+    // when
+    const actual = longFlagArgv(argv)
+
+    // then
+    expect(actual).toEqual(['--activities=build,review'])
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::longFlagArgv',
+    'when a token names no known short flag',
+    'it should pass it through unchanged',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['a plain prompt, not a flag']
+
+    // when
+    const actual = longFlagArgv(argv)
+
+    // then
+    expect(actual).toEqual(argv)
   },
 )

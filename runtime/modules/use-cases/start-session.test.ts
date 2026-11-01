@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { basename } from 'node:path'
 import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { sessionLifecycle } from './start-session'
@@ -73,8 +73,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { repoRoot } from '../data/git'
 import { recordedHandoffDir } from '../data/handoff-pointer'
+import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TRunState } from '../typedefs/run-state'
+import { terminalOutput } from '../testing/terminal-capture'
 import { defaultHandoffDir } from './handoff-location'
 import { freshSessionId, resumeVerdict, startSession } from './start-session'
 
@@ -187,6 +189,131 @@ test(
         handoff: 'specs/{session_id}',
       }),
     ).toThrow(/already recorded/)
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::startSession',
+    'when no --run-id was given at all',
+    'it should mint a fresh one itself',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = scratchConfig()
+
+    // when
+    const run = startSession(cfg)
+
+    // then
+    expect(run.runId.length).toBeGreaterThan(0)
+    run.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::startSession',
+    'when the process receives SIGTERM after a session has started',
+    'it should close the session\'s own trace before exiting, rather than leave it reading running forever',
+  ].join(', '),
+  () => {
+    // given — every signal listener any earlier startSession() in this file
+    // left behind is removed first, so only this call's own fires
+    process.removeAllListeners('SIGTERM')
+    process.removeAllListeners('SIGINT')
+    const cfg = scratchConfig()
+    startSession(cfg, 'a1b2c3d4')
+    const exitSpy = spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+
+    try {
+      // when — the same signal finalizeWhenKilled listens for
+      process.emit('SIGTERM')
+    } finally {
+      exitSpy.mockRestore()
+      process.removeAllListeners('SIGTERM')
+      process.removeAllListeners('SIGINT')
+    }
+
+    // then — the session no longer reads 'running'
+    const resumed = startSession(cfg, 'a1b2c3d4', { resume: true })
+    expect(resumed).toBeDefined()
+    resumed.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::startSession',
+    'when --resume is given with no --run-id at all',
+    'it should throw, naming what to do instead, before touching a database',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = scratchConfig()
+
+    // when, then
+    expect(() => startSession(cfg, undefined, { resume: true })).toThrow(
+      /--resume needs --run-id/,
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::startSession',
+    'when --resume picks up a session with a completed activityRun',
+    'it should carry the completed set through and note how many it skipped',
+  ].join(', '),
+  () => {
+    // given — a run that finished one activityRun, then stopped (a gate, say)
+    const cfg = scratchConfig()
+    const first = startSession(cfg, 'a1b2c3d4')
+    first.tracer.activityRunUpsert({
+      activity_run_id: 'a1b2c3d4_01_build',
+      run_id: 'a1b2c3d4',
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'code',
+        owner: 'quality',
+        description: 'the piece this resume should skip',
+      }),
+      status: 'success',
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: '2024-01-01T00:00:01.000Z',
+    })
+    first.tracer.sessionFinish('a1b2c3d4', false)
+    first.tracer.close()
+
+    // when
+    const resumed = startSession(cfg, 'a1b2c3d4', { resume: true })
+
+    // then
+    expect(resumed.resume.has('build')).toBe(true)
+    expect(terminalOutput()).toContain('resuming: 1 activityRun(s)')
+    resumed.tracer.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/start-session::startSession',
+    'when --handoff names a directory that carries no run id',
+    'it should note that the directory is shared with any other run pointed at it',
+  ].join(', '),
+  () => {
+    // given — a handoff literal with no {session_id} placeholder
+    const cfg = scratchConfig()
+
+    // when
+    const run = startSession(cfg, 'a1b2c3d4', { handoff: 'specs/shared' })
+
+    // then
+    expect(terminalOutput()).toContain('carries no run id')
+    run.tracer.close()
+    rmSync(resolve(repoRoot(), 'specs', 'shared'), { recursive: true, force: true })
   },
 )
 

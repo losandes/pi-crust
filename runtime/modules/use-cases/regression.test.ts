@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { TRegressionRecord } from './regression'
-import { regressionVerdict, timesReturnedTo } from './regression'
+import { regressionNote, regressionVerdict, timesReturnedTo } from './regression'
 
 const chain = ['identify', 'conceptualize', 'design', 'build', 'review']
 
@@ -84,8 +84,9 @@ test(
     'it should refuse, because that is just the next activity',
   ].join(', '),
   () => {
-    // given a poc (index 2) pointing at verify (index 4)
-    const request = { activity: 'verify', because: 'run the checks first' }
+    // given a stage at index 2 pointing at `build` (index 3) — in the chain,
+    // but not earlier than where the request is being asked
+    const request = { activity: 'build', because: 'run the checks first' }
 
     // when
     const actual = verdict({ request })
@@ -139,5 +140,29 @@ test(
 
     // then
     expect(actual).toBe(2)
+  },
+)
+
+test(
+  [
+    'given use-cases/regression::regressionNote',
+    'when a regression record is rendered for the trace',
+    'it should read as one line naming who sent it back, where, and why',
+  ].join(', '),
+  () => {
+    // given
+    const record: TRegressionRecord = {
+      from: 'build',
+      to: 'design',
+      because: 'the schema cannot represent the case',
+    }
+
+    // when
+    const actual = regressionNote(record)
+
+    // then
+    expect(actual).toEqual(
+      'build sent the run back to design: the schema cannot represent the case',
+    )
   },
 )
