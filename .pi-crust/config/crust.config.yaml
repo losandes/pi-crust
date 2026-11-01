@@ -118,7 +118,7 @@ routing:
     - name: test
       when: ["**/*.ts"]
       operation: test                  # lint | typecheck | build | test
-      argv: [bun, test]                # argv LIST, binaries by BARE NAME
+      argv: [pnpm, test:ci]            # argv LIST, binaries by BARE NAME
       timeout_seconds: 3000
     - name: lint
       when: ["**/*.ts", "**/*.tsx"]
