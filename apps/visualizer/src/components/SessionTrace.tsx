@@ -469,14 +469,6 @@ export const SessionTrace = ({
       */}
       {session !== undefined && selectedActivityRun === undefined && (
         <>
-          {/*
-            Everything the run saw in the working tree and could not
-            attribute. On the run rather than on an Activity, because a
-            reader with nothing selected is asking what happened to the
-            repository, and a warning raised by the second of nine
-            Activities is still the answer when the ninth has finished.
-          */}
-          <TreeWarnings warnings={warningsIn(events)} standalone />
           <RunNotices notices={runNoticesOf(events)} workspace={workspace} />
           <DecisionRequest
             runId={runId}
@@ -513,6 +505,14 @@ export const SessionTrace = ({
             envelopes={trace.envelopes}
             events={events}
           />
+          {/*
+            Everything the run saw in the working tree and could not
+            attribute. On the run rather than on an Activity, because a
+            reader with nothing selected is asking what happened to the
+            repository, and a warning raised by the second of nine
+            Activities is still the answer when the ninth has finished.
+          */}
+          <TreeWarnings warnings={warningsIn(events)} standalone />
         </>
       )}
 
