@@ -121,6 +121,7 @@ const main = (): number => {
   const env = {
     ...process.env,
     CRUST_DB: db,
+    CRUST_WORKSPACE_ROOT: process.cwd(),
     CRUST_BE_PORT: bePort,
     CRUST_FE_PORT: fePort,
   }

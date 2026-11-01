@@ -314,5 +314,11 @@ observe *ARGS:
     # $PWD, not justfile_directory(): these recipes live in the pi-crust
     # package, so the justfile's own directory is the package's, and the
     # trace database belongs to the repository `just` is being run against.
-    CRUST_DB="$PWD/{{db}}" \
+    # {{db}} is left unprefixed when it is already absolute: print-db-path.ts
+    # returns an absolute path whenever data_dir is absolute, ~-prefixed, or
+    # uses {primary_worktree}, and unconditionally prepending $PWD to an
+    # absolute path would mangle it into something under the wrong tree.
+    db_path="{{db}}"
+    case "$db_path" in /*) ;; *) db_path="$PWD/$db_path" ;; esac
+    CRUST_DB="$db_path" \
     exec bun "$home/scripts/observe.ts" "$@"

@@ -55,7 +55,7 @@ test(
     )
 
     // then
-    expect(actual).toEqual([{ label: 'solo', dbPath: dbIn(root) }])
+    expect(actual).toEqual([{ label: 'solo', dbPath: dbIn(root), root }])
   },
 )
 
@@ -78,8 +78,8 @@ test(
 
     // then
     expect(actual).toEqual([
-      { label: 'feature-a', dbPath: dbIn(one) },
-      { label: 'feature-b', dbPath: dbIn(two) },
+      { label: 'feature-a', dbPath: dbIn(one), root: one },
+      { label: 'feature-b', dbPath: dbIn(two), root: two },
     ])
   },
 )
@@ -102,7 +102,7 @@ test(
     )
 
     // then
-    expect(actual).toEqual([{ label: 'feat-crust-agent', dbPath: dbIn(root) }])
+    expect(actual).toEqual([{ label: 'feat-crust-agent', dbPath: dbIn(root), root }])
   },
 )
 
@@ -131,7 +131,7 @@ test(
     )
 
     // then — the empty trailing spec is ignored, not turned into a workspace
-    expect(viaEnv).toEqual([{ label: 'from-env', dbPath: dbIn(fromEnv) }])
+    expect(viaEnv).toEqual([{ label: 'from-env', dbPath: dbIn(fromEnv), root: fromEnv }])
     // then — both are watched, with the flag's entry first
     expect(viaBoth.map((workspace) => workspace.label)).toEqual([
       'from-flag',
@@ -159,7 +159,7 @@ test(
     })
 
     // then
-    expect(actual).toEqual([{ label: 'via-env', dbPath: dbIn(root) }])
+    expect(actual).toEqual([{ label: 'via-env', dbPath: dbIn(root), root }])
   },
 )
 
@@ -173,9 +173,9 @@ test(
     // given — worktrees are routinely named after the same ticket, and a
     // label that is not unique is a label that cannot route.
     const found = [
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db' },
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db' },
-      { label: 'stats', dbPath: '/trees/b/.pi-crust/data/crust.db' },
+      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      { label: 'stats', dbPath: '/trees/b/.pi-crust/data/crust.db', root: '/trees/b' },
     ]
 
     // when
@@ -183,8 +183,8 @@ test(
 
     // then
     expect(actual).toEqual([
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db' },
-      { label: 'stats-2', dbPath: '/trees/b/.pi-crust/data/crust.db' },
+      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      { label: 'stats-2', dbPath: '/trees/b/.pi-crust/data/crust.db', root: '/trees/b' },
     ])
   },
 )
@@ -203,15 +203,15 @@ test(
     const linkedDb = join(linkedRoot, 'crust.db')
     symlinkSync(realDb, linkedDb)
     const found = [
-      { label: 'primary', dbPath: realDb },
-      { label: 'linked', dbPath: linkedDb },
+      { label: 'primary', dbPath: realDb, root },
+      { label: 'linked', dbPath: linkedDb, root: linkedRoot },
     ]
 
     // when
     const actual = dedupe(found)
 
     // then — the first entry's own spelling is kept
-    expect(actual).toEqual([{ label: 'primary', dbPath: realDb }])
+    expect(actual).toEqual([{ label: 'primary', dbPath: realDb, root }])
   },
 )
 
@@ -281,8 +281,8 @@ test(
 
     // then — the tree you are standing in is never the one missing
     expect(actual).toEqual([
-      { label: 'here', dbPath: dbIn(here) },
-      { label: 'elsewhere', dbPath: dbIn(elsewhere) },
+      { label: 'here', dbPath: dbIn(here), root: here },
+      { label: 'elsewhere', dbPath: dbIn(elsewhere), root: elsewhere },
     ])
   },
 )
@@ -313,7 +313,7 @@ test(
     })
 
     // then
-    expect(actual).toEqual([{ label: 'named', dbPath: dbIn(named) }])
+    expect(actual).toEqual([{ label: 'named', dbPath: dbIn(named), root: named }])
   },
 )
 
@@ -351,7 +351,39 @@ test(
 
     // then
     expect(actual).toEqual([
-      { label: 'a', dbPath: '/trees/a/.pi-crust/data/crust.db' },
+      { label: 'a', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+    ])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::readRegistry',
+    'when a record omits root entirely',
+    'it should fall back to the two-levels-up arithmetic, not drop the record',
+  ].join(', '),
+  () => {
+    // given — an older writer that has not been updated to record `root`
+    // yet; the record is still usable, just not able to name a pooled tree
+    const file = join(
+      mkdtempSync(join(tmpdir(), 'crust-reg-')),
+      'workspaces.jsonl',
+    )
+    writeFileSync(
+      file,
+      `${JSON.stringify({ db: '/trees/d/.pi-crust/data/crust.db' })}\n`,
+    )
+
+    // when
+    const actual = readRegistry(file)
+
+    // then
+    expect(actual).toEqual([
+      {
+        label: 'd',
+        dbPath: '/trees/d/.pi-crust/data/crust.db',
+        root: workspaceRootOf('/trees/d/.pi-crust/data/crust.db'),
+      },
     ])
   },
 )
@@ -378,5 +410,92 @@ test(
     // then
     expect(absent).toEqual(0)
     expect(present).toBeGreaterThan(0)
+  },
+)
+
+test(
+  [
+    'given server/workspaces::readRegistry',
+    'when a record carries a root that is not two levels above its db',
+    'it should use the recorded root and label the tree, not the pooled directory',
+  ].join(', '),
+  () => {
+    // given \u2014 a pooled store: the db sits under
+    // `<clone>/.pi-crust/data/issues/41/crust.db`, which two-levels-up
+    // arithmetic would resolve to `<clone>/.pi-crust/data`
+    const file = join(
+      mkdtempSync(join(tmpdir(), 'crust-reg-')),
+      'workspaces.jsonl',
+    )
+    writeFileSync(
+      file,
+      `${JSON.stringify({
+        root: '/clone',
+        db: '/clone/.pi-crust/data/issues/41/crust.db',
+      })}\n`,
+    )
+
+    // when
+    const actual = readRegistry(file)
+
+    // then
+    expect(actual).toEqual([
+      {
+        label: 'clone',
+        dbPath: '/clone/.pi-crust/data/issues/41/crust.db',
+        root: '/clone',
+      },
+    ])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::resolveWorkspaces',
+    'when CRUST_WORKSPACE_ROOT is set',
+    "it should carry that root for the here workspace, not the pooled store's two-levels-up directory",
+  ].join(', '),
+  () => {
+    // given \u2014 a pooled `data_dir`, the shape `workspaceRootOf` gets wrong
+    const clone = mkdtempSync(join(tmpdir(), 'crust-workspace-root-'))
+    const pooledDb = join(clone, '.pi-crust', 'data', 'issues', '41', 'crust.db')
+    mkdirSync(join(clone, '.pi-crust', 'data', 'issues', '41'), {
+      recursive: true,
+    })
+    writeFileSync(pooledDb, '')
+
+    // when
+    const actual = resolveWorkspaces(['bun', 'server'], {
+      ...sealed(),
+      CRUST_DB: pooledDb,
+      CRUST_WORKSPACE_ROOT: clone,
+    })
+
+    // then
+    expect(actual[0]?.root).toEqual(clone)
+    expect(actual[0]?.root).not.toEqual(join(clone, '.pi-crust', 'data'))
+  },
+)
+
+test(
+  [
+    'given server/workspaces::dedupe',
+    'when two entries name the same database',
+    'it should preserve the root of the entry it keeps',
+  ].join(', '),
+  () => {
+    // given
+    const found = [
+      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+    ]
+
+    // when
+    const actual = dedupe(found)
+
+    // then
+    expect(actual).toEqual([
+      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+    ])
   },
 )

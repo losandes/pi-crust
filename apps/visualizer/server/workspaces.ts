@@ -23,6 +23,17 @@ export type TWorkspace = Readonly<{
   label: string;
   /** Absolute path to that tree's crust.db. */
   dbPath: string;
+  /**
+   * Absolute path to the working tree the database belongs to \u2014 the
+   * directory holding `.pi-crust/config/`.
+   *
+   * Carried rather than derived, because `data_dir` is relocatable: a pooled
+   * store puts the db at `<clone>/.pi-crust/data/issues/41/crust.db`, two
+   * levels above which is `<clone>/.pi-crust/data`, a directory with no
+   * stamp in it. The registry already records the true root; this is where
+   * it survives to the reader.
+   */
+  root: string;
 }>;
 
 /**
@@ -39,11 +50,15 @@ export const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, "") || "workspace";
 
 /**
- * The working tree a database belongs to.
+ * The working tree a database belongs to, when nothing recorded a better
+ * answer.
  *
  * `<tree>/.pi-crust/data/crust.db` by default, so the tree is two levels up
- * from the file. Kept in one place because both the label and every write
- * path depend on getting it right.
+ * from the file. This is the fallback for a workspace whose root nothing
+ * recorded \u2014 a registry record that omits `root`, a `--workspace` spec that
+ * names a file rather than a directory. It is wrong for a relocated or
+ * pooled `data_dir`, which is why every other producer of a `TWorkspace`
+ * carries its own root instead of calling this.
  */
 export const workspaceRootOf = (dbPath: string): string =>
   resolve(dirname(dbPath), "..", "..");
@@ -61,11 +76,18 @@ const parseSpec = (spec: string): TWorkspace | undefined => {
   if (trimmed === "") return undefined;
   const split = trimmed.indexOf("=");
   const named = split > 0;
-  const dbPath = asDbPath(named ? trimmed.slice(split + 1) : trimmed);
-  const label = named
-    ? slugify(trimmed.slice(0, split))
-    : slugify(workspaceRootOf(dbPath).split(sep).at(-1) ?? "");
-  return { label, dbPath };
+  const raw = named ? trimmed.slice(split + 1) : trimmed;
+  const dbPath = asDbPath(raw);
+  // The spec's own path IS the root when it names a directory \u2014 no need to
+  // fall back to the database's two-levels-up arithmetic, which is wrong for
+  // a relocated or pooled `data_dir`.
+  const absoluteRaw = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+  const root =
+    existsSync(absoluteRaw) && statSync(absoluteRaw).isDirectory()
+      ? absoluteRaw
+      : workspaceRootOf(dbPath);
+  const label = named ? slugify(trimmed.slice(0, split)) : slugify(root.split(sep).at(-1) ?? "");
+  return { label, dbPath, root };
 };
 
 /**
@@ -107,7 +129,7 @@ export const dedupe = (
       ? uniqueLabel(workspace.label, taken)
       : workspace.label;
     taken.add(label);
-    byPath.set(real, { label, dbPath: workspace.dbPath });
+    byPath.set(real, { label, dbPath: workspace.dbPath, root: workspace.root });
   }
   return [...byPath.values()];
 };
@@ -154,11 +176,12 @@ export const discover = (dbPath: string): readonly TWorkspace[] => {
   // A db outside its own repository has no offset to apply elsewhere.
   if (offset.startsWith("..")) return [];
   return worktreePaths(root)
-    .map((tree) => join(tree, offset))
-    .filter((candidate) => existsSync(candidate))
-    .map((candidate) => ({
-      label: slugify(workspaceRootOf(candidate).split(sep).at(-1) ?? ""),
-      dbPath: candidate,
+    .map((tree) => ({ tree, dbPath: join(tree, offset) }))
+    .filter(({ dbPath }) => existsSync(dbPath))
+    .map(({ tree, dbPath }) => ({
+      label: slugify(tree.split(sep).at(-1) ?? ""),
+      dbPath,
+      root: tree,
     }));
 };
 
@@ -203,10 +226,13 @@ export const readRegistry = (path: string): readonly TWorkspace[] => {
       const parsed = JSON.parse(line) as { db?: unknown; root?: unknown };
       if (typeof parsed.db !== "string" || parsed.db === "") continue;
       const root =
-        typeof parsed.root === "string" ? parsed.root : workspaceRootOf(parsed.db);
+        typeof parsed.root === "string" && parsed.root !== ""
+          ? parsed.root
+          : workspaceRootOf(parsed.db);
       byDb.set(parsed.db, {
         label: slugify(root.split(sep).at(-1) ?? ""),
         dbPath: parsed.db,
+        root,
       });
     } catch {
       // Half written, or written by a version that knows more than this one.
@@ -262,7 +288,22 @@ export const resolveWorkspaces = (
     argv.includes("--all-worktrees") || (env.CRUST_ALL_WORKTREES ?? "").trim() !== "";
   const swept = everywhere ? discover(fallback) : [];
   const registered = readRegistry(registryPath(env));
-  const here = parseSpec(fallback);
+  const parsedHere = parseSpec(fallback);
+  // CRUST_WORKSPACE_ROOT, when set, names the tree the caller was actually
+  // run in more reliably than anything derivable from the database path \u2014
+  // the whole reason this variable exists is a pooled `data_dir` that sits
+  // nowhere near the tree it belongs to.
+  const workspaceRootEnv = (env.CRUST_WORKSPACE_ROOT ?? "").trim();
+  const here =
+    parsedHere === undefined
+      ? undefined
+      : workspaceRootEnv === ""
+        ? parsedHere
+        : {
+            ...parsedHere,
+            root: resolve(workspaceRootEnv),
+            label: slugify(resolve(workspaceRootEnv).split(sep).at(-1) ?? ""),
+          };
   // The local database is listed FIRST and unconditionally, so an empty
   // registry never means an empty UI and the tree you are standing in is
   // never the one missing from the page.

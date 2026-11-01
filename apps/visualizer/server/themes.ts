@@ -100,7 +100,11 @@ export const workspaceThemes = (workspaceRoot: string): TWorkspaceThemes => {
   const stampDir = join(workspaceRoot, '.pi-crust')
   const path = join(stampDir, 'config', 'crust.observe.yaml')
   if (!existsSync(path)) {
-    return { default: 'auto', themes: BUILTIN_THEMES, problem: '' }
+    return {
+      default: 'auto',
+      themes: BUILTIN_THEMES,
+      problem: `${path}: no themes file`,
+    }
   }
   // biome-ignore lint/plugin/no-intermediate-try-catch: this is the boundary the rule names — the file belongs to the observed repository and may be anything, and a broken registration must not stop a trace being read
   try {
@@ -113,7 +117,7 @@ export const workspaceThemes = (workspaceRoot: string): TWorkspaceThemes => {
     return {
       default: asString(parsed.default_theme, 'auto'),
       themes: themes.length === 0 ? BUILTIN_THEMES : themes,
-      problem: '',
+      problem: themes.length === 0 ? `${path}: no usable themes entries` : '',
     }
   } catch (error) {
     return {
@@ -122,4 +126,22 @@ export const workspaceThemes = (workspaceRoot: string): TWorkspaceThemes => {
       problem: `${path}: ${String(error)}`,
     }
   }
+}
+
+/**
+ * The registrations one watched workspace carries, chosen by label.
+ *
+ * Takes the watched list rather than the registry, so it needs no open
+ * database and can be tested without a server. `undefined` means the label
+ * named no watched workspace, which is the endpoint's 404.
+ */
+export const themesForWorkspace = (
+  watched: readonly Readonly<{ label: string; root: string }>[],
+  label: string | undefined,
+): TWorkspaceThemes | undefined => {
+  const found =
+    label === undefined
+      ? watched[0]
+      : watched.find((workspace) => workspace.label === label)
+  return found === undefined ? undefined : workspaceThemes(found.root)
 }

@@ -35,9 +35,10 @@ const ICONS: Readonly<Record<string, ComponentType<{ size?: number }>>> = {
  * The list comes from the observed repository, so a team that removed a
  * default has no row for it and one that added a theme has one.
  */
-export const ThemePicker = () => {
+export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
+  const { workspace } = props
   const [theme, choose] = useTheme()
-  const registered = useRegisteredThemes()
+  const registered = useRegisteredThemes(workspace)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const listId = useId()

@@ -95,7 +95,7 @@ const withPage = async (
     await page.route('**/__diag__/index.html', (route) =>
       route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
     )
-    await page.route('**/api/themes', (route) =>
+    await page.route('**/api/themes*', (route) =>
       route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({ themes }),
