@@ -12,6 +12,7 @@
 
 import { join } from 'node:path'
 import { fileExists, readText } from '../data/files'
+import { longFlagArgv } from './parse-cli'
 
 export const INVOCATION_FILENAME = 'invocation.json'
 
@@ -44,14 +45,18 @@ export type TAttachment = 'attached' | 'detached'
  *
  * Stripping and re-appending rather than leaving them in place keeps the line
  * identical whether this is the first gate or the fourth, so two commands that
- * do the same thing look the same.
+ * do the same thing look the same. `longFlagArgv` runs first because the
+ * strip filter below only matches `--run-id` and `--resume` by their long
+ * names — a run launched with `-id`/`-r` would otherwise keep both the old
+ * short flag and the new long one.
  */
 export const resumeArgv = (
   argv: readonly string[],
   runId: string,
 ): readonly string[] => {
-  const script = argv[1] ?? ''
-  const carried = argv
+  const canonical = longFlagArgv(argv)
+  const script = canonical[1] ?? ''
+  const carried = canonical
     .slice(2)
     .filter(
       (arg, index, all) =>

@@ -42,6 +42,7 @@ import { handoffDirFor } from './modules/data/handoff-pointer'
 import { seedBranch } from './modules/data/branch-seed'
 import { newId } from './modules/data/ids'
 import { appendText, ensureDir } from './modules/data/files'
+import { STEER_CLI, positionalArgs } from './modules/use-cases/cli-positionals'
 import { readRunState } from './modules/use-cases/read-run-state'
 import { runHasLiveProcess } from './modules/data/trace-reader'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
@@ -56,7 +57,7 @@ import {
 } from './modules/use-cases/steer'
 import { loadConfig } from './modules/use-cases/load-config'
 import { DEFAULT_DB } from './modules/typedefs/config'
-import { errorMessage } from './modules/typedefs/settlement'
+import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
@@ -89,20 +90,6 @@ const USAGE = [
   'Neither is the default. One of them destroys evidence, so it is typed.',
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.',
 ].join('\n')
-
-/** Positional args, minus every `--flag value` pair this script understands. */
-const positionals = (argv: readonly string[]): readonly string[] => {
-  const consumed = new Set<number>()
-  argv.forEach((arg, index) => {
-    if (arg === '--seeding' || arg === '--branch-id') {
-      consumed.add(index)
-      consumed.add(index + 1)
-    }
-  })
-  return argv.filter(
-    (arg, index) => !(consumed.has(index) || arg.startsWith('--')),
-  )
-}
 
 const runOverwrite = async (params: {
   dbPath: string
@@ -289,9 +276,15 @@ const runBranch = async (params: {
 
 const main = (): Promise<number> => {
   const argv = process.argv.slice(2)
-  const [runId, activity] = positionals(argv)
+  const positionals = safeParseSettlement(() => positionalArgs(argv, STEER_CLI))
+  if (positionals.status === 'error') {
+    say(errorMessage(positionals.error))
+    say(USAGE)
+    return Promise.resolve(2)
+  }
+  const [runId, activity] = positionals.data
   const target = steerTargetOf(argv)
-  const note = positionals(argv).slice(2).join(' ').trim()
+  const note = positionals.data.slice(2).join(' ').trim()
 
   if (runId === undefined || activity === undefined || target === undefined || note === '') {
     say(USAGE)

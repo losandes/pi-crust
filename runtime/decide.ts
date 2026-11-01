@@ -33,6 +33,7 @@ import {
   safeParseSettlement,
 } from './modules/typedefs/settlement'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
+import { DECIDE_CLI, positionalArgs } from './modules/use-cases/cli-positionals'
 import { ANSWER_FILENAME } from './modules/use-cases/human-gate'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import { loadConfig } from './modules/use-cases/load-config'
@@ -71,10 +72,7 @@ export const parseDecideArgs = (argv: readonly string[]): TDecideArgs => {
     const index = argv.indexOf(name)
     return index === -1 ? undefined : argv[index + 1]
   }
-  const positional = argv.filter(
-    (token, index) =>
-      !(token.startsWith('--') || (argv[index - 1] ?? '').startsWith('--')),
-  )
+  const positional = positionalArgs(argv, DECIDE_CLI)
   const [verb, runId] = positional
   if (verb === undefined || !isVerb(verb)) {
     throw new Error(`first argument must be one of ${VERBS.join(', ')}`)

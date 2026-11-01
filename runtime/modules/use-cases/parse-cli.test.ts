@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { parseCli } from './parse-cli'
+import { FLAG_TABLE, parseCli } from './parse-cli'
+import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 
 test(
   [
@@ -342,5 +343,153 @@ test(
 
     // when, then
     expect(() => parseCli(argv)).toThrow(/did you mean --handoff/)
+  },
+)
+
+const shortFormEquivalences: ReadonlyArray<{
+  name: string
+  short: readonly string[]
+  long: readonly string[]
+}> = [
+  {
+    name: '-a',
+    short: ['do the thing', '-a', 'plan,build'],
+    long: ['do the thing', '--activities', 'plan,build'],
+  },
+  {
+    name: '-c',
+    short: ['do the thing', '-c', 'false'],
+    long: ['do the thing', '--commit', 'false'],
+  },
+  {
+    name: '-l',
+    short: ['do the thing', '-l', 'sdlc'],
+    long: ['do the thing', '--lifecycle', 'sdlc'],
+  },
+  {
+    name: '-n',
+    short: ['do the thing', '-n', 'payments rewrite'],
+    long: ['do the thing', '--name', 'payments rewrite'],
+  },
+  {
+    name: '-r',
+    short: ['do the thing', '-r'],
+    long: ['do the thing', '--resume'],
+  },
+  {
+    name: '-id',
+    short: ['do the thing', '-id', 'a1b2c3d4'],
+    long: ['do the thing', '--run-id', 'a1b2c3d4'],
+  },
+]
+
+for (const { name, short, long } of shortFormEquivalences) {
+  test(
+    [
+      'given use-cases/parse-cli::parseCli',
+      `when ${name} is used instead of its long form`,
+      'it should parse identically to the long form',
+    ].join(', '),
+    () => {
+      // given, when
+      const actual = parseCli(short)
+      const expected = parseCli(long)
+
+      // then
+      expect(actual).toEqual(expected)
+    },
+  )
+}
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when a short flag is given inline with =',
+    'it should parse identically to the long =form',
+  ].join(', '),
+  () => {
+    // given
+    const short = ['-l=sdlc', 'p']
+    const long = ['--lifecycle=sdlc', 'p']
+
+    // when
+    const actual = parseCli(short)
+    const expected = parseCli(long)
+
+    // then
+    expect(actual).toEqual(expected)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::FLAG_TABLE',
+    'when every entry is inspected',
+    'it should have no two entries sharing a short name',
+  ].join(', '),
+  () => {
+    // given
+    const shorts = FLAG_TABLE.map((flag) => flag.short).filter(
+      (short): short is string => short !== undefined,
+    )
+
+    // when
+    const unique = new Set(shorts)
+
+    // then
+    expect(unique.size).toEqual(shorts.length)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when an unrecognised single-dash token is given',
+    'it should refuse by name instead of reading it as the prompt',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['-x', 'foo', 'the prompt']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/unknown flag: -x/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when the token is exactly a bare dash',
+    'it should refuse rather than read it as the prompt',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['-', 'the prompt']
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow(/unknown flag/)
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when a usage line is produced',
+    'it should list every short flag beside its long name',
+  ].join(', '),
+  () => {
+    // given
+    const expectedPairs = FLAG_TABLE.filter((flag) => flag.short !== undefined).map(
+      (flag) => `${flag.short} ${flag.long}`,
+    )
+
+    // when
+    const settled = safeParseSettlement(() => parseCli([], 'run'))
+    const message = settled.status === 'error' ? errorMessage(settled.error) : ''
+
+    // then
+    for (const pair of expectedPairs) {
+      expect(message).toContain(pair)
+    }
   },
 )

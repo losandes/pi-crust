@@ -200,6 +200,7 @@ test(
       ['diagnose'],
       ['plan', 'test-tdd', 'build'],
       ['outcome-review', 'code-review'],
+      ['gh-pull-request'],
     ])
     expect(stagesOf('de-risk')).toEqual([
       ['identify'],

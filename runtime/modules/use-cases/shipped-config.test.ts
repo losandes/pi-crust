@@ -220,8 +220,8 @@ test(
       actual.find((one) => one.name === name)?.stages.map((s) => s.name)
 
     // then
-    expect(stagesOf('sdlc')).toEqual(['discover', 'deliver', 'accept'])
-    expect(stagesOf('bugfix')).toEqual(['diagnose', 'deliver', 'accept'])
+    expect(stagesOf('sdlc')).toEqual(['discover', 'deliver', 'accept', 'push'])
+    expect(stagesOf('bugfix')).toEqual(['diagnose', 'deliver', 'accept', 'push'])
     expect(stagesOf('de-risk')).toEqual(['discover', 'prove'])
   },
 )
@@ -250,6 +250,7 @@ test(
       'test',
       'outcome-review',
       'code-review',
+      'gh-pull-request',
     ])
   },
 )
