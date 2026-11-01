@@ -11,7 +11,7 @@
     "// TEST": "==============================TEST==============================",
     "test": "bun test",
     "test:with-logs": "bun test --verbose",
-    "test:ci": "CLAUDECODE=1 bun test --verbose",
+    "test:ci": "CLAUDECODE=1 bun test --verbose --coverage",
     "test:claude": "CLAUDECODE=1 bun test --verbose --bail",
     "test:coverage": "CLAUDECODE=1 bun test --coverage",
     "test:watch": "bun test --watch",
