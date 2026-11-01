@@ -84,7 +84,7 @@ lifecycles:
     stages:
       - name: ship
         strategy: serial
-        activities: [plan, build]
+        activities: [identify, plan, build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
