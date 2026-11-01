@@ -89,6 +89,7 @@ const fakePorts = (
     remoteExists: () => true,
     baseRef: () => 'refs/remotes/origin/main',
     commitsAhead: () => 1,
+    uncommitted: () => [],
     push: (remote, branch) => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push({ op: 'push', remote, branch })
@@ -109,7 +110,10 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
     sessionDir,
     contextHandoffDir,
     resume: new Set<string>(),
-    cfg: { observability: { db: join(contextHandoffDir, 'no-such.db') } },
+    cfg: {
+      observability: { db: join(contextHandoffDir, 'no-such.db') },
+      routing: { skills: [], checks: [], unmatched: 'warn' },
+    },
     console: { note: () => undefined },
     tracer: { event: () => undefined },
     ...overrides,
