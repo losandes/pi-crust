@@ -53,6 +53,27 @@ test(
 test(
   [
     'given use-cases/menu-options::menuOptions',
+    'when an Activity declares aliases',
+    'it should contribute exactly one option, valued at its canonical name',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity('gh-pull-request', { aliases: ['gh-pr'] })]
+
+    // when
+    const actual = menuOptions(given, []).map((option) => option.value)
+
+    // then
+    expect(actual.filter((value) => value.includes('gh-pull-request'))).toEqual([
+      'gh-pull-request',
+    ])
+    expect(actual).not.toContain('gh-pr')
+  },
+)
+
+test(
+  [
+    'given use-cases/menu-options::menuOptions',
     'when the menu lists the work',
     'it should offer the Activity names, because its values become --activities',
   ].join(', '),

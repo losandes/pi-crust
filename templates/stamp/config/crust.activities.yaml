@@ -25,6 +25,11 @@
 #   commit    land this Activity's own change, in its envelope's words, once
 #             every gate on it has passed. `--commit false` turns this off
 #             for a whole run; there is no flag that turns it on.
+#   aliases   other names this Activity answers to on --activities and in a
+#             Lifecycle's stages[].activities. Resolved at those two
+#             boundaries only — a trace, `just crust list` and `just crust
+#             activity runs` only ever show the canonical name above. Default
+#             []. A Planner may not be aliased. No prefix matching.
 #
 # This lists everything pi-crust offers rather than only your additions, which
 # is what lets you remove one: delete the entry and the capability is gone.

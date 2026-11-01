@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activityOrder } from '../typedefs/lifecycle'
+import { crustConfigSchema } from '../typedefs/config'
 import { loadLifecycles, mergeLifecycles } from './load-lifecycles'
 
 const written = (base: string, local?: string) => {
@@ -95,6 +96,46 @@ lifecycles:
 
     // then
     expect(actual).toEqual(['sdlc', 'spike'])
+  },
+)
+
+test(
+  [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    "when a Lifecycle's stage names an alias and cfg is passed",
+    'it should load with the canonical name in stages[].activities',
+  ].join(', '),
+  () => {
+    // given
+    const given = written(`
+lifecycles:
+  - name: sdlc
+    stages:
+      - name: plan
+        activities: [plan]
+      - name: pr
+        activities: [gh-pr]
+`)
+    const cfg = crustConfigSchema.parse({
+      activities: [
+        { name: 'plan', purpose: 'p', prompt_engineering: { system: 's.md', user: 'u.md' } },
+        {
+          name: 'gh-pull-request',
+          purpose: 'p',
+          prompt_engineering: { system: 's.md', user: 'u.md' },
+          aliases: ['gh-pr'],
+        },
+      ],
+    })
+
+    // when
+    const actual = loadLifecycles(given, cfg)
+
+    // then
+    expect(activityOrder(actual[0] ?? { name: '', description: '', stages: [] })).toEqual([
+      'plan',
+      'gh-pull-request',
+    ])
   },
 )
 

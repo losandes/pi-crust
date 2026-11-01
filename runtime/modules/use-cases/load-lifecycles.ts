@@ -21,6 +21,7 @@ import {
   lifecyclesFileSchema,
   type TLifecycleConfig,
 } from '../typedefs/lifecycle'
+import { canonicalActivityNames } from './activity-registry'
 import { concurrencyFaults } from './concurrency-faults'
 
 /** The local layer sits beside whichever file was chosen. */
@@ -74,7 +75,20 @@ export const loadLifecycles = (
     ? mergeLifecycles(base, parseFile(localPath))
     : base
 
-  const faults = merged.flatMap((lifecycle) => [
+  const resolved =
+    cfg === undefined
+      ? merged
+      : merged.map((lifecycle) => ({
+          ...lifecycle,
+          stages: lifecycle.stages.map((stage) => ({
+            ...stage,
+            activities: [
+              ...canonicalActivityNames(cfg.activities, stage.activities),
+            ],
+          })),
+        }))
+
+  const faults = resolved.flatMap((lifecycle) => [
     ...lifecycleFaults(lifecycle),
     ...concurrencyFaults(lifecycle, cfg?.activities ?? []),
   ])
@@ -86,5 +100,5 @@ export const loadLifecycles = (
     )
   }
 
-  return merged
+  return resolved
 }

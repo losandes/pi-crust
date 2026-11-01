@@ -34,9 +34,16 @@
 activities:
   # Override one Activity, and only the keys you name. Its purpose, prompts,
   # tools and writes boundary stay as the repository has them.
+  #
+  # A personal shorthand for --activities and a Lifecycle's stages[].
+  # activities, same as every other key here: this REPLACES the team's
+  # aliases rather than adding to them — the team has none on `build`, so
+  # this is the whole list. Nothing past those two boundaries ever sees
+  # `b`: the trace, `just crust list` and `--resume` all show `build`.
   - name: build
     model: anthropic/claude-opus-5
     thinking: high
+    aliases: [b]
 
   # The cheap end of a roster, while iterating on a prompt.
   - name: scout

@@ -9,6 +9,7 @@ import {
   DEFAULT_ATTEMPTS,
   mergeActivities,
   PLANNER_NAMES,
+  plannerConfigSchema,
   plannerFaults,
   TERMINAL_NAMES,
   terminalFaults,
@@ -94,6 +95,49 @@ test(
 
     // then
     expect(actual.success).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::activityConfigSchema',
+    'when an entry declares no aliases',
+    'it should default to an empty list',
+  ].join(', '),
+  () => {
+    // given
+    const given = {
+      name: 'build',
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+    }
+
+    // when
+    const actual = activityConfigSchema.parse(given)
+
+    // then
+    expect(actual.aliases).toEqual([])
+  },
+)
+
+test(
+  [
+    'given typedefs/activity::plannerConfigSchema',
+    'when an entry carries aliases',
+    'it should parse with no aliases key, because a Planner may not be aliased',
+  ].join(', '),
+  () => {
+    // given
+    const given = {
+      name: 'operator',
+      prompt_engineering: { system: 's.md', user: 'u.md' },
+      aliases: ['op'],
+    }
+
+    // when
+    const actual = plannerConfigSchema.parse(given)
+
+    // then
+    expect('aliases' in actual).toBe(false)
   },
 )
 

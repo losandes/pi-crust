@@ -119,6 +119,39 @@ test(
 test(
   [
     'given use-cases/activities::runnableActivities',
+    'when a chain mixes an alias with the canonical name it resolves to',
+    'it should number both as instances of the one Activity, canonical throughout',
+  ].join(', '),
+  () => {
+    /*
+     * given \u2014 'build' with alias 'b', rather than the spec's illustrative
+     * 'gh-pr'/'gh-pull-request' pair: that pair names a reserved terminal
+     * Activity, and any entry literally called 'gh-pull-request' is refused
+     * by the existing terminal-name fault before aliasing ever runs.
+     */
+    const given = aConfig([
+      anActivity('build', { output: 'buildOutput', aliases: ['b'] }),
+    ])
+
+    // when
+    const actual = runnableActivities(['b', 'build'], given)
+
+    // then \u2014 one assertion that is the trace name, the --resume skip key
+    // and the attempt-budget key, because all three read params.name
+    expect(actual.map((activity) => activity.params.name)).toEqual([
+      'build',
+      'build_2',
+    ])
+    expect(actual.map((activity) => activity.params.owner)).toEqual([
+      'build',
+      'build',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/activities::runnableActivities',
     'when a name is not an Activity this repository offers',
     'it should throw and list the ones that are',
   ].join(', '),
