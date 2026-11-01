@@ -358,6 +358,38 @@ test(
 
 test(
   [
+    'given server/workspaces::readRegistry',
+    'when a record omits root entirely',
+    'it should fall back to the two-levels-up arithmetic, not drop the record',
+  ].join(', '),
+  () => {
+    // given — an older writer that has not been updated to record `root`
+    // yet; the record is still usable, just not able to name a pooled tree
+    const file = join(
+      mkdtempSync(join(tmpdir(), 'crust-reg-')),
+      'workspaces.jsonl',
+    )
+    writeFileSync(
+      file,
+      `${JSON.stringify({ db: '/trees/d/.pi-crust/data/crust.db' })}\n`,
+    )
+
+    // when
+    const actual = readRegistry(file)
+
+    // then
+    expect(actual).toEqual([
+      {
+        label: 'd',
+        dbPath: '/trees/d/.pi-crust/data/crust.db',
+        root: workspaceRootOf('/trees/d/.pi-crust/data/crust.db'),
+      },
+    ])
+  },
+)
+
+test(
+  [
     'given server/workspaces::registryStamp',
     'when the registry does not exist and when it changes',
     'it should report a stamp that moves, so a reader knows to look again',

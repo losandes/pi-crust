@@ -37,6 +37,7 @@ test(
 
     // then
     expect(actual.themes.map((theme) => theme.name)).toEqual(['dark', 'light'])
+    expect(actual.problem).toBe('')
   },
 )
 
