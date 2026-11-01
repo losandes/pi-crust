@@ -15,7 +15,7 @@ import { join, resolve, sep } from "node:path";
 import type { PiCrustDb } from "./db.ts";
 import { handoffDirFor } from "./handoff.ts";
 import { WorkspaceRegistry } from "./registry.ts";
-import { BUILTIN_THEMES, workspaceThemes } from "./themes.ts";
+import { BUILTIN_THEMES, themesForWorkspace } from "./themes.ts";
 import {
   registryPath,
   registryStamp,
@@ -296,19 +296,19 @@ const server = Bun.serve({
      */
     "/api/themes": safely((req) => {
       const label = workspaceQuery(req);
-      const named = label === undefined ? undefined : registry.byLabel(label);
-      if (label !== undefined && named === undefined) {
+      const watched = registry.states();
+      if (watched.length === 0) {
+        return json({
+          default: "auto",
+          themes: BUILTIN_THEMES,
+          problem: "no workspace is being watched",
+        });
+      }
+      const found = themesForWorkspace(watched, label);
+      if (found === undefined) {
         return notFound(`no workspace ${label}`);
       }
-      const root = (label === undefined
-        ? registry.states()[0]?.root
-        : registry.states().find((state) => state.label === label)?.root) ?? "";
-
-      return json(
-        root === ""
-          ? { default: "auto", themes: BUILTIN_THEMES, problem: "" }
-          : workspaceThemes(root),
-      );
+      return json(found);
     }),
 
     "/api/sessions": safely((req) => {

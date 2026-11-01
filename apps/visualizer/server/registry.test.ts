@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WorkspaceRegistry } from "./registry.ts";
 import type { TWorkspace } from "./workspaces.ts";
+import { workspaceRootOf } from "./workspaces.ts";
 
 /**
  * A working tree holding a real trace database.
@@ -43,7 +44,7 @@ const tree = (
     ]);
   }
   db.close();
-  return { label: name, dbPath };
+  return { label: name, dbPath, root };
 };
 
 test(
@@ -89,7 +90,7 @@ test(
     const present = tree("present", [["cccc1111", "2026-10-06T09:00:00Z"]]);
     const registry = new WorkspaceRegistry([
       present,
-      { label: "empty", dbPath: "/nowhere/.pi-crust/data/crust.db" },
+      { label: "empty", dbPath: "/nowhere/.pi-crust/data/crust.db", root: "/nowhere" },
     ]);
 
     // when
@@ -117,12 +118,14 @@ test(
     // given — deciding reachability once at startup is the bug this prevents
     const late = join(mkdtempSync(join(tmpdir(), "crust-registry-late-")), "late");
     const dbPath = join(late, ".pi-crust", "data", "crust.db");
-    const registry = new WorkspaceRegistry([{ label: "late", dbPath }]);
+    const registry = new WorkspaceRegistry([{ label: "late", dbPath, root: late }]);
     expect(registry.sessions()).toEqual([]);
 
     // when — the tree's first run creates the trace
     const created = tree("late", [["dddd1111", "2026-10-06T09:00:00Z"]]);
-    const live = new WorkspaceRegistry([{ label: "late", dbPath: created.dbPath }]);
+    const live = new WorkspaceRegistry([
+      { label: "late", dbPath: created.dbPath, root: created.root },
+    ]);
 
     // then
     expect(live.sessions().map((session) => session.run_id)).toEqual(["dddd1111"]);
@@ -184,6 +187,32 @@ test(
     expect(actual.map((state) => [state.label, state.db !== undefined, state.error])).toEqual([
       ["vanishing", false, "workspace is gone"],
     ]);
+    registry.close();
+  },
+);
+
+test(
+  [
+    "given server/registry::WorkspaceRegistry.states",
+    "when a workspace's database does not sit two levels below its root",
+    "it should report the carried root, not one recomputed from the db path",
+  ].join(", "),
+  () => {
+    // given \u2014 a pooled store, which is the shape that breaks a recomputed
+    // root: two levels above `<clone>/.pi-crust/data/issues/41/crust.db` is
+    // `<clone>/.pi-crust/data`, not the clone itself
+    const pooled = tree("pooled", [["gggg1111", "2026-10-06T09:00:00Z"]]);
+    const carriedRoot = join(pooled.root, "..", "clone");
+    const registry = new WorkspaceRegistry([
+      { label: "pooled", dbPath: pooled.dbPath, root: carriedRoot },
+    ]);
+
+    // when
+    const actual = registry.states();
+
+    // then
+    expect(actual[0]?.root).toEqual(carriedRoot);
+    expect(actual[0]?.root).not.toEqual(workspaceRootOf(pooled.dbPath));
     registry.close();
   },
 );

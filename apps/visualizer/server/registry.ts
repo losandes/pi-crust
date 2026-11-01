@@ -19,7 +19,6 @@ import { existsSync } from "node:fs";
 import type { SessionSummary } from "../shared/types.ts";
 import { PiCrustDb } from "./db.ts";
 import type { TWorkspace } from "./workspaces.ts";
-import { workspaceRootOf } from "./workspaces.ts";
 
 /** A watched tree and whatever is currently known about reaching it. */
 export type TWorkspaceState = Readonly<{
@@ -118,7 +117,7 @@ export class WorkspaceRegistry {
       const db = this.connect(workspace);
       return {
         label: workspace.label,
-        root: workspaceRootOf(workspace.dbPath),
+        root: workspace.root,
         dbPath: workspace.dbPath,
         db,
         error: db === undefined ? this.failures.get(workspace.label) : undefined,

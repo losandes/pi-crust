@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { BUILTIN_THEMES, type TRegisteredTheme } from './registered'
 
+/** `/api/themes`, scoped to one workspace when the route names one. */
+export const themesUrl = (workspace?: string): string =>
+  workspace === undefined || workspace === ''
+    ? '/api/themes'
+    : `/api/themes?workspace=${encodeURIComponent(workspace)}`
+
 /**
  * The themes the observed repository registers.
  *
@@ -12,19 +18,32 @@ import { BUILTIN_THEMES, type TRegisteredTheme } from './registered'
  * The builtins are the starting value, not a fallback applied on failure:
  * the picker renders before the request settles, and showing nothing for a
  * frame is worse than showing what almost every repository registers anyway.
+ *
+ * Scoped to the workspace currently routed to, so the picker reflects the
+ * trace on screen rather than whichever workspace the server happens to
+ * watch first.
  */
-export const useRegisteredThemes = (): readonly TRegisteredTheme[] => {
+export const useRegisteredThemes = (
+  workspace?: string,
+): readonly TRegisteredTheme[] => {
   const [themes, setThemes] =
     useState<readonly TRegisteredTheme[]>(BUILTIN_THEMES)
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/themes', { signal: controller.signal })
+    fetch(themesUrl(workspace), { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : undefined))
       .then((body) => {
-        const found = (body as { themes?: readonly TRegisteredTheme[] })?.themes
+        const parsed = body as
+          | { themes?: readonly TRegisteredTheme[]; problem?: string }
+          | undefined
+        const found = parsed?.themes
         if (found !== undefined && found.length > 0) {
           setThemes(found)
+        }
+        if (parsed?.problem !== undefined && parsed.problem !== '') {
+          // biome-ignore lint/suspicious/noConsole: 1.5.5 requires a console warning, deliberately \u2014 a broken theme registration must not surface in the UI, and a developer watching devtools is the intended audience
+          console.warn(`theme registrations: ${parsed.problem}`)
         }
       })
       // A theme list that will not load is a styling fault, not a reason to
@@ -32,7 +51,7 @@ export const useRegisteredThemes = (): readonly TRegisteredTheme[] => {
       .catch(() => undefined)
 
     return () => controller.abort()
-  }, [])
+  }, [workspace])
 
   return themes
 }

@@ -51,7 +51,7 @@ export const App = () => {
           <span className={styles.liveHint}>
             <span className={styles.liveDot} /> live
           </span>
-          <ThemePicker />
+          <ThemePicker workspace={route.workspace} />
         </div>
       </header>
       <main>

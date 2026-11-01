@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { BUILTIN_THEMES, workspaceThemes } from './themes.ts'
+import { BUILTIN_THEMES, themesForWorkspace, workspaceThemes } from './themes.ts'
 
 const workspace = (
   yaml?: string,
@@ -96,6 +96,101 @@ test(
 
     // then
     expect(actual.themes).toEqual(BUILTIN_THEMES)
+    expect(actual.problem).toContain('crust.observe.yaml')
+  },
+)
+
+test(
+  [
+    'given server/themes::workspaceThemes',
+    'when the themes file parses but names no usable themes',
+    'it should offer what shipped and say why',
+  ].join(', '),
+  () => {
+    // given
+    const given = workspace('themes: []\n')
+
+    // when
+    const actual = workspaceThemes(given)
+
+    // then
+    expect(actual.themes).toEqual(BUILTIN_THEMES)
+    expect(actual.problem).not.toBe('')
+  },
+)
+
+test(
+  [
+    'given server/themes::themesForWorkspace',
+    'when a label names no watched workspace',
+    'it should answer undefined, the endpoint\'s 404',
+  ].join(', '),
+  () => {
+    // given
+    const watched = [
+      { label: 'one', root: workspace() },
+      { label: 'two', root: workspace() },
+    ]
+
+    // when
+    const actual = themesForWorkspace(watched, 'missing')
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given server/themes::themesForWorkspace',
+    'when no label is given',
+    'it should answer the first watched workspace\'s registrations',
+  ].join(', '),
+  () => {
+    // given
+    const first = workspace(
+      'themes:\n  - name: midnight\n    builtin: true\n',
+    )
+    const second = workspace(
+      'themes:\n  - name: sunrise\n    builtin: true\n',
+    )
+    const watched = [
+      { label: 'one', root: first },
+      { label: 'two', root: second },
+    ]
+
+    // when
+    const actual = themesForWorkspace(watched, undefined)
+
+    // then
+    expect(actual?.themes.map((theme) => theme.name)).toEqual(['midnight'])
+  },
+)
+
+test(
+  [
+    'given server/themes::themesForWorkspace',
+    'when a label matches the second of two watched workspaces',
+    'it should answer that one\'s registrations, not the first\'s',
+  ].join(', '),
+  () => {
+    // given
+    const first = workspace(
+      'themes:\n  - name: midnight\n    builtin: true\n',
+    )
+    const second = workspace(
+      'themes:\n  - name: sunrise\n    builtin: true\n',
+    )
+    const watched = [
+      { label: 'one', root: first },
+      { label: 'two', root: second },
+    ]
+
+    // when
+    const actual = themesForWorkspace(watched, 'two')
+
+    // then
+    expect(actual?.themes.map((theme) => theme.name)).toEqual(['sunrise'])
   },
 )
 
