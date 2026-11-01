@@ -30,7 +30,7 @@ Write the tests that would prove the work described in `prompt` was done correct
 
 1. Read enough of the code to know where the behaviour belongs and how its neighbours are tested.
 2. Write the tests. Test files only — you may not modify implementation code.
-3. Run them. They are expected to FAIL until the builder implements the request; say so in your summary rather than weakening them.
+3. Run them, and read which case you are in rather than assuming one. If the implementation is not there yet they will fail: that red is the work product, so report it and do not weaken them to make it go away. If the change has already been built they will pass, and a test that has passed from the moment it was written has not yet been shown to test anything — so for each test covering a reported defect, or guarding against its return, prove the red: revert or mutate the behaviour under test, confirm the test fails and that the failure names the cause rather than an import error, then restore it and re-run to confirm green before you report. Record what you reverted and what failed in `facts`. Leaving the implementation reverted fails the activity run, so restore it even if you abandon the attempt.
 4. Emit your `Report` JSON.
 
 ### When a diagnosis came first
@@ -74,7 +74,7 @@ Respond with ONLY valid JSON matching `BuildOutput` — no prose before or after
   "regress_to": { "activity": "", "because": "" },
   "objective_met": { "met": true, "evidence": "<how you know you did your job>" },
   "status": "success",
-  "summary": "<one sentence: what these tests prove, and whether they currently pass>",
+  "summary": "<one sentence: what these tests prove, whether they currently pass, and what established they can fail>",
   "changed_files": ["src/server.test.ts"],
   "artifacts": [],
   "disputes": [],
