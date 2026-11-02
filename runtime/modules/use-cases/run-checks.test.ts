@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
-import { runVerification } from './run-checks'
+import { runCommand, runVerification } from './run-checks'
 
 /** `runVerification` reads only the config in the two no-command cases. */
 const runWith = (routing: Readonly<Record<string, unknown>>): TRun =>
@@ -220,5 +220,34 @@ test(
 
     // then
     expect(actual.passed).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given use-cases/run-checks::runCommand',
+    'when called with no note callback',
+    "it should still run the command, using a no-op in the note's place",
+  ].join(', '),
+  () => {
+    // given — the caller is `just crust verify`, which has no console to
+    // write progress to
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-command-'))
+
+    // when
+    const actual = runCommand(
+      {
+        name: 'ok',
+        argv: ['true'],
+        cwd: '',
+        timeoutSeconds: 5,
+        area: 'backend',
+        operation: 'test',
+      },
+      { repoRoot: dir, outputArtifact: join(dir, 'command.log') },
+    )
+
+    // then
+    expect(actual.passed).toBe(true)
   },
 )

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import {
-  artifactViolations,
   activityRunArtifacts,
+  artifactViolations,
   relativeToSession,
   runArtifacts,
 } from './artifacts'
@@ -230,7 +230,12 @@ test(
     // given — an invalid envelope is a rejected report; the attempt that
     // replaced it is the one that speaks for the activity
     const envelopes = [
-      envelope('scout', `${RUN}_01_scout`, { artifacts: [`${DIR}/junk.md`] }, 0),
+      envelope(
+        'scout',
+        `${RUN}_01_scout`,
+        { artifacts: [`${DIR}/junk.md`] },
+        0,
+      ),
     ]
 
     // when
@@ -347,7 +352,12 @@ test(
       envelopes: [envelope('a', `${RUN}_01_plan`, { artifacts: [path] })],
       events: [],
       present: [
-        { path: 'context_handoff/plan.md', title: '', bytes: 0, modified_at: '' },
+        {
+          path: 'context_handoff/plan.md',
+          title: '',
+          bytes: 0,
+          modified_at: '',
+        },
       ],
     })
 
@@ -355,5 +365,75 @@ test(
     expect(actual).toHaveLength(1)
     expect(actual[0]?.path).toEqual('context_handoff/plan.md')
     expect(actual[0]?.source).toEqual('reported')
+  },
+)
+
+test(
+  [
+    'given lib/artifacts::relativeToSession',
+    'when the path matches neither the session marker nor a handoff directory',
+    'it should return the path unchanged',
+  ].join(', '),
+  () => {
+    // given — a path from an entirely different tree
+    const path = '/elsewhere/not-this-run/design.md'
+
+    // when
+    const actual = relativeToSession(path, RUN, '/repo/specs/other-run')
+
+    // then
+    expect(actual).toEqual(path)
+  },
+)
+
+test(
+  [
+    'given lib/artifacts::runArtifacts',
+    'when a reported envelope carries malformed payload JSON',
+    'it should not throw, and should report no artifacts for that envelope',
+  ].join(', '),
+  () => {
+    // given
+    const broken: Envelope = {
+      ...envelope('a', `${RUN}_01_plan`, {}),
+      payload_json: 'not json',
+    }
+
+    // when
+    const actual = runArtifacts({
+      runId: RUN,
+      envelopes: [broken],
+      events: [],
+      present: undefined,
+    })
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given lib/artifacts::runArtifacts',
+    'when an artifacts event carries malformed payload JSON',
+    'it should not throw, and should not attribute the observed file to any activityRun',
+  ].join(', '),
+  () => {
+    // given
+    const broken: EventRow = {
+      ...artifactEvent(`${RUN}_01_plan`, {}),
+      payload_json: 'not json',
+    }
+
+    // when
+    const actual = runArtifacts({
+      runId: RUN,
+      envelopes: [],
+      events: [broken],
+      present: [file(`${DIR}/plan.md`)],
+    })
+
+    // then
+    expect(actual[0]?.activityRunId).toBeUndefined()
   },
 )

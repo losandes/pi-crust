@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, mock, test } from 'bun:test'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -140,5 +140,39 @@ test(
 
     // then
     expect(actual).toEqual(['design.md', 'research/sources.md'])
+  },
+)
+
+afterAll(() => {
+  // mock.module() leaks across files in bun's shared module registry
+  // (https://bun.sh/docs/test/parallel); restore the real module explicitly
+  // rather than rely on mock.restore(), which does not undo it.
+  mock.module('node:fs', () => require('node:fs'))
+})
+
+test(
+  [
+    'given data/artifact-lock::lockArtifacts',
+    'when the mode cannot actually be set on a document',
+    'it should drop it from the result rather than fail the run',
+  ].join(', '),
+  () => {
+    // given — mocked, because provoking a real chmod failure needs root or a
+    // filesystem that refuses it, neither of which this test can assume
+    const dir = scratch()
+    writeFileSync(join(dir, 'design.md'), 'the approved design')
+    mock.module('node:fs', () => ({
+      ...require('node:fs'),
+      chmodSync: () => {
+        throw new Error('EPERM: operation not permitted')
+      },
+    }))
+
+    // when
+    const locked = lockArtifacts(dir, ['design.md'])
+
+    // then
+    expect(locked).toEqual([])
+    mock.module('node:fs', () => require('node:fs'))
   },
 )

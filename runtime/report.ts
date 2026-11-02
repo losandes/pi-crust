@@ -31,25 +31,22 @@ import { dirname, join } from 'node:path'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
-import { EXIT } from './modules/typedefs/run-state'
 import type { TGateOutcome, TRunState } from './modules/typedefs/run-state'
+import { EXIT } from './modules/typedefs/run-state'
 import {
   errorMessage,
   safeParseSettlement,
 } from './modules/typedefs/settlement'
 import { renderWarnings } from './modules/typedefs/warning'
-import { displayLabel } from './modules/use-cases/run-label'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
 import {
-  recipeArgv,
   RUN_RECIPE,
+  recipeArgv,
   shellLine,
 } from './modules/use-cases/recipe-line'
-import {
-  recordedInvocation,
-  resumeArgv,
-} from './modules/use-cases/resume-run'
+import { recordedInvocation, resumeArgv } from './modules/use-cases/resume-run'
+import { displayLabel } from './modules/use-cases/run-label'
 
 export type TReportArgs = Readonly<{
   runId: string | undefined
@@ -186,7 +183,9 @@ export const renderReport = (
      * discoverable — the data stays in `sessions.lifecycle`, this just
      * prints it one line down rather than letting it hide behind the label.
      */
-    ...(state.name ? [`${paint('lifecycle:', 'bold')} ${state.lifecycle || '(unknown)'}`] : []),
+    ...(state.name
+      ? [`${paint('lifecycle:', 'bold')} ${state.lifecycle || '(unknown)'}`]
+      : []),
     `${paint('status:', 'bold')} ${state.status}`,
     `${paint('engineer:', 'bold')} ${state.engineer}`,
     `${paint('tokens:', 'bold')} ${state.tokens.toLocaleString('en-US')}` +
@@ -229,7 +228,9 @@ export const renderReport = (
   return [
     box('run', header, state.resumable ? 'yellow' : 'green'),
     '',
-    ...(activityRuns.length > 0 ? activityRuns : ['  (no activityRuns recorded)']),
+    ...(activityRuns.length > 0
+      ? activityRuns
+      : ['  (no activityRuns recorded)']),
     '',
     ...(warnings.length > 0
       ? [...warnings.map((line) => paint(line, 'yellow')), '']
@@ -268,11 +269,17 @@ export const main = (argv: readonly string[]): number => {
     : EXIT.FAILED
 }
 
+/** A rejection from `main` is a usage error, reported the same way other CLI entries do. */
+export const reportUsageError = (error: unknown): number => {
+  process.stderr.write(`${errorMessage(error)}\n${USAGE}\n`)
+  return EXIT.USAGE
+}
+
 if (import.meta.main) {
-  const settled = safeParseSettlement(() => main(process.argv.slice(2)))
-  if (settled.status === 'error') {
-    process.stderr.write(`${errorMessage(settled.error)}\n${USAGE}\n`)
-    process.exit(EXIT.USAGE)
+  // biome-ignore lint/plugin/no-intermediate-try-catch: this is the process boundary itself \u2014 there is no settlement layer above it to hand the error to
+  try {
+    process.exit(main(process.argv.slice(2)))
+  } catch (error) {
+    process.exit(reportUsageError(error))
   }
-  process.exit(settled.data)
 }

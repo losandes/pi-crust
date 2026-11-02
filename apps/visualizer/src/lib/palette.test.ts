@@ -1,7 +1,13 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { AGENT_ROLES, agentRole, isAgentRole, paletteColor } from './palette'
+import {
+  AGENT_ROLES,
+  agentRole,
+  isAgentRole,
+  paletteColor,
+  workspaceRoles,
+} from './palette'
 
 /*
  * Two files, because high contrast is no longer one of the app's own
@@ -225,10 +231,7 @@ test(
       const block = themeBlock(theme)
       return {
         theme,
-        ratio: contrast(
-          channels(block, 'hotpink'),
-          channels(block, 'panel'),
-        ),
+        ratio: contrast(channels(block, 'hotpink'), channels(block, 'panel')),
       }
     })
 
@@ -254,7 +257,8 @@ test(
     // when
     const clashes = blocks.filter(
       (block) =>
-        channels(block, 'hotpink').join(' ') === channels(block, 'pink').join(' '),
+        channels(block, 'hotpink').join(' ') ===
+        channels(block, 'pink').join(' '),
     )
 
     // then
@@ -383,7 +387,9 @@ test(
     // two, would have returned the stripe to 1.00:1 and made it vanish, so
     // the invariant is the relationship rather than either value.
     const rgbOf = (block: string, token: string): readonly number[] => {
-      const match = new RegExp(`${token}:\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)`).exec(block)
+      const match = new RegExp(`${token}:\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)`).exec(
+        block,
+      )
       return (match ?? []).slice(1, 4).map(Number)
     }
 
@@ -394,7 +400,8 @@ test(
       const stripe = rgbOf(block, '--zebra-rgb')
       return {
         theme,
-        apart: head.length === 3 && stripe.length === 3 ? contrast(head, stripe) : 0,
+        apart:
+          head.length === 3 && stripe.length === 3 ? contrast(head, stripe) : 0,
         // Negative means the header is darker, which is what a light page
         // needs for the header to read as the heaviest band.
         headerIsDarker: luminance(head) < luminance(stripe),
@@ -407,5 +414,50 @@ test(
     expect(measured.find((row) => row.theme === 'light')?.headerIsDarker).toBe(
       true,
     )
+  },
+)
+
+test(
+  [
+    'given lib/palette::workspaceRoles',
+    'when several working trees are watched',
+    'it should assign roles by sorted position, not arrival order',
+  ].join(', '),
+  () => {
+    // given — sorting first means a tree with no runs yet does not reshuffle
+    // the assignment the moment it starts producing them
+    const labels = ['feature-b', 'feature-a', 'feature-c']
+
+    // when
+    const roles = workspaceRoles(labels)
+
+    // then
+    expect(roles.get('feature-a')).toBe(AGENT_ROLES[0])
+    expect(roles.get('feature-b')).toBe(AGENT_ROLES[1])
+    expect(roles.get('feature-c')).toBe(AGENT_ROLES[2])
+  },
+)
+
+test(
+  [
+    'given lib/palette::workspaceRoles',
+    'when there are more trees than roles',
+    'it should wrap around the role list rather than running out',
+  ].join(', '),
+  () => {
+    // given
+    const labels = Array.from(
+      { length: AGENT_ROLES.length + 1 },
+      (_, i) => `ws-${i}`,
+    )
+
+    // when
+    const roles = workspaceRoles(labels)
+    const sorted = [...labels].toSorted((left, right) =>
+      left.localeCompare(right),
+    )
+
+    // then
+    expect(roles.get(sorted[0])).toBe(roles.get(sorted[AGENT_ROLES.length]))
   },
 )

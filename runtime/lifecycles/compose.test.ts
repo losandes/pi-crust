@@ -3,9 +3,9 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crustConfigSchema } from '../modules/typedefs/config'
-import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
+import type { TCliArgs, TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { plannedNames } from '../modules/use-cases/plan-units'
-import { plannedActivities } from './compose'
+import { main, plannedActivities, runFromCli } from './compose'
 
 const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
   prompt: 'x',
@@ -121,7 +121,8 @@ test(
     const given = lifecyclesFile(SDLC)
 
     // when
-    const actual = () => plannedActivities(args({ lifecycle: 'nope' }), cfg, given)
+    const actual = () =>
+      plannedActivities(args({ lifecycle: 'nope' }), cfg, given)
 
     // then
     expect(actual).toThrow(/sdlc/)
@@ -143,7 +144,8 @@ lifecycles:
 `)
 
     // when
-    const actual = () => plannedActivities(args({ lifecycle: 'empty' }), cfg, given)
+    const actual = () =>
+      plannedActivities(args({ lifecycle: 'empty' }), cfg, given)
 
     // then
     expect(actual).toThrow(/no activities/)
@@ -204,5 +206,97 @@ test(
     expect(actual).toThrow(/--lifecycle/)
     expect(actual).toThrow(/--activities/)
     expect(actual).toThrow(/just crust list/)
+  },
+)
+
+test(
+  [
+    'given lifecycles/compose::main',
+    'when the named lifecycle is not one the repository offers',
+    'it should report the error and exit 2 without starting a run',
+  ].join(', '),
+  () => {
+    // given
+    const configPath = join(
+      mkdtempSync(join(tmpdir(), 'crust-compose-main-')),
+      'crust.config.yaml',
+    )
+    writeFileSync(
+      configPath,
+      [
+        'activities:',
+        '  - name: identify',
+        "    purpose: 'Do the identify work and report it'",
+        '    prompt_engineering: { system: s.md, user: u.md }',
+        '',
+      ].join('\n'),
+    )
+    const original = process.stderr.write.bind(process.stderr)
+    let printed = ''
+    // biome-ignore lint/plugin/no-object-mutation: swapping Node's own stderr.write for the capture, restored below
+    process.stderr.write = ((chunk: string) => {
+      printed += chunk
+      return true
+    }) as typeof process.stderr.write
+
+    // when
+    const actual = main(
+      args({ config: configPath, lifecycle: 'does-not-exist' }),
+    )
+
+    // then
+    return actual.then((code) => {
+      // biome-ignore lint/plugin/no-object-mutation: restoring Node's own stderr.write after the capture
+      process.stderr.write = original
+      expect(code).toEqual(2)
+      expect(printed).toContain('unknown lifecycle')
+    })
+  },
+)
+
+test(
+  [
+    'given lifecycles/compose::runFromCli',
+    'when the parsed args name an unknown lifecycle',
+    "it should resolve the prompt and delegate to main, which reports main's own error",
+  ].join(', '),
+  () => {
+    // given
+    const configPath = join(
+      mkdtempSync(join(tmpdir(), 'crust-compose-run-from-cli-')),
+      'crust.config.yaml',
+    )
+    writeFileSync(
+      configPath,
+      [
+        'activities:',
+        '  - name: identify',
+        "    purpose: 'Do the identify work and report it'",
+        '    prompt_engineering: { system: s.md, user: u.md }',
+        '',
+      ].join('\n'),
+    )
+    const original = process.stderr.write.bind(process.stderr)
+    let printed = ''
+    // biome-ignore lint/plugin/no-object-mutation: swapping Node's own stderr.write for the capture, restored below
+    process.stderr.write = ((chunk: string) => {
+      printed += chunk
+      return true
+    }) as typeof process.stderr.write
+    const cliArgs = args({
+      config: configPath,
+      lifecycle: 'does-not-exist',
+    }) as TCliArgs
+
+    // when
+    const actual = runFromCli(cliArgs)
+
+    // then
+    return actual.then((code) => {
+      // biome-ignore lint/plugin/no-object-mutation: restoring Node's own stderr.write after the capture
+      process.stderr.write = original
+      expect(code).toEqual(2)
+      expect(printed).toContain('unknown lifecycle')
+    })
   },
 )

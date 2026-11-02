@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { activityConfigSchema } from '../typedefs/activity'
 import { lifecycleConfigSchema } from '../typedefs/lifecycle'
 import {
+  chosenLifecycle,
   chosenPlanner,
   exclusiveCount,
   expandChoices,
@@ -181,5 +182,41 @@ test(
 
     // then
     expect(actual).toBe('operator')
+  },
+)
+
+test(
+  [
+    'given use-cases/menu-options::chosenLifecycle',
+    'when a lifecycle was picked',
+    'it should be named without its prefix',
+  ].join(', '),
+  () => {
+    // given
+    const given = ['@sdlc']
+
+    // when
+    const actual = chosenLifecycle(given)
+
+    // then
+    expect(actual).toBe('sdlc')
+  },
+)
+
+test(
+  [
+    'given use-cases/menu-options::chosenLifecycle',
+    'when Activities were picked by hand instead',
+    'it should be empty',
+  ].join(', '),
+  () => {
+    // given
+    const given = ['build', 'design']
+
+    // when
+    const actual = chosenLifecycle(given)
+
+    // then
+    expect(actual).toBe('')
   },
 )

@@ -3,13 +3,18 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from './modules/data/trace-db'
-import { restoreTerminal, silenceTerminal, terminalOutput } from './modules/testing/terminal-capture'
+import {
+  restoreTerminal,
+  silenceTerminal,
+  terminalOutput,
+} from './modules/testing/terminal-capture'
 import type { TRunState } from './modules/typedefs/run-state'
 import { EXIT } from './modules/typedefs/run-state'
 import {
   main,
   parseReportArgs,
   renderReport,
+  reportUsageError,
   resolveDbPath,
   resumeCommand,
   sessionDirOf,
@@ -123,7 +128,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const args = parseReportArgs(['--config', '/does/not/exist/crust.config.yaml'])
+    const args = parseReportArgs([
+      '--config',
+      '/does/not/exist/crust.config.yaml',
+    ])
 
     // when
     const actual = resolveDbPath(args)
@@ -142,7 +150,13 @@ test(
   () => {
     // given
     const state = aState()
-    const invocation = ['bun', 'runtime/compose.ts', 'add a /health endpoint', '--run-id', 'fbf49583']
+    const invocation = [
+      'bun',
+      'runtime/compose.ts',
+      'add a /health endpoint',
+      '--run-id',
+      'fbf49583',
+    ]
 
     // when
     const actual = resumeCommand(state, invocation)
@@ -420,5 +434,32 @@ test(
     expect(USAGE).toContain('--config')
     expect(USAGE).toContain('CRUST_DB')
     expect(USAGE).toContain('CRUST_CONFIG')
+  },
+)
+
+test(
+  [
+    'given report::reportUsageError',
+    'when main rejects with a parse error',
+    'it should print the message and USAGE to stderr and return EXIT.USAGE',
+  ].join(', '),
+  () => {
+    // given
+    const original = process.stderr.write.bind(process.stderr)
+    let printed = ''
+    // biome-ignore lint/plugin/no-object-mutation: swapping Node's own stderr.write for the capture, restored below
+    process.stderr.write = ((chunk: string) => {
+      printed += chunk
+      return true
+    }) as typeof process.stderr.write
+
+    // when
+    const actual = reportUsageError(new Error('run_id required'))
+
+    // then
+    // biome-ignore lint/plugin/no-object-mutation: restoring Node's own stderr.write after the capture
+    process.stderr.write = original
+    expect(actual).toEqual(EXIT.USAGE)
+    expect(printed).toContain('run_id required')
   },
 )

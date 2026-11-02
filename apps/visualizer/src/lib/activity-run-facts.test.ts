@@ -1,16 +1,22 @@
 import { expect, test } from 'bun:test'
 import {
+  activityRunUsage,
   checksLabel,
+  eventDurationMs,
   gateChecks,
   money,
-  activityRunUsage,
   requestText,
   violations,
 } from './activity-run-facts'
-import type { EventRow, GateResult, ActivityRun } from './types'
+import type { ActivityRun, EventRow, GateResult } from './types'
 
 const activityRun = (overrides: Partial<ActivityRun> = {}): ActivityRun =>
-  ({ activity_run_id: 'p1', name: 'build', kind: 'agent', ...overrides }) as ActivityRun
+  ({
+    activity_run_id: 'p1',
+    name: 'build',
+    kind: 'agent',
+    ...overrides,
+  }) as ActivityRun
 
 const event = (overrides: Partial<EventRow> = {}): EventRow =>
   ({ event_id: 'e1', rowid: 1, type: 'agent_end', ...overrides }) as EventRow
@@ -143,14 +149,17 @@ test(
 test(
   [
     'given lib/activity-run-facts::requestText',
-    'when the request activityRun logged the engineer\'s ask',
+    "when the request activityRun logged the engineer's ask",
     'it should find it among events that are not all JSON',
   ].join(', '),
   () => {
     // given
     const events = [
       event({ type: 'log', payload_json: 'not json at all' }),
-      event({ type: 'log', payload_json: JSON.stringify({ input: 'add a health endpoint' }) }),
+      event({
+        type: 'log',
+        payload_json: JSON.stringify({ input: 'add a health endpoint' }),
+      }),
     ]
 
     // when
@@ -176,5 +185,116 @@ test(
 
     // then
     expect(actual).toBe('<$0.0001')
+  },
+)
+
+test(
+  [
+    'given lib/activity-run-facts::violations',
+    'when the column holds a JSON array of violations',
+    'it should return each entry, stringifying non-string ones',
+  ].join(', '),
+  () => {
+    // given
+    const raw = gate({
+      passed: 0,
+      violations_json: JSON.stringify(['missing given', { line: 12 }]),
+    })
+
+    // when
+    const actual = violations(raw)
+
+    // then
+    expect(actual).toEqual(['missing given', JSON.stringify({ line: 12 })])
+  },
+)
+
+test(
+  [
+    'given lib/activity-run-facts::gateChecks',
+    'when the column holds a JSON array of per-item checks',
+    'it should normalise each item, defaulting anything malformed',
+  ].join(', '),
+  () => {
+    // given
+    const raw = gate({
+      checks_json: JSON.stringify([
+        { item: 'has tests', ok: true, note: 'fine' },
+        { ok: 'yes' },
+        'not an object',
+        null,
+      ]),
+    })
+
+    // when
+    const actual = gateChecks(raw)
+
+    // then
+    expect(actual).toEqual([
+      { item: 'has tests', ok: true, note: 'fine' },
+      { item: '', ok: false, note: '' },
+    ])
+  },
+)
+
+test(
+  [
+    'given lib/activity-run-facts::eventDurationMs',
+    'when the event has both a started_at and an ended_at',
+    'it should be the difference between them',
+  ].join(', '),
+  () => {
+    // given
+    const row = event({
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: '2024-01-01T00:00:01.500Z',
+    })
+
+    // when
+    const actual = eventDurationMs(row)
+
+    // then
+    expect(actual).toBe(1500)
+  },
+)
+
+test(
+  [
+    'given lib/activity-run-facts::eventDurationMs',
+    'when a tool_call row has no ended_at but its payload reports a duration',
+    'it should fall back to the payload',
+  ].join(', '),
+  () => {
+    // given — older tracers never recorded ended_at for tool calls
+    const row = event({
+      type: 'tool_call',
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: null,
+      payload_json: JSON.stringify({ tool: 'bash', duration_ms: 42 }),
+    })
+
+    // when
+    const actual = eventDurationMs(row)
+
+    // then
+    expect(actual).toBe(42)
+  },
+)
+
+test(
+  [
+    'given lib/activity-run-facts::eventDurationMs',
+    'when neither the timestamps nor a tool_call payload say how long it took',
+    'it should be NaN',
+  ].join(', '),
+  () => {
+    // given
+    const row = event({ type: 'log', started_at: null, ended_at: null })
+
+    // when
+    const actual = eventDurationMs(row)
+
+    // then
+    expect(Number.isNaN(actual)).toBe(true)
   },
 )

@@ -2,9 +2,7 @@ import { expect, test } from 'bun:test'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import { intakeRejection, intakeViolations } from './intake'
 
-const context = (
-  fields: Readonly<Record<string, unknown>>,
-): TEnvelopeBase =>
+const context = (fields: Readonly<Record<string, unknown>>): TEnvelopeBase =>
   ({
     status: 'success',
     summary: 'did the thing',
@@ -157,5 +155,43 @@ test(
     // then
     expect(actual).toContain("'build' will not start")
     expect(actual).toContain('Fix the stage that produced it')
+  },
+)
+
+test(
+  [
+    'given use-cases/intake::intakeViolations',
+    'when a fact carries no evidence',
+    'it should report it, by name',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = context({
+      facts: [{ fact: 'the suite is green', evidence: '  ' }],
+    })
+
+    // when
+    const actual = intakeViolations(envelope, 'build')
+
+    // then
+    expect(actual[0]).toContain('the suite is green')
+  },
+)
+
+test(
+  [
+    'given use-cases/intake::intakeViolations',
+    'when no envelope was produced to check',
+    'it should see nothing wrong, since there is nothing a tool can see',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = undefined
+
+    // when
+    const actual = intakeViolations(envelope, 'build')
+
+    // then
+    expect(actual).toEqual([])
   },
 )

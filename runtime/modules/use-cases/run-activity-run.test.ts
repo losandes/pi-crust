@@ -11,11 +11,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
-import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
+import { crustConfigSchema } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
+import { EXIT } from '../typedefs/run-state'
 import { createRun } from './create-run'
-import { counts, finish, runActivityRun } from './run-activity-run'
+import {
+  counts,
+  finish,
+  finishWaiting,
+  runActivityRun,
+} from './run-activity-run'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)
@@ -260,10 +266,14 @@ test(
       }),
       () => 'first attempt',
     )
-    const firstRow = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    const firstRow = run
+      .activityRuns()
+      .find((candidate) => candidate.params.name === 'build')
     if (firstRow !== undefined) {
       run.tracer.activityRunUpsert(
-        run.updateActivityRun(firstRow.activity_run_id, { status: 'superseded' }),
+        run.updateActivityRun(firstRow.activity_run_id, {
+          status: 'superseded',
+        }),
       )
     }
     await activityRun(
@@ -307,9 +317,13 @@ test(
       }),
       () => 'ok',
     )
-    const row = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    const row = run
+      .activityRuns()
+      .find((candidate) => candidate.params.name === 'build')
     if (row !== undefined) {
-      run.tracer.activityRunUpsert(run.updateActivityRun(row.activity_run_id, { status: 'fail' }))
+      run.tracer.activityRunUpsert(
+        run.updateActivityRun(row.activity_run_id, { status: 'fail' }),
+      )
     }
 
     // when
@@ -325,7 +339,9 @@ test(
       "SELECT name, payload_json FROM events WHERE type='error'",
     )
     expect(events.map((event) => event.name)).toContain('activity_runs_failed')
-    const failedEvent = events.find((event) => event.name === 'activity_runs_failed')
+    const failedEvent = events.find(
+      (event) => event.name === 'activity_runs_failed',
+    )
     expect(JSON.parse(failedEvent?.payload_json ?? '{}').activityRuns).toEqual([
       { activity_run_id: row?.activity_run_id, status: 'fail' },
     ])
@@ -352,7 +368,9 @@ test(
       }),
       () => 'ok',
     )
-    const row = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    const row = run
+      .activityRuns()
+      .find((candidate) => candidate.params.name === 'build')
     if (row !== undefined) {
       run.tracer.activityRunUpsert(
         run.updateActivityRun(row.activity_run_id, { status: 'superseded' }),
@@ -450,13 +468,20 @@ test(
       }),
       () => 'ok',
     )
-    const row = run.activityRuns().find((candidate) => candidate.params.name === 'build')
+    const row = run
+      .activityRuns()
+      .find((candidate) => candidate.params.name === 'build')
     if (row !== undefined) {
-      run.tracer.activityRunUpsert(run.updateActivityRun(row.activity_run_id, { status: 'fail' }))
+      run.tracer.activityRunUpsert(
+        run.updateActivityRun(row.activity_run_id, { status: 'fail' }),
+      )
     }
 
     // when
-    const actual = finish(run, { accepted: false, reason: 'the suite still failed' })
+    const actual = finish(run, {
+      accepted: false,
+      reason: 'the suite still failed',
+    })
 
     // then \u2014 both reasons recorded, neither hiding behind the other
     expect(actual).toEqual(1)
@@ -500,14 +525,17 @@ test(
     const { run, dbPath } = scratchRun()
     const design = join(run.contextHandoffDir, 'design.md')
 
-    await runActivityRun(run)(activityRunParams({
+    await runActivityRun(run)(
+      activityRunParams({
         name: 'design',
         kind: 'agent',
         owner: 'technical-architect',
         description: 'Give the architecture a physical shape',
-      }), () => {
-      writeFileSync(design, 'the approved design')
-    })
+      }),
+      () => {
+        writeFileSync(design, 'the approved design')
+      },
+    )
 
     // when — a later activity tries the ordinary way, then forces it
     const refused = await runActivityRun(run)(
@@ -566,21 +594,64 @@ test(
     }
 
     // when
-    await runActivityRun(run)(activityRunParams({
+    await runActivityRun(run)(
+      activityRunParams({
         name: 'design',
         kind: 'agent',
         owner: 'technical-architect',
         description: 'Give the architecture a physical shape',
-      }), write('first'))
-    await runActivityRun(run)(activityRunParams({
+      }),
+      write('first'),
+    )
+    await runActivityRun(run)(
+      activityRunParams({
         name: 'design',
         kind: 'agent',
         owner: 'technical-architect',
         description: 'Give the architecture a physical shape',
-      }), write('second'))
+      }),
+      write('second'),
+    )
 
     // then
     expect(readFileSync(design, 'utf8')).toEqual('second')
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::runActivityRun',
+    'when an earlier artifacts event for this activity carries a malformed created field',
+    'it should treat it as nothing created, rather than throw',
+  ].join(', '),
+  async () => {
+    // given \u2014 a row from before `created` existed, or written by hand
+    const { run } = scratchRun()
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: 'test0001_00_design',
+      type: 'artifacts',
+      name: 'design artifacts',
+      payload: { created: 'not-an-array' },
+    })
+    const design = join(run.contextHandoffDir, 'design.md')
+
+    // when
+    const act = () =>
+      runActivityRun(run)(
+        activityRunParams({
+          name: 'design',
+          kind: 'agent',
+          owner: 'technical-architect',
+          description: 'Give the architecture a physical shape',
+        }),
+        () => {
+          writeFileSync(design, 'the approved design')
+        },
+      )
+
+    // then
+    await expect(act()).resolves.toBeUndefined()
   },
 )
 
@@ -598,15 +669,18 @@ test(
 
     // when
     await expect(
-      runActivityRun(run)(activityRunParams({
-        name: 'diagnose',
-        kind: 'agent',
-        owner: 'diagnostician',
-        description: 'Find the root cause',
-      }), () => {
-        writeFileSync(diagnosis, 'what went wrong')
-        throw new Error('the activity then failed')
-      }),
+      runActivityRun(run)(
+        activityRunParams({
+          name: 'diagnose',
+          kind: 'agent',
+          owner: 'diagnostician',
+          description: 'Find the root cause',
+        }),
+        () => {
+          writeFileSync(diagnosis, 'what went wrong')
+          throw new Error('the activity then failed')
+        },
+      ),
     ).rejects.toThrow('the activity then failed')
 
     // then
@@ -618,5 +692,30 @@ test(
       'diagnosis.md',
     ])
     expect(statSync(diagnosis).mode & 0o222).toEqual(0)
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activity-run::finishWaiting',
+    'when a run stops to wait for a person',
+    'it should mark the session waiting and exit WAITING, not a failure',
+  ].join(', '),
+  () => {
+    // given
+    const { run, dbPath } = scratchRun()
+
+    // when
+    const actual = finishWaiting(
+      run,
+      join(run.contextHandoffDir, 'decision-request.md'),
+    )
+
+    // then
+    expect(actual).toEqual(EXIT.WAITING)
+    expect(
+      rowsOf<{ status: string }>(dbPath, 'SELECT status FROM sessions'),
+    ).toEqual([{ status: 'waiting' }])
+    run.tracer.close()
   },
 )

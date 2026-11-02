@@ -1,10 +1,17 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { activitiesFileSchema, activityConfigSchema } from '../typedefs/activity'
+import {
+  activitiesFileSchema,
+  activityConfigSchema,
+} from '../typedefs/activity'
 import { ENVELOPE_NAMES } from '../typedefs/envelope'
+import {
+  registryFaults,
+  resolveActivities,
+  resolvedNamed,
+} from './activity-registry'
 import { GATE_NAMES } from './gates'
-import { registryFaults, resolveActivities } from './activity-registry'
 
 const STAMP = join(import.meta.dir, '../../../templates/stamp/config')
 
@@ -106,7 +113,9 @@ test(
   () => {
     // given
     const given = activitiesFileSchema.parse(
-      Bun.YAML.parse(readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8')),
+      Bun.YAML.parse(
+        readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8'),
+      ),
     ).activities
 
     // when
@@ -115,7 +124,10 @@ test(
     // then
     expect(actual).toHaveLength(given.length)
     expect(
-      actual.every((one) => one.spec.name !== '' && one.gates.every((gate) => gate.name !== '')),
+      actual.every(
+        (one) =>
+          one.spec.name !== '' && one.gates.every((gate) => gate.name !== ''),
+      ),
     ).toBe(true)
   },
 )
@@ -274,5 +286,79 @@ test(
     expect(actual).toContain(
       "activity 'gh-pull-request': declares alias 'pr' twice",
     )
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an entry claims an input this package does not publish',
+    'it should refuse, naming what is available',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ output: 'planOutput', input: 'bogus' })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual[0]).toContain("input 'bogus' is not an input")
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::registryFaults',
+    'when an entry claims a terminal Activity name',
+    'it should refuse, because a Lifecycle must not name one mid-chain',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ name: 'gh-pull-request', output: 'planOutput' })]
+
+    // when
+    const actual = registryFaults(given)
+
+    // then
+    expect(actual[0]).toContain('that is a terminal Activity, not an Activity')
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::resolvedNamed',
+    'when the name is registered',
+    'it should find the resolved activity by name',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ output: 'planOutput' })]
+    const resolved = resolveActivities(given)
+
+    // when
+    const actual = resolvedNamed(resolved, 'spike')
+
+    // then
+    expect(actual?.config.name).toEqual('spike')
+  },
+)
+
+test(
+  [
+    'given use-cases/activity-registry::resolvedNamed',
+    'when the name is not registered',
+    'it should be undefined',
+  ].join(', '),
+  () => {
+    // given
+    const given = [activity({ output: 'planOutput' })]
+    const resolved = resolveActivities(given)
+
+    // when
+    const actual = resolvedNamed(resolved, 'nonexistent')
+
+    // then
+    expect(actual).toBeUndefined()
   },
 )

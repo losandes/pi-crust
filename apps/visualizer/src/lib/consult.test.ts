@@ -6,7 +6,7 @@ import {
   stillPending,
   type TConsult,
 } from './consult'
-import type { EventRow, ActivityRun } from './types'
+import type { ActivityRun, EventRow } from './types'
 
 const RUN = 'c35f2c7d'
 
@@ -127,7 +127,10 @@ test(
   () => {
     // given — a replay following an amend is the ordinary way to resolve
     // staleness, and marking it afterwards would make the flag permanent
-    const activityRuns = [activityRun(5, 'design', '2026-10-06T11:00:00Z'), activityRun(6, 'plan', '2026-10-06T14:00:00Z')]
+    const activityRuns = [
+      activityRun(5, 'design', '2026-10-06T11:00:00Z'),
+      activityRun(6, 'plan', '2026-10-06T14:00:00Z'),
+    ]
     const consults: readonly TConsult[] = [
       {
         activityRunId: `${RUN}_05_design`,
@@ -159,7 +162,10 @@ test(
   () => {
     // given — an ask changes no document, so nothing downstream can be
     // derived from something that moved
-    const activityRuns = [activityRun(5, 'design', '2026-10-06T11:00:00Z'), activityRun(6, 'plan', '2026-10-06T12:00:00Z')]
+    const activityRuns = [
+      activityRun(5, 'design', '2026-10-06T11:00:00Z'),
+      activityRun(6, 'plan', '2026-10-06T12:00:00Z'),
+    ]
     const consults = consultsOf([
       consultEvent(`${RUN}_05_design`, {
         mode: 'ask',
@@ -263,5 +269,56 @@ test(
 
     // then
     expect(actual).toEqual(given)
+  },
+)
+
+test(
+  [
+    'given lib/consult::consultsOf',
+    'when the payload names documents it amended and restored',
+    'it should keep only the string entries of each list',
+  ].join(', '),
+  () => {
+    // given
+    const events = [
+      consultEvent(`${RUN}_05_design`, {
+        mode: 'amend',
+        agent: 'technical-architect',
+        question: 'shorten the migration section',
+        answer: 'done',
+        answered: true,
+        amended: ['context_handoff/design.md', 7],
+        restored: ['context_handoff/plan.md'],
+        at: '2026-10-06T13:00:00Z',
+      }),
+    ]
+
+    // when
+    const actual = consultsOf(events)
+
+    // then "7" is not a document path and is dropped
+    expect(actual[0]?.amended).toEqual(['context_handoff/design.md'])
+    expect(actual[0]?.restored).toEqual(['context_handoff/plan.md'])
+  },
+)
+
+test(
+  [
+    'given lib/consult::consultsOf',
+    'when a consult event carries malformed payload JSON',
+    'it should drop that row rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const broken: EventRow = {
+      ...consultEvent(`${RUN}_01_design`, {}),
+      payload_json: 'not json',
+    }
+
+    // when
+    const actual = consultsOf([broken])
+
+    // then
+    expect(actual).toEqual([])
   },
 )

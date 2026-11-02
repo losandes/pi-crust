@@ -121,3 +121,147 @@ test(
     expect(actual).toContain('<td>uri</td><td><code>a | b | c</code></td>')
   },
 )
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document fences a plain code block',
+    'it should render it verbatim, escaped but not highlighted',
+  ].join(', '),
+  () => {
+    // given
+    const source = ['```ts', 'const x = 1 < 2', '```'].join('\n')
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain(
+      '<pre class="md-code"><code>const x = 1 &lt; 2</code></pre>',
+    )
+  },
+)
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document fences a json code block',
+    'it should syntax-highlight it',
+  ].join(', '),
+  () => {
+    // given
+    const source = ['```json', '{"a": 1}', '```'].join('\n')
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain('<span class="j-key">')
+  },
+)
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document contains headings of every level it supports',
+    'it should render each with inline formatting applied',
+  ].join(', '),
+  () => {
+    // given
+    const source = ['# One', '## Two', '### Three', '#### **Four**'].join('\n')
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain('<h1>One</h1>')
+    expect(actual).toContain('<h2>Two</h2>')
+    expect(actual).toContain('<h3>Three</h3>')
+    expect(actual).toContain('<h4><strong>Four</strong></h4>')
+  },
+)
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document contains a thematic break',
+    'it should render an hr',
+  ].join(', '),
+  () => {
+    // given
+    const source = ['one', '---', 'two'].join('\n')
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain('<hr>')
+  },
+)
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document quotes several consecutive lines',
+    'it should render one blockquote spanning them, with inline formatting applied',
+  ].join(', '),
+  () => {
+    // given
+    const source = ['> first line', '> **second** line'].join('\n')
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain(
+      '<blockquote>first line\n<strong>second</strong> line</blockquote>',
+    )
+  },
+)
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document contains a bulleted list and a numbered list',
+    'it should render each as its own list, with inline formatting applied',
+  ].join(', '),
+  () => {
+    // given
+    const source = ['- one', '- **two**', '', '1. first', '2. second'].join(
+      '\n',
+    )
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain(
+      '<ul><li>one</li><li><strong>two</strong></li></ul>',
+    )
+    expect(actual).toContain('<ol><li>first</li><li>second</li></ol>')
+  },
+)
+
+test(
+  [
+    'given lib/markdown::renderMarkdown',
+    'when a document has several paragraphs separated by blank lines',
+    'it should render one <p> per paragraph',
+  ].join(', '),
+  () => {
+    // given
+    const source = [
+      'first paragraph',
+      'still first',
+      '',
+      'second paragraph',
+    ].join('\n')
+
+    // when
+    const actual = renderMarkdown(source)
+
+    // then
+    expect(actual).toContain('<p>first paragraph\nstill first</p>')
+    expect(actual).toContain('<p>second paragraph</p>')
+  },
+)

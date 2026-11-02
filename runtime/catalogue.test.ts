@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { restoreTerminal, silenceTerminal, terminalOutput } from './modules/testing/terminal-capture'
-import { catalogueOf, main, renderCatalogue, USAGE } from './catalogue'
 import type { TCatalogue } from './catalogue'
+import {
+  catalogueOf,
+  main,
+  renderCatalogue,
+  reportUsageError,
+  USAGE,
+} from './catalogue'
+import {
+  restoreTerminal,
+  silenceTerminal,
+  terminalOutput,
+} from './modules/testing/terminal-capture'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)
@@ -149,7 +159,9 @@ test(
   ].join(', '),
   () => {
     // given, when, then
-    expect(() => main(['--config', '/does/not/exist/crust.config.yaml'])).toThrow()
+    expect(() =>
+      main(['--config', '/does/not/exist/crust.config.yaml']),
+    ).toThrow()
   },
 )
 
@@ -163,5 +175,33 @@ test(
     // given, when, then
     expect(USAGE).toContain('--config')
     expect(USAGE).toContain('CRUST_CONFIG')
+  },
+)
+
+test(
+  [
+    'given catalogue::reportUsageError',
+    'when main rejects with a parse error',
+    'it should print the message and USAGE to stderr and return EXIT.USAGE',
+  ].join(', '),
+  () => {
+    // given
+    const original = process.stderr.write.bind(process.stderr)
+    let printed = ''
+    // biome-ignore lint/plugin/no-object-mutation: swapping Node's own stderr.write for the capture, restored below
+    process.stderr.write = ((chunk: string) => {
+      printed += chunk
+      return true
+    }) as typeof process.stderr.write
+
+    // when
+    const actual = reportUsageError(new Error('config not found'))
+
+    // then
+    // biome-ignore lint/plugin/no-object-mutation: restoring Node's own stderr.write after the capture
+    process.stderr.write = original
+    expect(actual).toEqual(2)
+    expect(printed).toContain('config not found')
+    expect(printed).toContain('--config')
   },
 )

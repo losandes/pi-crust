@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test'
 import {
   applyTheme,
+  isTheme,
   resolveTheme,
+  saveTheme,
   storedTheme,
   systemTheme,
   type TTheme,
@@ -161,6 +163,87 @@ test(
     expect(root.attributes.get('data-theme')).toBe('light')
     // and the UI can still show Auto as the selected option
     expect(root.attributes.get('data-theme-choice')).toBe('auto')
+  },
+)
+
+test(
+  [
+    'given theme::isTheme',
+    'when the value is a non-empty string',
+    'it should accept it as a theme name',
+  ].join(', '),
+  () => {
+    // given
+    const value: unknown = 'midnight'
+
+    // when
+    const actual = isTheme(value)
+
+    // then
+    expect(actual).toBe(true)
+  },
+)
+
+test(
+  [
+    'given theme::isTheme',
+    'when the value is empty or not a string',
+    'it should reject it',
+  ].join(', '),
+  () => {
+    // given
+    const cases: readonly unknown[] = ['', undefined, null, 42]
+
+    // when
+    const actual = cases.map((value) => isTheme(value))
+
+    // then
+    expect(actual).toEqual([false, false, false, false])
+  },
+)
+
+test(
+  [
+    'given theme::saveTheme',
+    'when storage accepts the write',
+    'it should remember the preference under the theme storage key',
+  ].join(', '),
+  () => {
+    // given
+    const stored = new Map<string, string>()
+    const storage = {
+      setItem: (key: string, value: string) => {
+        stored.set(key, value)
+      },
+    }
+
+    // when
+    saveTheme(storage, 'dark')
+
+    // then
+    expect(stored.get('crust.theme')).toBe('dark')
+  },
+)
+
+test(
+  [
+    'given theme::saveTheme',
+    'when storage throws because a private window denies writes',
+    'it should not throw, so the session still gets a working theme',
+  ].join(', '),
+  () => {
+    // given
+    const storage = {
+      setItem: () => {
+        throw new Error('denied')
+      },
+    }
+
+    // when
+    const act = () => saveTheme(storage, 'dark')
+
+    // then
+    expect(act).not.toThrow()
   },
 )
 
