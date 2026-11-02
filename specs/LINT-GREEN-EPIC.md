@@ -56,10 +56,10 @@ The exit code settles whether a scope is clean: `bun run lint` exits 0 only when
 The command that counts, because `biome check` exits 0 while warnings and configuration notices remain:
 
 ```sh
-bun run lint --max-diagnostics=500 2>&1 | grep -cE '^[^ ]*[/.][^ ]* [^ ]+ ━'
+bun run lint --max-diagnostics=500 2>&1 | grep -cE '^[^ ]*[/.][^ ]+ .*━━'
 ```
 
-The pattern matches a first field that looks like a path — it contains a `/` or a `.` — followed by a category and the start of the header's box-drawing run. It MUST match both diagnostic shapes Biome prints. A rule violation is `path:line:column <rule>`; a formatting violation is `path format`, with no line and no column. A pattern anchored on `path:line:column ` cannot see a formatting violation at all, and a run that counted that way reported a package clean while `biome check` on that same package exited 1.
+The pattern matches a first field that looks like a path — it contains a `/` or a `.` — on any header line carrying the box-drawing run, and it MUST stay that loose. Biome prints a diagnostic header in at least three shapes: `path:line:column <rule> ━━`, `path format ━━` for a formatting violation with no line or column, and `path:line:column <rule>  FIXABLE  ━━` with doubled spaces for anything it can fix itself. Each tightening of this pattern has hidden one of them: anchoring on `path:line:column ` hid every formatting violation, and requiring a single space before the box-drawing run hid every FIXABLE one. Both times the count read `0` while `biome check` on the same scope exited 1.
 
 It MUST NOT anchor on a leading `apps/`, `lib/`, `runtime/`, `scripts/` or `templates/` either. The pinned Biome prints absolute paths for configuration diagnostics and repository-relative ones for source diagnostics, and an earlier version printed relative paths throughout. A pattern that assumes one shape prints a smaller number against the other and reads as progress. The trailing `check` summary line is excluded because `check` holds neither a `/` nor a `.`.
 
