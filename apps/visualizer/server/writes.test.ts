@@ -49,6 +49,14 @@ type TSpawnCall = Readonly<{
   child: TFakeChild
 }>
 
+/**
+ * The environment a spawn was given. `options` is an untyped bag, so the read
+ * is a cast either way; defaulting to `{}` keeps a missing call from throwing
+ * a TypeError in place of the assertion that would have reported it.
+ */
+const envOf = (call: TSpawnCall | undefined): Record<string, string> =>
+  (call?.options.env ?? {}) as Record<string, string>
+
 const spawnSpy = (): Readonly<{
   calls: readonly TSpawnCall[]
   spawnChild: typeof spawn
@@ -527,9 +535,7 @@ test(
     ])
     expect(spy.calls[0]?.options.cwd).toBe(root)
     expect(spy.calls[0]?.options.detached).toBe(true)
-    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(
-      dbOf(root),
-    )
+    expect(envOf(spy.calls[0]).CRUST_DB).toBe(dbOf(root))
 
     // and — the stdout/stderr listeners this function wires up actually forward to the log
     spy.calls[0]?.child.stdout.emit('data', 'stdout line\n')
@@ -617,9 +623,7 @@ test(
     ])
     expect(spy.calls[0]?.options.cwd).toBe(root)
     expect(spy.calls[0]?.options.detached).toBe(true)
-    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(
-      dbOf(root),
-    )
+    expect(envOf(spy.calls[0]).CRUST_DB).toBe(dbOf(root))
 
     spy.calls[0]?.child.stdout.emit('data', 'stdout line\n')
     spy.calls[0]?.child.stderr.emit('data', 'stderr line\n')
@@ -674,9 +678,7 @@ test(
     ])
     expect(spy.calls[0]?.options.cwd).toBe(root)
     expect(spy.calls[0]?.options.detached).toBe(true)
-    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(
-      dbOf(root),
-    )
+    expect(envOf(spy.calls[0]).CRUST_DB).toBe(dbOf(root))
 
     spy.calls[0]?.child.stdout.emit('data', 'stdout line\n')
     spy.calls[0]?.child.stderr.emit('data', 'stderr line\n')
@@ -728,9 +730,7 @@ test(
     ])
     expect(spy.calls[0]?.options.cwd).toBe(root)
     expect(spy.calls[0]?.options.detached).toBe(true)
-    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(
-      dbOf(root),
-    )
+    expect(envOf(spy.calls[0]).CRUST_DB).toBe(dbOf(root))
 
     spy.calls[0]?.child.stdout.emit('data', 'stdout line\n')
     spy.calls[0]?.child.stderr.emit('data', 'stderr line\n')
