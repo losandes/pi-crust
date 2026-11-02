@@ -12,6 +12,7 @@
  * time is not causation.
  */
 
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import { ts } from './format'
 import type { EventRow } from './types'
 
@@ -39,15 +40,15 @@ export type TTurn = Readonly<{
 }>
 
 const payloadOf = (event: EventRow): Readonly<Record<string, unknown>> => {
-  if (!event.payload_json) return {}
-  try {
-    const parsed: unknown = JSON.parse(event.payload_json)
-    return parsed !== null && typeof parsed === 'object'
-      ? (parsed as Record<string, unknown>)
-      : {}
-  } catch {
-    return {}
-  }
+  const raw = event.payload_json
+  if (!raw) return {}
+  const parsed = settledOr<unknown>(
+    safeParseSettlement(() => JSON.parse(raw) as unknown),
+    undefined,
+  )
+  return parsed !== null && typeof parsed === 'object'
+    ? (parsed as Record<string, unknown>)
+    : {}
 }
 
 const turnOf = (payload: Readonly<Record<string, unknown>>): number =>
@@ -60,60 +61,77 @@ const turnOf = (payload: Readonly<Record<string, unknown>>): number =>
  * collect under turn 0, which the pane renders as a single untitled group
  * rather than dropping. An old run should still show its tool calls.
  */
-export const turnsOf = (events: readonly EventRow[]): readonly TTurn[] => {
-  const byTurn = new Map<
-    number,
-    { blocks: TNarrationBlock[]; calls: TTurnCall[]; at: number }
-  >()
+/**
+ * One event's contribution to a turn, before the turns are assembled.
+ *
+ * Narration with no text contributes nothing, which is why it never reaches
+ * here: a turn that would hold only empty text should not exist at all.
+ */
+type TTurnItem = Readonly<
+  { turn: number; at: number } & (
+    | { kind: 'block'; block: TNarrationBlock }
+    | { kind: 'call'; call: TTurnCall }
+  )
+>
 
-  const slot = (turn: number, at: number) => {
-    const existing = byTurn.get(turn)
-    if (existing !== undefined) {
-      return existing
-    }
-    const created = { blocks: [], calls: [], at }
-    byTurn.set(turn, created)
-    return created
-  }
-
-  for (const event of events) {
+const itemsOf = (events: readonly EventRow[]): readonly TTurnItem[] =>
+  events.flatMap((event): readonly TTurnItem[] => {
     const at = ts(event.started_at)
     const payload = payloadOf(event)
 
     if (event.type === 'narration') {
-      const turn = turnOf(payload)
       const text = typeof payload.text === 'string' ? payload.text : ''
-      if (text === '') continue
-      slot(turn, at).blocks.push({
-        id: event.event_id,
-        channel: payload.channel === 'thinking' ? 'thinking' : 'text',
-        text,
-        at,
-      })
-      continue
+      if (text === '') return []
+      return [
+        {
+          kind: 'block',
+          turn: turnOf(payload),
+          at,
+          block: {
+            id: event.event_id,
+            channel: payload.channel === 'thinking' ? 'thinking' : 'text',
+            text,
+            at,
+          },
+        },
+      ]
     }
 
-    if (event.type === 'tool_call') {
-      const turn = turnOf(payload)
-      slot(turn, at).calls.push({
-        id: event.event_id,
-        label: event.name ?? '',
-        tool: typeof payload.tool === 'string' ? payload.tool : '',
-        ok: payload.ok !== false,
+    if (event.type !== 'tool_call') return []
+    return [
+      {
+        kind: 'call',
+        turn: turnOf(payload),
         at,
-        durationMs:
-          typeof payload.duration_ms === 'number'
-            ? payload.duration_ms
-            : undefined,
-      })
-    }
-  }
+        call: {
+          id: event.event_id,
+          label: event.name ?? '',
+          tool: typeof payload.tool === 'string' ? payload.tool : '',
+          ok: payload.ok !== false,
+          at,
+          durationMs:
+            typeof payload.duration_ms === 'number'
+              ? payload.duration_ms
+              : undefined,
+        },
+      },
+    ]
+  })
 
-  return [...byTurn.entries()]
-    .map(([turn, group]) => ({ turn, ...group }))
+export const turnsOf = (events: readonly EventRow[]): readonly TTurn[] =>
+  [...Map.groupBy(itemsOf(events), (item) => item.turn).entries()]
+    .map(([turn, items]) => ({
+      turn,
+      // The turn is stamped by the first event that opened it, as the slot
+      // this replaced was.
+      at: items[0]?.at ?? 0,
+      blocks: items.flatMap((item) =>
+        item.kind === 'block' ? [item.block] : [],
+      ),
+      calls: items.flatMap((item) => (item.kind === 'call' ? [item.call] : [])),
+    }))
     .filter((group) => group.blocks.length > 0 || group.calls.length > 0)
     .toSorted((a, b) => a.turn - b.turn || a.at - b.at)
-}
 
 /**
  * Whether the view should stay pinned to the newest message.

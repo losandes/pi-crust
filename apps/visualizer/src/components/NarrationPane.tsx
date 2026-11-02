@@ -302,8 +302,8 @@ const NarrationBlock = ({
             data-language={segment.language || undefined}
           >
             {segment.language === 'json' ? (
-              // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJsonText escapes its input
               <code
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJsonText escapes its input
                 dangerouslySetInnerHTML={{
                   __html: highlightJsonText(segment.text),
                 }}

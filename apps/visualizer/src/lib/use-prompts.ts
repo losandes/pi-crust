@@ -1,3 +1,4 @@
+import { settleAsync } from '@typedefs/settlement'
 import { useEffect, useRef, useState } from 'react'
 import { fetchPrompts, type PromptsResponse } from './api'
 import { renderMarkdown } from './markdown'
@@ -80,17 +81,16 @@ export const usePrompts = (
     let live = true
     setPrompts({ state: 'loading', panels: [] })
     void (async () => {
-      try {
-        const result = await fetchPrompts(
-          activityRun.run_id,
-          activityRun.owner ?? '',
-          workspace,
-        )
-        CACHE.set(key, result)
-        if (live) setPrompts({ state: 'ready', panels: panelsFor(result) })
-      } catch {
+      const settled = await settleAsync(() =>
+        fetchPrompts(activityRun.run_id, activityRun.owner ?? '', workspace),
+      )
+      if (settled.status === 'error') {
+        // One panel that will not load, never a view that cannot render.
         if (live) setPrompts({ state: 'error', panels: [] })
+        return
       }
+      CACHE.set(key, settled.data)
+      if (live) setPrompts({ state: 'ready', panels: panelsFor(settled.data) })
     })()
 
     return () => {

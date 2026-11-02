@@ -1,3 +1,5 @@
+import { isOk, safeParseSettlement } from '@typedefs/settlement'
+
 /**
  * Dependency-free JSON syntax highlighting.
  *
@@ -46,9 +48,9 @@ export function highlightJsonText(text: string): string {
 /** Pretty-print raw JSON and highlight it; non-JSON falls back to escaped raw. */
 export function highlightJson(raw: string | null | undefined): string {
   if (!raw) return ''
-  try {
-    return highlightJsonText(JSON.stringify(JSON.parse(raw), null, 2))
-  } catch {
-    return escapeHtml(raw)
-  }
+  const pretty = safeParseSettlement(() =>
+    JSON.stringify(JSON.parse(raw), null, 2),
+  )
+  // Non-JSON falls back to the escaped raw text, highlighted as nothing.
+  return isOk(pretty) ? highlightJsonText(pretty.data) : escapeHtml(raw)
 }

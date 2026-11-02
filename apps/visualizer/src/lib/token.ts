@@ -11,24 +11,23 @@
  * the address bar becomes a credential leak.
  */
 
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+
 export const TOKEN_KEY = 'crust.token'
 export const TOKEN_HEADER = 'x-crust-token'
 
-export const readToken = (): string => {
-  try {
-    return window.localStorage.getItem(TOKEN_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
+export const readToken = (): string =>
+  settledOr(
+    safeParseSettlement(() => window.localStorage.getItem(TOKEN_KEY) ?? ''),
+    '',
+  )
 
 export const writeToken = (token: string): void => {
-  try {
-    window.localStorage.setItem(TOKEN_KEY, token.trim())
-  } catch {
-    // A private window still gets a working session; it just asks again next
-    // time, which is better than refusing to work at all.
-  }
+  // A private window still gets a working session; it just asks again next
+  // time, which is better than refusing to work at all.
+  void safeParseSettlement(() =>
+    window.localStorage.setItem(TOKEN_KEY, token.trim()),
+  )
 }
 
 /** The header every write carries, or nothing when no token has been given. */

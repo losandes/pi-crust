@@ -1,3 +1,4 @@
+import { errorMessage, settleAsync } from '@typedefs/settlement'
 import { useEffect, useRef, useState } from 'react'
 
 export type TPoll<TValue> = Readonly<{
@@ -48,19 +49,19 @@ export const usePoll = <TValue>(
     const tick = async () => {
       if (inflight.current) return
       inflight.current = true
-      try {
-        const next = await latest.current()
-        if (!live.current) return
-        setValue(next)
-        setAt(Date.now())
-        setError(undefined)
-        setLoaded(true)
-      } catch (cause) {
-        if (!live.current) return
-        setError(cause instanceof Error ? cause.message : String(cause))
-      } finally {
-        inflight.current = false
+      // Settles either way, so the in-flight flag clears on one line rather
+      // than in a `finally` the rule would report.
+      const settled = await settleAsync(() => latest.current())
+      inflight.current = false
+      if (!live.current) return
+      if (settled.status === 'error') {
+        setError(errorMessage(settled.error))
+        return
       }
+      setValue(settled.data)
+      setAt(Date.now())
+      setError(undefined)
+      setLoaded(true)
     }
 
     tickRef.current = () => void tick()

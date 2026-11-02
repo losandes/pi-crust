@@ -58,26 +58,11 @@ const padded = (cells: readonly string[], width: number): readonly string[] =>
  */
 const cellsOf = (line: string): readonly string[] => {
   const text = line.trim()
-  const cells: string[] = []
-  let current = ''
-  let index = 0
-  while (index < text.length) {
-    const char = text[index]
-    if (char === '\\' && text[index + 1] === '|') {
-      current += '|'
-      index += 2
-      continue
-    }
-    if (char === '|') {
-      cells.push(current.trim())
-      current = ''
-      index += 1
-      continue
-    }
-    current += char
-    index += 1
-  }
-  cells.push(current.trim())
+  // Split on the pipes that divide columns — every pipe an escape does not
+  // precede — then unescape the ones that survived inside a cell.
+  const cells = text
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.replaceAll('\\|', '|').trim())
   // The pipes at either edge are optional delimiters, not empty columns —
   // but only when they are actually at the edge.
   const withoutLeading = text.startsWith('|') ? cells.slice(1) : cells
@@ -123,123 +108,154 @@ const row = (
     })
     .join('')}</tr>`
 
-export function renderMarkdown(src: string): string {
-  const lines = src.replaceAll('\r\n', '\n').split('\n')
-  const out: string[] = []
-  let i = 0
+/** A parsed block: the HTML it renders to, and the line after it. */
+type TBlock = Readonly<{ html: string | undefined; next: number }>
 
-  const paragraph: string[] = []
-  function flushParagraph() {
-    if (paragraph.length) {
-      out.push(`<p>${paragraph.map(inline).join('\n')}</p>`)
-      paragraph.length = 0
+const FENCE_OPEN = /^\s*```(\w*)/
+const FENCE_ANY = /^\s*```/
+const HEADING = /^(#{1,4})\s+(.*)$/
+const RULE = /^\s*(---+|\*\*\*+)\s*$/
+const QUOTE = /^\s*>\s?/
+const UL_ITEM = /^\s*[-*]\s+/
+const OL_ITEM = /^\s*\d+\.\s+/
+
+/** The first line at or after `from` that the predicate rejects. */
+const endOfRun = (
+  lines: readonly string[],
+  from: number,
+  holds: (line: string) => boolean,
+): number => {
+  let end = from
+  while (end < lines.length && holds(lines[end] ?? '')) end += 1
+  return end
+}
+
+/**
+ * Does a block begin here?
+ *
+ * This is the same dispatch `blockAt` performs, asked as a question, and it
+ * is what ends a paragraph: a paragraph runs until something else starts.
+ */
+const startsBlock = (lines: readonly string[], index: number): boolean => {
+  const raw = lines[index] ?? ''
+  return (
+    FENCE_OPEN.test(raw) ||
+    HEADING.test(raw) ||
+    isTableStart(raw, lines[index + 1]) ||
+    RULE.test(raw) ||
+    QUOTE.test(raw) ||
+    UL_ITEM.test(raw) ||
+    OL_ITEM.test(raw) ||
+    raw.trim() === ''
+  )
+}
+
+/**
+ * The block beginning at `index`, and where the next one starts.
+ *
+ * Each branch reads its own lines and reports how many it consumed, which is
+ * what the single `i` of the old loop was doing between `continue`s.
+ */
+const blockAt = (lines: readonly string[], index: number): TBlock => {
+  const raw = lines[index] ?? ''
+
+  // Fenced code block — verbatim until the closing fence. json fences get
+  // syntax highlighting (the Report contract in every user.md is one).
+  const fence = FENCE_OPEN.exec(raw)
+  if (fence) {
+    const end = endOfRun(lines, index + 1, (line) => !FENCE_ANY.test(line))
+    const text = lines.slice(index + 1, end).join('\n')
+    const body =
+      (fence[1] ?? '').toLowerCase() === 'json'
+        ? highlightJsonText(text)
+        : escapeHtml(text)
+    // One past the closing fence, which at end of input is one past the end.
+    return {
+      html: `<pre class="md-code"><code>${body}</code></pre>`,
+      next: end + 1,
     }
   }
 
-  while (i < lines.length) {
-    const raw = lines[i] ?? ''
-    const line = escapeHtml(raw)
-
-    // Fenced code block — verbatim until the closing fence. json fences get
-    // syntax highlighting (the Report contract in every user.md is one).
-    const fence = /^\s*```(\w*)/.exec(raw)
-    if (fence) {
-      flushParagraph()
-      const code: string[] = []
-      i += 1
-      while (i < lines.length && !/^\s*```/.test(lines[i] ?? '')) {
-        code.push(lines[i] ?? '')
-        i += 1
-      }
-      i += 1
-      const text = code.join('\n')
-      const body =
-        (fence[1] ?? '').toLowerCase() === 'json'
-          ? highlightJsonText(text)
-          : escapeHtml(text)
-      out.push(`<pre class="md-code"><code>${body}</code></pre>`)
-      continue
+  const heading = HEADING.exec(raw)
+  if (heading?.[1] && heading[2] !== undefined) {
+    const level = heading[1].length
+    return {
+      html: `<h${level}>${inline(escapeHtml(heading[2]))}</h${level}>`,
+      next: index + 1,
     }
+  }
 
-    const heading = /^(#{1,4})\s+(.*)$/.exec(raw)
-    if (heading?.[1] && heading[2] !== undefined) {
-      flushParagraph()
-      const level = heading[1].length
-      out.push(`<h${level}>${inline(escapeHtml(heading[2]))}</h${level}>`)
-      i += 1
-      continue
-    }
-
-    /*
-     * A pipe table, which the architects produce constantly — a comparison
-     * of candidate approaches is a table, and rendered as paragraphs it was
-     * a wall of pipes that had to be read character by character.
-     *
-     * The delimiter row is what proves it is a table rather than prose that
-     * happens to contain a pipe, which is why detection looks ahead rather
-     * than triggering on the first row.
-     */
-    if (isTableStart(raw, lines[i + 1])) {
-      flushParagraph()
-      const aligns = alignments(lines[i + 1] ?? '')
-      const header = cellsOf(raw)
-      i += 2
-      const body: string[] = []
-      while (i < lines.length && (lines[i] ?? '').includes('|')) {
-        body.push(row(cellsOf(lines[i] ?? ''), aligns, 'td'))
-        i += 1
-      }
-      out.push(
+  /*
+   * A pipe table, which the architects produce constantly — a comparison
+   * of candidate approaches is a table, and rendered as paragraphs it was
+   * a wall of pipes that had to be read character by character.
+   *
+   * The delimiter row is what proves it is a table rather than prose that
+   * happens to contain a pipe, which is why detection looks ahead rather
+   * than triggering on the first row.
+   */
+  if (isTableStart(raw, lines[index + 1])) {
+    const aligns = alignments(lines[index + 1] ?? '')
+    const header = cellsOf(raw)
+    const from = index + 2
+    const end = endOfRun(lines, from, (line) => line.includes('|'))
+    const body = lines
+      .slice(from, end)
+      .map((line) => row(cellsOf(line), aligns, 'td'))
+    return {
+      html:
         `<table class="md-table"><thead>${row(header, aligns, 'th')}</thead>` +
-          `<tbody>${body.join('')}</tbody></table>`,
-      )
-      continue
+        `<tbody>${body.join('')}</tbody></table>`,
+      next: end,
     }
-
-    if (/^\s*(---+|\*\*\*+)\s*$/.test(raw)) {
-      flushParagraph()
-      out.push('<hr>')
-      i += 1
-      continue
-    }
-
-    if (/^\s*&gt;\s?/.test(line)) {
-      flushParagraph()
-      const quote: string[] = []
-      while (i < lines.length && /^\s*>\s?/.test(lines[i] ?? '')) {
-        quote.push(inline(escapeHtml((lines[i] ?? '').replace(/^\s*>\s?/, ''))))
-        i += 1
-      }
-      out.push(`<blockquote>${quote.join('\n')}</blockquote>`)
-      continue
-    }
-
-    const ulItem = /^\s*[-*]\s+/.test(raw)
-    const olItem = /^\s*\d+\.\s+/.test(raw)
-    if (ulItem || olItem) {
-      flushParagraph()
-      const tag = ulItem ? 'ul' : 'ol'
-      const marker = ulItem ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/
-      const items: string[] = []
-      while (i < lines.length && marker.test(lines[i] ?? '')) {
-        items.push(
-          `<li>${inline(escapeHtml((lines[i] ?? '').replace(marker, '')))}</li>`,
-        )
-        i += 1
-      }
-      out.push(`<${tag}>${items.join('')}</${tag}>`)
-      continue
-    }
-
-    if (raw.trim() === '') {
-      flushParagraph()
-      i += 1
-      continue
-    }
-
-    paragraph.push(line)
-    i += 1
   }
-  flushParagraph()
-  return out.join('\n')
+
+  if (RULE.test(raw)) return { html: '<hr>', next: index + 1 }
+
+  if (QUOTE.test(raw)) {
+    const end = endOfRun(lines, index, (line) => QUOTE.test(line))
+    const quote = lines
+      .slice(index, end)
+      .map((line) => inline(escapeHtml(line.replace(QUOTE, ''))))
+    return { html: `<blockquote>${quote.join('\n')}</blockquote>`, next: end }
+  }
+
+  const ulItem = UL_ITEM.test(raw)
+  if (ulItem || OL_ITEM.test(raw)) {
+    const tag = ulItem ? 'ul' : 'ol'
+    const marker = ulItem ? UL_ITEM : OL_ITEM
+    const end = endOfRun(lines, index, (line) => marker.test(line))
+    const items = lines
+      .slice(index, end)
+      .map((line) => `<li>${inline(escapeHtml(line.replace(marker, '')))}</li>`)
+    return { html: `<${tag}>${items.join('')}</${tag}>`, next: end }
+  }
+
+  // A blank line closes whatever came before it and renders nothing itself.
+  if (raw.trim() === '') return { html: undefined, next: index + 1 }
+
+  // Prose, up to whatever starts next. The lookahead a table needs is why
+  // this asks about the position rather than the line.
+  let paragraphEnd = index + 1
+  while (paragraphEnd < lines.length && !startsBlock(lines, paragraphEnd)) {
+    paragraphEnd += 1
+  }
+  const paragraph = lines
+    .slice(index, paragraphEnd)
+    .map((line) => inline(escapeHtml(line)))
+  return { html: `<p>${paragraph.join('\n')}</p>`, next: paragraphEnd }
+}
+
+/** Every block of the document, in order. */
+function* blocksOf(lines: readonly string[]): Generator<string> {
+  let index = 0
+  while (index < lines.length) {
+    const block = blockAt(lines, index)
+    if (block.html !== undefined) yield block.html
+    index = block.next
+  }
+}
+
+export function renderMarkdown(src: string): string {
+  return [...blocksOf(src.replaceAll('\r\n', '\n').split('\n'))].join('\n')
 }

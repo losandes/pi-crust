@@ -18,6 +18,7 @@
  * defect in the run and hiding it would be the one thing worse than showing
  * it.
  */
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import type { Envelope, EventRow, HandoffFile } from './types'
 
 /** Where a document came from, which decides how much a card can say. */
@@ -99,14 +100,13 @@ type TPayload = Readonly<{
   notes_for_next_agent?: unknown
 }>
 
-const payloadOf = (envelope: Envelope): TPayload => {
-  try {
-    return JSON.parse(envelope.payload_json ?? '{}') as TPayload
-  } catch (cause) {
-    void cause
-    return {}
-  }
-}
+const payloadOf = (envelope: Envelope): TPayload =>
+  settledOr<TPayload>(
+    safeParseSettlement(
+      () => JSON.parse(envelope.payload_json ?? '{}') as TPayload,
+    ),
+    {},
+  )
 
 const strings = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
@@ -125,19 +125,21 @@ const text = (value: unknown): string =>
 export const observedByActivityRun = (
   events: readonly EventRow[],
 ): ReadonlyMap<string, readonly string[]> => {
-  const byActivityRun = new Map<string, readonly string[]>()
-  for (const event of events) {
-    if (event.type !== 'artifacts' || event.activity_run_id === null) continue
-    try {
-      const payload = JSON.parse(event.payload_json ?? '{}') as {
-        created?: unknown
-      }
-      byActivityRun.set(event.activity_run_id, strings(payload.created))
-    } catch (cause) {
-      void cause
-    }
-  }
-  return byActivityRun
+  const claims = events.flatMap((event) => {
+    if (event.type !== 'artifacts' || event.activity_run_id === null) return []
+    const activityRunId = event.activity_run_id
+    const payload = safeParseSettlement(
+      () => JSON.parse(event.payload_json ?? '{}') as { created?: unknown },
+    )
+    // An unreadable claim contributes nothing, and the activityRun keeps
+    // whatever an earlier event said about it.
+    return payload.status === 'ok'
+      ? [[activityRunId, strings(payload.data.created)] as const]
+      : []
+  })
+  // Newest observation per activityRun: a later entry replaces an earlier one,
+  // which is what the repeated `set` did.
+  return new Map<string, readonly string[]>(claims)
 }
 
 /**
@@ -148,6 +150,23 @@ export const observedByActivityRun = (
  * undefined, and no claim is called missing on the strength of a listing that
  * was never taken.
  */
+/**
+ * The first entry claiming each path, in the order the claims arrived.
+ *
+ * A reported artifact and the file on disk are the same document, and the
+ * reported one is kept because it is the one that can say what it means.
+ */
+const firstByPath = (
+  entries: readonly TArtifact[],
+): readonly TArtifact[] => {
+  const seen = new Set<string>()
+  return entries.filter((entry) => {
+    if (seen.has(entry.path)) return false
+    seen.add(entry.path)
+    return true
+  })
+}
+
 export const runArtifacts = (params: {
   runId: string
   /** This run's handoff directory, resolved absolute by the server. */
@@ -156,48 +175,41 @@ export const runArtifacts = (params: {
   events: readonly EventRow[]
   present: readonly HandoffFile[] | undefined
 }): readonly TArtifact[] => {
-  const seen = new Set<string>()
-  const found: TArtifact[] = []
   const onDisk =
     params.present === undefined
       ? undefined
       : new Map(params.present.map((file) => [file.path, file]))
 
-  const add = (artifact: TArtifact): void => {
-    if (seen.has(artifact.path)) return
-    seen.add(artifact.path)
-    found.push(artifact)
-  }
-
   // Reported first: these are the ones that can say what they mean.
-  for (const envelope of params.envelopes) {
-    if (envelope.valid !== 1) continue
-    const payload = payloadOf(envelope)
-    for (const raw of strings(payload.artifacts)) {
-      const path = relativeToSession(raw, params.runId, params.handoffDir)
-      add({
-        path,
-        name: nameOf(path),
-        title: onDisk?.get(path)?.title ?? '',
-        source:
-          onDisk === undefined || onDisk.has(path) ? 'reported' : 'missing',
-        activityRunId: envelope.activity_run_id ?? undefined,
-        agent: envelope.agent ?? undefined,
-        summary: text(payload.summary),
-        notes: text(payload.notes_for_next_agent),
+  const reported = params.envelopes
+    .filter((envelope) => envelope.valid === 1)
+    .flatMap((envelope) => {
+      const payload = payloadOf(envelope)
+      return strings(payload.artifacts).map((raw) => {
+        const path = relativeToSession(raw, params.runId, params.handoffDir)
+        return {
+          path,
+          name: nameOf(path),
+          title: onDisk?.get(path)?.title ?? '',
+          source:
+            onDisk === undefined || onDisk.has(path) ? 'reported' : 'missing',
+          activityRunId: envelope.activity_run_id ?? undefined,
+          agent: envelope.agent ?? undefined,
+          summary: text(payload.summary),
+          notes: text(payload.notes_for_next_agent),
+        } satisfies TArtifact
       })
-    }
-  }
+    })
 
   // Then whatever is on disk that nobody claimed. Over-reporting here is
   // deliberate: a document a activity forgot to report is still a document
   // somebody would otherwise have to go hunting for.
   const observed = observedByActivityRun(params.events)
-  for (const file of params.present ?? []) {
+  const unclaimed = (params.present ?? []).map((file) => {
     const owner = [...observed.entries()].find(([, created]) =>
       created.includes(nameOf(file.path)),
     )
-    add({
+    return {
       path: file.path,
       name: nameOf(file.path),
       title: file.title,
@@ -206,10 +218,10 @@ export const runArtifacts = (params: {
       agent: undefined,
       summary: '',
       notes: '',
-    })
-  }
+    } satisfies TArtifact
+  })
 
-  return found
+  return firstByPath([...reported, ...unclaimed])
 }
 
 /** The same list, narrowed to one activityRun — what this activity produced. */
@@ -234,22 +246,23 @@ export type TArtifactViolation = Readonly<{
 
 export const artifactViolations = (
   events: readonly EventRow[],
-): readonly TArtifactViolation[] => {
-  const found: TArtifactViolation[] = []
-  for (const event of events) {
-    if (event.type !== 'artifacts' || event.activity_run_id === null) continue
-    try {
-      const payload = JSON.parse(event.payload_json ?? '{}') as {
-        modified?: unknown
-        deleted?: unknown
-      }
-      const modified = strings(payload.modified)
-      const deleted = strings(payload.deleted)
-      if (modified.length + deleted.length === 0) continue
-      found.push({ activityRunId: event.activity_run_id, modified, deleted })
-    } catch (cause) {
-      void cause
-    }
-  }
-  return found
-}
+): readonly TArtifactViolation[] =>
+  events.flatMap((event) => {
+    if (event.type !== 'artifacts' || event.activity_run_id === null) return []
+    const activityRunId = event.activity_run_id
+    const payload = settledOr<{ modified?: unknown; deleted?: unknown }>(
+      safeParseSettlement(
+        () =>
+          JSON.parse(event.payload_json ?? '{}') as {
+            modified?: unknown
+            deleted?: unknown
+          },
+      ),
+      {},
+    )
+    const modified = strings(payload.modified)
+    const deleted = strings(payload.deleted)
+    return modified.length + deleted.length === 0
+      ? []
+      : [{ activityRunId, modified, deleted }]
+  })

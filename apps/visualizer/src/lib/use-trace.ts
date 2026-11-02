@@ -81,25 +81,30 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
    */
   const poll = useCallback(
     (runIdForPoll: string, workspaceForPoll?: string) => {
-      const state = { cursor: 0, inflight: false, loaded: false }
+      // Bindings rather than a record, so advancing the cursor is a new value
+      // in this closure rather than an edit to an object somebody else holds.
+      let cursor = 0
+      let inflight = false
+      let loaded = false
       return async (live: () => boolean) => {
         const runId = runIdForPoll
         // Carried on every request of the tick, so a run cannot be read from one
         // tree and its events from another.
         const workspace = workspaceForPoll
-        if (state.inflight) return
-        state.inflight = true
+        if (inflight) return
+        inflight = true
+        // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary — one tick spans a session read, a paged event read and two side-table reads, and whichever of them fails is the message this panel shows instead of a trace
         try {
           const detail = await fetchSession(runId, workspace)
 
-          const fresh: EventRow[] = []
+          let fresh: readonly EventRow[] = []
           let hasMore = true
           while (hasMore) {
             // Cursor pagination is inherently sequential: each request needs the
             // previous cursor.
-            const page = await fetchEvents(runId, state.cursor, 1000, workspace)
-            state.cursor = Math.max(state.cursor, page.cursor)
-            fresh.push(...page.events)
+            const page = await fetchEvents(runId, cursor, 1000, workspace)
+            cursor = Math.max(cursor, page.cursor)
+            fresh = [...fresh, ...page.events]
             hasMore = page.has_more
           }
 
@@ -112,7 +117,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
            * below surfaces it as the API error it is.
            */
           const sideTables =
-            !state.loaded || boundaryCrossed
+            !loaded || boundaryCrossed
               ? // biome-ignore lint/plugin: fixed tuple, both values required
                 await Promise.all([
                   fetchEnvelopes(runId, workspace),
@@ -121,7 +126,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
               : undefined
 
           if (!live()) return
-          state.loaded = true
+          loaded = true
           setTrace((previous) => ({
             session: detail.session,
             handoffDir: detail.handoff_dir,
@@ -145,7 +150,7 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
             error: cause instanceof Error ? cause.message : String(cause),
           }))
         } finally {
-          state.inflight = false
+          inflight = false
         }
       }
     },

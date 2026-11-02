@@ -10,6 +10,7 @@
  * fifteen kinds of it; a run has two, and a fold costs a click to reach the
  * thing you came for.
  */
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import { useMemo, useState } from 'react'
 import type { TArtifact } from '../lib/artifacts'
 import { runArtifacts } from '../lib/artifacts'
@@ -33,14 +34,15 @@ const fullPrompt = (
 ): string => {
   for (const event of events) {
     if (event.type !== 'log' || event.payload_json === null) continue
-    try {
-      const parsed: unknown = JSON.parse(event.payload_json)
-      if (parsed === null || typeof parsed !== 'object') continue
-      const input = (parsed as { input?: unknown }).input
-      if (typeof input === 'string' && input.trim() !== '') return input
-    } catch (cause) {
-      void cause
-    }
+    const raw = event.payload_json
+    // An unreadable log line is skipped; the next one may carry the ask.
+    const parsed = settledOr<unknown>(
+      safeParseSettlement(() => JSON.parse(raw) as unknown),
+      undefined,
+    )
+    if (parsed === null || typeof parsed !== 'object') continue
+    const input = (parsed as { input?: unknown }).input
+    if (typeof input === 'string' && input.trim() !== '') return input
   }
   return fallback ?? ''
 }

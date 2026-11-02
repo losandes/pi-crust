@@ -5,6 +5,7 @@
  * waterfall. It hangs off the activityRun it asked about, so the answer is found
  * where the question made sense rather than at the end of the run.
  */
+import { safeParseSettlement } from '@typedefs/settlement'
 import { startedAfter } from './order'
 import type { ActivityRun, EventRow } from './types'
 
@@ -37,29 +38,27 @@ export const consultsOf = (events: readonly EventRow[]): readonly TConsult[] =>
       (event) => event.type === 'consult' && event.activity_run_id !== null,
     )
     .flatMap((event) => {
-      try {
-        const payload = JSON.parse(event.payload_json ?? '{}') as Record<
-          string,
-          unknown
-        >
-        const mode = payload.mode === 'amend' ? 'amend' : 'ask'
-        return [
-          {
-            activityRunId: event.activity_run_id ?? '',
-            mode: mode as TConsultMode,
-            agent: text(payload.agent),
-            question: text(payload.question),
-            answer: text(payload.answer),
-            answered: payload.answered === true,
-            amended: strings(payload.amended),
-            restored: strings(payload.restored),
-            at: text(payload.at) || (event.started_at ?? ''),
-          },
-        ]
-      } catch (cause) {
-        void cause
-        return []
-      }
+      const settled = safeParseSettlement(
+        () =>
+          JSON.parse(event.payload_json ?? '{}') as Record<string, unknown>,
+      )
+      // An unreadable consult is one missing message, never a broken thread.
+      if (settled.status === 'error') return []
+      const payload = settled.data
+      const mode = payload.mode === 'amend' ? 'amend' : 'ask'
+      return [
+        {
+          activityRunId: event.activity_run_id ?? '',
+          mode: mode as TConsultMode,
+          agent: text(payload.agent),
+          question: text(payload.question),
+          answer: text(payload.answer),
+          answered: payload.answered === true,
+          amended: strings(payload.amended),
+          restored: strings(payload.restored),
+          at: text(payload.at) || (event.started_at ?? ''),
+        },
+      ]
     })
 
 /** The thread belonging to one activity. */

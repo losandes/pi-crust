@@ -20,6 +20,7 @@
  * rather than what today's rules would have done.
  */
 
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import type { Envelope, Event as EventRow } from '../../shared/types'
 
 /** What became of a question the activity could not answer from evidence. */
@@ -69,18 +70,16 @@ export const EMPTY_LEDGER: TActivityRunLedger = {
 
 const parsed = (json: string | null): Record<string, unknown> => {
   if (json === null || json.trim() === '') return {}
-  try {
-    const value: unknown = JSON.parse(json)
-    return typeof value === 'object' && value !== null
-      ? (value as Record<string, unknown>)
-      : {}
-  } catch (error) {
-    // A malformed payload is a row to skip, not a screen to break. The
-    // envelope is written by a model and re-validated on the way in, so this
-    // is the rare case rather than the expected one.
-    void error
-    return {}
-  }
+  // A malformed payload is a row to skip, not a screen to break. The envelope
+  // is written by a model and re-validated on the way in, so this is the rare
+  // case rather than the expected one.
+  const value = settledOr<unknown>(
+    safeParseSettlement(() => JSON.parse(json) as unknown),
+    undefined,
+  )
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
 const text = (value: unknown): string =>
