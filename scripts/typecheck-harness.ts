@@ -20,7 +20,14 @@
  * against whatever that machine has. No pin to bump, nothing to install, and
  * a rename shows up as a resolution error the moment it lands.
  *
- * Exit codes: 0 checked clean OR no host found (and said so), 1 type errors.
+ * A missing host is a SKIPPED check, not a passed one, and the two have to
+ * be told apart by whatever is reading the exit code. Interactively that
+ * distinction is a line of output somebody reads; in a pipeline nobody reads
+ * it, so `CI` or `CRUST_STRICT` turns the skip into a failure. The same
+ * script, run the same way, with one variable deciding how loud a gap is.
+ *
+ * Exit codes: 0 checked clean, or no host found outside strict mode (and
+ * said so), 1 type errors or a missing host under CI/CRUST_STRICT.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -47,6 +54,12 @@ const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
 }
 
+/** Is a skipped check allowed to pass here? Not where nobody reads the log. */
+const strict = (): boolean => {
+  const flag = process.env.CRUST_STRICT ?? process.env.CI ?? ''
+  return flag !== '' && flag !== '0' && flag.toLowerCase() !== 'false'
+}
+
 const main = (): number => {
   const release = piReleaseDir()
   if (release === undefined) {
@@ -54,6 +67,14 @@ const main = (): number => {
       'typecheck-harness: no managed pi install found, so harness-engineering ' +
         'was NOT checked. Set PI_PATH, or put pi on PATH, to check it.',
     )
+    if (strict()) {
+      say(
+        'typecheck-harness: CI or CRUST_STRICT is set, and a check that did ' +
+          'not run does not pass. Install pi on this runner, or unset the ' +
+          'variable to accept the gap deliberately.',
+      )
+      return 1
+    }
     return 0
   }
 
