@@ -51,11 +51,34 @@ bun run typecheck
 bun run build
 ```
 
-Scope the suite to one package while iterating — `bun run test:agent -- runtime`, `bun run test:agent -- apps/visualizer`. The argument is a path from the root, and the claim that the suite passes is settled only by the unscoped run.
+The test scripts run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, and `bun run` puts `node_modules/.bin` on `PATH`, which is why they resolve without a global install. Outside `bun run` they do not: a shell that reaches `bunt` through an asdf shim is reaching a different installation, or none.
 
-Each script is a wrapper in `bin/`, and they differ in reporter and in whether they gate on coverage. `test:agent` and `test:verbose` pass `--coverage`; `test` and `test:markdown` do not, so they report what the tests did and nothing about the gate. Only a run carrying `--coverage` settles the claim. `.envrc` puts `bin/` on `PATH`, so `test-agent apps/visualizer` works directly in a direnv shell and means the same thing as going through `bun run`.
+**Never run `bun test` without `CLAUDECODE=1`.** It is the difference between a readable result and a flood: `bun test runtime` prints 1344 lines, `CLAUDECODE=1 bun test runtime` prints 14, and the 1330 it dropped were per-test `(pass)` lines nobody reads. An agent that spends its context window on them has less left for the work.
 
-Run the tests through those wrappers and nothing else, because **`bun test --coverage` fails silently**. `bunfig.toml` sets `coverageThreshold`, bun applies it PER FILE, and a file below it makes bun exit non-zero having printed no message at all — no `error:` line, nothing but the ordinary coverage table and `0 fail`. Read straight, a run that failed its gate looks exactly like a run that passed. The wrappers pipe bun through `buntap`, which reads the same threshold and says so:
+Scope a run to what you are changing. That is the normal case while iterating, and the argument is a path from the root:
+
+```sh
+CLAUDECODE=1 bun test runtime
+CLAUDECODE=1 bun test apps/visualizer/src/lib/markdown.test.ts
+```
+
+For two lines instead of fourteen, pipe the same scope through the reporter — identical meaning, less of it:
+
+```sh
+CLAUDECODE=1 bunt runtime | buntap --agent
+```
+
+**Coverage is only meaningful over the whole repository.** `--coverage` measures every file a run loads, including files imported from outside the scope whose own tests were not in it — so a scoped run reports those as uncovered and is lying. `bun test runtime --coverage` reports `lib/typedefs/src/settlement.ts` at 71.43% functions, which looks like a gap and is not: that module is imported by `runtime` and tested by `lib/typedefs/src/settlement.test.ts`, which a `runtime` scope never ran. Measured whole, the same file is at 100%.
+
+So one command settles coverage, and it is the unscoped one:
+
+```sh
+bun run test:agent
+```
+
+It names every root — `apps/visualizer lib runtime scripts` — and that list is load-bearing in both directions. A new top-level directory that is not added to it gets its tests skipped while its source is still measured by whatever imports it, which is exactly how `settlement.ts` spent a day appearing to be 80% covered after it moved to `lib/`.
+
+Nothing else settles it, because **`bun test --coverage` fails silently**. `bunfig.toml` sets `coverageThreshold`, bun applies it PER FILE, and a file below it makes bun exit non-zero having printed no message at all — verified again on the scoped run above, which exits 1 with no `error:` line, nothing but the ordinary coverage table and `0 fail`. Read straight, a run that failed its gate looks exactly like a run that passed. `buntap` reads the same threshold and says so:
 
 ```text
 COVERAGE FAIL 2 files below the minimum (functions 90.00%, lines 90.00%)
@@ -63,11 +86,11 @@ COVERAGE FAIL 2 files below the minimum (functions 90.00%, lines 90.00%)
   apps/visualizer/server/writes.ts functions 38.46%, lines 40.91%
 ```
 
-The exit code says which gate went red: `1` is a failing test, `3` is coverage. Both are failures. Because coverage is judged per file, a package whose total is 96% still fails on one 40% file, and no threshold above roughly 0.40 can pass while `apps/visualizer/server/writes.ts` sits where it is.
+The exit code says which gate went red: `1` is a failing test, `3` is coverage. Both are failures. Because coverage is judged per file, a package whose total is 96% still fails on one 40% file.
 
-A pipeline reports the last command's status, so what reaches you is `buntap`'s parse of bun's console output rather than bun's own exit code. That is the trade the wrappers make for a legible failure.
+A pipeline reports the last command's status, so what reaches you is `buntap`'s verdict rather than bun's own exit code. That is the trade the pipe makes for a legible failure.
 
-Test output is the runner's and nothing else. bun writes its own lines to stderr and exactly one banner line to stdout, so anything else on stdout came from the code under test, and a suite that prints CLI banners hides the one failure a reader opened the log for. This is the one check that must bypass the wrappers — they fold stderr into stdout to feed the pipe, which is exactly the distinction being measured:
+Test output is the runner's and nothing else. bun writes its own lines to stderr and exactly one banner line to stdout, so anything else on stdout came from the code under test, and a suite that prints CLI banners hides the one failure a reader opened the log for. This is the one check that must not go through `bunt | buntap` — the pipe folds stderr into stdout, which is exactly the distinction being measured, and `CLAUDECODE=1` is left off for the same reason:
 
 ```sh
 test "$(bun test runtime 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')" = 0
@@ -93,7 +116,7 @@ Lint is wired up — `biome.json` at the root, with the convention plugins in `.
 bun run lint
 ```
 
-That is `biome check` over `apps`, `runtime`, `scripts` and `templates` — every root that holds source. Add `--max-diagnostics=500` when the default cap truncates the report.
+That is `biome check` over `apps`, `lib`, `runtime`, `scripts` and `templates` — every root that holds source. It is the same list the test scripts name, and for the same reason: a root nobody names is a root nobody checks. Add `--max-diagnostics=500` when the default cap truncates the report.
 
 It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [issue #5](https://github.com/losandes/pi-crust/issues/5). Do not report lint as passing on a narrowed path: the claim is only ever settled by `bun run lint` with no path argument, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
 

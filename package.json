@@ -11,11 +11,9 @@
     "// BUILD": "=============================BUILD=============================",
     "build": "bun run --cwd apps/visualizer build",
     "// TEST": "==============================TEST==============================",
-    "test": "./bin/test",
-    "test:agent": "./bin/test-agent",
-    "test:markdown": "./bin/test-markdown",
-    "test:verbose": "./bin/test-block --verbose --coverage",
-    "test:watch": "bun test --watch",
+    "test": "bunt apps/visualizer lib runtime scripts | buntap --nyan",
+    "test:agent": "CLAUDECODE=1 bunt apps/visualizer lib runtime scripts --coverage | buntap --agent",
+    "test:ci": "CLAUDECODE=1 bun test apps/visualizer lib runtime scripts --coverage",
     "// TYPECHECK": "=======================TYPECHECK===========================",
     "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
     "typecheck:runtime": "bun x tsc --noEmit -p runtime",
@@ -33,7 +31,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
     "@types/bun": "1.4.2",
-    "buntap": "link:buntap",
+    "buntap": "github:losandes/buntap",
     "markdownlint-cli2": "^0.23.3",
     "typescript": "5.9.3"
   }
