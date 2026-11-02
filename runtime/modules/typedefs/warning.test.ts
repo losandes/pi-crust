@@ -73,9 +73,9 @@ test(
     const actual = renderWarnings(given)
 
     // then
-    expect(
-      actual.some((line) => line.includes('unexplained change(s)')),
-    ).toBe(false)
+    expect(actual.some((line) => line.includes('unexplained change(s)'))).toBe(
+      false,
+    )
     expect(
       actual.some((line) => line.includes('commit(s) this run could not make')),
     ).toBe(true)

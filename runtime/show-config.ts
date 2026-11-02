@@ -17,10 +17,16 @@
 import { configPathFromEnv } from './modules/data/env-overrides'
 import { paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from './modules/typedefs/settlement'
 import { configProvenance } from './modules/use-cases/load-config'
 
-const flagValue = (argv: readonly string[], flag: string): string | undefined => {
+const flagValue = (
+  argv: readonly string[],
+  flag: string,
+): string | undefined => {
   const at = argv.indexOf(flag)
   return at === -1 ? undefined : argv[at + 1]
 }

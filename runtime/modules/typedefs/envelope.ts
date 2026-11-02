@@ -51,7 +51,6 @@ export const envelopeSpec = <TShape extends z.ZodRawShape>(
   fieldNames: Object.keys(schema.shape),
 })
 
-
 // ── The context envelope ─────────────────────────────────────────────────────
 
 /**
@@ -406,7 +405,10 @@ export const uxDesignOutputSchema = contextEnvelopeSchema.extend({
   unspecified: z.array(z.string()).default([]),
 })
 export type TUxDesignOutput = Readonly<z.infer<typeof uxDesignOutputSchema>>
-export const uxDesignOutput = envelopeSpec('UxDesignOutput', uxDesignOutputSchema)
+export const uxDesignOutput = envelopeSpec(
+  'UxDesignOutput',
+  uxDesignOutputSchema,
+)
 
 /** One activity in a planned chain, with the wiring a DAG will later need. */
 export const plannedStepSchema = z.object({
@@ -529,7 +531,10 @@ export const identifyOutputSchema = contextEnvelopeSchema.extend({
   constraints: z.array(z.string()),
 })
 export type TIdentifyOutput = Readonly<z.infer<typeof identifyOutputSchema>>
-export const identifyOutput = envelopeSpec('IdentifyOutput', identifyOutputSchema)
+export const identifyOutput = envelopeSpec(
+  'IdentifyOutput',
+  identifyOutputSchema,
+)
 
 /**
  * 1.2b Diagnose — what is ACTUALLY happening, and why.
@@ -689,7 +694,9 @@ export const pullRequestOutputSchema = contextEnvelopeSchema.extend({
   /** the PR description, markdown, without the attribution block */
   body: z.string().default(''),
 })
-export type TPullRequestOutput = Readonly<z.infer<typeof pullRequestOutputSchema>>
+export type TPullRequestOutput = Readonly<
+  z.infer<typeof pullRequestOutputSchema>
+>
 export const pullRequestOutput = envelopeSpec(
   'PullRequestOutput',
   pullRequestOutputSchema,

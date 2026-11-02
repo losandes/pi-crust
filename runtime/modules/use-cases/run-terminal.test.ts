@@ -4,15 +4,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TActivityRun } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
-import type { TActivityContext } from '../typedefs/runnable-activity'
 import type { TRun } from '../typedefs/run'
-import { runTerminal } from './run-terminal'
+import type { TActivityContext } from '../typedefs/runnable-activity'
 import type { TTerminalActivity } from './activities/gh-pull-request'
+import { runTerminal } from './run-terminal'
 
 /** Every row and event the fake run recorded, so a test can read what was filed. */
 const runIn = (
   countedRuns: readonly TActivityRun[] = [],
-): Readonly<{ run: TRun; rows: TActivityRun[]; events: Record<string, unknown>[] }> => {
+): Readonly<{
+  run: TRun
+  rows: TActivityRun[]
+  events: Record<string, unknown>[]
+}> => {
   const rows: TActivityRun[] = []
   const events: Record<string, unknown>[] = []
   let seq = 10
@@ -36,7 +40,8 @@ const runIn = (
       patch: Readonly<{ status?: string; error?: string; ended_at?: string }>,
     ) => {
       const updated = {
-        ...(rows.find((one) => one.activity_run_id === activityRunId) ?? rows[0]),
+        ...(rows.find((one) => one.activity_run_id === activityRunId) ??
+          rows[0]),
         ...patch,
       } as TActivityRun
       // biome-ignore lint/plugin/no-array-mutation: recording what was filed is the test
@@ -93,7 +98,12 @@ test(
     let delivered = false
     const activity = aTerminalActivity(() => {
       delivered = true
-      return Promise.resolve({ action: 'created', url: '', reason: '', fallback: false })
+      return Promise.resolve({
+        action: 'created',
+        url: '',
+        reason: '',
+        fallback: false,
+      })
     })
 
     // when
@@ -132,7 +142,12 @@ test(
     let delivered = false
     const activity = aTerminalActivity(() => {
       delivered = true
-      return Promise.resolve({ action: 'created', url: '', reason: '', fallback: false })
+      return Promise.resolve({
+        action: 'created',
+        url: '',
+        reason: '',
+        fallback: false,
+      })
     })
 
     // when
@@ -184,7 +199,9 @@ test(
 
     // then
     expect(deliverCalls).toEqual(1)
-    const terminalRow = rows.findLast((one) => one.params.name === 'gh-pull-request')
+    const terminalRow = rows.findLast(
+      (one) => one.params.name === 'gh-pull-request',
+    )
     expect(terminalRow?.params.kind).toEqual('agent')
     expect(terminalRow?.status).toEqual('success')
   },

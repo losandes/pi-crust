@@ -42,10 +42,34 @@ const session = (overrides: Partial<SessionSummary>): SessionSummary => ({
 })
 
 const BASE_SESSIONS: readonly SessionSummary[] = [
-  session({ run_id: 'run-1', workspace: 'alpha', lifecycle: 'plan', branch: 'main', status: 'success' }),
-  session({ run_id: 'run-2', workspace: 'beta', lifecycle: 'build', branch: 'feature', status: 'fail' }),
-  session({ run_id: 'run-3', workspace: 'alpha', lifecycle: 'build', branch: 'feature', status: 'success' }),
-  session({ run_id: 'run-4', workspace: 'beta', lifecycle: 'plan', branch: 'main', status: 'fail' }),
+  session({
+    run_id: 'run-1',
+    workspace: 'alpha',
+    lifecycle: 'plan',
+    branch: 'main',
+    status: 'success',
+  }),
+  session({
+    run_id: 'run-2',
+    workspace: 'beta',
+    lifecycle: 'build',
+    branch: 'feature',
+    status: 'fail',
+  }),
+  session({
+    run_id: 'run-3',
+    workspace: 'alpha',
+    lifecycle: 'build',
+    branch: 'feature',
+    status: 'success',
+  }),
+  session({
+    run_id: 'run-4',
+    workspace: 'beta',
+    lifecycle: 'plan',
+    branch: 'main',
+    status: 'fail',
+  }),
 ]
 
 const ARCHIVED_SESSION: SessionSummary = session({
@@ -63,7 +87,9 @@ const ARCHIVED_SESSION: SessionSummary = session({
  * command AGENTS.md tells people to run on a fresh clone. A skip is a check
  * not run, not a check that passed.
  */
-const initialBrowser: Browser | undefined = await chromium.launch().catch(() => undefined)
+const initialBrowser: Browser | undefined = await chromium
+  .launch()
+  .catch(() => undefined)
 const browser = initialBrowser
 if (browser === undefined) {
   console.warn(
@@ -101,7 +127,12 @@ afterAll(async () => {
  */
 const server = await createServer({
   root: new URL('../../', import.meta.url).pathname,
-  server: { host: '127.0.0.1', port: HARNESS_PORT, strictPort: true, hmr: false },
+  server: {
+    host: '127.0.0.1',
+    port: HARNESS_PORT,
+    strictPort: true,
+    hmr: false,
+  },
   logLevel: 'silent',
 })
 await server.listen()
@@ -139,9 +170,10 @@ const attemptPage = async (
     await page.route('**/api/**', (route) => route.fulfill({ json: [] }))
     await page.route('**/api/sessions*', (route) => {
       const url = new URL(route.request().url())
-      const sessions = url.searchParams.get('include_archived') === '1'
-        ? [...BASE_SESSIONS, ARCHIVED_SESSION]
-        : BASE_SESSIONS
+      const sessions =
+        url.searchParams.get('include_archived') === '1'
+          ? [...BASE_SESSIONS, ARCHIVED_SESSION]
+          : BASE_SESSIONS
       return route.fulfill({ json: sessions })
     })
     await page.goto(`${BASE}/__diag__/index.html`)
@@ -156,11 +188,18 @@ const attemptPage = async (
  * Rejects after `ms` so a hang anywhere inside `attemptPage` cannot silently
  * consume a whole test's budget.
  */
-const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> =>
+const withTimeout = <T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> =>
   Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+      setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms`)),
+        ms,
+      ),
     ),
   ])
 
@@ -178,11 +217,16 @@ const withPage = async (run: (page: Page, base: string) => Promise<void>) => {
   for (const attempt of attempts) {
     if (attempt > 0) liveBrowser = undefined
     const activeBrowser = await ensureBrowser()
-    if (activeBrowser === undefined) throw new Error('Chromium is no longer available')
+    if (activeBrowser === undefined)
+      throw new Error('Chromium is no longer available')
 
     // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung browser into one retry rather than failing the test on resource contention outside this file's control
     try {
-      await withTimeout(attemptPage(activeBrowser, run), 12_000, 'withPage attempt')
+      await withTimeout(
+        attemptPage(activeBrowser, run),
+        12_000,
+        'withPage attempt',
+      )
       return
     } catch (cause) {
       lastError = cause
@@ -237,7 +281,9 @@ test.skipIf(browser === undefined)(
 
       // then
       await waitFor(async () => (await cardCount(page)) === 2)
-      expect(await page.getByRole('checkbox', { name: 'alpha' }).isVisible()).toBe(true)
+      expect(
+        await page.getByRole('checkbox', { name: 'alpha' }).isVisible(),
+      ).toBe(true)
     })
   },
   30_000,
@@ -250,13 +296,17 @@ test.skipIf(browser === undefined)(
     await withPage(async (page) => {
       // given
       await page.getByRole('button', { name: 'tree' }).click()
-      expect(await page.getByRole('checkbox', { name: 'alpha' }).isVisible()).toBe(true)
+      expect(
+        await page.getByRole('checkbox', { name: 'alpha' }).isVisible(),
+      ).toBe(true)
 
       // when
       await page.locator('body').click({ position: { x: 5, y: 400 } })
 
       // then
-      expect(await page.getByRole('checkbox', { name: 'alpha' }).count()).toBe(0)
+      expect(await page.getByRole('checkbox', { name: 'alpha' }).count()).toBe(
+        0,
+      )
       expect(await cardCount(page)).toBe(4)
     })
   },
@@ -270,15 +320,23 @@ test.skipIf(browser === undefined)(
     await withPage(async (page) => {
       // given
       await page.getByRole('button', { name: 'tree' }).click()
-      expect(await page.getByRole('checkbox', { name: 'alpha' }).isVisible()).toBe(true)
-      expect(await page.getByRole('checkbox', { name: 'beta' }).isVisible()).toBe(true)
+      expect(
+        await page.getByRole('checkbox', { name: 'alpha' }).isVisible(),
+      ).toBe(true)
+      expect(
+        await page.getByRole('checkbox', { name: 'beta' }).isVisible(),
+      ).toBe(true)
 
       // when — pressSequentially rather than fill: a no-op lint rule would
       // otherwise read this Locator method as Array.prototype.fill
-      await page.getByRole('searchbox', { name: 'search tree' }).pressSequentially('alpha')
+      await page
+        .getByRole('searchbox', { name: 'search tree' })
+        .pressSequentially('alpha')
 
       // then
-      expect(await page.getByRole('checkbox', { name: 'alpha' }).isVisible()).toBe(true)
+      expect(
+        await page.getByRole('checkbox', { name: 'alpha' }).isVisible(),
+      ).toBe(true)
       expect(await page.getByRole('checkbox', { name: 'beta' }).count()).toBe(0)
       expect(await cardCount(page)).toBe(4)
     })
@@ -302,7 +360,9 @@ test.skipIf(browser === undefined)(
 
       // then
       await waitFor(async () => (await cardCount(page)) === 2)
-      expect(await page.getByRole('button', { name: 'tree · 1' }).isVisible()).toBe(true)
+      expect(
+        await page.getByRole('button', { name: 'tree · 1' }).isVisible(),
+      ).toBe(true)
     })
   },
   30_000,

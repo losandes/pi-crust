@@ -7,13 +7,12 @@
  * envelope and green gates, enforced inside executeAgent).
  */
 
-import { decisionOptions, resumeInvocation } from './human-gate'
-import { monotonicMs, nowIso } from '../data/clock'
 import {
   isStepDocument,
   lockArtifacts,
   unlockArtifacts,
 } from '../data/artifact-lock'
+import { monotonicMs, nowIso } from '../data/clock'
 import {
   changed,
   diffHandoff,
@@ -21,11 +20,15 @@ import {
   restoreAll,
   snapshotHandoff,
 } from '../data/handoff-snapshot'
-import { EXIT } from '../typedefs/run-state'
 import type { TActivityRun, TActivityRunParams } from '../typedefs/activity-run'
 import type { TActivityRunHandle, TRun } from '../typedefs/run'
+import { EXIT } from '../typedefs/run-state'
+import { decisionOptions, resumeInvocation } from './human-gate'
 
-const openActivityRun = (run: TRun, params: TActivityRunParams): TActivityRun => {
+const openActivityRun = (
+  run: TRun,
+  params: TActivityRunParams,
+): TActivityRun => {
   const seq = run.nextSeq()
   const activityRun: TActivityRun = {
     activity_run_id: `${run.runId}_${String(seq).padStart(2, '0')}_${params.name}`,
@@ -76,7 +79,10 @@ const createdBefore = (run: TRun, activity: string): readonly string[] =>
         : [],
     )
 
-const handleFor = (run: TRun, activityRun: TActivityRun): TActivityRunHandle => ({
+const handleFor = (
+  run: TRun,
+  activityRun: TActivityRun,
+): TActivityRunHandle => ({
   activityRun,
   log: (payload) => {
     run.tracer.event({
@@ -324,15 +330,22 @@ export const finish = (run: TRun, params: TFinishParams = {}): number => {
    * judges the whole run, not just the leg it ran itself.
    */
   const judged = run.tracer.activityRunsFor(run.runId).filter(counts)
-  const activityRunsOk = judged.length > 0 && judged.every((activityRun) => activityRun.status === 'success')
+  const activityRunsOk =
+    judged.length > 0 &&
+    judged.every((activityRun) => activityRun.status === 'success')
   const ok = activityRunsOk && accepted
   if (!activityRunsOk) {
-    const failing = judged.filter((activityRun) => activityRun.status !== 'success')
+    const failing = judged.filter(
+      (activityRun) => activityRun.status !== 'success',
+    )
     const note =
       judged.length === 0
         ? 'no activity run counted towards the verdict — every attempt was superseded'
         : `activity run(s) failed: ${failing
-            .map((activityRun) => `${activityRun.activity_run_id} (${activityRun.status})`)
+            .map(
+              (activityRun) =>
+                `${activityRun.activity_run_id} (${activityRun.status})`,
+            )
             .join(', ')}`
     run.tracer.event({
       run_id: run.runId,

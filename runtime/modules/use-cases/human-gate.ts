@@ -24,13 +24,12 @@
 
 import { join } from 'node:path'
 import { fileExists, readText, writeText } from '../data/files'
-import type { TEnvelopeBase } from '../typedefs/envelope'
-import type { TQuestion } from '../typedefs/envelope'
-import type { TRun } from '../typedefs/run'
+import type { TEnvelopeBase, TQuestion } from '../typedefs/envelope'
 import { contextEnvelopeSchema } from '../typedefs/envelope'
+import type { TRun } from '../typedefs/run'
+import { stanceFor, TRUST_PROVISIONAL } from '../typedefs/trust'
 import { recipeArgv, shellLine } from './recipe-line'
 import { resumeArgv } from './resume-run'
-import { TRUST_PROVISIONAL, stanceFor } from '../typedefs/trust'
 
 export const DECISION_FILENAME = 'decision-request.md'
 export const ANSWER_FILENAME = 'decision-answer.md'
@@ -52,7 +51,11 @@ export type TGateReason =
    * consequential, at medium it is a question with no defensible answer or
    * one whose action reaches beyond this run, and at high it never fires.
    */
-  | Readonly<{ kind: 'escalated'; activity: string; questions: readonly string[] }>
+  | Readonly<{
+      kind: 'escalated'
+      activity: string
+      questions: readonly string[]
+    }>
   | Readonly<{ kind: 'deadlocked'; activity: string; detail: string }>
   /**
    * An agent chose the chain and is about to run it.
@@ -64,7 +67,9 @@ export type TGateReason =
    */
   | Readonly<{ kind: 'plan'; activity: string; activities: readonly string[] }>
 
-export const parseApproveAfter = (flag: string | undefined): readonly string[] =>
+export const parseApproveAfter = (
+  flag: string | undefined,
+): readonly string[] =>
   (flag ?? '')
     .split(',')
     .map((name) => name.trim())
@@ -228,22 +233,24 @@ export const renderDecisionRequest = (
   const body =
     reason.kind === 'plan'
       ? '## The chain it chose\n\n' +
-        reason.activities.map((activity, index) => `${index + 1}. \`${activity}\``).join('\n') +
+        reason.activities
+          .map((activity, index) => `${index + 1}. \`${activity}\``)
+          .join('\n') +
         '\n\nNothing has run yet beyond the planning itself. Approving runs ' +
         'exactly these activities, in this order; rejecting with a note sends the ' +
         'operator back to choose again, and your note is what it must honour ' +
         'the second time.\n\nRaise `--trust-level` to 50 or above and a chain ' +
         'like this one runs without stopping here.\n'
       : reason.kind === 'escalated'
-      ? '## Why\n\nThat stage reached questions it may not settle at this trust ' +
-        'level — either it had no answer it could defend, or acting would ' +
-        'reach beyond what discarding this run would undo:\n\n' +
-        reason.questions.map((question) => `- ${question}`).join('\n') +
-        '\n'
-      : reason.kind === 'deadlocked'
-        ? `## Why\n\n${reason.detail}\n`
-        : '## Why\n\nYou asked to approve this stage before the chain ' +
-          'continued.\n'
+        ? '## Why\n\nThat stage reached questions it may not settle at this trust ' +
+          'level — either it had no answer it could defend, or acting would ' +
+          'reach beyond what discarding this run would undo:\n\n' +
+          reason.questions.map((question) => `- ${question}`).join('\n') +
+          '\n'
+        : reason.kind === 'deadlocked'
+          ? `## Why\n\n${reason.detail}\n`
+          : '## Why\n\nYou asked to approve this stage before the chain ' +
+            'continued.\n'
   return (
     `${head}${body}\n## What happens next\n\n` +
     '```bash\n' +

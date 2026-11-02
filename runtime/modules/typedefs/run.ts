@@ -6,9 +6,9 @@
  * mutates a record it was handed.
  */
 
+import type { TActivityRun, TActivityRunStatus } from './activity-run'
 import type { TPiCrustConfig } from './config'
 import type { TEnvelopeBase } from './envelope'
-import type { TActivityRun, TActivityRunStatus } from './activity-run'
 import type { TTracer } from './trace'
 
 /** One agent's coding-agent session, as recorded in `agent_map.json`. */

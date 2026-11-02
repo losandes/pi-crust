@@ -14,8 +14,8 @@ import {
 } from '../typedefs/activity'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { crustConfigSchema, DEFAULT_CONFIG_PATH } from '../typedefs/config'
-import { applyLocalOverrides, localConfigPath } from './merge-config'
 import { applyMachineLayer, readMachineConfig } from './machine-config'
+import { applyLocalOverrides, localConfigPath } from './merge-config'
 
 /** Keys an agent inherits from `defaults` only when it has not stated its own. */
 const INHERITED = [
@@ -101,7 +101,11 @@ type TRegistryFile = Readonly<{
   terminal: readonly unknown[]
 }>
 
-const EMPTY_REGISTRY: TRegistryFile = { activities: [], planners: [], terminal: [] }
+const EMPTY_REGISTRY: TRegistryFile = {
+  activities: [],
+  planners: [],
+  terminal: [],
+}
 
 /**
  * The registry file as WRITTEN, having been checked.
@@ -183,15 +187,16 @@ const activitiesBeside = (configPath: string): TRegistryFile => {
 const observabilityBeside = (configPath: string): TRawRecord => {
   const path = join(dirname(configPath), 'crust.observe.yaml')
 
-  return fileExists(path)
-    ? asRecord(Bun.YAML.parse(readText(path)))
-    : {}
+  return fileExists(path) ? asRecord(Bun.YAML.parse(readText(path))) : {}
 }
 
 /** The observe file's keys, minus the themes the visualizer reads itself. */
 const observabilitySettings = (configPath: string): TRawRecord => {
-  const { themes: _themes, default_theme: _default, ...settings } =
-    observabilityBeside(configPath)
+  const {
+    themes: _themes,
+    default_theme: _default,
+    ...settings
+  } = observabilityBeside(configPath)
 
   return settings
 }
@@ -369,19 +374,32 @@ export const configProvenance = (
     section: 'defaults' | 'observability',
     dotted: string,
   ): string => {
-    if (section === 'defaults' && dotted === 'data_dir' && dataDirFromEnv(env) !== undefined) {
+    if (
+      section === 'defaults' &&
+      dotted === 'data_dir' &&
+      dataDirFromEnv(env) !== undefined
+    ) {
       return 'CRUST_DATA_DIR (environment)'
     }
-    if (localDoc !== undefined && statesKey(asRecord(localDoc)[section], dotted)) {
+    if (
+      localDoc !== undefined &&
+      statesKey(asRecord(localDoc)[section], dotted)
+    ) {
       return `${localPath} (repository, private)`
     }
-    if (machine.override !== undefined && statesKey(asRecord(machine.override)[section], dotted)) {
+    if (
+      machine.override !== undefined &&
+      statesKey(asRecord(machine.override)[section], dotted)
+    ) {
       return `${machine.path} (machine, override:)`
     }
     if (statesKey(asRecord(base)[section], dotted)) {
       return `${path} (repository, committed)`
     }
-    if (machine.ordinary !== undefined && statesKey(asRecord(machine.ordinary)[section], dotted)) {
+    if (
+      machine.ordinary !== undefined &&
+      statesKey(asRecord(machine.ordinary)[section], dotted)
+    ) {
       return `${machine.path} (machine, ordinary)`
     }
     return 'runtime/modules/typedefs/config.ts (built-in default)'

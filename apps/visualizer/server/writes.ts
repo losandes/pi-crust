@@ -20,33 +20,33 @@
  * failure this is here to prevent.
  */
 
-import { spawn } from "node:child_process";
+import { Database } from 'bun:sqlite'
+import { spawn } from 'node:child_process'
 import {
   appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
-} from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { Database } from "bun:sqlite";
-import { handoffDirFor } from "./handoff.ts";
-import type { ApiError } from "../shared/types.ts";
+} from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import type { ApiError } from '../shared/types.ts'
+import { handoffDirFor } from './handoff.ts'
 
-export const TOKEN_HEADER = "x-crust-token";
+export const TOKEN_HEADER = 'x-crust-token'
 
 /** A run id is a path segment on disk; anything else is an attack or a typo. */
 export const isSafeSegment = (value: string): boolean =>
-  /^[A-Za-z0-9_-]+$/.test(value) && value.length <= 64;
+  /^[A-Za-z0-9_-]+$/.test(value) && value.length <= 64
 
 const json = (data: unknown, status: number): Response =>
   new Response(JSON.stringify(data), {
     status,
     headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
     },
-  });
+  })
 
 /**
  * Compare without leaking the answer in how long it took.
@@ -55,32 +55,32 @@ const json = (data: unknown, status: number): Response =>
  * more than doing it.
  */
 const sameSecret = (given: string, expected: string): boolean => {
-  if (given.length !== expected.length) return false;
-  let diff = 0;
+  if (given.length !== expected.length) return false
+  let diff = 0
   for (let index = 0; index < given.length; index += 1) {
-    diff |= given.charCodeAt(index) ^ expected.charCodeAt(index);
+    diff |= given.charCodeAt(index) ^ expected.charCodeAt(index)
   }
-  return diff === 0;
-};
+  return diff === 0
+}
 
 /** Undefined when the caller may write; a Response saying why when they may not. */
 export const refuseUnlessAuthorised = (req: Request): Response | undefined => {
-  const expected = (process.env.CRUST_TOKEN ?? "").trim();
-  if (expected === "") {
+  const expected = (process.env.CRUST_TOKEN ?? '').trim()
+  if (expected === '') {
     return json(
       {
         error:
-          "writes are disabled: set CRUST_TOKEN on the server and send it as " +
+          'writes are disabled: set CRUST_TOKEN on the server and send it as ' +
           `the ${TOKEN_HEADER} header`,
       } satisfies ApiError,
       503,
-    );
+    )
   }
-  const given = (req.headers.get(TOKEN_HEADER) ?? "").trim();
+  const given = (req.headers.get(TOKEN_HEADER) ?? '').trim()
   return sameSecret(given, expected)
     ? undefined
-    : json({ error: "unauthorised" } satisfies ApiError, 401);
-};
+    : json({ error: 'unauthorised' } satisfies ApiError, 401)
+}
 
 /**
  * The workspace this server is reporting on.
@@ -90,10 +90,10 @@ export const refuseUnlessAuthorised = (req: Request): Response | undefined => {
  * directory inside the skill and not the repository being worked on.
  */
 export const workspaceRoot = (dbPath: string): string =>
-  resolve(dirname(dbPath), "..", "..");
+  resolve(dirname(dbPath), '..', '..')
 
 export const sessionDir = (dbPath: string, runId: string): string =>
-  join(dirname(dbPath), "sessions", runId);
+  join(dirname(dbPath), 'sessions', runId)
 
 /**
  * Where the pi-crust runtime is, for the commands this server spawns.
@@ -112,22 +112,22 @@ export const crustRuntime = (
   dbPath: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string | undefined => {
-  const configured = (env.CRUST_HOME ?? "").trim();
+  const configured = (env.CRUST_HOME ?? '').trim()
   const home =
-    configured === "" ? readHomeFile(workspaceRoot(dbPath)) : configured;
-  if (home === undefined) return undefined;
-  const runtime = join(home, "runtime");
+    configured === '' ? readHomeFile(workspaceRoot(dbPath)) : configured
+  if (home === undefined) return undefined
+  const runtime = join(home, 'runtime')
 
-  return existsSync(join(runtime, "cli.ts")) ? runtime : undefined;
-};
+  return existsSync(join(runtime, 'cli.ts')) ? runtime : undefined
+}
 
 const readHomeFile = (root: string): string | undefined => {
-  const path = join(root, ".pi-crust", "data", "pi-crust-home");
-  if (!existsSync(path)) return undefined;
-  const recorded = readFileSync(path, "utf8").trim();
+  const path = join(root, '.pi-crust', 'data', 'pi-crust-home')
+  if (!existsSync(path)) return undefined
+  const recorded = readFileSync(path, 'utf8').trim()
 
-  return recorded === "" ? undefined : recorded;
-};
+  return recorded === '' ? undefined : recorded
+}
 
 /**
  * What to say when the runtime cannot be found, in the words the recipes use.
@@ -137,9 +137,9 @@ const readHomeFile = (root: string): string | undefined => {
  * as three different problems.
  */
 export const NO_RUNTIME =
-  "cannot find pi-crust: no CRUST_HOME, and no .pi-crust/data/pi-crust-home " +
-  "in this tree. Re-run its installer from the repository, or set CRUST_HOME " +
-  "to the package.";
+  'cannot find pi-crust: no CRUST_HOME, and no .pi-crust/data/pi-crust-home ' +
+  'in this tree. Re-run its installer from the repository, or set CRUST_HOME ' +
+  'to the package.'
 
 /**
  * Why a run that was started has no session row.
@@ -156,20 +156,20 @@ export const startupFailure = (
   dbPath: string,
   runId: string,
 ): string | undefined => {
-  const logs = ["spawn.log", "resume.log"]
+  const logs = ['spawn.log', 'resume.log']
     .map((name) => join(sessionDir(dbPath, runId), name))
-    .filter((path) => existsSync(path));
+    .filter((path) => existsSync(path))
   const text = logs
-    .map((path) => readFileSync(path, "utf8").trim())
-    .filter((contents) => contents !== "")
-    .join("\n");
+    .map((path) => readFileSync(path, 'utf8').trim())
+    .filter((contents) => contents !== '')
+    .join('\n')
 
-  return text === "" ? undefined : text.split("\n").slice(-12).join("\n");
-};
+  return text === '' ? undefined : text.split('\n').slice(-12).join('\n')
+}
 
-export type TInboxKind = "steer" | "follow_up" | "abort";
+export type TInboxKind = 'steer' | 'follow_up' | 'abort'
 
-const KINDS: readonly string[] = ["steer", "follow_up", "abort"];
+const KINDS: readonly string[] = ['steer', 'follow_up', 'abort']
 
 /**
  * Post a message to a running agent's inbox.
@@ -186,16 +186,21 @@ export const postMessage = (
   kind: TInboxKind,
   message: string,
   from: string,
-): Readonly<{ kind: TInboxKind; message: string; at: string; from: string }> => {
-  const dir = sessionDir(dbPath, runId);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const entry = { kind, message, at: new Date().toISOString(), from };
-  appendFileSync(join(dir, "inbox.jsonl"), `${JSON.stringify(entry)}\n`);
-  return entry;
-};
+): Readonly<{
+  kind: TInboxKind
+  message: string
+  at: string
+  from: string
+}> => {
+  const dir = sessionDir(dbPath, runId)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  const entry = { kind, message, at: new Date().toISOString(), from }
+  appendFileSync(join(dir, 'inbox.jsonl'), `${JSON.stringify(entry)}\n`)
+  return entry
+}
 
 export const isInboxKind = (value: unknown): value is TInboxKind =>
-  typeof value === "string" && KINDS.includes(value);
+  typeof value === 'string' && KINDS.includes(value)
 
 /**
  * Record a gate decision where the waiting run will find it.
@@ -206,22 +211,22 @@ export const isInboxKind = (value: unknown): value is TInboxKind =>
 export const recordDecision = (
   dbPath: string,
   runId: string,
-  action: "approve" | "reject" | "answer",
+  action: 'approve' | 'reject' | 'answer',
   text: string,
   from: string,
 ): string => {
-  const handoff = handoffDirFor(join(dirname(dbPath), "sessions"), runId);
-  if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true });
+  const handoff = handoffDirFor(join(dirname(dbPath), 'sessions'), runId)
+  if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true })
   const body =
-    action === "approve"
-      ? `Approved by ${from}.${text === "" ? "" : `\n\n${text}`}\n`
-      : action === "reject"
+    action === 'approve'
+      ? `Approved by ${from}.${text === '' ? '' : `\n\n${text}`}\n`
+      : action === 'reject'
         ? `Rejected by ${from}.\n\n${text}\n`
-        : `${text}\n`;
-  const path = join(handoff, "decision-answer.md");
-  writeFileSync(path, body, "utf8");
-  return path;
-};
+        : `${text}\n`
+  const path = join(handoff, 'decision-answer.md')
+  writeFileSync(path, body, 'utf8')
+  return path
+}
 
 /**
  * Send a run back to a activity with new instructions.
@@ -245,62 +250,62 @@ export const startSteer = (
   dbPath: string,
   runId: string,
   activity: string,
-  target: "overwrite" | "branch",
+  target: 'overwrite' | 'branch',
   note: string,
   branchRunId?: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
   spawnChild: typeof spawn = spawn,
 ): Readonly<{
-  started: boolean;
-  pid: number | undefined;
-  log: string;
-  reason?: string;
-  branch_run_id: string;
+  started: boolean
+  pid: number | undefined
+  log: string
+  reason?: string
+  branch_run_id: string
 }> => {
-  const runtime = crustRuntime(dbPath, env);
+  const runtime = crustRuntime(dbPath, env)
   if (runtime === undefined) {
     return {
       started: false,
       pid: undefined,
-      log: "",
+      log: '',
       reason: NO_RUNTIME,
-      branch_run_id: target === "branch" ? (branchRunId ?? "") : "",
-    };
+      branch_run_id: target === 'branch' ? (branchRunId ?? '') : '',
+    }
   }
-  const dir = sessionDir(dbPath, runId);
-  mkdirSync(dir, { recursive: true });
-  const log = join(dir, "steer.log");
+  const dir = sessionDir(dbPath, runId)
+  mkdirSync(dir, { recursive: true })
+  const log = join(dir, 'steer.log')
   const args =
-    target === "branch"
+    target === 'branch'
       ? [
-          join(runtime, "steer.ts"),
+          join(runtime, 'steer.ts'),
           runId,
           activity,
-          "--branch",
-          "--seeding",
-          "fork",
-          "--branch-id",
-          branchRunId ?? "",
+          '--branch',
+          '--seeding',
+          'fork',
+          '--branch-id',
+          branchRunId ?? '',
           note,
         ]
-      : [join(runtime, "steer.ts"), runId, activity, "--overwrite", note];
-  const child = spawnChild("bun", args, {
+      : [join(runtime, 'steer.ts'), runId, activity, '--overwrite', note]
+  const child = spawnChild('bun', args, {
     cwd: workspaceRoot(dbPath),
     detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...env, CRUST_DB: dbPath },
-  });
-  child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.unref();
+  })
+  child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.stderr?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.unref()
   return {
     started: true,
     pid: child.pid,
     log,
-    reason: "",
-    branch_run_id: target === "branch" ? (branchRunId ?? "") : "",
-  };
-};
+    reason: '',
+    branch_run_id: target === 'branch' ? (branchRunId ?? '') : '',
+  }
+}
 
 /**
  * Put a question to a finished activity, or ask it to amend its own document.
@@ -318,40 +323,40 @@ export const startConsult = (
   dbPath: string,
   runId: string,
   activity: string,
-  mode: "ask" | "amend",
+  mode: 'ask' | 'amend',
   question: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
   spawnChild: typeof spawn = spawn,
 ): Readonly<{
-  started: boolean;
-  pid: number | undefined;
-  log: string;
-  reason?: string;
+  started: boolean
+  pid: number | undefined
+  log: string
+  reason?: string
 }> => {
-  const runtime = crustRuntime(dbPath, env);
+  const runtime = crustRuntime(dbPath, env)
   if (runtime === undefined) {
-    return { started: false, pid: undefined, log: "", reason: NO_RUNTIME };
+    return { started: false, pid: undefined, log: '', reason: NO_RUNTIME }
   }
-  const dir = sessionDir(dbPath, runId);
-  mkdirSync(dir, { recursive: true });
-  const log = join(dir, "consult.log");
+  const dir = sessionDir(dbPath, runId)
+  mkdirSync(dir, { recursive: true })
+  const log = join(dir, 'consult.log')
   const child = spawnChild(
-    "bun",
-    [join(runtime, "consult.ts"), mode, runId, activity, question],
+    'bun',
+    [join(runtime, 'consult.ts'), mode, runId, activity, question],
     {
       cwd: workspaceRoot(dbPath),
       detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
       // The consult must read the SAME trace this server is serving, which
       // is not necessarily the one its cwd would resolve to.
       env: { ...env, CRUST_DB: dbPath },
     },
-  );
-  child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.unref();
-  return { started: true, pid: child.pid, log, reason: "" };
-};
+  )
+  child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.stderr?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.unref()
+  return { started: true, pid: child.pid, log, reason: '' }
+}
 
 /**
  * The standing instruction a developer leaves when picking a run back up, in
@@ -362,7 +367,7 @@ export const startConsult = (
  * the package rather than with the stamp.
  */
 const developerNoteEntry = (note: string, at: string): string =>
-  [`## Instruction from the developer at ${at}`, "", note.trim(), ""].join("\n");
+  [`## Instruction from the developer at ${at}`, '', note.trim(), ''].join('\n')
 
 /**
  * Append a developer's note to the run's own `steering.md`, through the
@@ -375,22 +380,22 @@ const recordResumeNote = (
   note: string,
   from: string,
 ): string => {
-  const handoff = handoffDirFor(join(dirname(dbPath), "sessions"), runId);
-  if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true });
-  const path = join(handoff, "steering.md");
-  const entry = developerNoteEntry(note, new Date().toISOString());
-  appendFileSync(path, entry.endsWith("\n") ? entry : `${entry}\n`);
+  const handoff = handoffDirFor(join(dirname(dbPath), 'sessions'), runId)
+  if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true })
+  const path = join(handoff, 'steering.md')
+  const entry = developerNoteEntry(note, new Date().toISOString())
+  appendFileSync(path, entry.endsWith('\n') ? entry : `${entry}\n`)
 
-  const db = new Database(dbPath);
-  db.run("PRAGMA busy_timeout=5000;");
+  const db = new Database(dbPath)
+  db.run('PRAGMA busy_timeout=5000;')
   db.run(
-    "INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)" +
-      " VALUES (?,?,?,?,?,?)",
+    'INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)' +
+      ' VALUES (?,?,?,?,?,?)',
     [
       `evt_note_${Date.now()}`,
       runId,
-      "log",
-      "developer_note",
+      'log',
+      'developer_note',
       JSON.stringify({
         note,
         from,
@@ -399,10 +404,10 @@ const recordResumeNote = (
       }),
       new Date().toISOString(),
     ],
-  );
-  db.close();
-  return path;
-};
+  )
+  db.close()
+  return path
+}
 
 /**
  * Pick a waiting run back up, exactly as it was launched.
@@ -426,42 +431,42 @@ const recordResumeNote = (
 export const resumeRun = (
   dbPath: string,
   runId: string,
-  note = "",
-  from = "the web app",
+  note = '',
+  from = 'the web app',
   env: Readonly<Record<string, string | undefined>> = process.env,
   spawnChild: typeof spawn = spawn,
 ): Readonly<{
-  resumed: boolean;
-  pid: number | undefined;
-  reason: string;
-  note_recorded: string;
+  resumed: boolean
+  pid: number | undefined
+  reason: string
+  note_recorded: string
 }> => {
   const noteRecorded =
-    note.trim() === "" ? "" : recordResumeNote(dbPath, runId, note.trim(), from);
-  const recorded = join(sessionDir(dbPath, runId), "invocation.json");
+    note.trim() === '' ? '' : recordResumeNote(dbPath, runId, note.trim(), from)
+  const recorded = join(sessionDir(dbPath, runId), 'invocation.json')
   if (!existsSync(recorded)) {
     return {
       resumed: false,
       pid: undefined,
       reason: `no invocation.json for ${runId} — resume it by hand`,
       note_recorded: noteRecorded,
-    };
+    }
   }
-  const parsed = JSON.parse(readFileSync(recorded, "utf8")) as {
-    argv?: unknown;
-    cwd?: unknown;
-  };
+  const parsed = JSON.parse(readFileSync(recorded, 'utf8')) as {
+    argv?: unknown
+    cwd?: unknown
+  }
   const argv = Array.isArray(parsed.argv)
-    ? parsed.argv.filter((part): part is string => typeof part === "string")
-    : [];
-  const script = argv[1] ?? "";
-  if (script === "") {
+    ? parsed.argv.filter((part): part is string => typeof part === 'string')
+    : []
+  const script = argv[1] ?? ''
+  if (script === '') {
     return {
       resumed: false,
       pid: undefined,
-      reason: "recorded argv is unusable",
+      reason: 'recorded argv is unusable',
       note_recorded: noteRecorded,
-    };
+    }
   }
   // The run's own resume flags are stripped and re-appended, so resuming a
   // run that was already resumed does not stack duplicates onto the line.
@@ -469,24 +474,32 @@ export const resumeRun = (
     .slice(2)
     .filter(
       (arg, index, all) =>
-        arg !== "--run-id" && all[index - 1] !== "--run-id" && arg !== "--resume",
-    );
-  const cwd = typeof parsed.cwd === "string" ? parsed.cwd : workspaceRoot(dbPath);
+        arg !== '--run-id' &&
+        all[index - 1] !== '--run-id' &&
+        arg !== '--resume',
+    )
+  const cwd =
+    typeof parsed.cwd === 'string' ? parsed.cwd : workspaceRoot(dbPath)
   // Detached, and it must stay that way. The terminal path attaches, because
   // somebody typed `approve` and is waiting; an HTTP handler has to answer in
   // milliseconds and has no terminal to attach to, so the run outlives the
   // request and its output goes to the session's own log.
-  const log = join(sessionDir(dbPath, runId), "spawn.log");
+  const log = join(sessionDir(dbPath, runId), 'spawn.log')
   const child = spawnChild(
-    "bun",
-    [script, ...carried, "--run-id", runId, "--resume"],
-    { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...env } },
-  );
-  child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.unref();
-  return { resumed: true, pid: child.pid, reason: "", note_recorded: noteRecorded };
-};
+    'bun',
+    [script, ...carried, '--run-id', runId, '--resume'],
+    { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...env } },
+  )
+  child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.stderr?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.unref()
+  return {
+    resumed: true,
+    pid: child.pid,
+    reason: '',
+    note_recorded: noteRecorded,
+  }
+}
 
 /**
  * Start a Lifecycle, detached, and hand back the run id it will use.
@@ -510,41 +523,41 @@ export const startRun = (
   env: Readonly<Record<string, string | undefined>> = process.env,
   spawnChild: typeof spawn = spawn,
 ): Readonly<{
-  run_id: string;
-  pid: number | undefined;
-  log: string;
-  reason?: string;
+  run_id: string
+  pid: number | undefined
+  log: string
+  reason?: string
 }> => {
-  const runtime = crustRuntime(dbPath, env);
+  const runtime = crustRuntime(dbPath, env)
   if (runtime === undefined) {
-    return { run_id: "", pid: undefined, log: "", reason: NO_RUNTIME };
+    return { run_id: '', pid: undefined, log: '', reason: NO_RUNTIME }
   }
-  const root = workspaceRoot(dbPath);
-  const runId = Math.random().toString(16).slice(2, 10);
-  const logDir = join(dirname(dbPath), "sessions", runId);
-  mkdirSync(logDir, { recursive: true });
-  const log = join(logDir, "spawn.log");
-  writeFileSync(log, "", "utf8");
+  const root = workspaceRoot(dbPath)
+  const runId = Math.random().toString(16).slice(2, 10)
+  const logDir = join(dirname(dbPath), 'sessions', runId)
+  mkdirSync(logDir, { recursive: true })
+  const log = join(logDir, 'spawn.log')
+  writeFileSync(log, '', 'utf8')
   const child = spawnChild(
-    "bun",
+    'bun',
     [
-      join(runtime, "lifecycles", "compose.ts"),
+      join(runtime, 'lifecycles', 'compose.ts'),
       prompt,
-      "--lifecycle",
+      '--lifecycle',
       lifecycle,
-      "--run-id",
+      '--run-id',
       runId,
       ...extraArgs,
     ],
     {
       cwd: root,
       detached: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...env },
     },
-  );
-  child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
-  child.unref();
-  return { run_id: runId, pid: child.pid, log, reason: "" };
-};
+  )
+  child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.stderr?.on('data', (chunk) => appendFileSync(log, chunk))
+  child.unref()
+  return { run_id: runId, pid: child.pid, log, reason: '' }
+}

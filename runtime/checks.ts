@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * pi-crust Checks — run this repository's own commands, with no Lifecycle.
  *
@@ -15,24 +16,29 @@
  * row in the trace claiming work that nobody asked an agent for.
  */
 
-import { changedFiles, untrackedFiles } from './modules/data/git'
+import { basename, join } from 'node:path'
+import { resolveDataPaths } from './modules/data/data-paths'
 import { configPathFromEnv } from './modules/data/env-overrides'
+import { ensureDir } from './modules/data/files'
+import { changedFiles, repoRoot, untrackedFiles } from './modules/data/git'
 import { paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
-import { matchingChecks, unmatchedPaths } from './modules/use-cases/route-by-path'
+import {
+  matchingChecks,
+  unmatchedPaths,
+} from './modules/use-cases/route-by-path'
 import {
   NOTHING_DECLARED,
   NOTHING_MATCHED,
   runCommand,
 } from './modules/use-cases/run-checks'
 import { requireSelected, selectRange } from './modules/use-cases/select-range'
-import { basename, join } from 'node:path'
-import { resolveDataPaths } from './modules/data/data-paths'
-import { ensureDir } from './modules/data/files'
-import { repoRoot } from './modules/data/git'
 
 const flagValue = (
   argv: readonly string[],

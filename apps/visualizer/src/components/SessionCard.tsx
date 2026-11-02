@@ -6,9 +6,9 @@ import { paletteColor } from '../lib/palette'
 import { hrefFor } from '../lib/router'
 import type { EventRow, SessionSummary } from '../lib/types'
 import { ActivityRunDots } from './ActivityRunDots'
+import styles from './SessionCard.module.css'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
-import styles from './SessionCard.module.css'
 
 /**
  * Cards are a fixed size, so the timeline region fits exactly MAX_VISIBLE_ROWS
@@ -61,12 +61,7 @@ const useCardEvents = (
         while (hasMore) {
           // Cursor pagination is inherently sequential: each request needs the
           // previous cursor.
-          const page = await fetchEvents(
-            runId,
-            cursor.current,
-            1000,
-            workspace,
-          )
+          const page = await fetchEvents(runId, cursor.current, 1000, workspace)
           cursor.current = Math.max(cursor.current, page.cursor)
           fresh = [...fresh, ...page.events]
           hasMore = page.has_more
@@ -82,7 +77,10 @@ const useCardEvents = (
     }
 
     void pull()
-    if (!running) return () => { live = false }
+    if (!running)
+      return () => {
+        live = false
+      }
 
     const timer = setInterval(() => void pull(), 500)
     return () => {
@@ -166,7 +164,8 @@ export const SessionCard = ({
     for (const activityRun of session.activityRuns ?? []) {
       if (activityRun.kind !== 'agent' || !activityRun.owner) continue
       ownerByActivityRun.set(activityRun.activity_run_id, activityRun.owner)
-      if (!owners.includes(activityRun.owner)) owners = [...owners, activityRun.owner]
+      if (!owners.includes(activityRun.owner))
+        owners = [...owners, activityRun.owner]
     }
     if (owners.length === 0) return []
 
@@ -176,7 +175,9 @@ export const SessionCard = ({
     let latestAt = Number.NEGATIVE_INFINITY
 
     for (const event of events) {
-      const owner = event.activity_run_id ? ownerByActivityRun.get(event.activity_run_id) : undefined
+      const owner = event.activity_run_id
+        ? ownerByActivityRun.get(event.activity_run_id)
+        : undefined
       const color = dotColor(event.type)
       if (!(owner && color)) continue
       const at = ts(event.started_at)
@@ -206,7 +207,9 @@ export const SessionCard = ({
         color: agentColor(info?.color, null, index),
         title: info?.model ? `${owner} ${info.model}` : owner,
         dots: running
-          ? dots.map((dot) => (dot.id === latestId ? { ...dot, latest: true } : dot))
+          ? dots.map((dot) =>
+              dot.id === latestId ? { ...dot, latest: true } : dot,
+            )
           : dots,
       }
     })
@@ -231,7 +234,10 @@ export const SessionCard = ({
   ].filter((name): name is string => name !== undefined)
 
   return (
-    <a className={classes.join(' ')} href={hrefFor(session.run_id, undefined, session.workspace)}>
+    <a
+      className={classes.join(' ')}
+      href={hrefFor(session.run_id, undefined, session.workspace)}
+    >
       <button
         className={styles.archive}
         type="button"
@@ -277,7 +283,9 @@ export const SessionCard = ({
                 <span
                   key={tick.label}
                   className={
-                    tick.pct === 0 ? `${styles.tick} ${styles.edge}` : styles.tick
+                    tick.pct === 0
+                      ? `${styles.tick} ${styles.edge}`
+                      : styles.tick
                   }
                   style={{ left: `${tick.pct}%` }}
                 >
@@ -299,8 +307,13 @@ export const SessionCard = ({
                 {row.dots.map((dot) => (
                   <span
                     key={dot.id}
-                    className={dot.latest ? `${styles.dot} ${styles.latest}` : styles.dot}
-                    style={{ left: `${dot.xPct}%`, background: paletteColor(dot.color) }}
+                    className={
+                      dot.latest ? `${styles.dot} ${styles.latest}` : styles.dot
+                    }
+                    style={{
+                      left: `${dot.xPct}%`,
+                      background: paletteColor(dot.color),
+                    }}
                     title={dot.title}
                   />
                 ))}
@@ -308,7 +321,9 @@ export const SessionCard = ({
             </div>
           ))}
           {hiddenRowCount > 0 && (
-            <div className={`${styles.more} dim`}>+{hiddenRowCount} more agents</div>
+            <div className={`${styles.more} dim`}>
+              +{hiddenRowCount} more agents
+            </div>
           )}
         </div>
       ) : (

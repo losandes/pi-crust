@@ -73,10 +73,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { repoRoot } from '../data/git'
 import { recordedHandoffDir } from '../data/handoff-pointer'
+import { terminalOutput } from '../testing/terminal-capture'
 import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TRunState } from '../typedefs/run-state'
-import { terminalOutput } from '../testing/terminal-capture'
 import { defaultHandoffDir } from './handoff-location'
 import { freshSessionId, resumeVerdict, startSession } from './start-session'
 
@@ -172,7 +172,7 @@ test(
 test(
   [
     'given use-cases/start-session::startSession',
-    'when a resumed run\'s --handoff resolves to a directory other than the one it recorded',
+    "when a resumed run's --handoff resolves to a directory other than the one it recorded",
     'it should throw, naming both directories, before any agent runs',
   ].join(', '),
   () => {
@@ -215,7 +215,7 @@ test(
   [
     'given use-cases/start-session::startSession',
     'when the process receives SIGTERM after a session has started',
-    'it should close the session\'s own trace before exiting, rather than leave it reading running forever',
+    "it should close the session's own trace before exiting, rather than leave it reading running forever",
   ].join(', '),
   () => {
     // given — every signal listener any earlier startSession() in this file
@@ -224,7 +224,9 @@ test(
     process.removeAllListeners('SIGINT')
     const cfg = scratchConfig()
     startSession(cfg, 'a1b2c3d4')
-    const exitSpy = spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+    const exitSpy = spyOn(process, 'exit').mockImplementation(
+      (() => undefined) as never,
+    )
 
     try {
       // when — the same signal finalizeWhenKilled listens for
@@ -313,7 +315,10 @@ test(
     // then
     expect(terminalOutput()).toContain('carries no run id')
     run.tracer.close()
-    rmSync(resolve(repoRoot(), 'specs', 'shared'), { recursive: true, force: true })
+    rmSync(resolve(repoRoot(), 'specs', 'shared'), {
+      recursive: true,
+      force: true,
+    })
   },
 )
 
@@ -340,7 +345,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = stateWith({ status: 'fail', resume_from: undefined, resumable: true })
+    const given = stateWith({
+      status: 'fail',
+      resume_from: undefined,
+      resumable: true,
+    })
 
     // when
     const actual = resumeVerdict(given, 'fbf49583', false)
@@ -358,7 +367,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = stateWith({ status: 'success', resume_from: undefined, resumable: false })
+    const given = stateWith({
+      status: 'success',
+      resume_from: undefined,
+      resumable: false,
+    })
 
     // when
     const actual = resumeVerdict(given, 'fbf49583', false)
@@ -377,7 +390,11 @@ test(
   ].join(', '),
   () => {
     // given \u2014 the thing it was waiting for was a person, who has now answered
-    const given = stateWith({ status: 'waiting', resume_from: undefined, resumable: true })
+    const given = stateWith({
+      status: 'waiting',
+      resume_from: undefined,
+      resumable: true,
+    })
 
     // when
     const actual = resumeVerdict(given, 'fbf49583', false)
@@ -395,7 +412,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = stateWith({ status: 'running', resume_from: 'build', resumable: true })
+    const given = stateWith({
+      status: 'running',
+      resume_from: 'build',
+      resumable: true,
+    })
 
     // when
     const actual = resumeVerdict(given, 'fbf49583', true)
@@ -414,7 +435,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = stateWith({ status: 'running', resume_from: 'build', resumable: true })
+    const given = stateWith({
+      status: 'running',
+      resume_from: 'build',
+      resumable: true,
+    })
 
     // when
     const actual = resumeVerdict(given, 'fbf49583', false)

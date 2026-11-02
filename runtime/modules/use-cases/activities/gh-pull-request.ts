@@ -17,22 +17,22 @@ import {
   commitsAhead,
   currentBranch,
   isRepo,
-  remoteExists,
   pushBranch,
+  remoteExists,
   untrackedFiles,
   upstreamBase,
 } from '../../data/git'
 import type { TTerminalConfig } from '../../typedefs/activity'
 import type { TActivityRunParams } from '../../typedefs/activity-run'
 import { activityRunParams } from '../../typedefs/activity-run'
+import type { TPullRequestOutput } from '../../typedefs/envelope'
+import { narrowEnvelope, pullRequestOutput } from '../../typedefs/envelope'
+import type { TActivityRunHandle } from '../../typedefs/run'
 import type { TRunState } from '../../typedefs/run-state'
 import type {
   TActivityContext,
   TActivityOptions,
 } from '../../typedefs/runnable-activity'
-import type { TActivityRunHandle } from '../../typedefs/run'
-import { narrowEnvelope, pullRequestOutput } from '../../typedefs/envelope'
-import type { TPullRequestOutput } from '../../typedefs/envelope'
 import type { TSettlement } from '../../typedefs/settlement'
 import { fail, succeed } from '../../typedefs/settlement'
 import type { TAgentPorts } from '../execute-agent'
@@ -110,7 +110,18 @@ type TPrListEntry = Readonly<{ url: string; number: number }>
 
 const findOpenPr = (branch: string, cwd: string): string => {
   const result = ghArgv(
-    ['pr', 'list', '--head', branch, '--state', 'open', '--json', 'url,number', '--limit', '1'],
+    [
+      'pr',
+      'list',
+      '--head',
+      branch,
+      '--state',
+      'open',
+      '--json',
+      'url,number',
+      '--limit',
+      '1',
+    ],
     cwd,
   )
   if (result.status !== 0) {
@@ -244,9 +255,10 @@ export const fallbackPullRequest = (
     uncommitted: params.uncommitted,
     composedBy: params.composedBy,
   }
-  const title = (params.prompt || `pi-crust run ${params.runId}`)
-    .split('\n')[0]
-    ?.slice(0, 72) || `pi-crust run ${params.runId}`
+  const title =
+    (params.prompt || `pi-crust run ${params.runId}`)
+      .split('\n')[0]
+      ?.slice(0, 72) || `pi-crust run ${params.runId}`
   const prose = [
     `> Generated from the trace because ${params.because}.`,
     '',
@@ -288,7 +300,8 @@ const preconditions = (
   return [
     {
       ok: options.committing,
-      reason: "--commit false was in force; a terminal Activity delivers nothing it cannot commit alongside",
+      reason:
+        '--commit false was in force; a terminal Activity delivers nothing it cannot commit alongside',
     },
     {
       ok: ports.isRepo(cwd) && branch !== '',
@@ -305,7 +318,8 @@ const preconditions = (
       reason: `delivery.remote ('${config.delivery.remote}') is not a configured remote`,
     },
     {
-      ok: ports.baseRef(config.delivery.remote, config.delivery.base, cwd) !== '',
+      ok:
+        ports.baseRef(config.delivery.remote, config.delivery.base, cwd) !== '',
       reason:
         `neither refs/remotes/${config.delivery.remote}/${config.delivery.base} ` +
         `nor ${config.delivery.base} resolves to a commit`,
@@ -398,7 +412,9 @@ export const ghPullRequestActivity = (
      * turned into the settlement the rest of this function already
      * reasons in.
      */
-    const composed: TSettlement<TPullRequestOutput> = run.resume.has(config.name)
+    const composed: TSettlement<TPullRequestOutput> = run.resume.has(
+      config.name,
+    )
       ? readEnvelope(run, config.name, pullRequestOutput)
       : await (async () => {
           // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — a failed agent call must become a fallback, not a thrown activity-run failure (1.6.5)
@@ -409,7 +425,9 @@ export const ghPullRequestActivity = (
               {
                 outputType: pullRequestOutput,
                 prompt: ctx.prompt,
-                ...(ctx.previous === undefined ? {} : { previous: ctx.previous }),
+                ...(ctx.previous === undefined
+                  ? {}
+                  : { previous: ctx.previous }),
                 upstream: ctx.upstream,
                 cohort: ctx.cohort,
                 feedback: ctx.feedback,
@@ -419,7 +437,9 @@ export const ghPullRequestActivity = (
             )
             return succeed(envelope)
           } catch (error) {
-            return fail(error instanceof Error ? error : new Error(String(error)))
+            return fail(
+              error instanceof Error ? error : new Error(String(error)),
+            )
           }
         })()
 
@@ -441,7 +461,10 @@ export const ghPullRequestActivity = (
           : 'the agent answered with an empty title or body'
 
     const chosen = usable
-      ? { title: answered.title.trim(), body: composedBody(answered.body.trim(), facts) }
+      ? {
+          title: answered.title.trim(),
+          body: composedBody(answered.body.trim(), facts),
+        }
       : fallbackPullRequest({
           runId: run.runId,
           prompt: ctx.prompt,
@@ -453,7 +476,9 @@ export const ghPullRequestActivity = (
         })
     const fellBack = !usable
     if (fellBack) {
-      run.console.note(`${config.name}: falling back to a trace-generated PR body — ${fallbackBecause}`)
+      run.console.note(
+        `${config.name}: falling back to a trace-generated PR body — ${fallbackBecause}`,
+      )
     }
 
     const login = ports.forge.whoami(cwd) || run.engineer

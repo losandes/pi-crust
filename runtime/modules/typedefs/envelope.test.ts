@@ -363,7 +363,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const notAContextEnvelope = { status: 'success' } as unknown as TEnvelopeBase
+    const notAContextEnvelope = {
+      status: 'success',
+    } as unknown as TEnvelopeBase
 
     // when
     const actual = regressionOf(notAContextEnvelope)
@@ -399,7 +401,10 @@ test(
     const actual = regressionOf(envelope)
 
     // then
-    expect(actual).toEqual({ activity: 'conceptualize', because: 'measured, see facts' })
+    expect(actual).toEqual({
+      activity: 'conceptualize',
+      because: 'measured, see facts',
+    })
   },
 )
 

@@ -10,7 +10,7 @@ test(
   [
     'given use-cases/handoff-location::resolveHandoffDir',
     'when no --handoff override was given',
-    'it should land on exactly today\'s path',
+    "it should land on exactly today's path",
   ].join(', '),
   () => {
     // given
@@ -27,7 +27,9 @@ test(
     // then
     expect(actual).toEqual(defaultHandoffDir('.pi-crust/data', 'a1b2c3d4'))
     expect(actual).toEqual(
-      resolve(join('.pi-crust/data', 'sessions', 'a1b2c3d4', 'context_handoff')),
+      resolve(
+        join('.pi-crust/data', 'sessions', 'a1b2c3d4', 'context_handoff'),
+      ),
     )
   },
 )
@@ -136,12 +138,12 @@ test(
 test(
   [
     'given use-cases/handoff-location::isSharedHandoffDir',
-    'when the resolved path carries this run\'s id',
-    'it should say the directory is this run\'s own',
+    "when the resolved path carries this run's id",
+    "it should say the directory is this run's own",
   ].join(', '),
   () => {
-    expect(isSharedHandoffDir(resolve('/repo/specs/a1b2c3d4'), 'a1b2c3d4')).toBe(
-      false,
-    )
+    expect(
+      isSharedHandoffDir(resolve('/repo/specs/a1b2c3d4'), 'a1b2c3d4'),
+    ).toBe(false)
   },
 )

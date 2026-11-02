@@ -10,13 +10,13 @@
  * `specs/improve-pr-descriptions.md` for the requirements this satisfies.
  */
 
-import { latestByName } from '../read-run-state'
 import type {
   TActivityRunState,
   TEnvelopeRecord,
   TGateOutcome,
   TRunState,
 } from '../../typedefs/run-state'
+import { latestByName } from '../read-run-state'
 
 /** Everything the renderers need, assembled by `deliver` and by the fallback. */
 export type TBodyFacts = Readonly<{
@@ -134,7 +134,10 @@ const listOfField = (
   })
 }
 
-const ledgerGroup = (title: string, items: readonly string[]): readonly string[] => {
+const ledgerGroup = (
+  title: string,
+  items: readonly string[],
+): readonly string[] => {
   if (items.length === 0) {
     return []
   }
@@ -152,7 +155,9 @@ const gatesGroup = (gates: readonly TGateOutcome[]): readonly string[] =>
     ? []
     : [
         '- Gates',
-        ...gates.map((gate) => `  - ${gate.gate}: ${gate.passed ? 'passed' : 'failed'}`),
+        ...gates.map(
+          (gate) => `  - ${gate.gate}: ${gate.passed ? 'passed' : 'failed'}`,
+        ),
       ]
 
 /** The envelope for an Activity Run: last valid record, else last, else none (1.3.3). */
@@ -184,7 +189,10 @@ const activitySubsection = (
     `- Answer: ${answer}`,
     `- Status: ${activityRun.status}`,
     ...ledgerGroup('Decisions', listOfField(payload, 'decisions', 'decision')),
-    ...ledgerGroup('Assumptions', listOfField(payload, 'assumptions', 'assumption')),
+    ...ledgerGroup(
+      'Assumptions',
+      listOfField(payload, 'assumptions', 'assumption'),
+    ),
     ...ledgerGroup('Questions', listOfField(payload, 'unresolved', 'question')),
     ...gatesGroup(activityRun.gates),
   ]
@@ -258,7 +266,9 @@ const dedupChecks = (rows: readonly TCheckRow[]): readonly TCheckRow[] => {
   }
   return [...byKey.values()].toSorted(
     (a, b) =>
-      a.seq - b.seq || a.gate.localeCompare(b.gate) || a.item.localeCompare(b.item),
+      a.seq - b.seq ||
+      a.gate.localeCompare(b.gate) ||
+      a.item.localeCompare(b.item),
   )
 }
 
@@ -267,7 +277,9 @@ const NOTE_LIMIT = 200
 /** First line only, whitespace-collapsed, truncated at 200 characters (1.4.2). */
 const normaliseNote = (note: string): string => {
   const collapsed = (note.split('\n')[0] ?? '').replace(/\s+/g, ' ').trim()
-  return collapsed.length > NOTE_LIMIT ? `${collapsed.slice(0, NOTE_LIMIT)}…` : collapsed
+  return collapsed.length > NOTE_LIMIT
+    ? `${collapsed.slice(0, NOTE_LIMIT)}…`
+    : collapsed
 }
 
 const checkLine = (row: TCheckRow): string =>
@@ -283,7 +295,8 @@ const workingTreeLine = (uncommitted: readonly string[]): string => {
   }
   const shown = unique.slice(0, UNCOMMITTED_SHOWN)
   const rest = unique.length - shown.length
-  const names = rest > 0 ? `${shown.join(', ')}, and ${rest} more` : shown.join(', ')
+  const names =
+    rest > 0 ? `${shown.join(', ')}, and ${rest} more` : shown.join(', ')
   return `- [ ] every change committed — ${unique.length} path(s) are not in this pull request: ${names}`
 }
 
@@ -295,7 +308,10 @@ export const checksSection = (facts: TBodyFacts): string => {
   const missingDeclared = facts.declaredChecks
     .filter((name) => !recordedItems.has(name))
     .toSorted()
-    .map((name) => `- [ ] ${name} — declared in routing.checks; no gate recorded it in this run`)
+    .map(
+      (name) =>
+        `- [ ] ${name} — declared in routing.checks; no gate recorded it in this run`,
+    )
 
   const lines = [
     ...deduped.map(checkLine),
@@ -315,7 +331,9 @@ const removeSections = (body: string, names: readonly string[]): string => {
   const headings = lines.flatMap((line, idx) => {
     const match = TOP_HEADING.exec(line)
     const title = match?.[1]
-    return title === undefined ? [] : [{ idx, title: title.trim().toLowerCase() }]
+    return title === undefined
+      ? []
+      : [{ idx, title: title.trim().toLowerCase() }]
   })
   const doomed = new Set<number>()
   headings.forEach((heading, position) => {
@@ -354,7 +372,9 @@ const withHarnessSections = (prose: string, harness: string): string => {
   }
   const before = lines.slice(0, index).join('\n').replace(/\s+$/, '')
   const after = lines.slice(index).join('\n')
-  return before === '' ? `${harness}\n\n${after}` : `${before}\n\n${harness}\n\n${after}`
+  return before === ''
+    ? `${harness}\n\n${after}`
+    : `${before}\n\n${harness}\n\n${after}`
 }
 
 /** The delivered body: issue line, agent prose, harness sections (1.5.1, 1.5.2). */

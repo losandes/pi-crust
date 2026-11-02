@@ -10,17 +10,17 @@
  * an approval from the browser lands where the run is actually watching.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
-export const HANDOFF_POINTER_FILENAME = "handoff-dir";
+export const HANDOFF_POINTER_FILENAME = 'handoff-dir'
 
 /** The pointer, or the canonical default when no run ever recorded one. */
 export const handoffDirFor = (sessionsDir: string, runId: string): string => {
-  const pointer = join(sessionsDir, runId, HANDOFF_POINTER_FILENAME);
+  const pointer = join(sessionsDir, runId, HANDOFF_POINTER_FILENAME)
   if (existsSync(pointer)) {
-    const recorded = readFileSync(pointer, "utf8").trim();
-    if (recorded !== "") return recorded;
+    const recorded = readFileSync(pointer, 'utf8').trim()
+    if (recorded !== '') return recorded
   }
-  return join(sessionsDir, runId, "context_handoff");
-};
+  return join(sessionsDir, runId, 'context_handoff')
+}

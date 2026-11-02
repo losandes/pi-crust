@@ -83,7 +83,8 @@ const parsed = (json: string | null): Record<string, unknown> => {
   }
 }
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+const text = (value: unknown): string =>
+  typeof value === 'string' ? value : ''
 const flag = (value: unknown): boolean => value === true
 
 const listOf = (payload: Record<string, unknown>, key: string): unknown[] =>

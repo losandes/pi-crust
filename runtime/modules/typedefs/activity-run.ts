@@ -78,7 +78,9 @@ export const activityRunParamsSchema = z.object({
  */
 
 /** Everything runActivityRun() needs. Passed as one object, never loose params. */
-export type TActivityRunParams = Readonly<z.infer<typeof activityRunParamsSchema>>
+export type TActivityRunParams = Readonly<
+  z.infer<typeof activityRunParamsSchema>
+>
 
 const collapseWhitespace = (text: string): string =>
   text.split(/\s+/).filter(Boolean).join(' ')

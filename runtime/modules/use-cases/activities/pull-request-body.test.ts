@@ -1,17 +1,21 @@
 import { expect, test } from 'bun:test'
-import type { TActivityRunState, TEnvelopeRecord, TRunState } from '../../typedefs/run-state'
+import type {
+  TActivityRunState,
+  TEnvelopeRecord,
+  TRunState,
+} from '../../typedefs/run-state'
+import type { TBodyFacts } from './pull-request-body'
 import {
-  ISSUE_LINK_LIMIT,
-  MAX_LEDGER_ITEMS,
   activitiesSection,
   agentProse,
   checksSection,
   composedBody,
+  ISSUE_LINK_LIMIT,
   issueLine,
   issueRefs,
+  MAX_LEDGER_ITEMS,
   titleWithIssues,
 } from './pull-request-body'
-import type { TBodyFacts } from './pull-request-body'
 
 const activityRun = (
   overrides: Readonly<Partial<TActivityRunState>> = {},
@@ -102,7 +106,9 @@ test(
   () => {
     // given
     const state = aState({
-      envelopes: [envelope({ activityRun: 'gh-issue', payload: { issue_number: 61 } })],
+      envelopes: [
+        envelope({ activityRun: 'gh-issue', payload: { issue_number: 61 } }),
+      ],
     })
     const facts = aFacts({ prompt: 'ship it', state })
 
@@ -122,7 +128,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const state = aState({ request: 'see https://github.com/acme/widget/issues/7' })
+    const state = aState({
+      request: 'see https://github.com/acme/widget/issues/7',
+    })
     const facts = aFacts({ state })
 
     // when
@@ -260,7 +268,15 @@ test(
     const state = aState({
       activityRuns: [
         activityRun({
-          gates: [{ gate: 'checks', activityRun: 'build', passed: true, violations: [], checks: [] }],
+          gates: [
+            {
+              gate: 'checks',
+              activityRun: 'build',
+              passed: true,
+              violations: [],
+              checks: [],
+            },
+          ],
         }),
       ],
       envelopes: [
@@ -268,8 +284,15 @@ test(
           payload: {
             summary: 'Implemented the thing.',
             decisions: [{ decision: 'Used a map', rationale: 'fast lookup' }],
-            assumptions: [{ assumption: 'inputs are trimmed', invalidated_by: 'a counter-example' }],
-            unresolved: [{ question: 'should this retry?', consequential: true }],
+            assumptions: [
+              {
+                assumption: 'inputs are trimmed',
+                invalidated_by: 'a counter-example',
+              },
+            ],
+            unresolved: [
+              { question: 'should this retry?', consequential: true },
+            ],
           },
         }),
       ],
@@ -321,7 +344,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const decisions = Array.from({ length: 7 }, (_, i) => ({ decision: `d${i}` }))
+    const decisions = Array.from({ length: 7 }, (_, i) => ({
+      decision: `d${i}`,
+    }))
     const state = aState({
       activityRuns: [activityRun()],
       envelopes: [envelope({ payload: { decisions } })],
@@ -369,7 +394,10 @@ test(
   () => {
     // given
     const state = aState({
-      activityRuns: [activityRun({ name: 'gh-pull-request' }), activityRun({ name: 'build', seq: 0 })],
+      activityRuns: [
+        activityRun({ name: 'gh-pull-request' }),
+        activityRun({ name: 'build', seq: 0 }),
+      ],
     })
     const facts = aFacts({ state, composedBy: 'gh-pull-request' })
 
@@ -419,7 +447,9 @@ test(
               activityRun: 'build',
               passed: false,
               violations: ['lint: exited 1'],
-              checks: [{ item: 'lint', ok: false, note: '`biome lint` exited 1' }],
+              checks: [
+                { item: 'lint', ok: false, note: '`biome lint` exited 1' },
+              ],
             },
           ],
         }),
@@ -431,7 +461,9 @@ test(
     const actual = checksSection(facts)
 
     // then
-    expect(actual).toContain('- [ ] lint — `biome lint` exited 1 (checks gate, build)')
+    expect(actual).toContain(
+      '- [ ] lint — `biome lint` exited 1 (checks gate, build)',
+    )
   },
 )
 
@@ -499,7 +531,9 @@ test(
     const actual = checksSection(facts)
 
     // then
-    const lintLines = actual.split('\n').filter((line) => line.includes('] lint —'))
+    const lintLines = actual
+      .split('\n')
+      .filter((line) => line.includes('] lint —'))
     expect(lintLines.length).toEqual(1)
     expect(lintLines[0]).toContain('[x]')
     expect(lintLines[0]).toContain('code-review')
@@ -540,7 +574,9 @@ test(
     const actual = checksSection(facts)
 
     // then
-    expect(actual).toContain('- [x] every change committed — nothing uncommitted or untracked')
+    expect(actual).toContain(
+      '- [x] every change committed — nothing uncommitted or untracked',
+    )
   },
 )
 
@@ -573,7 +609,9 @@ test(
     const actual = checksSection(facts)
 
     // then
-    expect(actual).toContain('- [ ] diff_matches_claims — claimed files do not match the diff')
+    expect(actual).toContain(
+      '- [ ] diff_matches_claims — claimed files do not match the diff',
+    )
   },
 )
 
@@ -581,7 +619,7 @@ test(
 
 test(
   [
-    "given pull-request-body::agentProse",
+    'given pull-request-body::agentProse',
     "when the agent's body carries its own issue line and a '## Checks' section",
     'it should discard both',
   ].join(', '),
@@ -619,13 +657,19 @@ test(
   [
     'given pull-request-body::composedBody',
     "when the agent's body has an '## Out of scope' heading",
-    "it should insert the harness sections immediately before it",
+    'it should insert the harness sections immediately before it',
   ].join(', '),
   () => {
     // given
-    const body = ['## What changed', '', 'Did the thing.', '', '## Out of scope', '', 'Nothing.'].join(
-      '\n',
-    )
+    const body = [
+      '## What changed',
+      '',
+      'Did the thing.',
+      '',
+      '## Out of scope',
+      '',
+      'Nothing.',
+    ].join('\n')
     const state = aState({ activityRuns: [activityRun()] })
     const facts = aFacts({ prompt: 'closes #54', state })
 

@@ -22,6 +22,7 @@
 
 import { join } from 'node:path'
 import { resolveDataPaths } from './modules/data/data-paths'
+import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { fileExists, readText, writeText } from './modules/data/files'
 import { repoRoot } from './modules/data/git'
 import { handoffDirFor } from './modules/data/handoff-pointer'
@@ -32,12 +33,11 @@ import {
   errorMessage,
   safeParseSettlement,
 } from './modules/typedefs/settlement'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { DECIDE_CLI, positionalArgs } from './modules/use-cases/cli-positionals'
 import { ANSWER_FILENAME } from './modules/use-cases/human-gate'
-import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
+import { resumeRecordedRun } from './modules/use-cases/resume-run'
 
 export const USAGE =
   'usage: just crust <approve|reject|answer> <run-id> ' +

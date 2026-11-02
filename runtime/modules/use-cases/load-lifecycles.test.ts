@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { activityOrder } from '../typedefs/lifecycle'
 import { crustConfigSchema } from '../typedefs/config'
+import { activityOrder } from '../typedefs/lifecycle'
 import { loadLifecycles, mergeLifecycles } from './load-lifecycles'
 
 const written = (base: string, local?: string) => {
@@ -68,7 +68,9 @@ lifecycles:
     const actual = loadLifecycles(given)
 
     // then
-    expect(activityOrder(actual[0] ?? { name: '', description: '', stages: [] })).toEqual(['scout'])
+    expect(
+      activityOrder(actual[0] ?? { name: '', description: '', stages: [] }),
+    ).toEqual(['scout'])
   },
 )
 
@@ -118,7 +120,11 @@ lifecycles:
 `)
     const cfg = crustConfigSchema.parse({
       activities: [
-        { name: 'plan', purpose: 'p', prompt_engineering: { system: 's.md', user: 'u.md' } },
+        {
+          name: 'plan',
+          purpose: 'p',
+          prompt_engineering: { system: 's.md', user: 'u.md' },
+        },
         {
           name: 'gh-pull-request',
           purpose: 'p',
@@ -132,10 +138,9 @@ lifecycles:
     const actual = loadLifecycles(given, cfg)
 
     // then
-    expect(activityOrder(actual[0] ?? { name: '', description: '', stages: [] })).toEqual([
-      'plan',
-      'gh-pull-request',
-    ])
+    expect(
+      activityOrder(actual[0] ?? { name: '', description: '', stages: [] }),
+    ).toEqual(['plan', 'gh-pull-request'])
   },
 )
 

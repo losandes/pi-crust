@@ -13,21 +13,26 @@
 import { expect, spyOn, test } from 'bun:test'
 import * as childProcess from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
-import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { terminalConfigSchema } from '../../typedefs/activity'
+import { join } from 'node:path'
 import type { TTerminalConfig } from '../../typedefs/activity'
+import { terminalConfigSchema } from '../../typedefs/activity'
 import { agentConfigSchema, crustConfigSchema } from '../../typedefs/config'
-import { emptyUsage } from '../../typedefs/pi'
 import type { TPiResult } from '../../typedefs/pi'
-import type { TActivityContext, TActivityOptions } from '../../typedefs/runnable-activity'
-import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
+import { emptyUsage } from '../../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../../typedefs/run'
+import type {
+  TActivityContext,
+  TActivityOptions,
+} from '../../typedefs/runnable-activity'
+import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
 import type { TAgentPorts } from '../execute-agent'
-import { ghPullRequestActivity, liveDelivery } from './gh-pull-request'
 import type { TDeliveryPorts, TForge } from './gh-pull-request'
+import { ghPullRequestActivity, liveDelivery } from './gh-pull-request'
 
-const config = (overrides: Readonly<Partial<Record<string, unknown>>> = {}): TTerminalConfig =>
+const config = (
+  overrides: Readonly<Partial<Record<string, unknown>>> = {},
+): TTerminalConfig =>
   terminalConfigSchema.parse({
     name: 'gh-pull-request',
     purpose: 'Push the run and open or update a pull request',
@@ -98,9 +103,7 @@ const aPiResult = (text: string): TPiResult => ({
 })
 
 /** A `TAgentPorts` whose `run` is the only member any test here overrides. */
-const fakeAgentPorts = (
-  run: TAgentPorts['run'],
-): TAgentPorts => ({
+const fakeAgentPorts = (run: TAgentPorts['run']): TAgentPorts => ({
   run,
   changed: () => [],
   untracked: () => [],
@@ -123,7 +126,9 @@ const CONTEXT_ENVELOPE_DEFAULTS = {
 }
 
 const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
-  const contextHandoffDir = mkdtempSync(join(tmpdir(), 'crust-gh-pr-live-handoff-'))
+  const contextHandoffDir = mkdtempSync(
+    join(tmpdir(), 'crust-gh-pr-live-handoff-'),
+  )
   const sessionDir = mkdtempSync(join(tmpdir(), 'crust-gh-pr-live-session-'))
   return {
     runId: 'ffff6666',
@@ -143,7 +148,10 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
         }),
       ],
       observability: { db: join(contextHandoffDir, 'no-such.db') },
-      defaults: { data_dir: join(contextHandoffDir, 'runtime'), protected_files: [] },
+      defaults: {
+        data_dir: join(contextHandoffDir, 'runtime'),
+        protected_files: [],
+      },
     }),
     console: {
       sessionStarted: () => undefined,
@@ -190,12 +198,19 @@ const aHandle = (): TActivityRunHandle =>
   ({
     activityRun: {
       activity_run_id: 'id_gh-pull-request-live',
-      params: { kind: 'agent', owner: 'gh-pull-request', name: 'gh-pull-request' },
+      params: {
+        kind: 'agent',
+        owner: 'gh-pull-request',
+        name: 'gh-pull-request',
+      },
     },
     log: () => undefined,
   }) as unknown as TActivityRunHandle
 
-const aCtx = (run: TRun, extra: Readonly<Partial<TActivityContext>> = {}): TActivityContext =>
+const aCtx = (
+  run: TRun,
+  extra: Readonly<Partial<TActivityContext>> = {},
+): TActivityContext =>
   ({
     run,
     prompt: 'ship the feature',
@@ -307,12 +322,24 @@ test(
       liveDelivery.forge.whoami('/does-not-matter')
       liveDelivery.forge.find('feature', '/does-not-matter')
       liveDelivery.forge.create(
-        { title: 'T', bodyPath: '/tmp/body.md', base: 'main', branch: 'feature', draft: false },
+        {
+          title: 'T',
+          bodyPath: '/tmp/body.md',
+          base: 'main',
+          branch: 'feature',
+          draft: false,
+        },
         '/does-not-matter',
       )
       liveDelivery.forge.update(
         'https://example.com/owner/repo/pull/1',
-        { title: 'T', bodyPath: '/tmp/body.md', base: 'main', branch: 'feature', draft: false },
+        {
+          title: 'T',
+          bodyPath: '/tmp/body.md',
+          base: 'main',
+          branch: 'feature',
+          draft: false,
+        },
         '/does-not-matter',
       )
     } finally {

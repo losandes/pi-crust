@@ -42,7 +42,10 @@ test(
     const given = [stage('accept', 'concurrent', ['review', 'code-review'])]
 
     // when
-    const actual = unitsFrom(given, [activity('review'), activity('code-review')])
+    const actual = unitsFrom(given, [
+      activity('review'),
+      activity('code-review'),
+    ])
 
     // then
     expect(actual).toHaveLength(1)
@@ -88,7 +91,11 @@ test(
 
     // then
     expect(actual).toEqual([
-      { name: 'plan..build', strategy: 'serial', activities: ['plan', 'build'] },
+      {
+        name: 'plan..build',
+        strategy: 'serial',
+        activities: ['plan', 'build'],
+      },
     ])
     expect(plannedNames(actual)).toEqual(given)
   },

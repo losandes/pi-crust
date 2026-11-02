@@ -15,14 +15,14 @@
  */
 
 import { Database, type SQLQueryBindings } from 'bun:sqlite'
-import { basename, join, relative } from 'node:path'
 import { cpSync, existsSync } from 'node:fs'
+import { basename, join, relative } from 'node:path'
 import { defaultHandoffDir } from '../use-cases/handoff-location'
+import { INVOCATION_FILENAME } from '../use-cases/resume-run'
 import type { TSeeding } from '../use-cases/steer'
 import { fileExists, readText, writeText } from './files'
 import { handoffDirFor, writeHandoffPointer } from './handoff-pointer'
 import { newId } from './ids'
-import { INVOCATION_FILENAME } from '../use-cases/resume-run'
 
 export type TBranchSeed = Readonly<{
   dbPath: string
@@ -328,7 +328,11 @@ const copySessionDir = (
     filter: (src: string): boolean => {
       const rel = relative(sourceDir, src)
       if (rel === '') return true
-      if (rel === 'events.jsonl' || rel === 'inbox.jsonl' || rel === 'handoff-dir') {
+      if (
+        rel === 'events.jsonl' ||
+        rel === 'inbox.jsonl' ||
+        rel === 'handoff-dir'
+      ) {
         return false
       }
       if (basename(rel).endsWith('.log')) return false
@@ -370,7 +374,9 @@ export const seedBranch = (seed: TBranchSeed): TBranchSeeded => {
     seedSessionRow(db, sourceRunId, branchRunId, at)
     const idMap = seedActivityRuns(db, sourceRunId, branchRunId, carry)
     carriedNames = db
-      .query<{ name: string }, [string]>(`SELECT name FROM activity_runs WHERE run_id=?`)
+      .query<{ name: string }, [string]>(
+        `SELECT name FROM activity_runs WHERE run_id=?`,
+      )
       .all(branchRunId)
       .map((row) => row.name)
     seedEvents(db, sourceRunId, branchRunId, idMap)

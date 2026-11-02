@@ -11,28 +11,28 @@
  * the only write this process can make, it touches exactly one column, and it
  * never runs unless a human clicks the button.
  */
-import { Database } from "bun:sqlite";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { Database } from 'bun:sqlite'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type {
+  ActivityRun,
   AgentSession,
   AgentStartPayload,
   Envelope,
   Event,
   EventsPage,
   GateResult,
-  ActivityRun,
   Session,
   SessionDetail,
   SessionSummary,
   SessionUsage,
-} from "../shared/types.ts";
+} from '../shared/types.ts'
 
 /** Where a workspace keeps its trace, relative to the workspace root. */
-export const DEFAULT_DB_RELATIVE = ".pi-crust/data/crust.db";
-const MAX_LIMIT = 1000;
-const DEFAULT_LIMIT = 500;
+export const DEFAULT_DB_RELATIVE = '.pi-crust/data/crust.db'
+const MAX_LIMIT = 1000
+const DEFAULT_LIMIT = 500
 
 /**
  * Expand a leading `~` to the user's home directory (issue #24, 1.1.1,
@@ -47,7 +47,9 @@ const DEFAULT_LIMIT = 500;
  * types at a shell, which is all `resolveDbPath` ever sees.
  */
 const expandHome = (value: string): string =>
-  value === "~" || value.startsWith("~/") ? join(homedir(), value.slice(1)) : value;
+  value === '~' || value.startsWith('~/')
+    ? join(homedir(), value.slice(1))
+    : value
 
 /**
  * Resolve the db path: --db arg wins, then CRUST_DB, then <cwd>/.pi-crust/data/crust.db.
@@ -57,20 +59,20 @@ export function resolveDbPath(
   argv: string[] = Bun.argv,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
-  const flagIndex = argv.indexOf("--db");
-  const inline = argv.find((a) => a.startsWith("--db="));
+  const flagIndex = argv.indexOf('--db')
+  const inline = argv.find((a) => a.startsWith('--db='))
   const raw = expandHome(
     (flagIndex === -1 ? undefined : argv[flagIndex + 1]) ??
-      inline?.slice("--db=".length) ??
+      inline?.slice('--db='.length) ??
       env.CRUST_DB ??
       DEFAULT_DB_RELATIVE,
-  );
+  )
 
-  return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+  return isAbsolute(raw) ? raw : resolve(process.cwd(), raw)
 }
 
 export class PiCrustDb {
-  readonly path: string;
+  readonly path: string
   /**
    * Which workspace this database IS.
    *
@@ -78,50 +80,49 @@ export class PiCrustDb {
    * is which database answered rather than a column that can disagree with
    * where the run actually is.
    */
-  readonly label: string;
+  readonly label: string
   /**
    * Where the lifecycle session dirs live: `{data_dir}/sessions/{run_id}/{agent}/`.
    * The db sits in the same data_dir (config's `observability.db` defaults to
    * `.pi-crust/data/crust.db`), so deriving it as a sibling of the db file keeps
    * working when the whole data_dir is relocated.
    */
-  readonly sessionsDir: string;
-  readonly journalMode: string;
-  private readonly db: Database;
+  readonly sessionsDir: string
+  readonly journalMode: string
+  private readonly db: Database
   /** Opened on first archive and kept; null until then. */
-  private writer: Database | null = null;
+  private writer: Database | null = null
   /** Cache for optionalColumn(), keyed "table.column". Only ever false → true. */
-  private readonly columnCache = new Map<string, boolean>();
+  private readonly columnCache = new Map<string, boolean>()
 
-  constructor(path: string, label = "") {
+  constructor(path: string, label = '') {
     if (!existsSync(path)) {
       throw new Error(
         `crust.db not found at ${path}\n` +
           `Point the visualizer at a target repo: --db <path> or CRUST_DB=<path>, ` +
           `or run it from a repo root containing ${DEFAULT_DB_RELATIVE}`,
-      );
+      )
     }
-    this.path = path;
-    this.label = label;
-    this.sessionsDir = resolve(dirname(path), "sessions");
-    this.db = new Database(path, { readonly: true });
+    this.path = path
+    this.label = label
+    this.sessionsDir = resolve(dirname(path), 'sessions')
+    this.db = new Database(path, { readonly: true })
 
     // WAL is set by the tracer when it creates the db; a readonly connection
     // cannot change it, so we assert rather than set, and always take the
     // busy_timeout so a concurrent writer never turns into a failed request.
-    this.db.exec("PRAGMA busy_timeout = 5000");
-    this.db.exec("PRAGMA synchronous = NORMAL");
+    this.db.exec('PRAGMA busy_timeout = 5000')
+    this.db.exec('PRAGMA synchronous = NORMAL')
     const mode = this.db
-      .query<{ journal_mode: string }, []>("PRAGMA journal_mode")
-      .get();
-    this.journalMode = mode?.journal_mode ?? "unknown";
-    if (this.journalMode.toLowerCase() !== "wal") {
+      .query<{ journal_mode: string }, []>('PRAGMA journal_mode')
+      .get()
+    this.journalMode = mode?.journal_mode ?? 'unknown'
+    if (this.journalMode.toLowerCase() !== 'wal') {
       process.stderr.write(
         `[db] journal_mode is "${this.journalMode}", expected "wal" — ` +
           `live reads during agent writes may block\n`,
-      );
+      )
     }
-
   }
 
   /**
@@ -139,23 +140,26 @@ export class PiCrustDb {
    * a column never goes away, so it latches.
    */
   private hasColumn(table: string, column: string): boolean {
-    const key = `${table}.${column}`;
+    const key = `${table}.${column}`
     if (!this.columnCache.get(key)) {
       const cols = this.db
         .query<{ name: string }, []>(`PRAGMA table_info(${table})`)
-        .all();
-      this.columnCache.set(key, cols.some((c) => c.name === column));
+        .all()
+      this.columnCache.set(
+        key,
+        cols.some((c) => c.name === column),
+      )
     }
-    return this.columnCache.get(key) ?? false;
+    return this.columnCache.get(key) ?? false
   }
 
   private optionalColumn(table: string, column: string): string {
-    return this.hasColumn(table, column) ? column : `NULL AS ${column}`;
+    return this.hasColumn(table, column) ? column : `NULL AS ${column}`
   }
 
   close(): void {
-    this.writer?.close();
-    this.db.close();
+    this.writer?.close()
+    this.db.close()
   }
 
   /**
@@ -166,17 +170,19 @@ export class PiCrustDb {
    * does not exist, so the route can 404 instead of silently succeeding.
    */
   setArchived(runId: string, archived: boolean): boolean {
-    if (!this.hasColumn("sessions", "archived")) {
-      throw new Error("this db predates the archived column — run any lifecycle once to migrate it");
+    if (!this.hasColumn('sessions', 'archived')) {
+      throw new Error(
+        'this db predates the archived column — run any lifecycle once to migrate it',
+      )
     }
     if (!this.writer) {
-      this.writer = new Database(this.path);
-      this.writer.exec("PRAGMA busy_timeout=5000;");
+      this.writer = new Database(this.path)
+      this.writer.exec('PRAGMA busy_timeout=5000;')
     }
     this.writer
-      .query("UPDATE sessions SET archived = ? WHERE run_id = ?")
-      .run(archived ? 1 : 0, runId);
-    return this.session(runId) !== null;
+      .query('UPDATE sessions SET archived = ? WHERE run_id = ?')
+      .run(archived ? 1 : 0, runId)
+    return this.session(runId) !== null
   }
 
   /**
@@ -189,76 +195,79 @@ export class PiCrustDb {
    */
   sessions(limit = 200, includeArchived = false): SessionSummary[] {
     const where =
-      includeArchived || !this.hasColumn("sessions", "archived")
-        ? ""
-        : "WHERE COALESCE(archived, 0) = 0";
+      includeArchived || !this.hasColumn('sessions', 'archived')
+        ? ''
+        : 'WHERE COALESCE(archived, 0) = 0'
     const rows = this.db
       .query<Session, [number]>(
-        `SELECT run_id, ${this.optionalColumn("sessions", "lifecycle")}, request,
+        `SELECT run_id, ${this.optionalColumn('sessions', 'lifecycle')}, request,
                 status, engineer, started_at, ended_at,
                 total_tokens, total_cost,
-                ${this.optionalColumn("sessions", "archived")},
-                ${this.optionalColumn("sessions", "workspace_root")},
-                ${this.optionalColumn("sessions", "branch")},
-                ${this.optionalColumn("sessions", "name")}
+                ${this.optionalColumn('sessions', 'archived')},
+                ${this.optionalColumn('sessions', 'workspace_root')},
+                ${this.optionalColumn('sessions', 'branch')},
+                ${this.optionalColumn('sessions', 'name')}
            FROM sessions
           ${where}
           ORDER BY started_at DESC, rowid DESC
           LIMIT ?`,
       )
-      .all(clamp(limit, 1, MAX_LIMIT));
+      .all(clamp(limit, 1, MAX_LIMIT))
 
-    if (rows.length === 0) return [];
+    if (rows.length === 0) return []
 
     // Embed each session's activityRuns so the L1 progress dots cost no extra request.
-    const ids = rows.map((row) => row.run_id);
-    const placeholders = ids.map(() => "?").join(", ");
+    const ids = rows.map((row) => row.run_id)
+    const placeholders = ids.map(() => '?').join(', ')
     const activityRunRows = this.db
       .query<ActivityRun, string[]>(
         `SELECT activity_run_id, run_id, seq, name, kind, owner, description, status,
                 error, started_at, ended_at
            FROM activity_runs WHERE run_id IN (${placeholders}) ORDER BY seq, rowid`,
       )
-      .all(...ids);
+      .all(...ids)
 
-    const byRun = new Map<string, ActivityRun[]>();
+    const byRun = new Map<string, ActivityRun[]>()
     for (const activityRun of activityRunRows) {
-      const list = byRun.get(activityRun.run_id);
-      byRun.set(activityRun.run_id, list ? [...list, activityRun] : [activityRun]);
+      const list = byRun.get(activityRun.run_id)
+      byRun.set(
+        activityRun.run_id,
+        list ? [...list, activityRun] : [activityRun],
+      )
     }
 
     // Agents come along too: an L1 card draws a per-agent dot timeline, and its
     // dots are colored per agent — without this it would be one request per card.
-    const agentsByAdw = this.agentsFor(ids);
+    const agentsByAdw = this.agentsFor(ids)
 
     return rows.map((session) => {
-      const activityRuns = byRun.get(session.run_id) ?? [];
+      const activityRuns = byRun.get(session.run_id) ?? []
       return {
         ...session,
         workspace: this.label,
         activityRuns,
         activity_run_count: activityRuns.length,
         agents: agentsByAdw.get(session.run_id) ?? [],
-      };
-    });
+      }
+    })
   }
 
   session(runId: string): Session | null {
     const row = this.db
       .query<Session, [string]>(
-        `SELECT run_id, ${this.optionalColumn("sessions", "lifecycle")}, request,
+        `SELECT run_id, ${this.optionalColumn('sessions', 'lifecycle')}, request,
                 status, engineer, started_at, ended_at,
                 total_tokens, total_cost,
-                ${this.optionalColumn("sessions", "archived")},
-                ${this.optionalColumn("sessions", "workspace_root")},
-                ${this.optionalColumn("sessions", "branch")},
-                ${this.optionalColumn("sessions", "name")}
+                ${this.optionalColumn('sessions', 'archived')},
+                ${this.optionalColumn('sessions', 'workspace_root')},
+                ${this.optionalColumn('sessions', 'branch')},
+                ${this.optionalColumn('sessions', 'name')}
            FROM sessions WHERE run_id = ?`,
       )
-      .get(runId);
+      .get(runId)
     return row === null || row === undefined
       ? null
-      : { ...row, workspace: this.label };
+      : { ...row, workspace: this.label }
   }
 
   activityRuns(runId: string): ActivityRun[] {
@@ -268,11 +277,11 @@ export class PiCrustDb {
                 error, started_at, ended_at
            FROM activity_runs WHERE run_id = ? ORDER BY seq, rowid`,
       )
-      .all(runId);
+      .all(runId)
   }
 
   agentSessions(runId: string): AgentSession[] {
-    return this.agentsFor([runId]).get(runId) ?? [];
+    return this.agentsFor([runId]).get(runId) ?? []
   }
 
   /**
@@ -285,18 +294,18 @@ export class PiCrustDb {
    * so a lane is labelled and colored from the moment the agent spawns.
    */
   private agentsFor(runIds: string[]): Map<string, AgentSession[]> {
-    const byRun = new Map<string, AgentSession[]>();
-    if (runIds.length === 0) return byRun;
-    const placeholders = runIds.map(() => "?").join(", ");
+    const byRun = new Map<string, AgentSession[]>()
+    if (runIds.length === 0) return byRun
+    const placeholders = runIds.map(() => '?').join(', ')
 
     const append = (runId: string, agent: AgentSession) => {
-      const list = byRun.get(runId);
-      byRun.set(runId, list ? [...list, agent] : [agent]);
-    };
+      const list = byRun.get(runId)
+      byRun.set(runId, list ? [...list, agent] : [agent])
+    }
 
-    const color = this.optionalColumn("agent_sessions", "color");
-    const ctxUsed = this.optionalColumn("agent_sessions", "context_tokens");
-    const ctxWindow = this.optionalColumn("agent_sessions", "context_window");
+    const color = this.optionalColumn('agent_sessions', 'color')
+    const ctxUsed = this.optionalColumn('agent_sessions', 'context_tokens')
+    const ctxWindow = this.optionalColumn('agent_sessions', 'context_window')
 
     const completed = this.db
       .query<AgentSession, string[]>(
@@ -305,16 +314,16 @@ export class PiCrustDb {
            FROM agent_sessions WHERE run_id IN (${placeholders})
           ORDER BY created_at, agent`,
       )
-      .all(...runIds);
-    for (const row of completed) append(row.run_id, row);
+      .all(...runIds)
+    for (const row of completed) append(row.run_id, row)
 
     const started = this.db
       .query<
         {
-          run_id: string;
-          agent: string | null;
-          payload_json: string | null;
-          started_at: string | null;
+          run_id: string
+          agent: string | null
+          payload_json: string | null
+          started_at: string | null
         },
         string[]
       >(
@@ -323,16 +332,16 @@ export class PiCrustDb {
           WHERE e.run_id IN (${placeholders}) AND e.type = 'agent_start'
           ORDER BY e.rowid`,
       )
-      .all(...runIds);
+      .all(...runIds)
 
     for (const row of started) {
-      if (!row.agent) continue;
+      if (!row.agent) continue
       // A finished row is authoritative; only fill genuine gaps.
-      if (byRun.get(row.run_id)?.some((a) => a.agent === row.agent)) continue;
-      let payload: AgentStartPayload = {};
+      if (byRun.get(row.run_id)?.some((a) => a.agent === row.agent)) continue
+      let payload: AgentStartPayload = {}
       // biome-ignore lint/plugin/no-intermediate-try-catch: a malformed payload just means no label, never a failed request — this IS the boundary that decides so
       try {
-        payload = JSON.parse(row.payload_json ?? "{}") as AgentStartPayload;
+        payload = JSON.parse(row.payload_json ?? '{}') as AgentStartPayload
       } catch {
         // A malformed payload just means no label — never a failed request.
       }
@@ -348,9 +357,9 @@ export class PiCrustDb {
         context_window: null,
         created_at: row.started_at,
         last_used_at: row.started_at,
-      });
+      })
     }
-    return byRun;
+    return byRun
   }
 
   /**
@@ -359,16 +368,16 @@ export class PiCrustDb {
    * db column, so it is NOT this connection's to fill in: the route handler
    * attaches it.
    */
-  sessionDetail(runId: string): Omit<SessionDetail, "handoff_dir"> | null {
-    const session = this.session(runId);
-    if (!session) return null;
+  sessionDetail(runId: string): Omit<SessionDetail, 'handoff_dir'> | null {
+    const session = this.session(runId)
+    if (!session) return null
 
     return {
       session,
       usage: this.usage(runId),
       activityRuns: this.activityRuns(runId),
       agents: this.agentSessions(runId),
-    };
+    }
   }
 
   /**
@@ -388,27 +397,29 @@ export class PiCrustDb {
       .query<{ payload_json: string | null }, [string]>(
         "SELECT payload_json FROM events WHERE run_id = ? AND type = 'agent_end'",
       )
-      .all(runId);
+      .all(runId)
 
-    let read = 0;
-    let written = 0;
+    let read = 0
+    let written = 0
     for (const row of rows) {
-      if (!row.payload_json) continue;
+      if (!row.payload_json) continue
       // biome-ignore lint/plugin/no-intermediate-try-catch: a payload written by an older tracer contributes nothing rather than failing the whole total — this IS the boundary that decides so
       try {
-        const u = (JSON.parse(row.payload_json) as { usage?: Record<string, number> }).usage;
-        if (!u) continue;
+        const u = (
+          JSON.parse(row.payload_json) as { usage?: Record<string, number> }
+        ).usage
+        if (!u) continue
         // RAW reads only: material entering the context for the first time,
         // billed either as uncached input or as a cache write. Cache reads are
         // the same tokens served again on later turns — counting them here
         // would rebuild the very inflation this split exists to expose.
-        read += (u.input_tokens ?? 0) + (u.cache_write_tokens ?? 0);
-        written += u.output_tokens ?? 0;
+        read += (u.input_tokens ?? 0) + (u.cache_write_tokens ?? 0)
+        written += u.output_tokens ?? 0
       } catch {
         /* a payload written by an older tracer simply contributes nothing */
       }
     }
-    return { read, written };
+    return { read, written }
   }
 
   /**
@@ -416,7 +427,7 @@ export class PiCrustDb {
    * mechanism serves the live tail and lazy-paged history.
    */
   events(runId: string, after = 0, limit = DEFAULT_LIMIT): EventsPage {
-    const cappedLimit = clamp(limit, 1, MAX_LIMIT);
+    const cappedLimit = clamp(limit, 1, MAX_LIMIT)
     const events = this.db
       .query<Event, [string, number, number]>(
         `SELECT rowid, event_id, run_id, activity_run_id, parent_id, type, name,
@@ -426,7 +437,7 @@ export class PiCrustDb {
           ORDER BY rowid
           LIMIT ?`,
       )
-      .all(runId, Math.max(0, after), cappedLimit);
+      .all(runId, Math.max(0, after), cappedLimit)
 
     return {
       events,
@@ -434,7 +445,7 @@ export class PiCrustDb {
       // row exists, and a non-null assertion asks a reader to re-prove it.
       cursor: events.at(-1)?.rowid ?? Math.max(0, after),
       has_more: events.length === cappedLimit,
-    };
+    }
   }
 
   envelopes(runId: string): Envelope[] {
@@ -444,29 +455,29 @@ export class PiCrustDb {
                 valid, created_at
            FROM envelopes WHERE run_id = ? ORDER BY created_at, rowid`,
       )
-      .all(runId);
+      .all(runId)
   }
 
   gates(runId: string): GateResult[] {
-    const checks = this.optionalColumn("gate_results", "checks_json");
+    const checks = this.optionalColumn('gate_results', 'checks_json')
     return this.db
       .query<GateResult, [string]>(
         `SELECT id, run_id, activity_run_id, gate, passed, violations_json,
                 ${checks}, created_at
            FROM gate_results WHERE run_id = ? ORDER BY id`,
       )
-      .all(runId);
+      .all(runId)
   }
 
   sessionCount(): number {
     const row = this.db
-      .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM sessions")
-      .get();
-    return row?.n ?? 0;
+      .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM sessions')
+      .get()
+    return row?.n ?? 0
   }
 }
 
 function clamp(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, Math.trunc(value)));
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, Math.trunc(value)))
 }

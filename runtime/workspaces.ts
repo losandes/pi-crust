@@ -53,7 +53,7 @@ const forget = (targets: readonly string[]): void => {
   const before = readRegistry().length
   const kept = forgetWorkspaces(targets)
   say(`forgot ${before - kept.length} of ${before}; ${kept.length} remain.`)
-  say('nothing on disk was deleted — only this machine\'s list of trees.')
+  say("nothing on disk was deleted — only this machine's list of trees.")
 }
 
 const [command, ...rest] = process.argv.slice(2)

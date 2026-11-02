@@ -6,8 +6,8 @@
  * the raw events tab, which is not where a run-scoped fact belongs.
  */
 import { GitBranch, StickyNote } from 'lucide-react'
-import { hrefFor } from '../lib/router'
 import type { TRunNotice } from '../lib/notices'
+import { hrefFor } from '../lib/router'
 import styles from './RunNotices.module.css'
 
 export const RunNotices = ({
@@ -37,7 +37,9 @@ export const RunNotices = ({
               <GitBranch className={styles.icon} size={16} strokeWidth={2} />
               <span>
                 branched from{' '}
-                <a href={hrefFor(notice.runId, undefined, workspace)}>{notice.runId}</a>{' '}
+                <a href={hrefFor(notice.runId, undefined, workspace)}>
+                  {notice.runId}
+                </a>{' '}
                 at <code>{notice.activity}</code>
               </span>
             </>
@@ -46,7 +48,9 @@ export const RunNotices = ({
               <GitBranch className={styles.icon} size={16} strokeWidth={2} />
               <span>
                 branched to{' '}
-                <a href={hrefFor(notice.runId, undefined, workspace)}>{notice.runId}</a>{' '}
+                <a href={hrefFor(notice.runId, undefined, workspace)}>
+                  {notice.runId}
+                </a>{' '}
                 from <code>{notice.activity}</code>
               </span>
             </>

@@ -42,13 +42,19 @@ const panelsFor = (response: PromptsResponse): readonly TPromptPanel[] =>
  */
 const CACHE = new Map<string, PromptsResponse>()
 
-export const usePrompts = (activityRun: ActivityRun, workspace?: string): TPrompts => {
+export const usePrompts = (
+  activityRun: ActivityRun,
+  workspace?: string,
+): TPrompts => {
   const key =
     activityRun.kind === 'agent' && activityRun.owner
       ? `${workspace ?? ''}:${activityRun.run_id}:${activityRun.owner}`
       : undefined
 
-  const [prompts, setPrompts] = useState<TPrompts>({ state: 'idle', panels: [] })
+  const [prompts, setPrompts] = useState<TPrompts>({
+    state: 'idle',
+    panels: [],
+  })
   const lastKey = useRef<string | undefined>(undefined)
 
   useEffect(() => {

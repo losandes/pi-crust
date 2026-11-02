@@ -61,7 +61,10 @@ const turnOf = (payload: Readonly<Record<string, unknown>>): number =>
  * rather than dropping. An old run should still show its tool calls.
  */
 export const turnsOf = (events: readonly EventRow[]): readonly TTurn[] => {
-  const byTurn = new Map<number, { blocks: TNarrationBlock[]; calls: TTurnCall[]; at: number }>()
+  const byTurn = new Map<
+    number,
+    { blocks: TNarrationBlock[]; calls: TTurnCall[]; at: number }
+  >()
 
   const slot = (turn: number, at: number) => {
     const existing = byTurn.get(turn)
@@ -99,7 +102,9 @@ export const turnsOf = (events: readonly EventRow[]): readonly TTurn[] => {
         ok: payload.ok !== false,
         at,
         durationMs:
-          typeof payload.duration_ms === 'number' ? payload.duration_ms : undefined,
+          typeof payload.duration_ms === 'number'
+            ? payload.duration_ms
+            : undefined,
       })
     }
   }
@@ -138,7 +143,5 @@ export const isAtBottom = (
  */
 export const JUMP_THRESHOLD = 8
 
-export const shouldOfferJump = (
-  following: boolean,
-  missed: number,
-): boolean => !following && missed >= JUMP_THRESHOLD
+export const shouldOfferJump = (following: boolean, missed: number): boolean =>
+  !following && missed >= JUMP_THRESHOLD

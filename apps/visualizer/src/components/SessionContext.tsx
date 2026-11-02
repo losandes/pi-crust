@@ -69,7 +69,8 @@ export const SessionContext = ({
     [events, session.request],
   )
   const documents = useMemo(
-    () => runArtifacts({ runId, handoffDir, envelopes, events, present: handoff }),
+    () =>
+      runArtifacts({ runId, handoffDir, envelopes, events, present: handoff }),
     [runId, handoffDir, envelopes, events, handoff],
   )
 
@@ -97,7 +98,10 @@ export const SessionContext = ({
       )}
 
       <h3 className={styles.head}>
-        files{documents.length > 0 && <span className={styles.count}>{documents.length}</span>}
+        files
+        {documents.length > 0 && (
+          <span className={styles.count}>{documents.length}</span>
+        )}
       </h3>
       <ArtifactList artifacts={documents} onOpen={setViewing} />
     </section>

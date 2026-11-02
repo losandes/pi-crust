@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import {
   describeTrust,
-  trustStance,
-  TRUST_DEFAULT,
   parseTrustLevel,
   stanceFor,
+  TRUST_DEFAULT,
   trustLevel,
+  trustStance,
 } from './trust'
 
 test(
@@ -197,7 +197,11 @@ test(
     // given — an unanswerable question at this level is a defect in the
     // report, surfaced at the end. Gating here would make the top of the
     // dial indistinguishable from the middle.
-    const params = question({ level: 100, answerable: false, beyondThisRun: true })
+    const params = question({
+      level: 100,
+      answerable: false,
+      beyondThisRun: true,
+    })
 
     // when
     const actual = stanceFor(params)

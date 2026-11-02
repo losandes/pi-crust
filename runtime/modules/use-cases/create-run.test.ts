@@ -155,7 +155,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'crust-create-run-state-')))
+    const dir = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-create-run-state-')),
+    )
     const run = inDir(dir, () => aRun(dir))
     const params = activityRunParams({
       name: 'build',
@@ -199,13 +201,15 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'crust-create-run-missing-')))
+    const dir = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-create-run-missing-')),
+    )
     const run = inDir(dir, () => aRun(dir))
 
     // when, then
-    expect(() => run.updateActivityRun('does-not-exist', { status: 'success' })).toThrow(
-      /no such activityRun on this run: does-not-exist/,
-    )
+    expect(() =>
+      run.updateActivityRun('does-not-exist', { status: 'success' }),
+    ).toThrow(/no such activityRun on this run: does-not-exist/)
   },
 )
 
@@ -221,7 +225,9 @@ test(
       mkdtempSync(join(tmpdir(), 'crust-create-run-handoff-')),
     )
     mkdirSync(join(workspace, '.pi-crust'), { recursive: true })
-    const handoffDir = mkdtempSync(join(tmpdir(), 'crust-create-run-handoff-dir-'))
+    const handoffDir = mkdtempSync(
+      join(tmpdir(), 'crust-create-run-handoff-dir-'),
+    )
     const tracer = createTracer(
       join(workspace, 'crust.db'),
       join(workspace, 'events.jsonl'),

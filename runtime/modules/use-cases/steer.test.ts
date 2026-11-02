@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test'
 import type { TActivityRunState } from '../typedefs/run-state'
 import {
+  activitiesToReplay,
   activityRunsToCarry,
   activityRunsToSupersede,
   developerNote,
   flagValue,
   seedingOf,
-  steerTargetOf,
   steeringAppliedEvent,
   steeringBlock,
   steeringEntry,
-  activitiesToReplay,
+  steerTargetOf,
 } from './steer'
 
 const activityRun = (
@@ -114,7 +114,11 @@ test(
   () => {
     // given — a `{{steering}}` variable would be opt-in, and a run where one
     // agent's prompt forgot it is a run that silently ignored the person
-    const entry = steeringEntry('design', 'use the registry, not the map', '2026-10-07T00:00:00Z')
+    const entry = steeringEntry(
+      'design',
+      'use the registry, not the map',
+      '2026-10-07T00:00:00Z',
+    )
 
     // when
     const actual = steeringBlock(entry)
@@ -164,7 +168,9 @@ test(
     'it should refuse rather than pick one',
   ].join(', '),
   () => {
-    expect(steerTargetOf(['run1', 'design', '--overwrite', '--branch'])).toBeUndefined()
+    expect(
+      steerTargetOf(['run1', 'design', '--overwrite', '--branch']),
+    ).toBeUndefined()
   },
 )
 
@@ -220,17 +226,22 @@ test(
 
     for (const activity of ['scout', 'design', 'plan']) {
       // when
-      const carried = new Set(activityRunsToCarry(retried, activity).map((a) => a.name))
+      const carried = new Set(
+        activityRunsToCarry(retried, activity).map((a) => a.name),
+      )
       const superseded = new Set(
-        activityRunsToSupersede(retried, activity)
-          .map((id) => retried.find((a) => a.activity_run_id === id)?.name ?? ''),
+        activityRunsToSupersede(retried, activity).map(
+          (id) => retried.find((a) => a.activity_run_id === id)?.name ?? '',
+        ),
       )
       const standing = new Set(
         retried
           .filter(
             (a) =>
               a.status === 'success' &&
-              !retried.some((other) => other.name === a.name && other.seq > a.seq),
+              !retried.some(
+                (other) => other.name === a.name && other.seq > a.seq,
+              ),
           )
           .map((a) => a.name),
       )
@@ -251,10 +262,15 @@ test(
   ].join(', '),
   () => {
     // when
-    const actual = developerNote('I fixed the migration', '2026-01-01T00:00:00.000Z')
+    const actual = developerNote(
+      'I fixed the migration',
+      '2026-01-01T00:00:00.000Z',
+    )
 
     // then
-    expect(actual).toContain('## Instruction from the developer at 2026-01-01T00:00:00.000Z')
+    expect(actual).toContain(
+      '## Instruction from the developer at 2026-01-01T00:00:00.000Z',
+    )
     expect(actual).toContain('I fixed the migration')
     expect(actual).not.toContain('sent back')
   },

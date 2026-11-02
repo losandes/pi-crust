@@ -37,7 +37,7 @@ const PAGES = new Map<number, readonly number[]>([[0, [1, 2, 3]]])
 test(
   [
     'given lib/use-trace::the poll cursor',
-    'when a second mount shares the first mount\'s cursor',
+    "when a second mount shares the first mount's cursor",
     'it should be able to lose every event of a finished run',
   ].join(', '),
   async () => {

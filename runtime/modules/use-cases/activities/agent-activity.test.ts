@@ -10,20 +10,23 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { agentConfigSchema, crustConfigSchema } from '../../typedefs/config'
 import { activityConfigSchema } from '../../typedefs/activity'
-import type { TPiCrustConfig } from '../../typedefs/config'
-import { genericOutput, reviewOutput } from '../../typedefs/envelope'
-import type { TEnvelopeBase } from '../../typedefs/envelope'
-import { activityRunParams } from '../../typedefs/activity-run'
 import type { TActivityRun } from '../../typedefs/activity-run'
-import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
-import type { TActivityContext, TActivityOptions } from '../../typedefs/runnable-activity'
+import { activityRunParams } from '../../typedefs/activity-run'
+import type { TPiCrustConfig } from '../../typedefs/config'
+import { agentConfigSchema, crustConfigSchema } from '../../typedefs/config'
+import type { TEnvelopeBase } from '../../typedefs/envelope'
+import { genericOutput, reviewOutput } from '../../typedefs/envelope'
+import type { TPiResult } from '../../typedefs/pi'
+import { emptyUsage } from '../../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../../typedefs/run'
+import type {
+  TActivityContext,
+  TActivityOptions,
+} from '../../typedefs/runnable-activity'
+import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
 import type { TResolvedActivity } from '../activity-registry'
 import type { TAgentPorts } from '../execute-agent'
-import { emptyUsage } from '../../typedefs/pi'
-import type { TPiResult } from '../../typedefs/pi'
 import { agentActivity } from './agent-activity'
 
 const aRepo = (): string => {
@@ -99,7 +102,9 @@ const aConfig = (): TPiCrustConfig =>
   }) satisfies TPiCrustConfig
 
 const aRun = (repoRoot: string): TRun => {
-  const sessionDir = mkdtempSync(join(tmpdir(), 'crust-agent-activity-session-'))
+  const sessionDir = mkdtempSync(
+    join(tmpdir(), 'crust-agent-activity-session-'),
+  )
   const contextHandoffDir = mkdtempSync(
     join(tmpdir(), 'crust-agent-activity-handoff-'),
   )
@@ -257,7 +262,9 @@ test(
     void ports
 
     // when / then
-    await expect(activity.execute(ctx, handle)).rejects.toThrow(/'build' will not start/)
+    await expect(activity.execute(ctx, handle)).rejects.toThrow(
+      /'build' will not start/,
+    )
     expect(calls).toEqual([])
   },
 )
@@ -284,7 +291,11 @@ test(
     const { ports } = fakePorts({
       run: async () => aPiResult(JSON.stringify(aContextEnvelope())),
     })
-    const activity = agentActivity(anActivity({ input: 'changes' }), OPTIONS, ports)
+    const activity = agentActivity(
+      anActivity({ input: 'changes' }),
+      OPTIONS,
+      ports,
+    )
     const was = process.cwd()
     process.chdir(repoRoot)
 
@@ -313,7 +324,11 @@ test(
     const run = aRun(repoRoot)
     const handle = aHandle(anActivityRun())
     const { ports, calls } = fakePorts()
-    const activity = agentActivity(anActivity({ input: 'changes' }), OPTIONS, ports)
+    const activity = agentActivity(
+      anActivity({ input: 'changes' }),
+      OPTIONS,
+      ports,
+    )
     const was = process.cwd()
     process.chdir(repoRoot)
 
@@ -360,7 +375,9 @@ test(
 
     // then
     expect(result.accepted).toBe(true)
-    expect((result.previous as Readonly<{ summary: string }>).summary).toBe('replayed')
+    expect((result.previous as Readonly<{ summary: string }>).summary).toBe(
+      'replayed',
+    )
   },
 )
 
@@ -386,7 +403,7 @@ test(
 test(
   [
     'given use-cases/activities/agent-activity::agentActivity',
-    "when the execute path is given an injected TAgentPorts",
+    'when the execute path is given an injected TAgentPorts',
     'it should call the agent through it and return the envelope it answers with',
   ].join(', '),
   async () => {

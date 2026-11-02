@@ -21,7 +21,8 @@ const tsx = readFileSync(TSX_PATH, 'utf8')
 
 /** The standalone fragment: `session !== undefined && selectedActivityRun === undefined && (...)`. */
 const standaloneFragment = (source: string): string => {
-  const marker = 'session !== undefined && selectedActivityRun === undefined && ('
+  const marker =
+    'session !== undefined && selectedActivityRun === undefined && ('
   const start = source.indexOf(marker)
   if (start === -1) throw new Error('standalone fragment guard not found')
   // The fragment closes with `)}` before the next top-level comment block
@@ -32,14 +33,21 @@ const standaloneFragment = (source: string): string => {
   return source.slice(start, end)
 }
 
-const CARD_NAMES = ['RunNotices', 'DecisionRequest', 'RunControls', 'SessionContext', 'TreeWarnings'] as const
+const CARD_NAMES = [
+  'RunNotices',
+  'DecisionRequest',
+  'RunControls',
+  'SessionContext',
+  'TreeWarnings',
+] as const
 
 /** Index of each card's opening tag within the fragment, in source order. */
-const cardPositions = (fragment: string): Record<(typeof CARD_NAMES)[number], number> =>
-  Object.fromEntries(CARD_NAMES.map((name) => [name, fragment.indexOf(`<${name}`)])) as Record<
-    (typeof CARD_NAMES)[number],
-    number
-  >
+const cardPositions = (
+  fragment: string,
+): Record<(typeof CARD_NAMES)[number], number> =>
+  Object.fromEntries(
+    CARD_NAMES.map((name) => [name, fragment.indexOf(`<${name}`)]),
+  ) as Record<(typeof CARD_NAMES)[number], number>
 
 test(
   [
@@ -93,7 +101,9 @@ test(
     const fragment = standaloneFragment(tsx)
 
     // then — 1.1.3: same component, same props, same values
-    expect(fragment).toMatch(/<TreeWarnings warnings=\{warningsIn\(events\)\} standalone \/>/)
+    expect(fragment).toMatch(
+      /<TreeWarnings warnings=\{warningsIn\(events\)\} standalone \/>/,
+    )
 
     // then — 1.1.4: the explanatory comment is its immediately preceding sibling
     // and its wording is unchanged
@@ -106,7 +116,7 @@ test(
 test(
   [
     'given SessionTrace.tsx',
-    'when the standalone fragment\'s guard and the RunControls conditional are read',
+    "when the standalone fragment's guard and the RunControls conditional are read",
     'it should keep both conditions unchanged by this reorder',
   ].join(', '),
   () => {

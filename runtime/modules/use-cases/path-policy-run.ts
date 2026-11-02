@@ -18,9 +18,8 @@ import { join, resolve } from 'node:path'
 import { resolveDataPaths } from '../data/data-paths'
 import { fileExists, readText, writeText } from '../data/files'
 import type { TPiCrustConfig } from '../typedefs/config'
-import { repoRelative } from './path-policy'
 import type { TPathIntent, TPathSettings, TRefusal } from './path-policy'
-import { refusalLine } from './path-policy'
+import { refusalLine, repoRelative } from './path-policy'
 
 /** The variable the extension reads the policy file's path from. */
 export const POLICY_ENV = 'CRUST_PATH_POLICY'

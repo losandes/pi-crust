@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test'
 import type { TRegressionRecord } from './regression'
-import { regressionNote, regressionVerdict, timesReturnedTo } from './regression'
+import {
+  regressionNote,
+  regressionVerdict,
+  timesReturnedTo,
+} from './regression'
 
 const chain = ['identify', 'conceptualize', 'design', 'build', 'review']
 
@@ -71,9 +75,7 @@ test(
 
     // then
     expect(actual.kind).toBe('refused')
-    expect(actual.kind === 'refused' ? actual.reason : '').toContain(
-      'does not',
-    )
+    expect(actual.kind === 'refused' ? actual.reason : '').toContain('does not')
   },
 )
 

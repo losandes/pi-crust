@@ -6,12 +6,15 @@
  * minted and printed so the next workflow can pick it up.
  */
 
-import { fileExists, writeText } from '../data/files'
 import { basename, join, resolve } from 'node:path'
-import { engineerName } from '../data/engineer'
 import { resolveDataPaths } from '../data/data-paths'
+import { engineerName } from '../data/engineer'
+import { fileExists, writeText } from '../data/files'
 import { currentBranch, repoRoot } from '../data/git'
-import { recordedHandoffDir, writeHandoffPointer } from '../data/handoff-pointer'
+import {
+  recordedHandoffDir,
+  writeHandoffPointer,
+} from '../data/handoff-pointer'
 import { newId } from '../data/ids'
 import { createTracer } from '../data/trace-db'
 import { runHasLiveProcess } from '../data/trace-reader'
@@ -224,11 +227,14 @@ export const startSession = (
       (candidate) => fileExists(join(dataDir, 'sessions', candidate)),
     )
   const sessionDir = join(dataDir, 'sessions', id)
-  const handoffDir = resolvedHandoffDirFor(workspaceRoot, dataDir, id, sessionDir, options)
-  const tracer = createTracer(
-    db,
-    join(dataDir, 'sessions', id, 'events.jsonl'),
+  const handoffDir = resolvedHandoffDirFor(
+    workspaceRoot,
+    dataDir,
+    id,
+    sessionDir,
+    options,
   )
+  const tracer = createTracer(db, join(dataDir, 'sessions', id, 'events.jsonl'))
   const run = createRun({
     cfg,
     runId: id,

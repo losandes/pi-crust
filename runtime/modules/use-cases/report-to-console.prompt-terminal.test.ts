@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { restoreTerminal, silenceTerminal, terminalOutput } from '../testing/terminal-capture'
+import {
+  restoreTerminal,
+  silenceTerminal,
+  terminalOutput,
+} from '../testing/terminal-capture'
 import type { TTracer } from '../typedefs/trace'
-import { createConsole, PROMPT_BODY_CHARS, PROMPT_BODY_LINES } from './report-to-console'
+import {
+  createConsole,
+  PROMPT_BODY_CHARS,
+  PROMPT_BODY_LINES,
+} from './report-to-console'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)

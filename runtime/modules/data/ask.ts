@@ -17,17 +17,17 @@
  * terminal output — and it would be the only runtime dependency besides zod.
  */
 
-import { paint } from './terminal'
-import type { TMenuKey, TMenuState } from '../use-cases/menu'
 import { moveItem } from '../use-cases/activity-order'
+import type { TMenuKey, TMenuState } from '../use-cases/menu'
 import {
   applyExclusiveKey,
   applyKey,
   applySingleKey,
   initialMenu,
 } from '../use-cases/menu'
-import { menuFrame, rowsFor } from './menu-frame'
 import type { TOption } from './menu-frame'
+import { menuFrame, rowsFor } from './menu-frame'
+import { paint } from './terminal'
 
 export type { TOption } from './menu-frame'
 
@@ -35,8 +35,12 @@ const ESC = '\u001B'
 
 /** The viewport, with a defensible guess when the terminal will not say. */
 const viewport = (): Readonly<{ rows: number; cols: number }> => ({
-  rows: process.stdout.rows && process.stdout.rows > 0 ? process.stdout.rows : 24,
-  cols: process.stdout.columns && process.stdout.columns > 0 ? process.stdout.columns : 80,
+  rows:
+    process.stdout.rows && process.stdout.rows > 0 ? process.stdout.rows : 24,
+  cols:
+    process.stdout.columns && process.stdout.columns > 0
+      ? process.stdout.columns
+      : 80,
 })
 
 const write = (text: string): void => {
@@ -152,9 +156,7 @@ export const interactive = (): boolean =>
  * from a dead stream and hung with the frame still on screen. A listener that
  * is added and removed leaves the stream exactly as it found it.
  */
-const onKeys = (
-  handle: (key: TMenuKey) => boolean,
-): Promise<void> =>
+const onKeys = (handle: (key: TMenuKey) => boolean): Promise<void> =>
   new Promise((resolve) => {
     process.stdin.setRawMode(true)
     process.stdin.resume()

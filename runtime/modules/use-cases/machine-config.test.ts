@@ -58,7 +58,11 @@ test(
     const actual = readMachineConfig(env)
 
     // then
-    expect(actual).toEqual({ path: '', ordinary: undefined, override: undefined })
+    expect(actual).toEqual({
+      path: '',
+      ordinary: undefined,
+      override: undefined,
+    })
   },
 )
 
@@ -121,9 +125,9 @@ test(
     const actual = applyMachineLayer(base, machine)
 
     // then
-    expect((actual.document as { defaults: { data_dir: string } }).defaults.data_dir).toEqual(
-      'repo-stated-value',
-    )
+    expect(
+      (actual.document as { defaults: { data_dir: string } }).defaults.data_dir,
+    ).toEqual('repo-stated-value')
   },
 )
 
@@ -146,9 +150,9 @@ test(
     const actual = applyMachineLayer(base, machine)
 
     // then
-    expect((actual.document as { defaults: { model: string } }).defaults.model).toEqual(
-      'openai/gpt-5.1',
-    )
+    expect(
+      (actual.document as { defaults: { model: string } }).defaults.model,
+    ).toEqual('openai/gpt-5.1')
   },
 )
 
@@ -171,9 +175,9 @@ test(
     const actual = applyMachineLayer(base, machine)
 
     // then
-    expect((actual.document as { defaults: { data_dir: string } }).defaults.data_dir).toEqual(
-      '{primary_worktree}/.pi-crust/data',
-    )
+    expect(
+      (actual.document as { defaults: { data_dir: string } }).defaults.data_dir,
+    ).toEqual('{primary_worktree}/.pi-crust/data')
   },
 )
 

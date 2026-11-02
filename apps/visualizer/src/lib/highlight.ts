@@ -28,14 +28,14 @@ export function highlightJsonText(text: string): string {
     out += escapeHtml(text.slice(last, m.index))
     const [full, str, colon, bool, nil, num] = m
     if (str !== undefined) {
-      const cls = colon !== undefined ? 'j-key' : 'j-str'
+      const cls = colon === undefined ? 'j-str' : 'j-key'
       out += `<span class="${cls}">${escapeHtml(str)}</span>${escapeHtml(colon ?? '')}`
     } else if (bool !== undefined) {
       out += `<span class="j-bool">${bool}</span>`
-    } else if (nil !== undefined) {
-      out += `<span class="j-null">null</span>`
-    } else {
+    } else if (nil === undefined) {
       out += `<span class="j-num">${escapeHtml(num ?? full)}</span>`
+    } else {
+      out += `<span class="j-null">null</span>`
     }
     last = (m.index ?? 0) + full.length
   }

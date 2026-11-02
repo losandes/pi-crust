@@ -4,11 +4,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
-import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
+import { crustConfigSchema } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
 import { createRun } from './create-run'
-import { recordStepResult, replayStepResult, resumableActivityRun, skipIfDone } from './resume'
+import {
+  recordStepResult,
+  replayStepResult,
+  resumableActivityRun,
+  skipIfDone,
+} from './resume'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)
@@ -50,16 +55,13 @@ test(
     const given = runWith([])
 
     // when
-    const actual = await skipIfDone(
-      given,
-      params,
-      run,
-      replay,
-    )
+    const actual = await skipIfDone(given, params, run, replay)
 
     // then
     expect(actual).toEqual('ran')
-    expect(given.activityRuns().map((activityRun) => activityRun.params.name)).toEqual(['build'])
+    expect(
+      given.activityRuns().map((activityRun) => activityRun.params.name),
+    ).toEqual(['build'])
   },
 )
 
@@ -75,19 +77,16 @@ test(
     const given = runWith(['build'])
 
     // when
-    const actual = await skipIfDone(
-      given,
-      params,
-      run,
-      replay,
-    )
+    const actual = await skipIfDone(given, params, run, replay)
 
     // then
     expect(actual).toEqual('replayed')
     // recorded in THIS run's activityRuns, because `finish` judges the run by them:
     // a resumed chain that re-ran nothing was reported failed having done
     // everything asked of it
-    expect(given.activityRuns().map((activityRun) => activityRun.status)).toEqual(['success'])
+    expect(
+      given.activityRuns().map((activityRun) => activityRun.status),
+    ).toEqual(['success'])
     expect(given.activityRuns()[0]?.activity_run_id).toContain('replayed')
   },
 )
@@ -116,8 +115,11 @@ test(
       log: () => undefined,
     } as unknown as Parameters<typeof recordStepResult>[1]
     given.tracer.activityRunUpsert(
-      (handle as unknown as { activityRun: Parameters<typeof given.tracer.activityRunUpsert>[0] })
-        .activityRun,
+      (
+        handle as unknown as {
+          activityRun: Parameters<typeof given.tracer.activityRunUpsert>[0]
+        }
+      ).activityRun,
     )
 
     // when

@@ -143,11 +143,16 @@ const renderGroup = (
 const renderOutsideWorkspace = (
   warnings: readonly TTreeWarning[],
 ): readonly string[] => {
-  const group = warnings.filter((warning) => warning.kind === 'outside_workspace')
+  const group = warnings.filter(
+    (warning) => warning.kind === 'outside_workspace',
+  )
   if (group.length === 0) {
     return []
   }
-  const total = group.reduce((sofar, warning) => sofar + warning.paths.length, 0)
+  const total = group.reduce(
+    (sofar, warning) => sofar + warning.paths.length,
+    0,
+  )
 
   return [
     `${total} claim(s) resolved outside the workspace, inside the repository`,
@@ -167,7 +172,10 @@ const renderUnverified = (
   if (group.length === 0) {
     return []
   }
-  const total = group.reduce((sofar, warning) => sofar + warning.paths.length, 0)
+  const total = group.reduce(
+    (sofar, warning) => sofar + warning.paths.length,
+    0,
+  )
 
   return [
     `${total} path(s) changed with no routing.checks rule to verify them`,
@@ -197,7 +205,9 @@ export const renderWarnings = (
   const attributable = warnings.filter((warning) =>
     ATTRIBUTION_KINDS.includes(warning.kind),
   )
-  const uncommitted = warnings.filter((warning) => warning.kind === 'uncommitted')
+  const uncommitted = warnings.filter(
+    (warning) => warning.kind === 'uncommitted',
+  )
   const attributableTotal = attributable.reduce(
     (sofar, warning) => sofar + warning.paths.length,
     0,
@@ -212,7 +222,9 @@ export const renderWarnings = (
       ? []
       : [
           `\u26a0 ${attributableTotal} unexplained change(s) during this run`,
-          ...ATTRIBUTION_KINDS.flatMap((kind) => renderGroup(attributable, kind)),
+          ...ATTRIBUTION_KINDS.flatMap((kind) =>
+            renderGroup(attributable, kind),
+          ),
         ]),
     ...(uncommitted.length === 0
       ? []

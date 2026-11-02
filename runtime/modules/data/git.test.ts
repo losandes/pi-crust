@@ -96,9 +96,9 @@ test(
     // then — the commit records the deletion
     expect(actual.sha).not.toEqual('')
     expect(actual.paths).toEqual(['extra.test.ts'])
-    expect(
-      git(dir, 'diff', '--name-status', 'HEAD~1', 'HEAD'),
-    ).toEqual('D\textra.test.ts')
+    expect(git(dir, 'diff', '--name-status', 'HEAD~1', 'HEAD')).toEqual(
+      'D\textra.test.ts',
+    )
   },
 )
 
@@ -125,9 +125,9 @@ test(
     // then — the commit exists and holds only the path git could match
     expect(actual.sha).not.toEqual('')
     expect(actual.paths).toEqual(['new-file.ts'])
-    expect(
-      git(dir, 'diff', '--name-only', 'HEAD~1', 'HEAD'),
-    ).toEqual('new-file.ts')
+    expect(git(dir, 'diff', '--name-only', 'HEAD~1', 'HEAD')).toEqual(
+      'new-file.ts',
+    )
   },
 )
 
@@ -172,7 +172,10 @@ test(
      * specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md — 1.4.1.
      */
     const dir = aRepo()
-    writeFileSync(join(dir, 'above-workspace.txt'), 'written above the workspace\n')
+    writeFileSync(
+      join(dir, 'above-workspace.txt'),
+      'written above the workspace\n',
+    )
 
     // when — addressed from the VCS root (`dir`), not a workspace below it
     const actual = commitPaths(
@@ -310,11 +313,10 @@ test(
     pushBranch('origin', 'feature', dir)
 
     // then
-    const onRemote = execFileSync(
-      'git',
-      ['branch', '--list', 'feature'],
-      { cwd: bare, encoding: 'utf8' },
-    )
+    const onRemote = execFileSync('git', ['branch', '--list', 'feature'], {
+      cwd: bare,
+      encoding: 'utf8',
+    })
     expect(onRemote).toContain('feature')
   },
 )

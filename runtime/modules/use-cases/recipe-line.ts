@@ -49,7 +49,9 @@ export const recipeArgv = (
   if (script === undefined) return undefined
   const recipe = recipeOf(script)
 
-  return recipe === undefined ? undefined : ['just', 'crust', recipe, ...argv.slice(2)]
+  return recipe === undefined
+    ? undefined
+    : ['just', 'crust', recipe, ...argv.slice(2)]
 }
 
 /**

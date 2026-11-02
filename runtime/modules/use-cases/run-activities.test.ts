@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { activityRunParams } from '../typedefs/activity-run'
 import type { TActivityRun } from '../typedefs/activity-run'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import type { TActivity } from '../typedefs/runnable-activity'
@@ -38,10 +38,7 @@ const activityRunRow = (name: string): TActivityRun => ({
   ended_at: undefined,
 })
 
-const runWith = (
-  repoRoot: string,
-  touched: readonly string[],
-): TRun =>
+const runWith = (repoRoot: string, touched: readonly string[]): TRun =>
   ({
     runId: 'cccc3333',
     repoRoot,

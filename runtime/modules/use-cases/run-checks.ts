@@ -19,7 +19,6 @@
  *      trace.
  */
 
-
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { monotonicMs, nowIso } from '../data/clock'
@@ -68,7 +67,11 @@ const checkDir = (run: TRun, name: string): string => {
  */
 export const runCommand = (
   spec: TQualityCheckSpec,
-  params: Readonly<{ repoRoot: string; outputArtifact: string; note?: (line: string) => void }>,
+  params: Readonly<{
+    repoRoot: string
+    outputArtifact: string
+    note?: (line: string) => void
+  }>,
 ): TQualityCheckResult => {
   const note = params.note ?? (() => undefined)
   const command = quoteArgv(spec.argv)
@@ -203,7 +206,13 @@ export const runVerification = (
   changedPaths: readonly string[],
 ): TQualityResult => {
   if (run.cfg.routing.checks.length === 0 || changedPaths.length === 0) {
-    return { passed: true, checks: [], failures: [], artifacts: [], unmatchedPaths: [] }
+    return {
+      passed: true,
+      checks: [],
+      failures: [],
+      artifacts: [],
+      unmatchedPaths: [],
+    }
   }
   const specs = matchingChecks(run.cfg, changedPaths)
   const gaps = unmatchedPaths(run.cfg, changedPaths)

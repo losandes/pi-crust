@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { recipeArgv, recipeOf, RUN_RECIPE, shellLine } from './recipe-line'
+import { RUN_RECIPE, recipeArgv, recipeOf, shellLine } from './recipe-line'
 
 test(
   [
@@ -62,7 +62,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const argv = ['bun', '/pkg/runtime/stages/operator.ts', 'the webhook drops retries']
+    const argv = [
+      'bun',
+      '/pkg/runtime/stages/operator.ts',
+      'the webhook drops retries',
+    ]
 
     // when
     const actual = recipeArgv(argv)
@@ -121,7 +125,14 @@ test(
   ].join(', '),
   () => {
     // given
-    const argv = ['just', 'crust', 'run', 'x', '--activities', 'review+code-review']
+    const argv = [
+      'just',
+      'crust',
+      'run',
+      'x',
+      '--activities',
+      'review+code-review',
+    ]
 
     // when
     const actual = shellLine(argv)

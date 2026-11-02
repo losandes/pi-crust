@@ -1,7 +1,11 @@
 import type { ComponentType, ReactNode } from 'react'
 import styles from './DetailSection.module.css'
 
-type TIconProps = Readonly<{ size?: number; strokeWidth?: number; className?: string }>
+type TIconProps = Readonly<{
+  size?: number
+  strokeWidth?: number
+  className?: string
+}>
 
 export const DetailSection = ({
   title,

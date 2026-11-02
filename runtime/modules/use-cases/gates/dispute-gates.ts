@@ -12,11 +12,10 @@
  * this file names no checker of any repository.
  */
 
-import type { TEnvelopeBase } from '../../typedefs/envelope'
 import { hasEvidenceShape, namesWord, normalise } from '../../typedefs/dispute'
-import type { TGate } from '../../typedefs/gate'
+import type { TEnvelopeBase } from '../../typedefs/envelope'
+import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
-import type { TGateReport } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'
 
 type TDisputeShape = Readonly<{

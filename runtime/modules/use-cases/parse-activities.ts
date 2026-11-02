@@ -23,7 +23,11 @@
  */
 
 import type { TActivityConfig } from '../typedefs/activity'
-import { isPlannerName, isTerminalName, PLANNER_NAMES } from '../typedefs/activity'
+import {
+  isPlannerName,
+  isTerminalName,
+  PLANNER_NAMES,
+} from '../typedefs/activity'
 import type { TLifecycleConfig, TStage } from '../typedefs/lifecycle'
 import { misplacedTerminal } from '../typedefs/lifecycle'
 import { canonicalActivityNames } from './activity-registry'
@@ -75,7 +79,9 @@ const foldSerial = (groups: readonly TGroup[]): readonly TStage[] => {
    */
   const opensStage = (group: TGroup, at: number): boolean =>
     at === 0 || group.concurrent || (groups[at - 1]?.concurrent ?? false)
-  const starts = groups.flatMap((group, at) => (opensStage(group, at) ? [at] : []))
+  const starts = groups.flatMap((group, at) =>
+    opensStage(group, at) ? [at] : [],
+  )
 
   return starts.map((start, which) => {
     const end = starts[which + 1] ?? groups.length
@@ -158,7 +164,10 @@ export const parseActivities = (
   const asLifecycle: TLifecycleConfig = {
     name: ADHOC_LIFECYCLE,
     description: 'a chain named on the command line',
-    stages: stages.map((stage) => ({ ...stage, activities: [...stage.activities] })),
+    stages: stages.map((stage) => ({
+      ...stage,
+      activities: [...stage.activities],
+    })),
   }
   /*
    * Position rules are the Lifecycle's own — `build,gh-pull-request` loads and

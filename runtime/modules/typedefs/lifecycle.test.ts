@@ -445,7 +445,7 @@ stages:
 test(
   [
     'given typedefs/lifecycle::lifecycleFaults',
-    "when a terminal Activity is the last entry of a concurrent stage",
+    'when a terminal Activity is the last entry of a concurrent stage',
     'it should refuse, because it does not run alongside anything',
   ].join(', '),
   () => {

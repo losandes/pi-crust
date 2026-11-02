@@ -87,7 +87,9 @@ export const optionsFor = (
   if (key === 'archived') return ARCHIVED_OPTIONS
 
   const values = new Set(
-    sessions.map((session) => valueOf(session, key)).filter((value) => value !== ''),
+    sessions
+      .map((session) => valueOf(session, key))
+      .filter((value) => value !== ''),
   )
 
   if (key === 'status') {
@@ -184,7 +186,9 @@ export const readFilters = (storage: TStorageReader): TFilters => {
     const entries = FILTER_KEYS.map((key) => {
       const value = record[key]
       if (!Array.isArray(value)) return [key, DEFAULT_FILTERS[key]] as const
-      const strings = value.filter((entry): entry is string => typeof entry === 'string')
+      const strings = value.filter(
+        (entry): entry is string => typeof entry === 'string',
+      )
       return [key, strings] as const
     })
     return Object.fromEntries(entries) as TFilters
@@ -193,7 +197,10 @@ export const readFilters = (storage: TStorageReader): TFilters => {
   }
 }
 
-export const saveFilters = (storage: TStorageWriter, filters: TFilters): void => {
+export const saveFilters = (
+  storage: TStorageWriter,
+  filters: TFilters,
+): void => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, swallowing a throwing Storage exactly as src/lib/token.ts already does
   try {
     storage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))

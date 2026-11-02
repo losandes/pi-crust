@@ -13,9 +13,9 @@
  *   4. otherwise resolve it against the repository root
  */
 
+import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { dataDirFromEnv, type TEnv } from './env-overrides'
 
 export const PRIMARY_WORKTREE_TOKEN = '{primary_worktree}'
@@ -74,7 +74,10 @@ const expandHome = (value: string): string =>
  * `process.cwd()`, so the result agrees regardless of where `just` was
  * invoked from.
  */
-export const resolveConfiguredPath = (value: string, repoRoot: string): string => {
+export const resolveConfiguredPath = (
+  value: string,
+  repoRoot: string,
+): string => {
   const withHome = expandHome(value)
   const withToken = withHome.includes(PRIMARY_WORKTREE_TOKEN)
     ? withHome.replaceAll(PRIMARY_WORKTREE_TOKEN, primaryWorktree(repoRoot))

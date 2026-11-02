@@ -27,15 +27,18 @@
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { fileExists, readText } from '../data/files'
 import type { TEnv } from '../data/env-overrides'
 import { machineConfigPathFromEnv } from '../data/env-overrides'
+import { fileExists, readText } from '../data/files'
 import { applyLocalOverrides, type TLocalResult } from './merge-config'
 
 /** Where the machine layer lives, honouring `CRUST_MACHINE_CONFIG` (1.2.8). */
 export const machineConfigPath = (env: TEnv = process.env): string => {
   const override = machineConfigPathFromEnv(env)
-  return override ?? join(env.HOME ?? homedir(), '.pi-crust', 'config', 'crust.config.yaml')
+  return (
+    override ??
+    join(env.HOME ?? homedir(), '.pi-crust', 'config', 'crust.config.yaml')
+  )
 }
 
 type TRecord = Record<string, unknown>
@@ -66,9 +69,7 @@ const NO_MACHINE_CONFIG: TMachineConfig = {
  * and a repository or schema that happened to define one would otherwise
  * collide with it.
  */
-export const readMachineConfig = (
-  env: TEnv = process.env,
-): TMachineConfig => {
+export const readMachineConfig = (env: TEnv = process.env): TMachineConfig => {
   const path = machineConfigPath(env)
   if (!fileExists(path)) {
     return NO_MACHINE_CONFIG
@@ -102,7 +103,10 @@ export const applyMachineLayer = (
   machine: TMachineConfig,
 ): TLocalResult => {
   const withOrdinary = applyOrdinaryUnderBase(base, machine.ordinary)
-  const withOverride = applyLocalOverrides(withOrdinary.document, machine.override)
+  const withOverride = applyLocalOverrides(
+    withOrdinary.document,
+    machine.override,
+  )
   return {
     document: withOverride.document,
     warnings: [...withOrdinary.warnings, ...withOverride.warnings],

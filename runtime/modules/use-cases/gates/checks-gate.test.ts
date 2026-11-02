@@ -46,7 +46,7 @@ const built = (changed: readonly string[]): TEnvelopeBase =>
 test(
   [
     'given use-cases/gates::checks',
-    "when a declared command fails for the paths the Activity changed",
+    'when a declared command fails for the paths the Activity changed',
     'it should fail the gate with the command output, which is what the Activity is told',
   ].join(', '),
   () => {
@@ -115,7 +115,9 @@ test(
   () => {
     // given — a rule that cannot reach a nested file
     const run = runWith({
-      checks: [{ name: 'lint', when: ['*.ts'], operation: 'lint', argv: ['true'] }],
+      checks: [
+        { name: 'lint', when: ['*.ts'], operation: 'lint', argv: ['true'] },
+      ],
     })
 
     // when
@@ -155,11 +157,10 @@ test(
     })
 
     // when
-    const actual = checks.check(
-      built(['src/a.ts', 'README.md']),
-      run,
-      ['src/a.ts', 'README.md'],
-    )
+    const actual = checks.check(built(['src/a.ts', 'README.md']), run, [
+      'src/a.ts',
+      'README.md',
+    ])
 
     // then — the matching check actually ran and settled the gate
     expect(violationsOf(actual)).toEqual([])

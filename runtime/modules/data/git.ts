@@ -275,9 +275,7 @@ export const isDirty = (): boolean => git('status', '--porcelain').length > 0
  * it, and matters wherever `.pi-crust/` is not itself at the git root.
  */
 export const untrackedFiles = (): readonly string[] =>
-  lines(
-    gitOutput(['ls-files', '--others', '--exclude-standard'], repoRoot()),
-  )
+  lines(gitOutput(['ls-files', '--others', '--exclude-standard'], repoRoot()))
 
 /** Tracked files that differ between `base` and the working tree. */
 export const diffFiles = (base: string): readonly string[] =>
@@ -338,19 +336,34 @@ export const remoteExists = (remote: string, cwd?: string): boolean =>
  * usable for the commits-ahead check; an empty string means neither exists,
  * which the caller reports as its own refusal rather than this throwing.
  */
-export const upstreamBase = (remote: string, base: string, cwd?: string): string => {
+export const upstreamBase = (
+  remote: string,
+  base: string,
+  cwd?: string,
+): string => {
   const tracking = `refs/remotes/${remote}/${base}`
-  if (run(['rev-parse', '--verify', '--quiet', `${tracking}^{commit}`], cwd).status === 0) {
+  if (
+    run(['rev-parse', '--verify', '--quiet', `${tracking}^{commit}`], cwd)
+      .status === 0
+  ) {
     return tracking
   }
-  return run(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], cwd).status === 0
+  return run(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], cwd)
+    .status === 0
     ? base
     : ''
 }
 
 /** How many commits `head` has that `baseRef` does not. */
-export const commitsAhead = (baseRef: string, head: string, cwd?: string): number => {
-  const count = gitOutput(['rev-list', '--count', `${baseRef}..${head}`], cwd).trim()
+export const commitsAhead = (
+  baseRef: string,
+  head: string,
+  cwd?: string,
+): number => {
+  const count = gitOutput(
+    ['rev-list', '--count', `${baseRef}..${head}`],
+    cwd,
+  ).trim()
   return /^\d+$/.test(count) ? Number(count) : 0
 }
 
@@ -360,7 +373,11 @@ export const commitsAhead = (baseRef: string, head: string, cwd?: string): numbe
  * feature pushes from. Throws git's own stderr; no reason of pi-crust's own
  * is substituted for it.
  */
-export const pushBranch = (remote: string, branch: string, cwd: string): void => {
+export const pushBranch = (
+  remote: string,
+  branch: string,
+  cwd: string,
+): void => {
   gitAt(cwd, 'push', '--set-upstream', remote, branch)
 }
 

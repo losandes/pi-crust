@@ -58,16 +58,7 @@ test(
     // given — the strip filter only matches `--run-id` and `--resume` by
     // their long names, so a short-launched run would otherwise carry both
     // the old short flag and the newly appended long one
-    const argv = [
-      'bun',
-      '/x/compose.ts',
-      'p',
-      '-l',
-      'sdlc',
-      '-id',
-      'old',
-      '-r',
-    ]
+    const argv = ['bun', '/x/compose.ts', 'p', '-l', 'sdlc', '-id', 'old', '-r']
 
     // when
     const actual = resumeArgv(argv, 'new')
@@ -126,7 +117,11 @@ test(
     // given — this is why argv is recorded as a list rather than reconstructed
     // from the space-joined command in the processes table
     const dir = sessionWith({
-      argv: ['bun', '/pkg/runtime/stages/triage.ts', 'name the directories. change nothing.'],
+      argv: [
+        'bun',
+        '/pkg/runtime/stages/triage.ts',
+        'name the directories. change nothing.',
+      ],
       cwd: '/app',
     })
 

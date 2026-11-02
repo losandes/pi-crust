@@ -1,24 +1,22 @@
 import { expect, test } from 'bun:test'
 import {
   ARCHIVED_OPTIONS,
+  cleared,
   DEFAULT_FILTERS,
   FILTER_STORAGE_KEY,
-  STATUS_ORDER,
-  cleared,
   isOptimisticallyHidden,
   matchesFilters,
   matchingOptions,
   needsArchived,
   optionsFor,
   readFilters,
+  STATUS_ORDER,
   saveFilters,
   toggled,
 } from './filters'
 import type { SessionSummary } from './types'
 
-const session = (
-  overrides: Partial<SessionSummary>,
-): SessionSummary =>
+const session = (overrides: Partial<SessionSummary>): SessionSummary =>
   ({
     run_id: 'run-1',
     lifecycle: 'plan + build',

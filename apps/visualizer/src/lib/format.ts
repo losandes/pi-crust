@@ -54,12 +54,15 @@ export function fmtOffset(ms: number): string {
   return mrem ? `${h}h${String(mrem).padStart(2, '0')}m` : `${h}h`
 }
 
-const TICK_STEPS_MS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600].map(
-  (s) => s * 1000,
-)
+const TICK_STEPS_MS = [
+  1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600,
+].map((s) => s * 1000)
 
 /** Evenly-stepped time-axis ticks over a span, ≤ maxTicks of them. */
-export function axisTicks(spanMs: number, maxTicks = 8): { pct: number; label: string }[] {
+export function axisTicks(
+  spanMs: number,
+  maxTicks = 8,
+): { pct: number; label: string }[] {
   const span = Math.max(spanMs, 1)
   const activity = TICK_STEPS_MS.find((s) => span / s <= maxTicks) ?? 3_600_000
   const out: { pct: number; label: string }[] = []
@@ -75,7 +78,8 @@ export function payloadOk(raw: string | null | undefined): boolean {
   if (!raw) return true
   try {
     const p: unknown = JSON.parse(raw)
-    if (p && typeof p === 'object' && 'ok' in p) return (p as { ok?: unknown }).ok !== false
+    if (p && typeof p === 'object' && 'ok' in p)
+      return (p as { ok?: unknown }).ok !== false
   } catch {
     /* not JSON — treat as ok */
   }

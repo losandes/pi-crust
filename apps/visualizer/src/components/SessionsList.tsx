@@ -73,7 +73,10 @@ export const SessionsList = () => {
    * /api/workspaces: a tree with nothing in it has nothing to filter to, and
    * a tree's colour in the dropdown has to be the colour on its cards.
    */
-  const labels = useMemo(() => optionsFor(poll.value, 'workspace'), [poll.value])
+  const labels = useMemo(
+    () => optionsFor(poll.value, 'workspace'),
+    [poll.value],
+  )
   const roles = useMemo(() => workspaceRoles(labels), [labels])
   // One tree is the ordinary case, and naming it on every card would be the
   // same word repeated down the page.
@@ -99,7 +102,9 @@ export const SessionsList = () => {
     // rather than threaded through FilterDropdown's props — Escape (1.2.9)
     // needs to return focus to it, and nothing else in this component does.
     triggerRef.current =
-      rowRef.current?.querySelector<HTMLElement>('button[aria-expanded="true"]') ?? null
+      rowRef.current?.querySelector<HTMLElement>(
+        'button[aria-expanded="true"]',
+      ) ?? null
 
     const onPointerDown = (event: PointerEvent) => {
       if (rowRef.current && !rowRef.current.contains(event.target as Node)) {
@@ -198,7 +203,9 @@ export const SessionsList = () => {
                   session={session}
                   nowMs={poll.at}
                   workspaceRole={
-                    several ? (roles.get(session.workspace) ?? 'blue') : undefined
+                    several
+                      ? (roles.get(session.workspace) ?? 'blue')
+                      : undefined
                   }
                   onArchived={onArchived}
                   onRefused={setRefused}
@@ -210,7 +217,9 @@ export const SessionsList = () => {
           )}
         </>
       ) : poll.loaded ? (
-        <div className="empty-state">no sessions yet — run an lifecycle to see it here</div>
+        <div className="empty-state">
+          no sessions yet — run an lifecycle to see it here
+        </div>
       ) : poll.error === undefined ? (
         <div className="empty-state">loading sessions…</div>
       ) : undefined}

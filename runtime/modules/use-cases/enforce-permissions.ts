@@ -203,7 +203,9 @@ export const permitted = (
    * agent's own session runtime stays always-writable there.
    */
   if (
-    alwaysWritable(cfg, handoffDir).some((pattern) => matchesPattern(path, pattern))
+    alwaysWritable(cfg, handoffDir).some((pattern) =>
+      matchesPattern(path, pattern),
+    )
   ) {
     return true
   }
@@ -269,7 +271,7 @@ export const commitBreach = (before: TRepoBefore): readonly string[] => {
     ? []
     : [
         `HEAD moved from ${before.head.slice(0, 7)} to ${head.slice(0, 7)} — ` +
-          'this activity was not committing, and committing is the engine\'s ' +
+          "this activity was not committing, and committing is the engine's " +
           'to do. Left in history; undo it yourself if it is wrong.',
       ]
 }
@@ -337,7 +339,10 @@ export const enforcePermissions = (
   siblings: readonly TAgentConfig[] = [],
 ): TPermissionReport => {
   const before = repoBefore.tree
-  const after = snapshotTree({ workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot })
+  const after = snapshotTree({
+    workspaceRoot: run.repoRoot,
+    vcsRoot: run.vcsRoot,
+  })
   const touched = changedPaths(before, after)
   const resolveFor = (one: TAgentConfig): readonly string[] =>
     resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)

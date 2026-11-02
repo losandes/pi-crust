@@ -22,7 +22,16 @@ export const FilterDropdown = (
     onSelectAll: () => void
   }>,
 ) => {
-  const { label, options, selected, open, colorOf, onOpen, onToggle, onSelectAll } = props
+  const {
+    label,
+    options,
+    selected,
+    open,
+    colorOf,
+    onOpen,
+    onToggle,
+    onSelectAll,
+  } = props
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -69,7 +78,13 @@ export const FilterDropdown = (
                 checked={selected.includes(option)}
                 onChange={() => onToggle(option)}
               />
-              <span style={colorOf ? { color: paletteColor(colorOf(option) ?? 'blue') } : undefined}>
+              <span
+                style={
+                  colorOf
+                    ? { color: paletteColor(colorOf(option) ?? 'blue') }
+                    : undefined
+                }
+              >
                 {option}
               </span>
             </label>

@@ -205,13 +205,15 @@ export const visibleWindow = (
    * would make drawing a menu quadratic in the thing being drawn.
    */
   const reachFrom = (start: number): number =>
-    costs.slice(start).reduce<Readonly<{ used: number; count: number }>>(
-      (acc, cost) =>
-        acc.used + cost <= budget
-          ? { used: acc.used + cost, count: acc.count + 1 }
-          : acc,
-      { used: 0, count: 0 },
-    ).count + start
+    costs
+      .slice(start)
+      .reduce<Readonly<{ used: number; count: number }>>(
+        (acc, cost) =>
+          acc.used + cost <= budget
+            ? { used: acc.used + cost, count: acc.count + 1 }
+            : acc,
+        { used: 0, count: 0 },
+      ).count + start
 
   const fromTop = reachFrom(0)
   if (cursor < fromTop) return { start: 0, end: Math.max(fromTop, cursor + 1) }

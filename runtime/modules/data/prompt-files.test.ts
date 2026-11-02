@@ -146,7 +146,11 @@ test(
     const auditDir = join(dir, 'context_handoff')
 
     // when
-    const path = savePrompt(auditDir, 'build.prompt.md', 'the exact prompt sent\n')
+    const path = savePrompt(
+      auditDir,
+      'build.prompt.md',
+      'the exact prompt sent\n',
+    )
 
     // then
     expect(path).toEqual(join(auditDir, 'build.prompt.md'))

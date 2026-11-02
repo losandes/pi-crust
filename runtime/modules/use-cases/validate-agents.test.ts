@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { crustConfigSchema } from '../typedefs/config'
 import type { TPiCrustConfig } from '../typedefs/config'
+import { crustConfigSchema } from '../typedefs/config'
 import { validateAgents } from './validate-agents'
 
 /**
@@ -34,7 +34,10 @@ const configWith = (
     })),
   })
 
-const problemsFrom = (cfg: TPiCrustConfig, names: readonly string[]): string => {
+const problemsFrom = (
+  cfg: TPiCrustConfig,
+  names: readonly string[],
+): string => {
   try {
     validateAgents(cfg, names)
 

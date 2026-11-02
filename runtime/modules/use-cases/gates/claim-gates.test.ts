@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
@@ -12,7 +12,10 @@ import {
   jsonParses,
 } from './claim-gates'
 
-const traced = (): { run: TRun; events: Readonly<Record<string, unknown>>[] } => {
+const traced = (): {
+  run: TRun
+  events: Readonly<Record<string, unknown>>[]
+} => {
   const events: Record<string, unknown>[] = []
   const run = {
     runId: 'aaaa1111',
@@ -488,6 +491,8 @@ test(
     // then
     expect(violationsOf(report)).toHaveLength(0)
     expect(report.checks[0]?.note).toContain('(workspace)')
-    expect(events.find((event) => event.name === 'tree_warning')).toBeUndefined()
+    expect(
+      events.find((event) => event.name === 'tree_warning'),
+    ).toBeUndefined()
   },
 )

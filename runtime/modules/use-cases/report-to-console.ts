@@ -15,18 +15,18 @@ import {
   plain,
   writeLine,
 } from '../data/terminal'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TGateReport } from '../typedefs/gate'
 import { reportPassed, violationsOf } from '../typedefs/gate'
-import type { TActivityRun } from '../typedefs/activity-run'
 import type { TConsole } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
-import { counts } from './run-activity-run'
 import {
   renderWarnings,
   WARNING_EVENT,
   warningFromPayload,
 } from '../typedefs/warning'
+import { counts } from './run-activity-run'
 
 const thousands = (value: number): string => value.toLocaleString('en-US')
 
@@ -35,7 +35,11 @@ export const PROMPT_BODY_LINES = 40
 export const PROMPT_BODY_CHARS = 2000
 
 const promptBody = (prompt: string): string =>
-  prompt.split('\n').slice(0, PROMPT_BODY_LINES).join('\n').slice(0, PROMPT_BODY_CHARS)
+  prompt
+    .split('\n')
+    .slice(0, PROMPT_BODY_LINES)
+    .join('\n')
+    .slice(0, PROMPT_BODY_CHARS)
 
 /** Bound to one run's tracer. Reachable as `run.console` everywhere. */
 export const createConsole = (tracer: TTracer, runId: string): TConsole => {
@@ -119,13 +123,11 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
        * word on the run and a warning under it reads as a footnote.
        */
       for (const line of renderWarnings(
-        tracer
-          .eventsNamed(runId, WARNING_EVENT)
-          .flatMap((payload) => {
-            const warning = warningFromPayload(payload)
+        tracer.eventsNamed(runId, WARNING_EVENT).flatMap((payload) => {
+          const warning = warningFromPayload(payload)
 
-            return warning === undefined ? [] : [warning]
-          }),
+          return warning === undefined ? [] : [warning]
+        }),
       )) {
         emit(line, 'warn', line === '' ? '' : paint(line, 'yellow'))
       }
@@ -136,7 +138,9 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
        * specs/todos/FIX-SUPERSEDED-RUN-VERDICT.md).
        */
       const judged = tracer.activityRunsFor(runId).filter(counts)
-      const passed = judged.filter((activityRun) => activityRun.status === 'success').length
+      const passed = judged.filter(
+        (activityRun) => activityRun.status === 'success',
+      ).length
       const status = ok ? paint('✓ success', 'green') : paint('✗ fail', 'red')
       const rows = [
         `${paint('status', 'dim')}   ${status}`,
@@ -176,7 +180,9 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
       const mark = ok ? paint('✓', 'green') : paint('✗', 'red')
       emit(
         `  ${mark} ${activityRun.params.name} ${paint(`${seconds.toFixed(1)}s`, 'dim')}` +
-          (ok || !activityRun.error ? '' : `  ${paint(clip(activityRun.error), 'red')}`),
+          (ok || !activityRun.error
+            ? ''
+            : `  ${paint(clip(activityRun.error), 'red')}`),
         ok ? 'info' : 'error',
       )
       activityRunId = ''

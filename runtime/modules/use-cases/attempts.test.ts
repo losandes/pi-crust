@@ -128,8 +128,6 @@ test(
     const actual = reviseCause(given)
 
     // then
-    expect(actual).toEqual(
-      'revise round 2 after a review that did not approve',
-    )
+    expect(actual).toEqual('revise round 2 after a review that did not approve')
   },
 )

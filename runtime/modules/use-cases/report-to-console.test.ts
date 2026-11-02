@@ -7,10 +7,10 @@ import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { activityRunParams } from '../typedefs/activity-run'
 import { crustConfigSchema } from '../typedefs/config'
 import type { TEnvelopeBase } from '../typedefs/envelope'
+import type { TGateReport } from '../typedefs/gate'
 import type { TRun } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
 import { checks } from './gates/checks-gate'
-import type { TGateReport } from '../typedefs/gate'
 import {
   createConsole,
   PROMPT_BODY_CHARS,
@@ -113,7 +113,9 @@ const tracedRunTracer = (): Readonly<{
       return ''
     },
     eventsNamed: (_runId: string, name: string) =>
-      filed.filter((event) => event.name === name).map((event) => event.payload ?? {}),
+      filed
+        .filter((event) => event.name === name)
+        .map((event) => event.payload ?? {}),
     // the end-of-run ratio is read from the trace now, and this run has no rows
     activityRunsFor: () => [],
   } as unknown as TTracer
@@ -152,7 +154,12 @@ test(
       cfg: crustConfigSchema.parse({
         routing: {
           checks: [
-            { name: 'lint', when: ['**/*.md'], operation: 'lint', argv: ['true'] },
+            {
+              name: 'lint',
+              when: ['**/*.md'],
+              operation: 'lint',
+              argv: ['true'],
+            },
           ],
         },
         agents: [],
@@ -382,7 +389,9 @@ test(
     console_.note('resolved against the VCS root')
 
     // then
-    expect(messages.some((line) => line.includes('resolved against the VCS root'))).toBe(true)
+    expect(
+      messages.some((line) => line.includes('resolved against the VCS root')),
+    ).toBe(true)
   },
 )
 
@@ -398,7 +407,11 @@ test(
     const console_ = createConsole(tracer, 'aaaa1111')
 
     // when
-    console_.instructions(['just crust report aaaa1111', '', 'to see what happened'])
+    console_.instructions([
+      'just crust report aaaa1111',
+      '',
+      'to see what happened',
+    ])
 
     // then
     expect(messages).toContain('  just crust report aaaa1111')
@@ -422,7 +435,9 @@ test(
     console_.agentFinished('technical-architect', 1200, 0.05)
 
     // then
-    expect(messages.some((line) => line.includes('session session-1'))).toBe(true)
+    expect(messages.some((line) => line.includes('session session-1'))).toBe(
+      true,
+    )
     expect(messages.some((line) => line.includes('1,200 tokens'))).toBe(true)
   },
 )
@@ -469,7 +484,9 @@ test(
 
     // then
     expect(messages.some((line) => line.includes('1 of 2 failed'))).toBe(true)
-    expect(messages.some((line) => line.includes('no test covers this path'))).toBe(true)
+    expect(
+      messages.some((line) => line.includes('no test covers this path')),
+    ).toBe(true)
   },
 )
 
@@ -510,8 +527,12 @@ test(
     console_.narrate('technical-architect', 'thinking', 'weighing two options')
 
     // then
-    expect(messages.some((line) => line.includes('technical-architect thinking'))).toBe(true)
-    expect(messages.some((line) => line.includes('weighing two options'))).toBe(true)
+    expect(
+      messages.some((line) => line.includes('technical-architect thinking')),
+    ).toBe(true)
+    expect(messages.some((line) => line.includes('weighing two options'))).toBe(
+      true,
+    )
   },
 )
 
@@ -530,8 +551,12 @@ test(
     console_.narrate('technical-architect', 'text', 'here is the plan')
 
     // then
-    expect(messages.some((line) => line === '  > technical-architect')).toBe(true)
-    expect(messages.some((line) => line.includes('here is the plan'))).toBe(true)
+    expect(messages.some((line) => line === '  > technical-architect')).toBe(
+      true,
+    )
+    expect(messages.some((line) => line.includes('here is the plan'))).toBe(
+      true,
+    )
   },
 )
 
@@ -555,7 +580,11 @@ test(
     console_.envelopeSummary('DiagnosisOutput', envelope)
 
     // then
-    expect(messages.some((line) => line.includes('could not reproduce the bug'))).toBe(true)
-    expect(messages.some((line) => line.includes('artifacts: notes.md'))).toBe(true)
+    expect(
+      messages.some((line) => line.includes('could not reproduce the bug')),
+    ).toBe(true)
+    expect(messages.some((line) => line.includes('artifacts: notes.md'))).toBe(
+      true,
+    )
   },
 )

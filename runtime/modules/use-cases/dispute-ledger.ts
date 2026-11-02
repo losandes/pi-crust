@@ -18,9 +18,9 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { isFile, readText, writeText } from '../data/files'
 import { normalise } from '../typedefs/dispute'
+import type { TBuildOutput, TReviewOutput } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
-import type { TBuildOutput, TReviewOutput } from '../typedefs/envelope'
 
 /**
  * The ledger's shape, as a schema rather than only a type.
@@ -54,10 +54,7 @@ export type TRoundRecord = Readonly<{
   changed: number
 }>
 
-const evidenceFor = (
-  review: TReviewOutput,
-  blocking: string,
-): string => {
+const evidenceFor = (review: TReviewOutput, blocking: string): string => {
   const match = review.findings.find(
     (finding) => normalise(finding.requirement) === blocking,
   )
@@ -161,7 +158,9 @@ export const readLedger = (run: TRun): readonly TRoundRecord[] => {
   if (!isFile(path)) {
     return []
   }
-  const settled = safeParseSettlement(() => ledgerSchema.parse(JSON.parse(readText(path))))
+  const settled = safeParseSettlement(() =>
+    ledgerSchema.parse(JSON.parse(readText(path))),
+  )
   if (settled.status === 'error') {
     run.console.note(
       `ignoring an unreadable dispute ledger at ${path}: ${errorMessage(settled.error)}`,
@@ -171,6 +170,9 @@ export const readLedger = (run: TRun): readonly TRoundRecord[] => {
   return settled.data
 }
 
-export const writeLedger = (run: TRun, rounds: readonly TRoundRecord[]): void => {
+export const writeLedger = (
+  run: TRun,
+  rounds: readonly TRoundRecord[],
+): void => {
   writeText(ledgerPath(run), `${JSON.stringify(rounds, null, 2)}\n`)
 }

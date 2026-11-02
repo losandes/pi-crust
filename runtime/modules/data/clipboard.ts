@@ -21,13 +21,15 @@ export type TCopied = Readonly<{ copied: boolean; how: string }>
  * Wayland before X11 because a Wayland session usually still has `xclip`
  * present and talking to an X server that is not the one you can see.
  */
-const COPIERS: readonly Readonly<{ command: readonly string[]; how: string }>[] =
-  [
-    { command: ['pbcopy'], how: 'pbcopy' },
-    { command: ['wl-copy'], how: 'wl-copy' },
-    { command: ['xclip', '-selection', 'clipboard'], how: 'xclip' },
-    { command: ['xsel', '--clipboard', '--input'], how: 'xsel' },
-  ]
+const COPIERS: readonly Readonly<{
+  command: readonly string[]
+  how: string
+}>[] = [
+  { command: ['pbcopy'], how: 'pbcopy' },
+  { command: ['wl-copy'], how: 'wl-copy' },
+  { command: ['xclip', '-selection', 'clipboard'], how: 'xclip' },
+  { command: ['xsel', '--clipboard', '--input'], how: 'xsel' },
+]
 
 /**
  * One attempt, settled rather than thrown.

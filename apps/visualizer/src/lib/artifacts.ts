@@ -111,7 +111,8 @@ const payloadOf = (envelope: Envelope): TPayload => {
 const strings = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+const text = (value: unknown): string =>
+  typeof value === 'string' ? value : ''
 
 /**
  * What each activityRun was observed to write, newest observation per activityRun.
@@ -215,7 +216,8 @@ export const runArtifacts = (params: {
 export const activityRunArtifacts = (
   all: readonly TArtifact[],
   activityRunId: string,
-): readonly TArtifact[] => all.filter((entry) => entry.activityRunId === activityRunId)
+): readonly TArtifact[] =>
+  all.filter((entry) => entry.activityRunId === activityRunId)
 
 /**
  * A activityRun that changed or removed a document belonging to another activityRun.

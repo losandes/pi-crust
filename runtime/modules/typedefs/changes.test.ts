@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { baseRefLabel, changeSetEmpty, isRange } from './changes'
 import type { TChangeSet } from './changes'
+import { baseRefLabel, changeSetEmpty, isRange } from './changes'
 
 test(
   [

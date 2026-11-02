@@ -4,14 +4,17 @@ import { useMemo } from 'react'
 import { agentColor, hexAlpha, parseAgentStart } from '../lib/events'
 import { axisTicks, fmtDate, payloadOk, ts } from '../lib/format'
 import { modelIcon, modelName } from '../lib/models'
+import { runNoticesOf } from '../lib/notices'
+import { paletteColor } from '../lib/palette'
 import { navigate } from '../lib/router'
 import type {
-  AgentStartPayload,
-  EventRow,
   ActivityRun,
   ActivityRunKind,
+  AgentStartPayload,
+  EventRow,
 } from '../lib/types'
 import { useTrace } from '../lib/use-trace'
+import { warningsIn } from '../lib/warnings'
 import {
   blockLayout,
   contextFill,
@@ -19,22 +22,19 @@ import {
   laneContext,
   originMs as postOriginMs,
   REQ_ZONE_PCT,
+  type TLaneContext,
   timeRange,
   toolTickPositions,
-  type TLaneContext,
 } from '../lib/waterfall'
+import { ActivityRunDetail } from './ActivityRunDetail'
 import { DecisionRequest } from './DecisionRequest'
 import { RunControls } from './RunControls'
+import { RunNotices } from './RunNotices'
 import { SessionContext } from './SessionContext'
-import { ActivityRunDetail } from './ActivityRunDetail'
+import styles from './SessionTrace.module.css'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
 import { TreeWarnings } from './TreeWarnings'
-import { RunNotices } from './RunNotices'
-import { runNoticesOf } from '../lib/notices'
-import { warningsIn } from '../lib/warnings'
-import styles from './SessionTrace.module.css'
-import { paletteColor } from '../lib/palette'
 
 // The two lanes nobody configures: the request itself, and the code activityRuns
 // that run without an agent. Roles like every other lane, so they re-theme
@@ -42,13 +42,18 @@ import { paletteColor } from '../lib/palette'
 const ENGINEER_COLOR = 'amber'
 const CODE_COLOR = 'teal'
 
-type TIconProps = Readonly<{ size?: number; strokeWidth?: number; className?: string }>
+type TIconProps = Readonly<{
+  size?: number
+  strokeWidth?: number
+  className?: string
+}>
 
-const KIND_ICONS: Readonly<Record<ActivityRunKind, ComponentType<TIconProps>>> = {
-  engineer: UserRound,
-  code: SquareTerminal,
-  agent: Bot,
-}
+const KIND_ICONS: Readonly<Record<ActivityRunKind, ComponentType<TIconProps>>> =
+  {
+    engineer: UserRound,
+    code: SquareTerminal,
+    agent: Bot,
+  }
 
 const STATUS_GLYPH: Readonly<Record<string, string>> = {
   success: '\u2713',
@@ -81,20 +86,27 @@ const startsByOwner = (
   activityRuns: readonly ActivityRun[],
   events: readonly EventRow[],
 ): Readonly<Record<string, AgentStartPayload>> => {
-  const ownerByActivityRun = new Map(activityRuns.map((p) => [p.activity_run_id, p.owner]))
+  const ownerByActivityRun = new Map(
+    activityRuns.map((p) => [p.activity_run_id, p.owner]),
+  )
   // The FIRST agent_start per owner wins, so a Set of owners already claimed
   // decides what the later map/filter keeps, and the final object is built
   // once from entries rather than one field at a time with a growing spread.
   const claimed = new Set<string>()
-  const entries = events.flatMap((event): readonly [string, AgentStartPayload][] => {
-    if (event.type !== 'agent_start') return []
-    const owner = (event.activity_run_id ? ownerByActivityRun.get(event.activity_run_id) : null) ?? event.name
-    if (!owner || claimed.has(owner)) return []
-    const payload = parseAgentStart(event)
-    if (!payload) return []
-    claimed.add(owner)
-    return [[owner, payload]]
-  })
+  const entries = events.flatMap(
+    (event): readonly [string, AgentStartPayload][] => {
+      if (event.type !== 'agent_start') return []
+      const owner =
+        (event.activity_run_id
+          ? ownerByActivityRun.get(event.activity_run_id)
+          : null) ?? event.name
+      if (!owner || claimed.has(owner)) return []
+      const payload = parseAgentStart(event)
+      if (!payload) return []
+      claimed.add(owner)
+      return [[owner, payload]]
+    },
+  )
   return Object.fromEntries(entries)
 }
 
@@ -112,14 +124,18 @@ export const SessionTrace = ({
   const { session, handoffDir, activityRuns, agents, events, nowMs } = trace
   const running = session?.status === 'running'
 
-  const selectedActivityRun = activityRuns.find((p) => p.activity_run_id === activityRunId)
+  const selectedActivityRun = activityRuns.find(
+    (p) => p.activity_run_id === activityRunId,
+  )
 
   const lanes = useMemo<readonly TLane[]>(() => {
     const starts = startsByOwner(activityRuns, events)
     const agentOwners = [
       ...new Set(
         activityRuns
-          .filter((activityRun) => activityRun.kind === 'agent' && activityRun.owner)
+          .filter(
+            (activityRun) => activityRun.kind === 'agent' && activityRun.owner,
+          )
           .map((activityRun) => activityRun.owner as string),
       ),
     ]
@@ -165,7 +181,9 @@ export const SessionTrace = ({
         metaLines: [],
         color: agentColor(info?.color, start?.color, index),
         kind: 'agent',
-        activityRuns: activityRuns.filter((p) => p.kind === 'agent' && p.owner === owner),
+        activityRuns: activityRuns.filter(
+          (p) => p.kind === 'agent' && p.owner === owner,
+        ),
       }
     })
 
@@ -173,11 +191,20 @@ export const SessionTrace = ({
   }, [activityRuns, agents, events, session?.engineer])
 
   const range = useMemo(
-    () => timeRange(activityRuns, session?.started_at, session?.ended_at, running, nowMs),
+    () =>
+      timeRange(
+        activityRuns,
+        session?.started_at,
+        session?.ended_at,
+        running,
+        nowMs,
+      ),
     [activityRuns, session?.started_at, session?.ended_at, running, nowMs],
   )
 
-  const requestActivityRun = activityRuns.find((p) => p.kind === 'engineer' && p.started_at)
+  const requestActivityRun = activityRuns.find(
+    (p) => p.kind === 'engineer' && p.started_at,
+  )
   const zonePct = requestActivityRun === undefined ? 0 : REQ_ZONE_PCT
   const origin = useMemo(
     () => postOriginMs(activityRuns, requestActivityRun, range),
@@ -203,12 +230,22 @@ export const SessionTrace = ({
         requestActivityRunId: requestActivityRun?.activity_run_id,
         nowMs,
       }),
-    [activityRuns, zonePct, origin, postSpan, requestActivityRun?.activity_run_id, nowMs],
+    [
+      activityRuns,
+      zonePct,
+      origin,
+      postSpan,
+      requestActivityRun?.activity_run_id,
+      nowMs,
+    ],
   )
 
   /** Tool-call marks per activityRun, read once rather than per block. */
   const marksByActivityRun = useMemo(() => {
-    const map = new Map<string, readonly { id: string; t: number; ok: boolean }[]>()
+    const map = new Map<
+      string,
+      readonly { id: string; t: number; ok: boolean }[]
+    >()
     for (const event of events) {
       if (event.type !== 'tool_call' || !event.activity_run_id) continue
       const marks = map.get(event.activity_run_id) ?? []
@@ -224,9 +261,14 @@ export const SessionTrace = ({
     return map
   }, [events])
 
-  const blockGeom = (activityRun: ActivityRun): { left: string; width: string } | undefined => {
+  const blockGeom = (
+    activityRun: ActivityRun,
+  ): { left: string; width: string } | undefined => {
     // The request block fills its reserved zone; nothing else ever enters it.
-    if (activityRun.activity_run_id === requestActivityRun?.activity_run_id && zonePct > 0) {
+    if (
+      activityRun.activity_run_id === requestActivityRun?.activity_run_id &&
+      zonePct > 0
+    ) {
       return { left: '0.4%', width: `${zonePct - 0.8}%` }
     }
     const geom = layout[activityRun.activity_run_id]
@@ -235,7 +277,10 @@ export const SessionTrace = ({
       : { left: `${geom.left}%`, width: `${geom.width}%` }
   }
 
-  const blockStyle = (activityRun: ActivityRun, lane: TLane): CSSProperties | undefined => {
+  const blockStyle = (
+    activityRun: ActivityRun,
+    lane: TLane,
+  ): CSSProperties | undefined => {
     const geom = blockGeom(activityRun)
     if (geom === undefined) return undefined
     return {
@@ -253,7 +298,8 @@ export const SessionTrace = ({
   const blockDurationMs = (activityRun: ActivityRun): number => {
     const start = ts(activityRun.started_at)
     if (!Number.isFinite(start)) return Number.NaN
-    const end = activityRun.status === 'running' ? nowMs : ts(activityRun.ended_at)
+    const end =
+      activityRun.status === 'running' ? nowMs : ts(activityRun.ended_at)
     return Number.isFinite(end) ? end - start : Number.NaN
   }
 
@@ -267,14 +313,18 @@ export const SessionTrace = ({
   const selectActivityRun = (activityRun: ActivityRun) =>
     navigate(
       runId,
-      activityRun.activity_run_id === activityRunId ? undefined : activityRun.activity_run_id,
+      activityRun.activity_run_id === activityRunId
+        ? undefined
+        : activityRun.activity_run_id,
       workspace,
     )
 
   return (
     <div className={styles.trace}>
       {trace.error !== undefined && (
-        <div className="error-bar">api unreachable — retrying {trace.error}</div>
+        <div className="error-bar">
+          api unreachable — retrying {trace.error}
+        </div>
       )}
 
       {session !== undefined && (
@@ -300,7 +350,10 @@ export const SessionTrace = ({
             <div className={styles.label} />
             <div className={styles.track}>
               {zonePct > 0 && (
-                <span className={styles.zoneHead} style={{ width: `${zonePct}%` }}>
+                <span
+                  className={styles.zoneHead}
+                  style={{ width: `${zonePct}%` }}
+                >
                   request
                 </span>
               )}
@@ -323,8 +376,15 @@ export const SessionTrace = ({
             return (
               <div key={lane.id} className={`${styles.row} ${styles.lane}`}>
                 <div className={styles.label}>
-                  <span className={styles.laneName} style={{ color: paletteColor(lane.color) }}>
-                    <KindIcon className={styles.laneIcon} size={22} strokeWidth={2} />
+                  <span
+                    className={styles.laneName}
+                    style={{ color: paletteColor(lane.color) }}
+                  >
+                    <KindIcon
+                      className={styles.laneIcon}
+                      size={22}
+                      strokeWidth={2}
+                    />
                     {lane.label}
                   </span>
                   {lane.model !== undefined && (
@@ -345,7 +405,9 @@ export const SessionTrace = ({
                     >
                       <span className={styles.ctxHead}>
                         <span className={styles.ctxLabel}>Context</span>
-                        <span className={styles.ctxPct}>{contextLabel(lane.context)}</span>
+                        <span className={styles.ctxPct}>
+                          {contextLabel(lane.context)}
+                        </span>
                       </span>
                       <span className={styles.ctxBar}>
                         <span
@@ -367,7 +429,10 @@ export const SessionTrace = ({
                 </div>
                 <div className={styles.track}>
                   {zonePct > 0 && (
-                    <span className={styles.zoneDivider} style={{ left: `${zonePct}%` }} />
+                    <span
+                      className={styles.zoneDivider}
+                      style={{ left: `${zonePct}%` }}
+                    />
                   )}
                   {ticks.map((tick) => (
                     <span
@@ -377,11 +442,14 @@ export const SessionTrace = ({
                     />
                   ))}
                   {lane.activityRuns
-                    .filter((activityRun) => blockGeom(activityRun) !== undefined)
+                    .filter(
+                      (activityRun) => blockGeom(activityRun) !== undefined,
+                    )
                     .map((activityRun) => {
                       const duration = blockDurationMs(activityRun)
                       const tone = styles[activityRun.status ?? '']
-                      const selected = activityRun.activity_run_id === activityRunId
+                      const selected =
+                        activityRun.activity_run_id === activityRunId
                       return (
                         <button
                           key={activityRun.activity_run_id}
@@ -398,23 +466,40 @@ export const SessionTrace = ({
                           onClick={() => selectActivityRun(activityRun)}
                         >
                           <span className={styles.blockTop}>
-                            <span className={`${styles.blockStatus} ${tone ?? ''}`}>
-                              {STATUS_GLYPH[activityRun.status ?? ''] ?? '\u25cb'}
+                            <span
+                              className={`${styles.blockStatus} ${tone ?? ''}`}
+                            >
+                              {STATUS_GLYPH[activityRun.status ?? ''] ??
+                                '\u25cb'}
                             </span>
-                            <span className={styles.blockName}>{activityRun.name}</span>
+                            <span className={styles.blockName}>
+                              {activityRun.name}
+                            </span>
                             {Number.isFinite(duration) && (
-                              <StatChip kind="runtime" compact value={duration} />
+                              <StatChip
+                                kind="runtime"
+                                compact
+                                value={duration}
+                              />
                             )}
                           </span>
-                          <span className={styles.blockDesc}>{activityRun.description}</span>
+                          <span className={styles.blockDesc}>
+                            {activityRun.description}
+                          </span>
                           {toolTickPositions(
                             activityRun,
-                            marksByActivityRun.get(activityRun.activity_run_id) ?? [],
+                            marksByActivityRun.get(
+                              activityRun.activity_run_id,
+                            ) ?? [],
                             nowMs,
                           ).map((mark) => (
                             <span
                               key={mark.id}
-                              className={mark.ok ? styles.toolTick : `${styles.toolTick} ${styles.err}`}
+                              className={
+                                mark.ok
+                                  ? styles.toolTick
+                                  : `${styles.toolTick} ${styles.err}`
+                              }
                               style={{ left: `${mark.x}%` }}
                             />
                           ))}
@@ -428,7 +513,9 @@ export const SessionTrace = ({
                       className={[
                         styles.block,
                         styles.queued,
-                        activityRun.activity_run_id === activityRunId ? styles.selected : undefined,
+                        activityRun.activity_run_id === activityRunId
+                          ? styles.selected
+                          : undefined,
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -437,10 +524,14 @@ export const SessionTrace = ({
                       onClick={() => selectActivityRun(activityRun)}
                     >
                       <span className={styles.blockTop}>
-                        <span className={`${styles.blockStatus} ${styles.queued}`}>
+                        <span
+                          className={`${styles.blockStatus} ${styles.queued}`}
+                        >
                           {'\u25cb'}
                         </span>
-                        <span className={styles.blockName}>{activityRun.name}</span>
+                        <span className={styles.blockName}>
+                          {activityRun.name}
+                        </span>
                       </span>
                       <span className={styles.blockDesc}>queued</span>
                     </button>
@@ -451,7 +542,9 @@ export const SessionTrace = ({
           })}
         </div>
       ) : trace.loaded ? (
-        <div className="empty-state">no activityRuns recorded for this session</div>
+        <div className="empty-state">
+          no activityRuns recorded for this session
+        </div>
       ) : trace.error === undefined ? (
         <div className="empty-state">loading trace…</div>
       ) : undefined}

@@ -10,11 +10,11 @@
 import { parseToolCall } from './events'
 import { ts } from './format'
 import type {
+  ActivityRun,
   AgentEndPayload,
   EventRow,
   GateCheck,
   GateResult,
-  ActivityRun,
 } from './types'
 
 export type TUsageRow = Readonly<{
@@ -167,14 +167,19 @@ export const violations = (gate: GateResult): readonly string[] => {
  * line. An empty array means the gate ran and inspected nothing, which is a
  * real and different answer, and the UI says so in words.
  */
-export const gateChecks = (gate: GateResult): readonly GateCheck[] | undefined => {
+export const gateChecks = (
+  gate: GateResult,
+): readonly GateCheck[] | undefined => {
   const raw = gate.checks_json
   if (raw === null || raw === undefined) return undefined
   try {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return undefined
     return parsed
-      .filter((c): c is Record<string, unknown> => c !== null && typeof c === 'object')
+      .filter(
+        (c): c is Record<string, unknown> =>
+          c !== null && typeof c === 'object',
+      )
       .map((c) => ({
         item: typeof c.item === 'string' ? c.item : '',
         ok: c.ok === true,
@@ -188,7 +193,9 @@ export const gateChecks = (gate: GateResult): readonly GateCheck[] | undefined =
 /** Collapsed-row count label: mixed gates surface how many items failed. */
 export const checksLabel = (checks: readonly GateCheck[]): string => {
   const failed = checks.filter((check) => !check.ok).length
-  return failed > 0 ? `${failed} of ${checks.length} failed` : String(checks.length)
+  return failed > 0
+    ? `${failed} of ${checks.length} failed`
+    : String(checks.length)
 }
 
 export const eventDurationMs = (event: EventRow): number => {

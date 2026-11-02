@@ -3,16 +3,16 @@ import { useState } from 'react'
 import {
   sendConsult,
   sendDecision,
-  sendResume,
   sendMessage,
+  sendResume,
   sendSteer,
   type TWriteResult,
 } from '../lib/api'
-import { ConfirmDialog } from './ConfirmDialog'
-import { SteerDialog } from './SteerDialog'
-import { readToken, writeToken } from '../lib/token'
 import { hrefFor } from '../lib/router'
+import { readToken, writeToken } from '../lib/token'
+import { ConfirmDialog } from './ConfirmDialog'
 import styles from './RunControls.module.css'
+import { SteerDialog } from './SteerDialog'
 
 /**
  * What a reader can DO to a run, from the page they are already watching.
@@ -290,7 +290,13 @@ export const RunControls = ({
                 needsText('ask') ||
                 act(
                   () =>
-                    sendConsult(runId, consultStep ?? '', 'ask', text, workspace),
+                    sendConsult(
+                      runId,
+                      consultStep ?? '',
+                      'ask',
+                      text,
+                      workspace,
+                    ),
                   'asked — the answer appears in the conversation when it replies',
                   () => onConsultSent?.('ask', text),
                 )
@@ -307,7 +313,13 @@ export const RunControls = ({
                 needsText('amend') ||
                 act(
                   () =>
-                    sendConsult(runId, consultStep ?? '', 'amend', text, workspace),
+                    sendConsult(
+                      runId,
+                      consultStep ?? '',
+                      'amend',
+                      text,
+                      workspace,
+                    ),
                   'amending — the result appears in the conversation when it replies',
                   () => onConsultSent?.('amend', text),
                 )
@@ -331,7 +343,7 @@ export const RunControls = ({
                     text.trim() === ''
                       ? 'picked up where it stopped — nothing already green re-runs'
                       : 'picked up where it stopped — your note is now a standing ' +
-                        'instruction every activity from here reads',
+                          'instruction every activity from here reads',
                   )
                 }
               >
@@ -416,7 +428,10 @@ export const RunControls = ({
             (result) => {
               if (target !== 'branch') return
               const data = result.data as Readonly<{ branch_run_id?: unknown }>
-              if (typeof data.branch_run_id === 'string' && data.branch_run_id !== '') {
+              if (
+                typeof data.branch_run_id === 'string' &&
+                data.branch_run_id !== ''
+              ) {
                 setBranchRunId(data.branch_run_id)
               }
             },

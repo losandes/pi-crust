@@ -14,9 +14,9 @@ import {
   preamble,
   runConsult,
   sessionDirFor,
-  TOOLS,
   type TConsultMode,
   type TConsultRequest,
+  TOOLS,
 } from './consult'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-consult-'))
@@ -100,21 +100,17 @@ test(
     let refused = ''
 
     // when
-    const outcome = await runConsult(
-      request('amend', dirs),
-      () => {
-        // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — this test forces past the lock on purpose and must observe the OS error code it raised, not let it propagate
-        try {
-          writeFileSync(join(dirs.dir, 'plan.md'), 'trampled')
-        } catch (cause) {
-          refused = (cause as NodeJS.ErrnoException).code ?? 'refused'
-          chmodSync(join(dirs.dir, 'plan.md'), 0o644)
-          writeFileSync(join(dirs.dir, 'plan.md'), 'trampled')
-        }
-        return Promise.resolve({ ok: true, output: 'done' })
-      },
-      [],
-    )
+    const outcome = await runConsult(request('amend', dirs), () => {
+      // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — this test forces past the lock on purpose and must observe the OS error code it raised, not let it propagate
+      try {
+        writeFileSync(join(dirs.dir, 'plan.md'), 'trampled')
+      } catch (cause) {
+        refused = (cause as NodeJS.ErrnoException).code ?? 'refused'
+        chmodSync(join(dirs.dir, 'plan.md'), 0o644)
+        writeFileSync(join(dirs.dir, 'plan.md'), 'trampled')
+      }
+      return Promise.resolve({ ok: true, output: 'done' })
+    }, [])
 
     // then — the lock stopped the ordinary attempt, and what got through by
     // force was put back
@@ -141,14 +137,10 @@ test(
     let spawned = false
 
     // when
-    const outcome = await runConsult(
-      pruned,
-      () => {
-        spawned = true
-        return Promise.resolve({ ok: true, output: 'should never run' })
-      },
-      [],
-    )
+    const outcome = await runConsult(pruned, () => {
+      spawned = true
+      return Promise.resolve({ ok: true, output: 'should never run' })
+    }, [])
 
     // then
     expect(spawned).toBe(false)
@@ -178,9 +170,9 @@ test(
 
     // then
     expect(TOOLS.ask).toEqual(['read', 'grep', 'find', 'ls'])
-    expect(TOOLS.ask.some((tool) => ['write', 'edit', 'bash'].includes(tool))).toBe(
-      false,
-    )
+    expect(
+      TOOLS.ask.some((tool) => ['write', 'edit', 'bash'].includes(tool)),
+    ).toBe(false)
     expect(TOOLS.amend.includes('bash')).toBe(false)
     expect(argv).toContain('--print')
     expect(argv).toContain('crust-c35f2c7d-technical-architect-9650')
@@ -225,7 +217,7 @@ test(
 test(
   [
     'given use-cases/consult::sessionDirFor',
-    'when asked where a run keeps one agent\'s pi session',
+    "when asked where a run keeps one agent's pi session",
     'it should resolve under sessions/<run>/<agent>/pi_sessions',
   ].join(', '),
   () => {
@@ -237,7 +229,13 @@ test(
 
     // then
     expect(actual).toEqual(
-      join(dataDir, 'sessions', 'aaaa1111', 'technical-architect', 'pi_sessions'),
+      join(
+        dataDir,
+        'sessions',
+        'aaaa1111',
+        'technical-architect',
+        'pi_sessions',
+      ),
     )
   },
 )

@@ -10,17 +10,8 @@
  *   bun run server/index.ts --db /path/to/repo/.pi-crust/data/crust.db
  *   CRUST_DB=/path/to/crust.db CRUST_BE_PORT=4600 bun run server/index.ts
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
-import type { PiCrustDb } from "./db.ts";
-import { handoffDirFor } from "./handoff.ts";
-import { WorkspaceRegistry } from "./registry.ts";
-import { BUILTIN_THEMES, themesForWorkspace } from "./themes.ts";
-import {
-  registryPath,
-  registryStamp,
-  resolveWorkspaces,
-} from "./workspaces.ts";
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
 import type {
   AgentPrompts,
   ApiError,
@@ -28,18 +19,23 @@ import type {
   HandoffFile,
   HealthResponse,
   WorkspaceInfo,
-} from "../shared/types.ts";
+} from '../shared/types.ts'
+import type { PiCrustDb } from './db.ts'
+import { handoffDirFor } from './handoff.ts'
+import { WorkspaceRegistry } from './registry.ts'
+import { BUILTIN_THEMES, themesForWorkspace } from './themes.ts'
+import { registryPath, registryStamp, resolveWorkspaces } from './workspaces.ts'
 import {
   isInboxKind,
   postMessage,
-  startConsult,
-  startupFailure,
-  startSteer,
   recordDecision,
   refuseUnlessAuthorised,
   resumeRun,
+  startConsult,
   startRun,
-} from "./writes.ts";
+  startSteer,
+  startupFailure,
+} from './writes.ts'
 
 /*
  * CRUST_BE_PORT, and nothing else.
@@ -49,8 +45,8 @@ import {
  * is, the UI proxies to a port this process never bound and every request 404s
  * with nothing explaining why. A named variable cannot be set by accident.
  */
-const PORT = Number(process.env.CRUST_BE_PORT ?? 4600);
-const DIST_DIR = resolve(import.meta.dir, "..", "dist");
+const PORT = Number(process.env.CRUST_BE_PORT ?? 4600)
+const DIST_DIR = resolve(import.meta.dir, '..', 'dist')
 
 /**
  * Diagnostics go to the stream, not through `console`.
@@ -62,12 +58,12 @@ const DIST_DIR = resolve(import.meta.dir, "..", "dist");
  * to stderr, so piping one does not swallow the other.
  */
 const say = (line: string): void => {
-  process.stdout.write(`${line}\n`);
-};
+  process.stdout.write(`${line}\n`)
+}
 
 const warn = (line: string): void => {
-  process.stderr.write(`${line}\n`);
-};
+  process.stderr.write(`${line}\n`)
+}
 
 /*
  * The working trees this server watches.
@@ -82,8 +78,8 @@ const registry = new WorkspaceRegistry(resolveWorkspaces(), {
   // to see a new tree would mean restarting it exactly when it is in use.
   rescan: () => resolveWorkspaces(),
   stamp: () => registryStamp(registryPath()),
-});
-const initial = registry.states();
+})
+const initial = registry.states()
 
 /*
  * Refusing to start is right only when NOTHING is readable.
@@ -94,23 +90,23 @@ const initial = registry.states();
  */
 if (initial.every((state) => state.db === undefined)) {
   for (const state of initial) {
-    warn(`[crust] ${state.label}: ${state.error ?? "unreadable"}`);
+    warn(`[crust] ${state.label}: ${state.error ?? 'unreadable'}`)
   }
-  process.exit(1);
+  process.exit(1)
 }
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
     },
-  });
+  })
 }
 
 function notFound(message: string): Response {
-  return json({ error: message } satisfies ApiError, 404);
+  return json({ error: message } satisfies ApiError, 404)
 }
 
 /** Guard every handler so a malformed query can't take the server down mid-run. */
@@ -120,14 +116,14 @@ function safely(
   return async (req) => {
     // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, the one place a handler's exception becomes a 500 response instead of taking the server down
     try {
-      return await handler(req);
+      return await handler(req)
     } catch (error) {
       warn(
         `[crust] ${req.method} ${new URL(req.url).pathname}: ${String(error)}`,
-      );
-      return json({ error: (error as Error).message } satisfies ApiError, 500);
+      )
+      return json({ error: (error as Error).message } satisfies ApiError, 500)
     }
-  };
+  }
 }
 
 /**
@@ -135,16 +131,16 @@ function safely(
  * plain identifier is rejected outright rather than sanitized into something
  * that might still escape the sessions directory.
  */
-const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/
 
 function isSafeSegment(value: string): boolean {
-  return SAFE_SEGMENT.test(value) && value !== "." && value !== "..";
+  return SAFE_SEGMENT.test(value) && value !== '.' && value !== '..'
 }
 
 function param(req: Request, key: string): string {
   return decodeURIComponent(
-    (req as Request & { params: Record<string, string> }).params[key] ?? "",
-  );
+    (req as Request & { params: Record<string, string> }).params[key] ?? '',
+  )
 }
 
 /**
@@ -156,26 +152,26 @@ function param(req: Request, key: string): string {
  * from the wrong repository.
  */
 function workspaceQuery(req: Request): string | undefined {
-  const raw = new URL(req.url).searchParams.get("workspace");
-  return raw === null || raw.trim() === "" ? undefined : raw.trim();
+  const raw = new URL(req.url).searchParams.get('workspace')
+  return raw === null || raw.trim() === '' ? undefined : raw.trim()
 }
 
 /** The database holding this run, honouring an explicit workspace. */
 function forRun(req: Request, runId: string): PiCrustDb | undefined {
-  return registry.resolve(runId, workspaceQuery(req));
+  return registry.resolve(runId, workspaceQuery(req))
 }
 
 function intQuery(req: Request, key: string, fallback: number): number {
-  const raw = new URL(req.url).searchParams.get(key);
-  if (raw === null || raw.trim() === "") return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  const raw = new URL(req.url).searchParams.get(key)
+  if (raw === null || raw.trim() === '') return fallback
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) ? parsed : fallback
 }
 
 /** `"1"` or `"true"` only — anything absent or else preserves today's behaviour. */
 function boolQuery(req: Request, key: string): boolean {
-  const raw = new URL(req.url).searchParams.get(key);
-  return raw === "1" || raw === "true";
+  const raw = new URL(req.url).searchParams.get(key)
+  return raw === '1' || raw === 'true'
 }
 
 /**
@@ -187,13 +183,13 @@ function boolQuery(req: Request, key: string): boolean {
  * should not read half a megabyte to draw ten lines of text.
  */
 function listHandoff(dir: string): HandoffFile[] {
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) return []
   const walk = (current: string, prefix: string): HandoffFile[] =>
     readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
-      const full = join(current, entry.name);
-      const path = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
-      if (entry.isDirectory()) return walk(full, path);
-      if (!entry.isFile()) return [];
+      const full = join(current, entry.name)
+      const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+      if (entry.isDirectory()) return walk(full, path)
+      if (!entry.isFile()) return []
       return [
         {
           path: `context_handoff/${path}`,
@@ -201,22 +197,22 @@ function listHandoff(dir: string): HandoffFile[] {
           modified_at: statSync(full).mtime.toISOString(),
           title: firstHeading(full),
         },
-      ];
-    });
-  return walk(dir, "");
+      ]
+    })
+  return walk(dir, '')
 }
 
 const firstHeading = (file: string): string => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: an unreadable file still exists, and saying so is the point, decided right here
   try {
-    const head = readFileSync(file, "utf8").slice(0, 1024);
-    const match = /^#\s+(.+)$/m.exec(head);
-    return match?.[1]?.trim() ?? "";
+    const head = readFileSync(file, 'utf8').slice(0, 1024)
+    const match = /^#\s+(.+)$/m.exec(head)
+    return match?.[1]?.trim() ?? ''
   } catch (cause) {
-    void cause;
-    return "";
+    void cause
+    return ''
   }
-};
+}
 
 /** Every watched tree as the UI sees it, reachable or not. */
 function describeWorkspaces(): WorkspaceInfo[] {
@@ -227,7 +223,7 @@ function describeWorkspaces(): WorkspaceInfo[] {
     available: state.db !== undefined,
     ...(state.error === undefined ? {} : { error: state.error }),
     sessions: state.db?.sessionCount() ?? 0,
-  }));
+  }))
 }
 
 /**
@@ -239,58 +235,58 @@ function describeWorkspaces(): WorkspaceInfo[] {
  * instead of choosing.
  */
 function soleWorkspace(): PiCrustDb | undefined {
-  const available = registry.states().filter((state) => state.db !== undefined);
-  return available.length === 1 ? available[0]?.db : undefined;
+  const available = registry.states().filter((state) => state.db !== undefined)
+  return available.length === 1 ? available[0]?.db : undefined
 }
 
 /** Serve the built SPA if it has been built; otherwise point at the dev server. */
 function serveStatic(req: Request): Response {
-  const { pathname } = new URL(req.url);
+  const { pathname } = new URL(req.url)
 
   if (!existsSync(DIST_DIR)) {
     return new Response(
       `pi-crust visualizer API is running on :${PORT}.\n\n` +
         `No ./dist build found. Run "bun run dev" for the Vite dev server ` +
         `(it proxies /api here), or "bun run build" to serve the UI from this process.\n`,
-      { status: 200, headers: { "content-type": "text/plain; charset=utf-8" } },
-    );
+      { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+    )
   }
 
   // Reject traversal before touching the filesystem.
-  const candidate = resolve(join(DIST_DIR, pathname));
+  const candidate = resolve(join(DIST_DIR, pathname))
   if (candidate === DIST_DIR || candidate.startsWith(`${DIST_DIR}/`)) {
     if (existsSync(candidate) && statSync(candidate).isFile()) {
-      return new Response(Bun.file(candidate));
+      return new Response(Bun.file(candidate))
     }
   }
 
   // SPA fallback: breadcrumb routes are client-side.
-  const indexHtml = join(DIST_DIR, "index.html");
+  const indexHtml = join(DIST_DIR, 'index.html')
   if (existsSync(indexHtml)) {
     return new Response(Bun.file(indexHtml), {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })
   }
-  return notFound("not found");
+  return notFound('not found')
 }
 
 const server = Bun.serve({
   port: PORT,
   routes: {
-    "/api/health": safely(() => {
-      const states = registry.states();
-      const first = states.find((state) => state.db !== undefined);
+    '/api/health': safely(() => {
+      const states = registry.states()
+      const first = states.find((state) => state.db !== undefined)
       return json({
         ok: true,
-        db: first?.dbPath ?? "",
-        journal_mode: first?.db?.journalMode ?? "unknown",
+        db: first?.dbPath ?? '',
+        journal_mode: first?.db?.journalMode ?? 'unknown',
         sessions: registry.sessionCount(),
         workspaces: describeWorkspaces(),
-      } satisfies HealthResponse);
+      } satisfies HealthResponse)
     }),
 
     /** Every watched tree, including the ones that cannot currently be read. */
-    "/api/workspaces": safely(() => json(describeWorkspaces())),
+    '/api/workspaces': safely(() => json(describeWorkspaces())),
 
     /*
      * The themes a workspace registers.
@@ -300,44 +296,44 @@ const server = Bun.serve({
      * statement about itself. Absent a workspace, the first one answers —
      * the picker has to show something before anything is selected.
      */
-    "/api/themes": safely((req) => {
-      const label = workspaceQuery(req);
-      const watched = registry.states();
+    '/api/themes': safely((req) => {
+      const label = workspaceQuery(req)
+      const watched = registry.states()
       if (watched.length === 0) {
         return json({
-          default: "auto",
+          default: 'auto',
           themes: BUILTIN_THEMES,
-          problem: "no workspace is being watched",
-        });
+          problem: 'no workspace is being watched',
+        })
       }
-      const found = themesForWorkspace(watched, label);
+      const found = themesForWorkspace(watched, label)
       if (found === undefined) {
-        return notFound(`no workspace ${label}`);
+        return notFound(`no workspace ${label}`)
       }
-      return json(found);
+      return json(found)
     }),
 
-    "/api/sessions": safely((req) => {
-      const label = workspaceQuery(req);
-      const limit = intQuery(req, "limit", 200);
-      const includeArchived = boolQuery(req, "include_archived");
+    '/api/sessions': safely((req) => {
+      const label = workspaceQuery(req)
+      const limit = intQuery(req, 'limit', 200)
+      const includeArchived = boolQuery(req, 'include_archived')
       // A named workspace narrows the list; absent means every tree, which is
       // the whole reason this endpoint changed.
-      const named = label === undefined ? undefined : registry.byLabel(label);
+      const named = label === undefined ? undefined : registry.byLabel(label)
       if (label !== undefined && named === undefined) {
-        return notFound(`no workspace ${label}`);
+        return notFound(`no workspace ${label}`)
       }
       return json(
         named === undefined
           ? registry.sessions(limit, includeArchived)
           : named.sessions(limit, includeArchived),
-      );
+      )
     }),
 
-    "/api/sessions/:run_id": safely((req) => {
-      const runId = param(req, "run_id");
-      const owner = forRun(req, runId);
-      const detail = owner?.sessionDetail(runId);
+    '/api/sessions/:run_id': safely((req) => {
+      const runId = param(req, 'run_id')
+      const owner = forRun(req, runId)
+      const detail = owner?.sessionDetail(runId)
       if (detail && owner) {
         /*
          * Computed here, not in `db.ts`: the db connection is readonly SQL
@@ -347,7 +343,7 @@ const server = Bun.serve({
         return json({
           ...detail,
           handoff_dir: resolve(handoffDirFor(owner.sessionsDir, runId)),
-        });
+        })
       }
       /*
        * A run REFUSED at load has no session row and never will — a
@@ -355,10 +351,12 @@ const server = Bun.serve({
        * for. The reason is in the log the spawn wrote, and without it the UI
        * shows a run that simply never appeared.
        */
-      const failure = owner && startupFailure(owner.path, runId);
+      const failure = owner && startupFailure(owner.path, runId)
       return notFound(
-        failure ? `run ${runId} did not start:\n${failure}` : `no session ${runId}`,
-      );
+        failure
+          ? `run ${runId} did not start:\n${failure}`
+          : `no session ${runId}`,
+      )
     }),
 
     /*
@@ -371,80 +369,96 @@ const server = Bun.serve({
     // Say something to an agent that is working right now. The message lands
     // in the run's inbox and the running activityRun delivers it to pi as a steer,
     // a follow-up, or an abort.
-    "/api/sessions/:run_id/messages": {
+    '/api/sessions/:run_id/messages': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
-        const runId = param(req, "run_id");
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
+        const runId = param(req, 'run_id')
         if (!isSafeSegment(runId)) {
-          return json({ error: "invalid run_id" } satisfies ApiError, 400);
+          return json({ error: 'invalid run_id' } satisfies ApiError, 400)
         }
         const body = (await req.json().catch(() => ({}))) as {
-          kind?: unknown;
-          message?: unknown;
-          from?: unknown;
-        };
+          kind?: unknown
+          message?: unknown
+          from?: unknown
+        }
         if (!isInboxKind(body.kind)) {
           return json(
-            { error: "kind must be steer, follow_up or abort" } satisfies ApiError,
+            {
+              error: 'kind must be steer, follow_up or abort',
+            } satisfies ApiError,
             400,
-          );
+          )
         }
-        const message = typeof body.message === "string" ? body.message : "";
-        if (body.kind !== "abort" && message.trim() === "") {
+        const message = typeof body.message === 'string' ? body.message : ''
+        if (body.kind !== 'abort' && message.trim() === '') {
           return json(
-            { error: "a steer or follow_up needs a message" } satisfies ApiError,
+            {
+              error: 'a steer or follow_up needs a message',
+            } satisfies ApiError,
             400,
-          );
+          )
         }
-        const from = typeof body.from === "string" && body.from !== "" ? body.from : "the web app";
+        const from =
+          typeof body.from === 'string' && body.from !== ''
+            ? body.from
+            : 'the web app'
         // The run's OWN database, not this server's first one: an inbox is a
         // file beside the run, and writing it beside the wrong tree would
         // steer a different agent, or none.
-        const owner = forRun(req, runId);
-        if (!owner) return notFound(`no session ${runId}`);
-        return json(postMessage(owner.path, runId, body.kind, message, from));
+        const owner = forRun(req, runId)
+        if (!owner) return notFound(`no session ${runId}`)
+        return json(postMessage(owner.path, runId, body.kind, message, from))
       }),
     },
 
     // Answer a gate, and carry on. Approve, reject and answer all MEAN
     // "continue" — handing back a command to type would be two actions for
     // one intention.
-    "/api/sessions/:run_id/decision": {
+    '/api/sessions/:run_id/decision': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
-        const runId = param(req, "run_id");
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
+        const runId = param(req, 'run_id')
         if (!isSafeSegment(runId)) {
-          return json({ error: "invalid run_id" } satisfies ApiError, 400);
+          return json({ error: 'invalid run_id' } satisfies ApiError, 400)
         }
         const body = (await req.json().catch(() => ({}))) as {
-          action?: unknown;
-          text?: unknown;
-          from?: unknown;
-        };
-        const action = body.action;
-        if (action !== "approve" && action !== "reject" && action !== "answer") {
-          return json(
-            { error: "action must be approve, reject or answer" } satisfies ApiError,
-            400,
-          );
+          action?: unknown
+          text?: unknown
+          from?: unknown
         }
-        const text = typeof body.text === "string" ? body.text : "";
-        if (action !== "approve" && text.trim() === "") {
+        const action = body.action
+        if (
+          action !== 'approve' &&
+          action !== 'reject' &&
+          action !== 'answer'
+        ) {
+          return json(
+            {
+              error: 'action must be approve, reject or answer',
+            } satisfies ApiError,
+            400,
+          )
+        }
+        const text = typeof body.text === 'string' ? body.text : ''
+        if (action !== 'approve' && text.trim() === '') {
           return json(
             { error: `a ${action} needs text` } satisfies ApiError,
             400,
-          );
+          )
         }
-        const from = typeof body.from === "string" && body.from !== "" ? body.from : "the web app";
-        const owner = forRun(req, runId);
-        if (!owner) return notFound(`no session ${runId}`);
-        const path = recordDecision(owner.path, runId, action, text, from);
+        const from =
+          typeof body.from === 'string' && body.from !== ''
+            ? body.from
+            : 'the web app'
+        const owner = forRun(req, runId)
+        if (!owner) return notFound(`no session ${runId}`)
+        const path = recordDecision(owner.path, runId, action, text, from)
         // Resume re-launches the run in ITS tree, read from the invocation
         // record that tree holds.
-        const resumed = resumeRun(owner.path, runId);
-        return json({ run_id: runId, action, recorded: path, ...resumed });
+        const resumed = resumeRun(owner.path, runId)
+        return json({ run_id: runId, action, recorded: path, ...resumed })
       }),
     },
 
@@ -461,80 +475,85 @@ const server = Bun.serve({
      * document and opens no Activity Run by design, so after correcting the
      * thing that failed there was no way forward from this UI at all.
      */
-    "/api/sessions/:run_id/resume": {
+    '/api/sessions/:run_id/resume': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
-        const runId = param(req, "run_id");
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
+        const runId = param(req, 'run_id')
         if (!isSafeSegment(runId)) {
-          return json({ error: "invalid run_id" } satisfies ApiError, 400);
+          return json({ error: 'invalid run_id' } satisfies ApiError, 400)
         }
-        const body = (await req.json().catch(() => ({}))) as { note?: unknown };
-        if (body.note !== undefined && typeof body.note !== "string") {
-          return json({ error: "note must be a string" } satisfies ApiError, 400);
+        const body = (await req.json().catch(() => ({}))) as { note?: unknown }
+        if (body.note !== undefined && typeof body.note !== 'string') {
+          return json(
+            { error: 'note must be a string' } satisfies ApiError,
+            400,
+          )
         }
-        const note = typeof body.note === "string" ? body.note : "";
-        const owner = forRun(req, runId);
-        if (!owner) return notFound(`no session ${runId}`);
-        const resumed = resumeRun(owner.path, runId, note, "the web app");
+        const note = typeof body.note === 'string' ? body.note : ''
+        const owner = forRun(req, runId)
+        if (!owner) return notFound(`no session ${runId}`)
+        const resumed = resumeRun(owner.path, runId, note, 'the web app')
         return resumed.resumed
           ? json({ run_id: runId, ...resumed })
-          : json({ error: resumed.reason } satisfies ApiError, 503);
+          : json({ error: resumed.reason } satisfies ApiError, 503)
       }),
     },
 
     // Start a lifecycle. The heaviest thing this server can do, so it is the
     // one that most needs the token in front of it.
-    "/api/runs": {
+    '/api/runs': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
         const body = (await req.json().catch(() => ({}))) as {
-          lifecycle?: unknown;
-          prompt?: unknown;
-          args?: unknown;
-          workspace?: unknown;
-        };
-        const lifecycle = typeof body.lifecycle === "string" ? body.lifecycle : "";
-        const prompt = typeof body.prompt === "string" ? body.prompt : "";
-        if (!isSafeSegment(lifecycle) || prompt.trim() === "") {
+          lifecycle?: unknown
+          prompt?: unknown
+          args?: unknown
+          workspace?: unknown
+        }
+        const lifecycle =
+          typeof body.lifecycle === 'string' ? body.lifecycle : ''
+        const prompt = typeof body.prompt === 'string' ? body.prompt : ''
+        if (!isSafeSegment(lifecycle) || prompt.trim() === '') {
           return json(
-            { error: "lifecycle and prompt are required" } satisfies ApiError,
+            { error: 'lifecycle and prompt are required' } satisfies ApiError,
             400,
-          );
+          )
         }
         // Flags are passed through as given, but only as separate argv
         // entries — never a shell string, which is how an injection gets in.
         const args = Array.isArray(body.args)
-          ? body.args.filter((arg): arg is string => typeof arg === "string")
-          : [];
+          ? body.args.filter((arg): arg is string => typeof arg === 'string')
+          : []
         /*
          * Starting a run needs a tree to start it IN, and there is no sane
          * default once several are watched: picking the first would spend
          * money in a repository the developer was not looking at. Naming it
          * is required whenever there is more than one.
          */
-        const requested = typeof body.workspace === "string" ? body.workspace : "";
+        const requested =
+          typeof body.workspace === 'string' ? body.workspace : ''
         const target =
-          requested === "" ? soleWorkspace() : registry.byLabel(requested);
+          requested === '' ? soleWorkspace() : registry.byLabel(requested)
         if (!target) {
           return json(
             {
               error:
-                requested === ""
-                  ? "name the workspace to run in: several are being watched"
+                requested === ''
+                  ? 'name the workspace to run in: several are being watched'
                   : `no workspace ${requested}`,
             } satisfies ApiError,
             400,
-          );
+          )
         }
-        const started = startRun(target.path, lifecycle, prompt, args);
+        const started = startRun(target.path, lifecycle, prompt, args)
         // A refusal is a 503, not a 200 with a falsy field. The UI shows what
         // the server says; a success-shaped body for a run that never started
         // is the defect this whole route had.
-        return started.run_id === ""
-          ? json({ error: started.reason ?? "" } satisfies ApiError, 503)
-          : json(started);
+        return started.run_id === ''
+          ? json({ error: started.reason ?? '' } satisfies ApiError, 503)
+          : json(started)
       }),
     },
 
@@ -546,33 +565,42 @@ const server = Bun.serve({
      * Behind the token like every write: `amend` rewrites a document, and
      * even `ask` spends money on a model.
      */
-    "/api/sessions/:run_id/activities/:activity/consult": {
+    '/api/sessions/:run_id/activities/:activity/consult': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
-        const runId = param(req, "run_id");
-        const activity = param(req, "activity");
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
+        const runId = param(req, 'run_id')
+        const activity = param(req, 'activity')
         if (!(isSafeSegment(runId) && isSafeSegment(activity))) {
-          return json({ error: "invalid run_id or activity" } satisfies ApiError, 400);
+          return json(
+            { error: 'invalid run_id or activity' } satisfies ApiError,
+            400,
+          )
         }
         const body = (await req.json().catch(() => ({}))) as {
-          mode?: unknown;
-          question?: unknown;
-        };
-        const mode = body.mode === "amend" ? "amend" : "ask";
-        const question = typeof body.question === "string" ? body.question : "";
-        if (question.trim() === "") {
-          return json(
-            { error: "a consult needs a question" } satisfies ApiError,
-            400,
-          );
+          mode?: unknown
+          question?: unknown
         }
-        const owner = forRun(req, runId);
-        if (!owner) return notFound(`no session ${runId}`);
-        const started = startConsult(owner.path, runId, activity, mode, question);
+        const mode = body.mode === 'amend' ? 'amend' : 'ask'
+        const question = typeof body.question === 'string' ? body.question : ''
+        if (question.trim() === '') {
+          return json(
+            { error: 'a consult needs a question' } satisfies ApiError,
+            400,
+          )
+        }
+        const owner = forRun(req, runId)
+        if (!owner) return notFound(`no session ${runId}`)
+        const started = startConsult(
+          owner.path,
+          runId,
+          activity,
+          mode,
+          question,
+        )
         return started.started
           ? json({ run_id: runId, activity, mode, ...started })
-          : json({ error: started.reason ?? "" } satisfies ApiError, 503);
+          : json({ error: started.reason ?? '' } satisfies ApiError, 503)
       }),
     },
 
@@ -581,34 +609,37 @@ const server = Bun.serve({
      * not defaulted here: overwrite discards the path being steered away
      * from, and a default on that choice is a choice made by habit.
      */
-    "/api/sessions/:run_id/activities/:activity/steer": {
+    '/api/sessions/:run_id/activities/:activity/steer': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
-        const runId = param(req, "run_id");
-        const activity = param(req, "activity");
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
+        const runId = param(req, 'run_id')
+        const activity = param(req, 'activity')
         if (!(isSafeSegment(runId) && isSafeSegment(activity))) {
-          return json({ error: "invalid run_id or activity" } satisfies ApiError, 400);
+          return json(
+            { error: 'invalid run_id or activity' } satisfies ApiError,
+            400,
+          )
         }
         const body = (await req.json().catch(() => ({}))) as {
-          target?: unknown;
-          note?: unknown;
-        };
-        if (body.target !== "overwrite" && body.target !== "branch") {
-          return json(
-            { error: "target must be overwrite or branch" } satisfies ApiError,
-            400,
-          );
+          target?: unknown
+          note?: unknown
         }
-        const note = typeof body.note === "string" ? body.note : "";
-        if (note.trim() === "") {
+        if (body.target !== 'overwrite' && body.target !== 'branch') {
           return json(
-            { error: "steering needs an instruction" } satisfies ApiError,
+            { error: 'target must be overwrite or branch' } satisfies ApiError,
             400,
-          );
+          )
         }
-        const owner = forRun(req, runId);
-        if (!owner) return notFound(`no session ${runId}`);
+        const note = typeof body.note === 'string' ? body.note : ''
+        if (note.trim() === '') {
+          return json(
+            { error: 'steering needs an instruction' } satisfies ApiError,
+            400,
+          )
+        }
+        const owner = forRun(req, runId)
+        if (!owner) return notFound(`no session ${runId}`)
         /*
          * Minted here, the same way `startRun` mints a run id, because a
          * branch detaches: the response cannot wait to learn what the child
@@ -616,7 +647,9 @@ const server = Bun.serve({
          * watch it.
          */
         const branchRunId =
-          body.target === "branch" ? Math.random().toString(16).slice(2, 10) : undefined;
+          body.target === 'branch'
+            ? Math.random().toString(16).slice(2, 10)
+            : undefined
         const started = startSteer(
           owner.path,
           runId,
@@ -624,50 +657,59 @@ const server = Bun.serve({
           body.target,
           note,
           branchRunId,
-        );
+        )
         return started.started
           ? json({ run_id: runId, activity, target: body.target, ...started })
-          : json({ error: started.reason ?? "" } satisfies ApiError, 503);
+          : json({ error: started.reason ?? '' } satisfies ApiError, 503)
       }),
     },
 
-    "/api/sessions/:run_id/archive": {
+    '/api/sessions/:run_id/archive': {
       POST: safely(async (req) => {
-        const refusal = refuseUnlessAuthorised(req);
-        if (refusal) return refusal;
-        const runId = param(req, "run_id");
+        const refusal = refuseUnlessAuthorised(req)
+        if (refusal) return refusal
+        const runId = param(req, 'run_id')
         if (!isSafeSegment(runId)) {
-          return json({ error: "invalid run_id" } satisfies ApiError, 400);
+          return json({ error: 'invalid run_id' } satisfies ApiError, 400)
         }
-        const body = (await req.json().catch(() => ({}))) as { archived?: unknown };
-        const archived = body.archived === undefined ? true : Boolean(body.archived);
-        const owner = forRun(req, runId);
-        if (!owner) return notFound(`no session ${runId}`);
+        const body = (await req.json().catch(() => ({}))) as {
+          archived?: unknown
+        }
+        const archived =
+          body.archived === undefined ? true : Boolean(body.archived)
+        const owner = forRun(req, runId)
+        if (!owner) return notFound(`no session ${runId}`)
         return owner.setArchived(runId, archived)
           ? json({ run_id: runId, archived })
-          : notFound(`no session ${runId}`);
+          : notFound(`no session ${runId}`)
       }),
     },
 
-    "/api/sessions/:run_id/events": safely((req) => {
-      const runId = param(req, "run_id");
-      const owner = forRun(req, runId);
-      if (!owner) return notFound(`no session ${runId}`);
+    '/api/sessions/:run_id/events': safely((req) => {
+      const runId = param(req, 'run_id')
+      const owner = forRun(req, runId)
+      if (!owner) return notFound(`no session ${runId}`)
       return json(
-        owner.events(runId, intQuery(req, "after", 0), intQuery(req, "limit", 500)),
-      );
+        owner.events(
+          runId,
+          intQuery(req, 'after', 0),
+          intQuery(req, 'limit', 500),
+        ),
+      )
     }),
 
-    "/api/sessions/:run_id/envelopes": safely((req) => {
-      const runId = param(req, "run_id");
-      const owner = forRun(req, runId);
-      return owner ? json(owner.envelopes(runId)) : notFound(`no session ${runId}`);
+    '/api/sessions/:run_id/envelopes': safely((req) => {
+      const runId = param(req, 'run_id')
+      const owner = forRun(req, runId)
+      return owner
+        ? json(owner.envelopes(runId))
+        : notFound(`no session ${runId}`)
     }),
 
-    "/api/sessions/:run_id/gates": safely((req) => {
-      const runId = param(req, "run_id");
-      const owner = forRun(req, runId);
-      return owner ? json(owner.gates(runId)) : notFound(`no session ${runId}`);
+    '/api/sessions/:run_id/gates': safely((req) => {
+      const runId = param(req, 'run_id')
+      const owner = forRun(req, runId)
+      return owner ? json(owner.gates(runId)) : notFound(`no session ${runId}`)
     }),
 
     /*
@@ -678,29 +720,29 @@ const server = Bun.serve({
      * buttons to answer with and no sight of the question — which is asking
      * somebody to approve something they cannot read.
      */
-    "/api/sessions/:run_id/decision-request": safely(async (req) => {
-      const runId = param(req, "run_id");
+    '/api/sessions/:run_id/decision-request': safely(async (req) => {
+      const runId = param(req, 'run_id')
       if (!isSafeSegment(runId)) {
-        return json({ error: "invalid run_id" } satisfies ApiError, 400);
+        return json({ error: 'invalid run_id' } satisfies ApiError, 400)
       }
-      const db = forRun(req, runId);
-      if (!db) return notFound(`no session ${runId}`);
+      const db = forRun(req, runId)
+      if (!db) return notFound(`no session ${runId}`)
 
-      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId))
 
-      const file = Bun.file(join(dir, "decision-request.md"));
+      const file = Bun.file(join(dir, 'decision-request.md'))
       /*
        * Absent is a normal state, not an error: most runs are not at a gate.
        * It reads as `present: false` rather than a null body so the client
        * branches on a flag instead of on the shape of a value.
        */
       if (!(await file.exists())) {
-        return json({ present: false } satisfies DecisionRequest);
+        return json({ present: false } satisfies DecisionRequest)
       }
       return json({
         present: true,
         markdown: await file.text(),
-      } satisfies DecisionRequest);
+      } satisfies DecisionRequest)
     }),
 
     /*
@@ -714,100 +756,105 @@ const server = Bun.serve({
      * Contents are served so a reader can open a document without leaving the
      * page. Text only, and only from inside the handoff directory.
      */
-    "/api/sessions/:run_id/handoff": safely((req) => {
-      const runId = param(req, "run_id");
+    '/api/sessions/:run_id/handoff': safely((req) => {
+      const runId = param(req, 'run_id')
       if (!isSafeSegment(runId)) {
-        return json({ error: "invalid run_id" } satisfies ApiError, 400);
+        return json({ error: 'invalid run_id' } satisfies ApiError, 400)
       }
-      const db = forRun(req, runId);
-      if (!db) return notFound(`no session ${runId}`);
-      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
-      return json(listHandoff(dir) satisfies HandoffFile[]);
+      const db = forRun(req, runId)
+      if (!db) return notFound(`no session ${runId}`)
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId))
+      return json(listHandoff(dir) satisfies HandoffFile[])
     }),
 
-    "/api/sessions/:run_id/handoff/*": safely(async (req) => {
-      const runId = param(req, "run_id");
-      const relative = decodeURIComponent(new URL(req.url).pathname.split("/handoff/")[1] ?? "");
+    '/api/sessions/:run_id/handoff/*': safely(async (req) => {
+      const runId = param(req, 'run_id')
+      const relative = decodeURIComponent(
+        new URL(req.url).pathname.split('/handoff/')[1] ?? '',
+      )
       if (!isSafeSegment(runId)) {
-        return json({ error: "invalid run_id" } satisfies ApiError, 400);
+        return json({ error: 'invalid run_id' } satisfies ApiError, 400)
       }
-      const db = forRun(req, runId);
-      if (!db) return notFound(`no session ${runId}`);
-      const dir = resolve(handoffDirFor(db.sessionsDir, runId));
-      const file = resolve(dir, relative);
+      const db = forRun(req, runId)
+      if (!db) return notFound(`no session ${runId}`)
+      const dir = resolve(handoffDirFor(db.sessionsDir, runId))
+      const file = resolve(dir, relative)
       /*
        * Containment is checked on the RESOLVED path rather than on the text
        * of the request. A segment check alone passes `a/../../b`, which reads
        * as three innocent segments and lands outside the directory.
        */
       if (!file.startsWith(dir + sep)) {
-        return json({ error: "invalid path" } satisfies ApiError, 400);
+        return json({ error: 'invalid path' } satisfies ApiError, 400)
       }
-      const handle = Bun.file(file);
-      if (!(await handle.exists())) return notFound(`no file ${relative}`);
+      const handle = Bun.file(file)
+      if (!(await handle.exists())) return notFound(`no file ${relative}`)
       // Always text/plain: this serves model-written content, and a browser
       // asked to render it as html would execute whatever it contains.
       return new Response(await handle.text(), {
         headers: {
-          "content-type": "text/plain; charset=utf-8",
-          "cache-control": "no-store",
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store',
         },
-      });
+      })
     }),
 
     // The exact prompts an agent was sent, read from the session dir. Files are
     // the raw record; the db has no copy of them.
-    "/api/sessions/:run_id/agents/:agent/prompts": safely(async (req) => {
-      const runId = param(req, "run_id");
-      const agent = param(req, "agent");
+    '/api/sessions/:run_id/agents/:agent/prompts': safely(async (req) => {
+      const runId = param(req, 'run_id')
+      const agent = param(req, 'agent')
       if (!(isSafeSegment(runId) && isSafeSegment(agent))) {
-        return json({ error: "invalid run_id or agent" } satisfies ApiError, 400);
+        return json(
+          { error: 'invalid run_id or agent' } satisfies ApiError,
+          400,
+        )
       }
-      const db = forRun(req, runId);
-      if (!db) return notFound(`no session ${runId}`);
+      const db = forRun(req, runId)
+      if (!db) return notFound(`no session ${runId}`)
 
-      const dir = resolve(db.sessionsDir, runId, agent, "prompts");
+      const dir = resolve(db.sessionsDir, runId, agent, 'prompts')
       // Defense in depth: the segment check already forbids traversal.
       if (dir !== db.sessionsDir && !dir.startsWith(db.sessionsDir + sep)) {
-        return json({ error: "invalid path" } satisfies ApiError, 400);
+        return json({ error: 'invalid path' } satisfies ApiError, 400)
       }
 
       // A prompt file is absent whenever the agent never ran in this session —
       // a normal state, so it reads as null rather than an error.
       const read = async (name: string): Promise<string | null> => {
-        const file = Bun.file(join(dir, `${name}.md`));
-        return (await file.exists()) ? await file.text() : null;
-      };
+        const file = Bun.file(join(dir, `${name}.md`))
+        return (await file.exists()) ? await file.text() : null
+      }
       return json({
-        system: await read("system"),
-        user: await read("user"),
-      } satisfies AgentPrompts);
+        system: await read('system'),
+        user: await read('user'),
+      } satisfies AgentPrompts)
     }),
   },
 
   fetch(req) {
-    const { pathname } = new URL(req.url);
-    if (pathname.startsWith("/api/")) return notFound(`no route ${pathname}`);
-    return serveStatic(req);
+    const { pathname } = new URL(req.url)
+    if (pathname.startsWith('/api/')) return notFound(`no route ${pathname}`)
+    return serveStatic(req)
   },
-});
+})
 
-say(`[crust] visualizer api  http://localhost:${server.port}`);
+say(`[crust] visualizer api  http://localhost:${server.port}`)
 for (const state of registry.states()) {
   say(
     state.db
       ? `[crust] workspace       ${state.label}  ${state.dbPath}  ` +
           `[journal_mode=${state.db.journalMode}]`
-      : `[crust] workspace       ${state.label}  unavailable — ${state.error ?? "unreadable"}`,
-  );
+      : `[crust] workspace       ${state.label}  unavailable — ${state.error ?? 'unreadable'}`,
+  )
 }
 say(
   existsSync(DIST_DIR)
     ? `[crust] serving ui from  ${DIST_DIR}`
     : `[crust] no ./dist — use "bun run dev" for the Vite dev server on :4601`,
-);
+)
 
-process.on("SIGINT", () => {
-  registry.close();
-  process.exit(0);
-});
+process.on('SIGINT', () => {
+  registry.close()
+  process.exit(0)
+})

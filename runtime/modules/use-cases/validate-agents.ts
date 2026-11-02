@@ -6,8 +6,8 @@
  */
 
 import { isFile } from '../data/files'
-import { resolvePromptPath, resolveReference } from '../data/prompt-files'
 import { resolveModel } from '../data/pi-agent'
+import { resolvePromptPath, resolveReference } from '../data/prompt-files'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { resolveAgent } from './load-config'

@@ -102,7 +102,11 @@ export const conversationOf = (
 ): readonly TConversationItem[] => {
   const items: Array<TConversationItem & { at: number }> = [
     ...turns.map((turn) => ({ kind: 'turn' as const, turn, at: turn.at })),
-    ...messages.map((message) => ({ kind: 'message' as const, message, at: message.at })),
+    ...messages.map((message) => ({
+      kind: 'message' as const,
+      message,
+      at: message.at,
+    })),
   ]
   return items
     .map((item, index) => ({ item, index }))

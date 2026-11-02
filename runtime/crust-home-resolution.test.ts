@@ -37,7 +37,14 @@ const justEvaluate = (
   try {
     const stdout = execFileSync(
       'just',
-      ['--working-directory', cwd, '--justfile', CRUST_JUST, '--evaluate', variable],
+      [
+        '--working-directory',
+        cwd,
+        '--justfile',
+        CRUST_JUST,
+        '--evaluate',
+        variable,
+      ],
       {
         cwd,
         encoding: 'utf8',
@@ -48,7 +55,10 @@ const justEvaluate = (
     return { stdout: stdout.trim(), status: 0 }
   } catch (error) {
     const err = error as { readonly stdout?: string; readonly status?: number }
-    return { stdout: (err.stdout ?? '').toString().trim(), status: err.status ?? 1 }
+    return {
+      stdout: (err.stdout ?? '').toString().trim(),
+      status: err.status ?? 1,
+    }
   }
 }
 
@@ -56,7 +66,11 @@ const justRecipe = (
   cwd: string,
   recipe: string,
   env?: Record<string, string>,
-): { readonly stdout: string; readonly stderr: string; readonly status: number } => {
+): {
+  readonly stdout: string
+  readonly stderr: string
+  readonly status: number
+} => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: converting a failing subprocess exit into an assertable result is this helper's job
   try {
     const stdout = execFileSync(
@@ -103,7 +117,10 @@ const aPrimaryAndLinkedWorktree = (
   git(primary, 'add', '-A')
   git(primary, 'commit', '-qm', 'init')
   mkdirSync(join(primary, '.pi-crust', 'data'), { recursive: true })
-  writeFileSync(join(primary, '.pi-crust', 'data', 'pi-crust-home'), `${home}\n`)
+  writeFileSync(
+    join(primary, '.pi-crust', 'data', 'pi-crust-home'),
+    `${home}\n`,
+  )
 
   const linked = join(root, 'linked')
   git(primary, 'worktree', 'add', '-q', linked, '-b', 'feature')
@@ -169,7 +186,9 @@ test(
     const { linked } = aPrimaryAndLinkedWorktree('/primary/package/home')
 
     // when
-    const actual = justEvaluate(linked, 'crust', { CRUST_HOME: '/explicit/home' })
+    const actual = justEvaluate(linked, 'crust', {
+      CRUST_HOME: '/explicit/home',
+    })
 
     // then
     expect(actual.stdout).toEqual('/explicit/home')

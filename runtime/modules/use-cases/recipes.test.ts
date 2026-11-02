@@ -37,16 +37,16 @@ const shipped = <T>(file: string, read: (text: string) => T): T =>
 
 const shippedActivities = (): readonly string[] =>
   shipped('crust.activities.yaml', (text) =>
-    activitiesFileSchema.parse(Bun.YAML.parse(text)).activities.map(
-      (one) => one.name,
-    ),
+    activitiesFileSchema
+      .parse(Bun.YAML.parse(text))
+      .activities.map((one) => one.name),
   )
 
 const shippedLifecycles = (): readonly string[] =>
   shipped('crust.lifecycles.yaml', (text) =>
-    lifecyclesFileSchema.parse(Bun.YAML.parse(text)).lifecycles.map(
-      (one) => one.name,
-    ),
+    lifecyclesFileSchema
+      .parse(Bun.YAML.parse(text))
+      .lifecycles.map((one) => one.name),
   )
 
 /** Recipe names, which are the lines that start in column one and end in `:`. */

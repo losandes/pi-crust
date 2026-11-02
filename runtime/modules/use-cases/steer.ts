@@ -60,9 +60,13 @@ export const activitiesToReplay = (
   activityRuns: readonly TActivityRunState[],
   activity: string,
 ): readonly string[] => {
-  const target = activityRuns.filter((activityRun) => activityRun.name === activity).at(-1)
+  const target = activityRuns
+    .filter((activityRun) => activityRun.name === activity)
+    .at(-1)
   if (target === undefined) return []
-  const after = activityRuns.filter((activityRun) => activityRun.seq >= target.seq)
+  const after = activityRuns.filter(
+    (activityRun) => activityRun.seq >= target.seq,
+  )
   return [...new Set(after.map((activityRun) => activityRun.name))]
 }
 
@@ -79,11 +83,15 @@ export const activityRunsToSupersede = (
 ): readonly string[] => {
   const names = new Set(activitiesToReplay(activityRuns, activity))
   return activityRuns
-    .filter((activityRun) => names.has(activityRun.name) && activityRun.status === 'success')
+    .filter(
+      (activityRun) =>
+        names.has(activityRun.name) && activityRun.status === 'success',
+    )
     .filter(
       (activityRun) =>
         !activityRuns.some(
-          (other) => other.name === activityRun.name && other.seq > activityRun.seq,
+          (other) =>
+            other.name === activityRun.name && other.seq > activityRun.seq,
         ),
     )
     .map((activityRun) => activityRun.activity_run_id)
@@ -153,7 +161,9 @@ export const flagValue = (
  * default on a choice where one option destroys evidence would be a choice
  * made by habit rather than by a person.
  */
-export const steerTargetOf = (argv: readonly string[]): TSteerTarget | undefined => {
+export const steerTargetOf = (
+  argv: readonly string[],
+): TSteerTarget | undefined => {
   const overwrite = argv.includes('--overwrite')
   const branch = argv.includes('--branch')
   return overwrite === branch ? undefined : overwrite ? 'overwrite' : 'branch'
@@ -174,7 +184,8 @@ export const activityRunsToCarry = (
 ): readonly TActivityRunState[] => {
   const replaying = new Set(activitiesToReplay(activityRuns, activity))
   return latestByName(activityRuns).filter(
-    (activityRun) => !replaying.has(activityRun.name) && activityRun.status === 'success',
+    (activityRun) =>
+      !replaying.has(activityRun.name) && activityRun.status === 'success',
   )
 }
 
@@ -194,7 +205,12 @@ export const developerNote = (note: string, at: string): string =>
 export const steeringAppliedEvent = (
   agent: string,
   steering: string,
-): Readonly<{ name: 'steering_applied'; payload: { agent: string; text: string } }> | undefined =>
+):
+  | Readonly<{
+      name: 'steering_applied'
+      payload: { agent: string; text: string }
+    }>
+  | undefined =>
   steering.trim() === ''
     ? undefined
     : { name: 'steering_applied', payload: { agent, text: steering.trim() } }

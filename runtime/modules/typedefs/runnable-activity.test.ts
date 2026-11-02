@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
+import type { TActivityOutcome } from './runnable-activity'
 import {
   acceptedExcluding,
   activityRunName,
   allAccepted,
 } from './runnable-activity'
-import type { TActivityOutcome } from './runnable-activity'
 
 test(
   [

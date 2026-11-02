@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  applyTheme,
-  saveTheme,
-  storedTheme,
-  type TTheme,
-} from './theme'
+import { applyTheme, saveTheme, storedTheme, type TTheme } from './theme'
 
 /**
  * The React face of the theme. The mechanism lives in `theme.ts`, which runs

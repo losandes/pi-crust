@@ -1,17 +1,15 @@
-import {
-  BookOpen,
-  CircleDollarSign,
-  Coins,
-  PenLine,
-  Timer,
-} from 'lucide-react'
+import { BookOpen, CircleDollarSign, Coins, PenLine, Timer } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { fmtCost, fmtDuration, fmtTokens } from '../lib/format'
 import styles from './StatChip.module.css'
 
 export type TStatKind = 'cost' | 'tokens' | 'runtime' | 'read' | 'written'
 
-type TIconProps = Readonly<{ size?: number; strokeWidth?: number; className?: string }>
+type TIconProps = Readonly<{
+  size?: number
+  strokeWidth?: number
+  className?: string
+}>
 
 const ICONS: Readonly<Record<TStatKind, ComponentType<TIconProps>>> = {
   cost: CircleDollarSign,

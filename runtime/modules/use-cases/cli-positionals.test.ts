@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test'
-import { DECIDE_CLI, RESUME_CLI, STEER_CLI, positionalArgs } from './cli-positionals'
+import {
+  DECIDE_CLI,
+  positionalArgs,
+  RESUME_CLI,
+  STEER_CLI,
+} from './cli-positionals'
 
 test(
   [
@@ -139,7 +144,7 @@ test(
 test(
   [
     'given use-cases/cli-positionals::positionalArgs',
-    "when --note precedes a run id, as in `resume --note \"fix\" abc`",
+    'when --note precedes a run id, as in `resume --note "fix" abc`',
     'it should resolve the run id rather than the note text',
   ].join(', '),
   () => {
@@ -182,7 +187,11 @@ test(
   ].join(', '),
   () => {
     // given, when, then
-    expect(() => positionalArgs(['-', 'abc'], RESUME_CLI)).toThrow(/unknown flag/)
-    expect(() => positionalArgs(['--', 'abc'], RESUME_CLI)).toThrow(/unknown flag/)
+    expect(() => positionalArgs(['-', 'abc'], RESUME_CLI)).toThrow(
+      /unknown flag/,
+    )
+    expect(() => positionalArgs(['--', 'abc'], RESUME_CLI)).toThrow(
+      /unknown flag/,
+    )
   },
 )

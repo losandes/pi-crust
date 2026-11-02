@@ -19,14 +19,23 @@
  * built to close.
  */
 
+import { activityRunParams } from '../../typedefs/activity-run'
 import {
   baseRefLabel,
   changeCapture,
   changeSetEmpty,
 } from '../../typedefs/changes'
-import { envelopeAccepted, envelopeJudges } from '../../typedefs/envelope'
-import { activityRunParams } from '../../typedefs/activity-run'
-import type { TActivity, TActivityContext, TActivityOptions } from '../../typedefs/runnable-activity'
+import {
+  buildOutput,
+  envelopeAccepted,
+  envelopeJudges,
+  narrowEnvelope,
+} from '../../typedefs/envelope'
+import type {
+  TActivity,
+  TActivityContext,
+  TActivityOptions,
+} from '../../typedefs/runnable-activity'
 import { activityRunName } from '../../typedefs/runnable-activity'
 import type { TResolvedActivity } from '../activity-registry'
 import { captureChanges, changesAsEnvelope } from '../capture-changes'
@@ -35,7 +44,6 @@ import { callAgent, liveAgent } from '../execute-agent'
 import { intakeRejection, intakeViolations } from '../intake'
 import { readEnvelope } from '../read-envelope'
 import { selectedPaths } from '../select-range'
-import { buildOutput, narrowEnvelope } from '../../typedefs/envelope'
 
 export const DOCUMENT_NOTES =
   'Read diff_path in full before writing. Document only what the diff shows, ' +
@@ -118,7 +126,9 @@ export const agentActivity = (
         throw new Error(intakeRejection(violations, instance))
       }
       const captured =
-        config.input === 'changes' ? capturedChanges(ctx, options.base) : undefined
+        config.input === 'changes'
+          ? capturedChanges(ctx, options.base)
+          : undefined
       if (captured !== undefined) {
         handle.log({
           base: `${baseRefLabel(captured.base)} @ ${captured.base.commit.slice(0, 7)}`,

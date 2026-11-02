@@ -15,24 +15,24 @@
  * - a tree that has been removed while the server runs. Its runs disappear
  *   from the list; the other trees keep working.
  */
-import { existsSync } from "node:fs";
-import type { SessionSummary } from "../shared/types.ts";
-import { PiCrustDb } from "./db.ts";
-import type { TWorkspace } from "./workspaces.ts";
+import { existsSync } from 'node:fs'
+import type { SessionSummary } from '../shared/types.ts'
+import { PiCrustDb } from './db.ts'
+import type { TWorkspace } from './workspaces.ts'
 
 /** A watched tree and whatever is currently known about reaching it. */
 export type TWorkspaceState = Readonly<{
-  label: string;
-  root: string;
-  dbPath: string;
-  db: PiCrustDb | undefined;
-  error: string | undefined;
-}>;
+  label: string
+  root: string
+  dbPath: string
+  db: PiCrustDb | undefined
+  error: string | undefined
+}>
 
 export class WorkspaceRegistry {
-  private order: readonly TWorkspace[];
-  private readonly open = new Map<string, PiCrustDb>();
-  private readonly failures = new Map<string, string>();
+  private order: readonly TWorkspace[]
+  private readonly open = new Map<string, PiCrustDb>()
+  private readonly failures = new Map<string, string>()
   /**
    * How the watched set is recomputed, and the stamp that says when to.
    *
@@ -46,30 +46,30 @@ export class WorkspaceRegistry {
    * out to git when sweeping is on, and doing that twice a second per client
    * would be a real cost for a file that changes a few times a week.
    */
-  private readonly rescan: (() => readonly TWorkspace[]) | undefined;
-  private readonly stamp: (() => number) | undefined;
-  private lastStamp: number;
+  private readonly rescan: (() => readonly TWorkspace[]) | undefined
+  private readonly stamp: (() => number) | undefined
+  private lastStamp: number
 
   constructor(
     workspaces: readonly TWorkspace[],
     live?: Readonly<{
-      rescan: () => readonly TWorkspace[];
-      stamp: () => number;
+      rescan: () => readonly TWorkspace[]
+      stamp: () => number
     }>,
   ) {
-    this.order = workspaces;
-    this.rescan = live?.rescan;
-    this.stamp = live?.stamp;
-    this.lastStamp = live?.stamp() ?? 0;
+    this.order = workspaces
+    this.rescan = live?.rescan
+    this.stamp = live?.stamp
+    this.lastStamp = live?.stamp() ?? 0
   }
 
   /** Re-resolve when the registry file has changed since we last looked. */
   private refresh(): void {
-    if (this.rescan === undefined || this.stamp === undefined) return;
-    const now = this.stamp();
-    if (now === this.lastStamp) return;
-    this.lastStamp = now;
-    this.order = this.rescan();
+    if (this.rescan === undefined || this.stamp === undefined) return
+    const now = this.stamp()
+    if (now === this.lastStamp) return
+    this.lastStamp = now
+    this.order = this.rescan()
   }
 
   /**
@@ -80,63 +80,66 @@ export class WorkspaceRegistry {
    * would keep reporting it empty for the rest of the day.
    */
   private connect(workspace: TWorkspace): PiCrustDb | undefined {
-    const existing = this.open.get(workspace.label);
+    const existing = this.open.get(workspace.label)
     if (existing) {
       // A tree can vanish — a worktree removed, a store relocated — after we
       // opened it. bun:sqlite keeps serving reads against a deleted file's
       // inode until the fd closes, so the only reliable signal is checking
       // the path still names something, not waiting for a query to throw.
-      if (existsSync(existing.path)) return existing;
-      existing.close();
-      this.open.delete(workspace.label);
-      this.failures.set(workspace.label, "workspace is gone");
-      return undefined;
+      if (existsSync(existing.path)) return existing
+      existing.close()
+      this.open.delete(workspace.label)
+      this.failures.set(workspace.label, 'workspace is gone')
+      return undefined
     }
     // This IS the boundary: PiCrustDb's constructor throws on a missing or
     // unreadable file, and this registry's whole contract is reporting that
     // as a per-workspace failure instead of taking the server down with it.
     // biome-ignore lint/plugin/no-intermediate-try-catch: converting a thrown open failure into the failures map is this method's job
     try {
-      const db = new PiCrustDb(workspace.dbPath, workspace.label);
-      this.open.set(workspace.label, db);
-      this.failures.delete(workspace.label);
-      return db;
+      const db = new PiCrustDb(workspace.dbPath, workspace.label)
+      this.open.set(workspace.label, db)
+      this.failures.delete(workspace.label)
+      return db
     } catch (error) {
       this.failures.set(
         workspace.label,
-        error instanceof Error ? error.message.split("\n")[0] ?? "unreadable" : "unreadable",
-      );
-      return undefined;
+        error instanceof Error
+          ? (error.message.split('\n')[0] ?? 'unreadable')
+          : 'unreadable',
+      )
+      return undefined
     }
   }
 
   /** Every watched tree, in the order it was given, reachable or not. */
   states(): readonly TWorkspaceState[] {
-    this.refresh();
+    this.refresh()
     return this.order.map((workspace) => {
-      const db = this.connect(workspace);
+      const db = this.connect(workspace)
       return {
         label: workspace.label,
         root: workspace.root,
         dbPath: workspace.dbPath,
         db,
-        error: db === undefined ? this.failures.get(workspace.label) : undefined,
-      };
-    });
+        error:
+          db === undefined ? this.failures.get(workspace.label) : undefined,
+      }
+    })
   }
 
   /** Only the trees that can currently be read. */
   private live(): readonly PiCrustDb[] {
     return this.states()
       .map((state) => state.db)
-      .filter((db): db is PiCrustDb => db !== undefined);
+      .filter((db): db is PiCrustDb => db !== undefined)
   }
 
   /** The one workspace a label names, or nothing when it names none. */
   byLabel(label: string): PiCrustDb | undefined {
-    this.refresh();
-    const match = this.order.find((workspace) => workspace.label === label);
-    return match === undefined ? undefined : this.connect(match);
+    this.refresh()
+    const match = this.order.find((workspace) => workspace.label === label)
+    return match === undefined ? undefined : this.connect(match)
   }
 
   /**
@@ -149,7 +152,7 @@ export class WorkspaceRegistry {
    * are addressed by both.
    */
   owning(runId: string): PiCrustDb | undefined {
-    return this.live().find((db) => db.session(runId) !== null);
+    return this.live().find((db) => db.session(runId) !== null)
   }
 
   /**
@@ -160,12 +163,12 @@ export class WorkspaceRegistry {
    * means.
    */
   resolve(runId: string, label: string | undefined): PiCrustDb | undefined {
-    if (label === undefined || label === "") return this.owning(runId);
-    const named = this.byLabel(label);
+    if (label === undefined || label === '') return this.owning(runId)
+    const named = this.byLabel(label)
     // A named workspace that does not hold the run is an error, not a reason
     // to go looking elsewhere: it means the link is wrong, and silently
     // answering from another tree would hide that.
-    return named?.session(runId) === null ? undefined : named;
+    return named?.session(runId) === null ? undefined : named
   }
 
   /**
@@ -180,17 +183,17 @@ export class WorkspaceRegistry {
     return this.live()
       .flatMap((db) => db.sessions(limit, includeArchived))
       .toSorted(compareStarted)
-      .slice(0, limit);
+      .slice(0, limit)
   }
 
   /** Total across reachable trees, for the health line. */
   sessionCount(): number {
-    return this.live().reduce((total, db) => total + db.sessionCount(), 0);
+    return this.live().reduce((total, db) => total + db.sessionCount(), 0)
   }
 
   close(): void {
-    for (const db of this.open.values()) db.close();
-    this.open.clear();
+    for (const db of this.open.values()) db.close()
+    this.open.clear()
   }
 }
 
@@ -202,7 +205,10 @@ export class WorkspaceRegistry {
  * keeps the order from shuffling between polls, which would make rows jump
  * under the cursor.
  */
-const compareStarted = (left: SessionSummary, right: SessionSummary): number => {
-  const byTime = (right.started_at ?? "").localeCompare(left.started_at ?? "");
-  return byTime === 0 ? left.run_id.localeCompare(right.run_id) : byTime;
-};
+const compareStarted = (
+  left: SessionSummary,
+  right: SessionSummary,
+): number => {
+  const byTime = (right.started_at ?? '').localeCompare(left.started_at ?? '')
+  return byTime === 0 ? left.run_id.localeCompare(right.run_id) : byTime
+}

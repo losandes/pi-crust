@@ -1,6 +1,12 @@
 import { expect, spyOn, test } from 'bun:test'
-import { FLAG_TABLE, longFlagArgv, parseCli, runCli, workflowArgs } from './parse-cli'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
+import {
+  FLAG_TABLE,
+  longFlagArgv,
+  parseCli,
+  runCli,
+  workflowArgs,
+} from './parse-cli'
 
 /**
  * `process.argv` is the external API `runCli` reads, and pointing it at a
@@ -170,7 +176,9 @@ test(
     const argv = ['compose it', '--steps', 'plan,build']
 
     // when, then
-    expect(() => parseCli(argv)).toThrow(/--steps was removed. Use --activities/)
+    expect(() => parseCli(argv)).toThrow(
+      /--steps was removed. Use --activities/,
+    )
   },
 )
 
@@ -489,13 +497,14 @@ test(
   ].join(', '),
   () => {
     // given
-    const expectedPairs = FLAG_TABLE.filter((flag) => flag.short !== undefined).map(
-      (flag) => `${flag.short} ${flag.long}`,
-    )
+    const expectedPairs = FLAG_TABLE.filter(
+      (flag) => flag.short !== undefined,
+    ).map((flag) => `${flag.short} ${flag.long}`)
 
     // when
     const settled = safeParseSettlement(() => parseCli([], 'run'))
-    const message = settled.status === 'error' ? errorMessage(settled.error) : ''
+    const message =
+      settled.status === 'error' ? errorMessage(settled.error) : ''
 
     // then
     for (const pair of expectedPairs) {
@@ -532,7 +541,9 @@ test(
     // given
     const originalArgv = process.argv
     setArgv(['bun', 'run.ts'])
-    const exitSpy = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    const exitSpy = spyOn(process, 'exit').mockImplementation(((
+      code?: number,
+    ) => {
       throw new Error(`exit:${code}`)
     }) as never)
     const writes: string[] = []
@@ -575,7 +586,9 @@ test(
     // given
     const originalArgv = process.argv
     setArgv(['bun', 'run.ts', 'add a /health endpoint'])
-    const exitSpy = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    const exitSpy = spyOn(process, 'exit').mockImplementation(((
+      code?: number,
+    ) => {
       throw new Error(`exit:${code}`)
     }) as never)
     const stderrSpy = spyOn(process.stderr, 'write').mockImplementation(
@@ -585,7 +598,9 @@ test(
     try {
       // when, then
       await expect(
-        runCli('run.ts', () => Promise.reject(new Error('the handler blew up'))),
+        runCli('run.ts', () =>
+          Promise.reject(new Error('the handler blew up')),
+        ),
       ).rejects.toThrow('exit:1')
     } finally {
       setArgv(originalArgv)
@@ -605,13 +620,17 @@ test(
     // given
     const originalArgv = process.argv
     setArgv(['bun', 'run.ts', 'add a /health endpoint'])
-    const exitSpy = spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    const exitSpy = spyOn(process, 'exit').mockImplementation(((
+      code?: number,
+    ) => {
       throw new Error(`exit:${code}`)
     }) as never)
 
     try {
       // when, then
-      await expect(runCli('run.ts', () => Promise.resolve(0))).rejects.toThrow('exit:0')
+      await expect(runCli('run.ts', () => Promise.resolve(0))).rejects.toThrow(
+        'exit:0',
+      )
     } finally {
       setArgv(originalArgv)
       exitSpy.mockRestore()
@@ -633,7 +652,12 @@ test(
     const actual = longFlagArgv(argv)
 
     // then
-    expect(actual).toEqual(['--activities', 'build,review', '--resume', '--resume'])
+    expect(actual).toEqual([
+      '--activities',
+      'build,review',
+      '--resume',
+      '--resume',
+    ])
   },
 )
 

@@ -42,10 +42,7 @@ const isTableStart = (line: string, next: string | undefined): boolean =>
   line.includes('|') && next !== undefined && DELIMITER.test(next)
 
 /** As many cells as the header has, blanks where the row ran out. */
-const padded = (
-  cells: readonly string[],
-  width: number,
-): readonly string[] =>
+const padded = (cells: readonly string[], width: number): readonly string[] =>
   cells.length >= width
     ? cells
     : [...cells, ...Array.from({ length: width - cells.length }, () => '')]
@@ -157,7 +154,9 @@ export function renderMarkdown(src: string): string {
       i += 1
       const text = code.join('\n')
       const body =
-        (fence[1] ?? '').toLowerCase() === 'json' ? highlightJsonText(text) : escapeHtml(text)
+        (fence[1] ?? '').toLowerCase() === 'json'
+          ? highlightJsonText(text)
+          : escapeHtml(text)
       out.push(`<pre class="md-code"><code>${body}</code></pre>`)
       continue
     }
@@ -223,7 +222,9 @@ export function renderMarkdown(src: string): string {
       const marker = ulItem ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/
       const items: string[] = []
       while (i < lines.length && marker.test(lines[i] ?? '')) {
-        items.push(`<li>${inline(escapeHtml((lines[i] ?? '').replace(marker, '')))}</li>`)
+        items.push(
+          `<li>${inline(escapeHtml((lines[i] ?? '').replace(marker, '')))}</li>`,
+        )
         i += 1
       }
       out.push(`<${tag}>${items.join('')}</${tag}>`)

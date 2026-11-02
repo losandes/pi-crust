@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test'
 import type { TBaseRef } from '../typedefs/changes'
 import type { TRangeGit } from './select-range'
-import { requireSelected, selectedPathsWith, selectRangeWith } from './select-range'
+import {
+  requireSelected,
+  selectedPathsWith,
+  selectRangeWith,
+} from './select-range'
 
 /**
  * A git surface that answers from the test's own facts.
@@ -45,7 +49,9 @@ test(
 
     // then
     expect(actual.paths).toEqual(['src/a.ts', 'src/b.ts'])
-    expect(actual.reason).toEqual('no base given — the uncommitted working tree')
+    expect(actual.reason).toEqual(
+      'no base given — the uncommitted working tree',
+    )
   },
 )
 

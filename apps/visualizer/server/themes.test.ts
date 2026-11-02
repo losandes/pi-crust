@@ -2,7 +2,11 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { BUILTIN_THEMES, themesForWorkspace, workspaceThemes } from './themes.ts'
+import {
+  BUILTIN_THEMES,
+  themesForWorkspace,
+  workspaceThemes,
+} from './themes.ts'
 
 const workspace = (
   yaml?: string,
@@ -124,7 +128,7 @@ test(
   [
     'given server/themes::themesForWorkspace',
     'when a label names no watched workspace',
-    'it should answer undefined, the endpoint\'s 404',
+    "it should answer undefined, the endpoint's 404",
   ].join(', '),
   () => {
     // given
@@ -145,16 +149,12 @@ test(
   [
     'given server/themes::themesForWorkspace',
     'when no label is given',
-    'it should answer the first watched workspace\'s registrations',
+    "it should answer the first watched workspace's registrations",
   ].join(', '),
   () => {
     // given
-    const first = workspace(
-      'themes:\n  - name: midnight\n    builtin: true\n',
-    )
-    const second = workspace(
-      'themes:\n  - name: sunrise\n    builtin: true\n',
-    )
+    const first = workspace('themes:\n  - name: midnight\n    builtin: true\n')
+    const second = workspace('themes:\n  - name: sunrise\n    builtin: true\n')
     const watched = [
       { label: 'one', root: first },
       { label: 'two', root: second },
@@ -172,16 +172,12 @@ test(
   [
     'given server/themes::themesForWorkspace',
     'when a label matches the second of two watched workspaces',
-    'it should answer that one\'s registrations, not the first\'s',
+    "it should answer that one's registrations, not the first's",
   ].join(', '),
   () => {
     // given
-    const first = workspace(
-      'themes:\n  - name: midnight\n    builtin: true\n',
-    )
-    const second = workspace(
-      'themes:\n  - name: sunrise\n    builtin: true\n',
-    )
+    const first = workspace('themes:\n  - name: midnight\n    builtin: true\n')
+    const second = workspace('themes:\n  - name: sunrise\n    builtin: true\n')
     const watched = [
       { label: 'one', root: first },
       { label: 'two', root: second },

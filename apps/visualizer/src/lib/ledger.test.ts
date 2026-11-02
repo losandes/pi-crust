@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Envelope, Event as EventRow } from '../../shared/types'
-import { needsYou, activityRunLedger, runLedger } from './ledger'
+import { activityRunLedger, needsYou, runLedger } from './ledger'
 
 const envelope = (
   over: Partial<Envelope> & { payload: Record<string, unknown> },
@@ -50,9 +50,17 @@ test(
     const envelopes = [
       envelope({
         payload: {
-          decisions: [{ decision: 'scoped to goals 1 and 2', rationale: 'the rest are TODO' }],
+          decisions: [
+            {
+              decision: 'scoped to goals 1 and 2',
+              rationale: 'the rest are TODO',
+            },
+          ],
           assumptions: [
-            { assumption: '3am UTC is a guess', invalidated_by: "the provider's docs" },
+            {
+              assumption: '3am UTC is a guess',
+              invalidated_by: "the provider's docs",
+            },
           ],
           unresolved: [],
         },
@@ -107,7 +115,9 @@ test(
   () => {
     // given
     const envelopes = [
-      envelope({ payload: { unresolved: [question({ provisional_answer: '' })] } }),
+      envelope({
+        payload: { unresolved: [question({ provisional_answer: '' })] },
+      }),
     ]
     const events = [
       event({
@@ -162,7 +172,9 @@ test(
     // given — an empty provisional answer is the one thing that must never
     // read as a decision: nobody decided anything
     const envelopes = [
-      envelope({ payload: { unresolved: [question({ provisional_answer: '' })] } }),
+      envelope({
+        payload: { unresolved: [question({ provisional_answer: '' })] },
+      }),
     ]
 
     // when
@@ -191,7 +203,9 @@ test(
       envelope({
         envelope_id: 'good',
         valid: 1,
-        payload: { decisions: [{ decision: 'accepted', rationale: 'evidence' }] },
+        payload: {
+          decisions: [{ decision: 'accepted', rationale: 'evidence' }],
+        },
       }),
     ]
 
@@ -227,7 +241,7 @@ test(
 test(
   [
     'given lib/ledger::activityRunLedger',
-    "when events belong to a different activity-run",
+    'when events belong to a different activity-run',
     'it should ignore them rather than attributing them to this one',
   ].join(', '),
   () => {
@@ -238,7 +252,9 @@ test(
     // fallback would land on 'decided' anyway and this test would pass
     // whether or not the filtering worked.
     const envelopes = [
-      envelope({ payload: { unresolved: [question({ provisional_answer: '' })] } }),
+      envelope({
+        payload: { unresolved: [question({ provisional_answer: '' })] },
+      }),
     ]
     const foreign = [
       event({
@@ -283,7 +299,9 @@ test(
       [
         event({
           name: 'self_answered',
-          payload_json: JSON.stringify({ question: 'span-tagged or interval?' }),
+          payload_json: JSON.stringify({
+            question: 'span-tagged or interval?',
+          }),
         }),
       ],
     )
@@ -305,7 +323,10 @@ test(
   () => {
     // given
     const envelopes = [
-      envelope({ activity_run_id: 'p1', payload: { unresolved: [question()] } }),
+      envelope({
+        activity_run_id: 'p1',
+        payload: { unresolved: [question()] },
+      }),
     ]
 
     // when

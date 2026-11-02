@@ -158,9 +158,9 @@ export const runArgv = (request: TRunRequest): readonly string[] => {
     request.prompt,
     ...(chosen
       ? []
-      : request.lifecycle !== ''
-        ? ['--lifecycle', request.lifecycle]
-        : ['--activities', request.activities.join(',')]),
+      : request.lifecycle === ''
+        ? ['--activities', request.activities.join(',')]
+        : ['--lifecycle', request.lifecycle]),
     ...(request.trustLevel === TRUST_DEFAULT
       ? []
       : ['--trust-level', String(request.trustLevel)]),

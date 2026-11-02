@@ -154,11 +154,7 @@ test(
     const deletedPath = 'removed.txt'
     const invalidPath = 'never-touched.txt'
     const run = runWithRepoRoot(repoRoot)
-    const envelope = envelopeClaiming([
-      existsPath,
-      deletedPath,
-      invalidPath,
-    ])
+    const envelope = envelopeClaiming([existsPath, deletedPath, invalidPath])
 
     // when — only the deleted path was observed as changed
     const report = diffMatchesClaims.check(envelope, run, [deletedPath])

@@ -3,13 +3,13 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { renderReport } from '../../report'
 import { createTracer } from '../data/trace-db'
 import type { TActivityRun, TActivityRunStatus } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
-import type { TTracer } from '../typedefs/trace'
 import type { TRunState } from '../typedefs/run-state'
+import type { TTracer } from '../typedefs/trace'
 import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
-import { renderReport } from '../../report'
 import { latestLogPayload, readRunState } from './read-run-state'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-run-state-'))
@@ -269,26 +269,26 @@ test(
 
 test(
   [
-    "given ../../report::renderReport",
-    "when the state carries a --name",
-    "it should show the name on the workflow line and the lifecycle beneath it",
-  ].join(", "),
+    'given ../../report::renderReport',
+    'when the state carries a --name',
+    'it should show the name on the workflow line and the lifecycle beneath it',
+  ].join(', '),
   () => {
     // given
     const dir = scratch()
-    const dbPath = join(dir, "crust.db")
-    const tracer = createTracer(dbPath, join(dir, "events.jsonl"))
-    tracer.sessionStart("a1b2c3d4", "tester", "sdlc", "payments rewrite")
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('a1b2c3d4', 'tester', 'sdlc', 'payments rewrite')
     tracer.close()
-    const state = readRunState(dbPath, "a1b2c3d4") as TRunState
+    const state = readRunState(dbPath, 'a1b2c3d4') as TRunState
 
     // when
     const actual = renderReport(state)
 
     // then
-    expect(actual).toContain("payments rewrite")
-    expect(actual).toContain("lifecycle:")
-    expect(actual).toContain("sdlc")
+    expect(actual).toContain('payments rewrite')
+    expect(actual).toContain('lifecycle:')
+    expect(actual).toContain('sdlc')
   },
 )
 
@@ -315,7 +315,9 @@ test(
     const actual = renderReport(state)
 
     // then
-    expect(actual).not.toContain('every activity run succeeded — nothing to resume')
+    expect(actual).not.toContain(
+      'every activity run succeeded — nothing to resume',
+    )
     expect(actual).toContain('did not finish')
   },
 )
@@ -364,7 +366,7 @@ test(
         ' total_tokens INTEGER, total_cost REAL)',
     )
     legacy.run(
-      "INSERT INTO sessions (run_id, lifecycle, status, engineer, started_at)" +
+      'INSERT INTO sessions (run_id, lifecycle, status, engineer, started_at)' +
         " VALUES ('a1b2c3d4', 'sdlc', 'success', 'tester', '2024-01-01T00:00:00.000Z')",
     )
     legacy.run(

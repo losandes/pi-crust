@@ -128,7 +128,10 @@ test(
       confidence: 'unproven',
       reproducing_test: '',
       unresolved: [
-        { question: 'which app version did the user have?', consequential: true },
+        {
+          question: 'which app version did the user have?',
+          consequential: true,
+        },
       ],
     })
 

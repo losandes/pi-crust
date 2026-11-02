@@ -31,8 +31,8 @@
  */
 
 import { changedFiles, untrackedFiles } from '../../data/git'
-import { buildOutput, narrowEnvelope } from '../../typedefs/envelope'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
+import { buildOutput, narrowEnvelope } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'

@@ -32,8 +32,6 @@ import {
   runArgv,
   TRUST_CHOICES,
 } from './modules/use-cases/compose-request'
-import { displayLabel } from './modules/use-cases/run-label'
-import { shellLine } from './modules/use-cases/recipe-line'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   lifecyclesBeside,
@@ -46,6 +44,8 @@ import {
   expandChoices,
   menuOptions,
 } from './modules/use-cases/menu-options'
+import { shellLine } from './modules/use-cases/recipe-line'
+import { displayLabel } from './modules/use-cases/run-label'
 
 const DEFAULT_DB = '.pi-crust/data/crust.db'
 

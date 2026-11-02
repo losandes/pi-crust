@@ -210,7 +210,11 @@ export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
  * engine's, not a team's.
  */
 export const terminalConfigSchema = plannerConfigSchema.extend({
-  delivery: deliverySchema.default({ remote: 'origin', base: 'main', draft: false }),
+  delivery: deliverySchema.default({
+    remote: 'origin',
+    base: 'main',
+    draft: false,
+  }),
 })
 export type TTerminalConfig = Readonly<z.infer<typeof terminalConfigSchema>>
 

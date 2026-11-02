@@ -51,7 +51,7 @@ export const explainWriteFailure = (status: number, body: string): string => {
     )
   }
   if (status === 401) {
-    return 'That token was not accepted. Paste the server\'s CRUST_TOKEN.'
+    return "That token was not accepted. Paste the server's CRUST_TOKEN."
   }
   return body === '' ? `Request failed (${status}).` : body
 }

@@ -15,7 +15,8 @@ export const EVIDENCE_PATH_LINE =
   /(?:^|\s)[^\s:]*[\w.-]\/?[\w.-]+:\d+(?::\d+)?\b/
 
 /** a command's verdict: `exit 0`, `exited 1`, `exit status 2`, `exit_code: 0`. */
-export const EVIDENCE_EXIT_STATUS = /\bexit(?:ed)?[\s_]*(?:code|status)?[:\s=]*\d+/i
+export const EVIDENCE_EXIT_STATUS =
+  /\bexit(?:ed)?[\s_]*(?:code|status)?[:\s=]*\d+/i
 
 export const hasEvidenceShape = (evidence: string): boolean =>
   EVIDENCE_PATH_LINE.test(evidence) || EVIDENCE_EXIT_STATUS.test(evidence)

@@ -24,6 +24,7 @@
 
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { nowIso } from './clock'
 import type { TEnv } from './env-overrides'
 import {
   appendText,
@@ -32,7 +33,6 @@ import {
   readText,
   writeText,
 } from './files'
-import { nowIso } from './clock'
 
 /** One tree, as recorded when a run started in it. */
 export type TRegisteredWorkspace = Readonly<{

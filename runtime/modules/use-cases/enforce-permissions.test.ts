@@ -1,13 +1,18 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { readFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
-import { crustConfigSchema } from '../typedefs/config'
 import { commitPaths } from '../data/git'
 import { snapshotTree } from '../data/working-tree'
+import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
+import { crustConfigSchema } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
 import {
   alwaysWritable,
@@ -320,7 +325,7 @@ test(
   [
     'given use-cases/enforce-permissions::permitted',
     'when a path belongs to an activity running alongside this one',
-    'it should be that activity\'s, because disjointness was checked at load',
+    "it should be that activity's, because disjointness was checked at load",
   ].join(', '),
   () => {
     // given
@@ -557,7 +562,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const cfg = crustConfigSchema.parse({ defaults: { data_dir: '.pi-crust/data' } })
+    const cfg = crustConfigSchema.parse({
+      defaults: { data_dir: '.pi-crust/data' },
+    })
 
     // when
     const actual = alwaysWritable(cfg, 'specs/abc/')
@@ -667,7 +674,10 @@ test(
       cfg,
       repoRoot: workspaceDir,
       vcsRoot: vcsRootDir,
-      contextHandoffDir: join(workspaceDir, '.pi-crust/data/sessions/abc/context_handoff'),
+      contextHandoffDir: join(
+        workspaceDir,
+        '.pi-crust/data/sessions/abc/context_handoff',
+      ),
     } as unknown as TRun
 
     // when \u2014 snapshotted and resolved
@@ -698,7 +708,9 @@ test(
       vcsRootDir,
     )
     expect(committed.sha).not.toEqual('')
-    expect(committed.paths).toEqual(['.prodcontainer/spotify-gateway/Dockerfile'])
+    expect(committed.paths).toEqual([
+      '.prodcontainer/spotify-gateway/Dockerfile',
+    ])
   },
 )
 
@@ -708,7 +720,7 @@ test(
     'when the workspace is nested inside the VCS root and `writes` names only a workspace-relative pattern',
     'it should still report a file changed ABOVE the workspace as an overstep, because 1.6.5 of',
     'specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md keeps `writes` resolving against the workspace root,',
-    'unaffected by the VCS root \u2014 unlike the `writes: [\'*\']` case covered above',
+    "unaffected by the VCS root \u2014 unlike the `writes: ['*']` case covered above",
   ].join(', '),
   () => {
     /*

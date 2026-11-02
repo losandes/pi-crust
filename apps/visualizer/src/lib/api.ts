@@ -89,7 +89,11 @@ export const handoffHref = (
   workspace?: string,
 ): string =>
   `/api/sessions/${encodeURIComponent(runId)}/handoff/` +
-  `${path.replace(/^context_handoff\//, '').split('/').map(encodeURIComponent).join('/')}${scope(workspace)}`
+  `${path
+    .replace(/^context_handoff\//, '')
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}${scope(workspace)}`
 
 export async function fetchSession(
   runId: string,
@@ -121,7 +125,11 @@ export async function fetchEvents(
     const cursor = page.reduce((max, e) => Math.max(max, e.rowid), after)
     return { events: page, cursor, has_more: page.length === limit }
   }
-  return { events: page.events ?? [], cursor: page.cursor ?? after, has_more: page.has_more ?? false }
+  return {
+    events: page.events ?? [],
+    cursor: page.cursor ?? after,
+    has_more: page.has_more ?? false,
+  }
 }
 
 export function fetchHealth(): Promise<HealthResponse> {
@@ -223,11 +231,14 @@ export const sendMessage = (
   message: string,
   workspace?: string,
 ): Promise<TWriteResult> =>
-  post(`/api/sessions/${encodeURIComponent(runId)}/messages${scope(workspace)}`, {
-    kind,
-    message,
-    from: 'the web app',
-  })
+  post(
+    `/api/sessions/${encodeURIComponent(runId)}/messages${scope(workspace)}`,
+    {
+      kind,
+      message,
+      from: 'the web app',
+    },
+  )
 
 /**
  * Archive a run out of the review list, or restore it.
@@ -242,9 +253,12 @@ export const archiveSession = (
   archived = true,
   workspace?: string,
 ): Promise<TWriteResult> =>
-  post(`/api/sessions/${encodeURIComponent(runId)}/archive${scope(workspace)}`, {
-    archived,
-  })
+  post(
+    `/api/sessions/${encodeURIComponent(runId)}/archive${scope(workspace)}`,
+    {
+      archived,
+    },
+  )
 
 /**
  * Ask a finished Activity Run a question, or have it amend its own document.
@@ -292,11 +306,14 @@ export const sendDecision = (
   text: string,
   workspace?: string,
 ): Promise<TWriteResult> =>
-  post(`/api/sessions/${encodeURIComponent(runId)}/decision${scope(workspace)}`, {
-    action,
-    text,
-    from: 'the web app',
-  })
+  post(
+    `/api/sessions/${encodeURIComponent(runId)}/decision${scope(workspace)}`,
+    {
+      action,
+      text,
+      from: 'the web app',
+    },
+  )
 
 /**
  * Pick a finished run back up, exactly as it was launched.

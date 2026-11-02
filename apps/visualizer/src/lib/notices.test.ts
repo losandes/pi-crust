@@ -72,7 +72,12 @@ test(
 
     // then
     expect(actual).toEqual([
-      { kind: 'branched_from', runId: 'src00001', activity: 'design', at: '2026-01-02T00:00:00.000Z' },
+      {
+        kind: 'branched_from',
+        runId: 'src00001',
+        activity: 'design',
+        at: '2026-01-02T00:00:00.000Z',
+      },
     ])
   },
 )
@@ -106,7 +111,12 @@ test(
 
     // then
     expect(actual).toEqual([
-      { kind: 'branched_to', runId: 'brn00001', activity: 'design', at: '2026-01-02T00:00:00.000Z' },
+      {
+        kind: 'branched_to',
+        runId: 'brn00001',
+        activity: 'design',
+        at: '2026-01-02T00:00:00.000Z',
+      },
     ])
   },
 )
@@ -123,7 +133,10 @@ test(
       event({
         type: 'steer',
         name: 'steer design',
-        payload_json: JSON.stringify({ target: 'overwrite', activity: 'design' }),
+        payload_json: JSON.stringify({
+          target: 'overwrite',
+          activity: 'design',
+        }),
       }),
     ]
 
@@ -145,7 +158,11 @@ test(
     // given
     const events = [
       event({ type: 'log', name: 'developer_note', payload_json: '{not json' }),
-      event({ type: 'log', name: 'developer_note', payload_json: JSON.stringify({ note: '' }) }),
+      event({
+        type: 'log',
+        name: 'developer_note',
+        payload_json: JSON.stringify({ note: '' }),
+      }),
       event({
         type: 'log',
         name: 'branched_from',
@@ -171,7 +188,10 @@ test(
       event({
         type: 'log',
         name: 'developer_note',
-        payload_json: JSON.stringify({ note: 'second', at: '2026-01-02T00:00:00.000Z' }),
+        payload_json: JSON.stringify({
+          note: 'second',
+          at: '2026-01-02T00:00:00.000Z',
+        }),
       }),
       event({
         type: 'log',

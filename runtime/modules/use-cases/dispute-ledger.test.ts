@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { TBuildOutput, TReviewOutput } from '../typedefs/envelope'
 import { buildOutputSchema, reviewOutputSchema } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
+import type { TRoundRecord } from './dispute-ledger'
 import {
   ledgerPath,
   ledgerSchema,
@@ -13,7 +14,6 @@ import {
   unmovedFindings,
   writeLedger,
 } from './dispute-ledger'
-import type { TRoundRecord } from './dispute-ledger'
 
 const runWith = (contextHandoffDir: string, notes: string[]): TRun =>
   ({
@@ -70,7 +70,11 @@ test(
     const review = repeated
 
     // when
-    const actual = roundRecord({ round: 1, reviews: [review], revise: undefined })
+    const actual = roundRecord({
+      round: 1,
+      reviews: [review],
+      revise: undefined,
+    })
 
     // then
     expect(actual.blocking).toEqual(['the handler is unguarded'])
@@ -89,7 +93,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
+    const first = roundRecord({
+      round: 1,
+      reviews: [repeated],
+      revise: undefined,
+    })
     const second = roundRecord({
       round: 2,
       reviews: [repeated],
@@ -112,7 +120,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
+    const first = roundRecord({
+      round: 1,
+      reviews: [repeated],
+      revise: undefined,
+    })
     const second = roundRecord({
       round: 2,
       reviews: [
@@ -147,7 +159,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
+    const first = roundRecord({
+      round: 1,
+      reviews: [repeated],
+      revise: undefined,
+    })
     const second = roundRecord({
       round: 2,
       reviews: [repeated],
@@ -178,7 +194,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const first = roundRecord({ round: 1, reviews: [repeated], revise: undefined })
+    const first = roundRecord({
+      round: 1,
+      reviews: [repeated],
+      revise: undefined,
+    })
     const second = roundRecord({
       round: 2,
       reviews: [repeated],
@@ -220,7 +240,13 @@ test(
   () => {
     // given
     const current = [
-      { round: 1, blocking: ['x'], evidence: { x: 'src/a.ts:1' }, disputes: {}, changed: 2 },
+      {
+        round: 1,
+        blocking: ['x'],
+        evidence: { x: 'src/a.ts:1' },
+        disputes: {},
+        changed: 2,
+      },
     ]
 
     // when
