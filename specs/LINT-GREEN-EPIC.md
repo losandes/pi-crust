@@ -1,8 +1,8 @@
-# Refactor: the repository lints green, in five reviewable stages
+# Refactor: the repository lints green, in six reviewable stages
 
 ## Objective
 
-`bun run lint` reports 103 errors and 3 warnings, plus two configuration notices against `biome.json` itself, across 108 diagnostic lines. `.biome/README.md` is explicit that the failure is the record of the debt rather than something to configure away. This epic owns no implementation: it names the five documents that repay it, the order they run in, and the condition that ends the work — `bun run lint` exits 0 with no diagnostic lines at all.
+`bun run lint` reports 103 errors and 3 warnings, plus two configuration notices against `biome.json` itself, across 108 diagnostic lines. `.biome/README.md` is explicit that the failure is the record of the debt rather than something to configure away. This epic owns no implementation: it names the six documents that repay it, the order they run in, and the condition that ends the work — `bun run lint` exits 0 with no diagnostic lines at all.
 
 ## 1. Requirements
 
@@ -36,15 +36,18 @@
 
 ## 2. Target state
 
-The five children, in execution order, with what each one owns:
+The six children, in execution order, with what each one owns:
 
 | Order | Document                                                            | Scope                         | Diagnostics |
 | ----- | ------------------------------------------------------------------- | ----------------------------- | ----------- |
+| 0     | [LINT-GREEN-0-SHARED-SETTLEMENTS.md](./LINT-GREEN-0-SHARED-SETTLEMENTS.md) | `lib/typedefs`, and the imports of it | 1 |
 | 1     | [LINT-GREEN-1-VISUALIZER-TESTS.md](./LINT-GREEN-1-VISUALIZER-TESTS.md) | `biome.json`, `apps/visualizer` test files | 2 + 0   |
 | 2     | [LINT-GREEN-2-VISUALIZER-SRC.md](./LINT-GREEN-2-VISUALIZER-SRC.md)     | `apps/visualizer` source      | 56          |
 | 3     | [LINT-GREEN-3-RUNTIME-TESTS.md](./LINT-GREEN-3-RUNTIME-TESTS.md)       | `runtime` test files          | 14          |
 | 4     | [LINT-GREEN-4-RUNTIME-SRC.md](./LINT-GREEN-4-RUNTIME-SRC.md)           | `runtime` source              | 35          |
 | 5     | [LINT-GREEN-5-SCRIPTS.md](./LINT-GREEN-5-SCRIPTS.md)                   | `scripts` and `templates`     | 1           |
+
+Document 0 was added after the sequence began, when the visualizer's try-catch sites turned out to need a settlement helper only `runtime` could reach. It is ordered first because documents 2 and 4 both import what it moves.
 
 Where this table and any prose disagree about which document owns a file, this table governs.
 
@@ -68,11 +71,11 @@ The pattern anchors on `path:line:column ` and MUST NOT anchor on a leading `app
 
 | #   | Change                                      | Proven by                                                                      |
 | --- | ------------------------------------------- | ------------------------------------------------------------------------------ |
-| 1   | 1.1.2 — every child named here exists        | `ls specs/LINT-GREEN-1-VISUALIZER-TESTS.md specs/LINT-GREEN-2-VISUALIZER-SRC.md specs/LINT-GREEN-3-RUNTIME-TESTS.md specs/LINT-GREEN-4-RUNTIME-SRC.md specs/LINT-GREEN-5-SCRIPTS.md` exits 0 |
+| 1   | 1.1.2 — every child named here exists        | `ls specs/LINT-GREEN-0-SHARED-SETTLEMENTS.md specs/LINT-GREEN-1-VISUALIZER-TESTS.md specs/LINT-GREEN-2-VISUALIZER-SRC.md specs/LINT-GREEN-3-RUNTIME-TESTS.md specs/LINT-GREEN-4-RUNTIME-SRC.md specs/LINT-GREEN-5-SCRIPTS.md` exits 0 |
 | 2   | 1.2.1 — the linter passes                    | `bun run lint` exits 0                                                         |
 | 3   | 1.2.2 — nothing is left, warnings included   | the counting command in section 2 prints `0`                                   |
 | 4   | 1.2.3 — nothing was broken to get there      | `bun run test:agent` exits 0; `bun run typecheck` exits 0                      |
-| 5   | 1.2.4 — the executed documents are filed     | `ls specs/completed` lists all five child documents                            |
+| 5   | 1.2.4 — the executed documents are filed     | `ls specs/completed` lists all six child documents                             |
 
 These stages are the epic's own completion criteria, checked after the last child run finishes. They are not a run.
 
