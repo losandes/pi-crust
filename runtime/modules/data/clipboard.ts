@@ -11,7 +11,7 @@
  * behaviour we had before.
  */
 
-import { errorMessage } from '../typedefs/settlement'
+import { errorMessage } from '../../../lib/typedefs/src/settlement'
 
 export type TCopied = Readonly<{ copied: boolean; how: string }>
 

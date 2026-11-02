@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * pi-crust Show-Config — every effective config value, with the file that set it.
  *
@@ -14,13 +15,13 @@
  * askable on demand, which is what this is for.
  */
 
-import { configPathFromEnv } from './modules/data/env-overrides'
-import { paint, writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import {
   errorMessage,
   safeParseSettlement,
-} from './modules/typedefs/settlement'
+} from '../lib/typedefs/src/settlement'
+import { configPathFromEnv } from './modules/data/env-overrides'
+import { paint, writeLine } from './modules/data/terminal'
+import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { configProvenance } from './modules/use-cases/load-config'
 
 const flagValue = (

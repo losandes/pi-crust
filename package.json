@@ -6,8 +6,8 @@
   "scripts": {
     "postinstall": "cd apps/visualizer && bun install",
     "// LINT": "==============================LINT==============================",
-    "lint": "biome check apps runtime scripts templates",
-    "lint:fix": "biome check apps runtime scripts templates --fix",
+    "lint": "biome check apps lib runtime scripts templates",
+    "lint:fix": "biome check apps lib runtime scripts templates --fix",
     "// BUILD": "=============================BUILD=============================",
     "build": "bun run --cwd apps/visualizer build",
     "// TEST": "==============================TEST==============================",

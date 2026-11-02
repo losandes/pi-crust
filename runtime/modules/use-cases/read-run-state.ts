@@ -16,6 +16,10 @@
  *      instead, from the session's own status.
  */
 
+import {
+  safeParseSettlement,
+  settledOr,
+} from '../../../lib/typedefs/src/settlement'
 import type {
   TTraceActivityRunRow,
   TTraceEventRow,
@@ -31,7 +35,6 @@ import type {
   TGateOutcome,
   TRunState,
 } from '../typedefs/run-state'
-import { safeParseSettlement, settledOr } from '../typedefs/settlement'
 import type { TEventPayload } from '../typedefs/trace'
 import type { TTreeWarning } from '../typedefs/warning'
 import { WARNING_EVENT, warningFromPayload } from '../typedefs/warning'

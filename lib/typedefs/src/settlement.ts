@@ -7,7 +7,11 @@
  * that have no such package, and into some that do — so the one thing this
  * runtime cannot do is depend on either answer being true.
  *
- * Only the types and the one helper this runtime actually uses are defined.
+ * It lives beside the trees that use it rather than inside one of them: the
+ * runtime and the visualizer both settle, and a second copy of eight lines is
+ * how two trees start disagreeing about what a failure is.
+ *
+ * Only the types and the helpers those trees actually use are defined.
  * The discriminant is `status: 'ok' | 'error'` and every field is
  * `Readonly<>`, which is the conventional shape: where a host repository
  * already uses it, a value crosses between the two without adaptation, and
@@ -51,19 +55,36 @@ export const isOk = <TData, TError>(
 /**
  * Wrap a throwing call once, at the edge, so the layers above it never catch.
  *
- * This is the only `try` in `modules/`, apart from the activityRun boundary in
- * `use-cases/run-activityRun.ts` which exists to turn a throw into a recorded
- * failure. Everything else settles.
+ * This is the only `try` in the repository's own modules, apart from the
+ * activityRun boundary in `use-cases/run-activityRun.ts` which exists to turn
+ * a throw into a recorded failure. Everything else settles.
  */
 export const safeParseSettlement = <TData>(
   compute: () => TData,
 ): TSettlement<TData> => {
+  // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary the rule names — the single place in this repository where a throwing call becomes a settlement, which is what every caller reads instead of catching
   try {
     return succeed(compute())
   } catch (error) {
     return fail(error instanceof Error ? error : new Error(String(error)))
   }
 }
+
+/**
+ * The same conversion for work that settles later.
+ *
+ * `Promise.resolve().then(work)` rather than `work()`, so a function that
+ * throws before it returns a promise settles here too. No `try`: a rejection
+ * handler IS the conversion, and there is no exception handling to report.
+ */
+export const settleAsync = <TData>(
+  work: () => Promise<TData>,
+): Promise<TSettlement<TData>> =>
+  Promise.resolve()
+    .then(work)
+    .then(succeed, (error) =>
+      fail(error instanceof Error ? error : new Error(String(error))),
+    )
 
 /** The settled value, or a fallback. For calls whose failure carries no news. */
 export const settledOr = <TData>(

@@ -13,6 +13,9 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
+      // Outside this app, deliberately: one settlement module for the UI and
+      // the runtime both. Mirrored in tsconfig.json's `paths`.
+      '@typedefs': fileURLToPath(new URL('../../lib/typedefs/src', import.meta.url)),
     },
   },
   server: {

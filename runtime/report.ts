@@ -28,15 +28,15 @@
  */
 
 import { dirname, join } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../lib/typedefs/src/settlement'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
 import type { TGateOutcome, TRunState } from './modules/typedefs/run-state'
 import { EXIT } from './modules/typedefs/run-state'
-import {
-  errorMessage,
-  safeParseSettlement,
-} from './modules/typedefs/settlement'
 import { renderWarnings } from './modules/typedefs/warning'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'

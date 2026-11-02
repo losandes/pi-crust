@@ -5,9 +5,12 @@
  * every repository this tree is stamped into, to parse four flags.
  */
 
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { configPathFromEnv } from '../data/env-overrides'
 import { DEFAULT_CONFIG_PATH } from '../typedefs/config'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { RUN_RECIPE } from './recipe-line'
 import { runName } from './run-label'
 

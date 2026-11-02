@@ -42,13 +42,13 @@
  * Activity's `attempts`.
  */
 
-import type { TPiCrustConfig } from '../modules/typedefs/config'
-import type { TStage } from '../modules/typedefs/lifecycle'
-import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
 import {
   errorMessage,
   safeParseSettlement,
-} from '../modules/typedefs/settlement'
+} from '../../lib/typedefs/src/settlement'
+import type { TPiCrustConfig } from '../modules/typedefs/config'
+import type { TStage } from '../modules/typedefs/lifecycle'
+import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
 import { loadConfigWithNotes } from '../modules/use-cases/load-config'
 import { loadLifecycles } from '../modules/use-cases/load-lifecycles'
 import { parseActivities } from '../modules/use-cases/parse-activities'

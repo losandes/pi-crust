@@ -11,6 +11,8 @@
 
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
+import type { TSettlement } from '../../../../lib/typedefs/src/settlement'
+import { fail, succeed } from '../../../../lib/typedefs/src/settlement'
 import { writeText } from '../../data/files'
 import {
   changedFiles,
@@ -33,8 +35,6 @@ import type {
   TActivityContext,
   TActivityOptions,
 } from '../../typedefs/runnable-activity'
-import type { TSettlement } from '../../typedefs/settlement'
-import { fail, succeed } from '../../typedefs/settlement'
 import type { TAgentPorts } from '../execute-agent'
 import { callAgent, liveAgent } from '../execute-agent'
 import { readEnvelope } from '../read-envelope'

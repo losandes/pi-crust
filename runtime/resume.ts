@@ -22,15 +22,15 @@
 
 import { Database } from 'bun:sqlite'
 import { resolve } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../lib/typedefs/src/settlement'
 import { nowIso } from './modules/data/clock'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { handoffDirFor } from './modules/data/handoff-pointer'
 import { appendSteering } from './modules/data/steering'
 import { DEFAULT_DB } from './modules/typedefs/config'
-import {
-  errorMessage,
-  safeParseSettlement,
-} from './modules/typedefs/settlement'
 import { positionalArgs, RESUME_CLI } from './modules/use-cases/cli-positionals'
 import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'

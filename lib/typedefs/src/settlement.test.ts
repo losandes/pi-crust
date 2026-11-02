@@ -4,6 +4,7 @@ import {
   fail,
   isOk,
   safeParseSettlement,
+  settleAsync,
   settledOr,
   succeed,
 } from './settlement'
@@ -100,6 +101,64 @@ test(
 
     // when
     const actual = safeParseSettlement(compute)
+
+    // then
+    expect(actual.status).toEqual('error')
+    expect(actual.status === 'error' && actual.error.message).toEqual(
+      'raw string failure',
+    )
+  },
+)
+
+test(
+  [
+    'given typedefs/settlement::settleAsync',
+    'when the work resolves',
+    'it should settle ok with the resolved value',
+  ].join(', '),
+  async () => {
+    // given, when
+    const actual = await settleAsync(() => Promise.resolve(7))
+
+    // then
+    expect(actual).toEqual({ status: 'ok', data: 7 })
+  },
+)
+
+test(
+  [
+    'given typedefs/settlement::settleAsync',
+    'when the work rejects',
+    'it should settle error with the rejection',
+  ].join(', '),
+  async () => {
+    // given, when
+    const actual = await settleAsync(() =>
+      Promise.reject(new Error('network down')),
+    )
+
+    // then
+    expect(actual.status).toEqual('error')
+    expect(actual.status === 'error' && actual.error.message).toEqual(
+      'network down',
+    )
+  },
+)
+
+test(
+  [
+    'given typedefs/settlement::settleAsync',
+    'when the work throws before it returns a promise',
+    'it should settle error, wrapping a non-Error in a real Error',
+  ].join(', '),
+  async () => {
+    // given
+    const work = (): Promise<number> => {
+      throw 'raw string failure'
+    }
+
+    // when
+    const actual = await settleAsync(work)
 
     // then
     expect(actual.status).toEqual('error')

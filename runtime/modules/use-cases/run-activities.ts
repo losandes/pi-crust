@@ -14,6 +14,10 @@
  * called exactly once, by whoever owns the run.
  */
 
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import type { TActivityRun } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TEnvelopeBase } from '../typedefs/envelope'
@@ -25,7 +29,6 @@ import type {
   TActivityContext,
   TUpstream,
 } from '../typedefs/runnable-activity'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import type { TUnit } from '../typedefs/unit'
 import { activityGates, wantsStageGate } from '../typedefs/unit'

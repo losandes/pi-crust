@@ -20,6 +20,7 @@
 import { Database } from 'bun:sqlite'
 import { rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { safeParseSettlement } from '../lib/typedefs/src/settlement'
 import { resolveDataPaths } from './modules/data/data-paths'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { fileExists } from './modules/data/files'
@@ -27,7 +28,6 @@ import { repoRoot } from './modules/data/git'
 import { box, paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import { safeParseSettlement } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   parseAge,

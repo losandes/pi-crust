@@ -9,11 +9,11 @@
  */
 
 import { join } from 'node:path'
+import type { TSettlement } from '../../../lib/typedefs/src/settlement'
+import { fail, safeParseSettlement } from '../../../lib/typedefs/src/settlement'
 import { fileExists, readText } from '../data/files'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
-import type { TSettlement } from '../typedefs/settlement'
-import { fail, safeParseSettlement } from '../typedefs/settlement'
 
 /** Keys `persistEnvelope` adds for a human reader; never part of the schema. */
 export const ENVELOPE_METADATA_KEYS = [

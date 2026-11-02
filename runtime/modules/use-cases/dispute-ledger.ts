@@ -16,11 +16,14 @@
 
 import { join } from 'node:path'
 import { z } from 'zod'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { isFile, readText, writeText } from '../data/files'
 import { normalise } from '../typedefs/dispute'
 import type { TBuildOutput, TReviewOutput } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 
 /**
  * The ledger's shape, as a schema rather than only a type.

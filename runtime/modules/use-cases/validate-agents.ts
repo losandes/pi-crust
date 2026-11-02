@@ -5,11 +5,14 @@
  * even minted, so a misnamed agent costs a second rather than an activity run.
  */
 
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { isFile } from '../data/files'
 import { resolveModel } from '../data/pi-agent'
 import { resolvePromptPath, resolveReference } from '../data/prompt-files'
 import type { TAgentConfig, TPiCrustConfig } from '../typedefs/config'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { resolveAgent } from './load-config'
 
 const problemsForAgent = (

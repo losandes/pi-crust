@@ -32,8 +32,19 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      // Not this app's code: the settlement module both trees import, kept
+      // in one place so the runtime and the UI cannot disagree about what a
+      // failure is. Mirrored in vite.config.ts, which resolves it at build.
+      "@typedefs/*": ["../../lib/typedefs/src/*"]
     }
   },
-  "include": ["shared/**/*.ts", "server/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+  "include": [
+    "shared/**/*.ts",
+    "server/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
+    "../../lib/typedefs/src/**/*.ts"
+  ]
 }

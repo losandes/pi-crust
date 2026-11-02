@@ -6,6 +6,10 @@
  */
 
 import { join, resolve } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { ensureDir, writeText } from '../data/files'
 import { newId } from '../data/ids'
 import { inboxSince } from '../data/inbox'
@@ -22,7 +26,6 @@ import type { TAgentCall } from '../typedefs/gate'
 import type { TPiRequest, TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../typedefs/run'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { trustStance } from '../typedefs/trust'
 import type { TTreeWarning } from '../typedefs/warning'
 import { WARNING_EVENT, warningPayload } from '../typedefs/warning'

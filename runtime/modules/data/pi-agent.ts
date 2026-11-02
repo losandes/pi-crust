@@ -10,13 +10,16 @@
 import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import {
+  safeParseSettlement,
+  settledOr,
+} from '../../../lib/typedefs/src/settlement'
 import type {
   TPiRequest,
   TToolCallRecord,
   TUsageBreakdown,
 } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
-import { safeParseSettlement, settledOr } from '../typedefs/settlement'
 import { monotonicMs, nowIso } from './clock'
 import { readText } from './files'
 import { operatorEnv } from './operator-env'

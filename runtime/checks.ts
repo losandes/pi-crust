@@ -17,6 +17,10 @@
  */
 
 import { basename, join } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../lib/typedefs/src/settlement'
 import { resolveDataPaths } from './modules/data/data-paths'
 import { configPathFromEnv } from './modules/data/env-overrides'
 import { ensureDir } from './modules/data/files'
@@ -24,10 +28,6 @@ import { changedFiles, repoRoot, untrackedFiles } from './modules/data/git'
 import { paint, writeLine } from './modules/data/terminal'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import {
-  errorMessage,
-  safeParseSettlement,
-} from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   matchingChecks,
