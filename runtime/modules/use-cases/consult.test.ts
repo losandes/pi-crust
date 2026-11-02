@@ -13,6 +13,7 @@ import {
   consultEvent,
   preamble,
   runConsult,
+  sessionDirFor,
   TOOLS,
   type TConsultMode,
   type TConsultRequest,
@@ -102,6 +103,7 @@ test(
     const outcome = await runConsult(
       request('amend', dirs),
       () => {
+        // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — this test forces past the lock on purpose and must observe the OS error code it raised, not let it propagate
         try {
           writeFileSync(join(dirs.dir, 'plan.md'), 'trampled')
         } catch (cause) {
@@ -217,5 +219,25 @@ test(
     expect(event.name).toEqual('technical-architect ask')
     expect(event.payload.question).toEqual(asked.question)
     expect(event.payload.mode).toEqual('ask')
+  },
+)
+
+test(
+  [
+    'given use-cases/consult::sessionDirFor',
+    'when asked where a run keeps one agent\'s pi session',
+    'it should resolve under sessions/<run>/<agent>/pi_sessions',
+  ].join(', '),
+  () => {
+    // given
+    const dataDir = '/tmp/crust-data'
+
+    // when
+    const actual = sessionDirFor(dataDir, 'aaaa1111', 'technical-architect')
+
+    // then
+    expect(actual).toEqual(
+      join(dataDir, 'sessions', 'aaaa1111', 'technical-architect', 'pi_sessions'),
+    )
   },
 )

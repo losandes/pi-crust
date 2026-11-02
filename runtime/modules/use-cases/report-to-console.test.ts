@@ -10,6 +10,7 @@ import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import type { TTracer } from '../typedefs/trace'
 import { checks } from './gates/checks-gate'
+import type { TGateReport } from '../typedefs/gate'
 import {
   createConsole,
   PROMPT_BODY_CHARS,
@@ -299,5 +300,262 @@ test(
     // then
     expect(messages).toHaveLength(1)
     expect(messages[0]).toContain('0 chars')
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when an activity run starts and ends successfully',
+    'it should print the start banner and a success mark, and clear the current lane',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const activityRun = {
+      activity_run_id: 'aaaa1111_01_build',
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'code',
+        owner: 'quality',
+        description: 'write the code',
+      }),
+      status: 'success',
+      error: undefined,
+    } as unknown as Parameters<typeof console_.activityRunStarted>[0]
+
+    // when
+    console_.activityRunStarted(activityRun)
+    console_.activityRunEnded(activityRun, 1.5)
+
+    // then
+    expect(messages.some((line) => line.includes('build'))).toBe(true)
+    expect(messages.some((line) => line.includes('1.5s'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when an activity run ends having failed, with an error message',
+    'it should print the error alongside the failure mark',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const activityRun = {
+      activity_run_id: 'aaaa1111_01_build',
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'code',
+        owner: 'quality',
+        description: 'write the code',
+      }),
+      status: 'fail',
+      error: 'the build threw',
+    } as unknown as Parameters<typeof console_.activityRunEnded>[0]
+
+    // when
+    console_.activityRunEnded(activityRun, 0.3)
+
+    // then
+    expect(messages.some((line) => line.includes('the build threw'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when note is called with free-form detail',
+    'it should print it, clipped the same way every other line is',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    console_.note('resolved against the VCS root')
+
+    // then
+    expect(messages.some((line) => line.includes('resolved against the VCS root'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when instructions prints a multi-line command, including a blank separator line',
+    'it should print every line verbatim, with no clipping',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    console_.instructions(['just crust report aaaa1111', '', 'to see what happened'])
+
+    // then
+    expect(messages).toContain('  just crust report aaaa1111')
+    expect(messages).toContain('  to see what happened')
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when an agent starts and finishes',
+    'it should print its model and session id, then its usage',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    console_.agentStarted('technical-architect', 'claude-sonnet', 'session-1')
+    console_.agentFinished('technical-architect', 1200, 0.05)
+
+    // then
+    expect(messages.some((line) => line.includes('session session-1'))).toBe(true)
+    expect(messages.some((line) => line.includes('1,200 tokens'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when a retry is reported',
+    'it should name the agent, the attempt, the limit and the reason, same session',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    console_.retry('technical-architect', 2, 3, 'the gate failed')
+
+    // then
+    expect(messages.some((line) => line.includes('retry 2/3'))).toBe(true)
+    expect(messages.some((line) => line.includes('the gate failed'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when a gate result reports a failed check with a note',
+    'it should print the gate summary and every check, including the note',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const report: TGateReport = {
+      checks: [
+        { item: 'src/add.ts', ok: false, note: 'no test covers this path' },
+        { item: 'src/sub.ts', ok: true, note: '' },
+      ],
+    } as unknown as TGateReport
+
+    // when
+    console_.gateResult('checks', report)
+
+    // then
+    expect(messages.some((line) => line.includes('1 of 2 failed'))).toBe(true)
+    expect(messages.some((line) => line.includes('no test covers this path'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when a gate result reports every check passed',
+    'it should summarise as checked rather than as a failure count',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const report: TGateReport = {
+      checks: [{ item: 'src/add.ts', ok: true, note: '' }],
+    } as unknown as TGateReport
+
+    // when
+    console_.gateResult('checks', report)
+
+    // then
+    expect(messages.some((line) => line.includes('1 checked'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when narrate is called for the model\u2019s thinking channel',
+    'it should print a thinking header, then the text wrapped under it',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    console_.narrate('technical-architect', 'thinking', 'weighing two options')
+
+    // then
+    expect(messages.some((line) => line.includes('technical-architect thinking'))).toBe(true)
+    expect(messages.some((line) => line.includes('weighing two options'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when narrate is called for the model\u2019s ordinary voice',
+    'it should print the agent\u2019s own name as the header',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+
+    // when
+    console_.narrate('technical-architect', 'text', 'here is the plan')
+
+    // then
+    expect(messages.some((line) => line === '  > technical-architect')).toBe(true)
+    expect(messages.some((line) => line.includes('here is the plan'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/report-to-console::createConsole',
+    'when envelopeSummary is printed for a failed envelope with artifacts',
+    'it should print the failure mark, the summary, and the artifact list',
+  ].join(', '),
+  () => {
+    // given
+    const { tracer, messages } = tracedMessages()
+    const console_ = createConsole(tracer, 'aaaa1111')
+    const envelope = {
+      status: 'fail',
+      summary: 'could not reproduce the bug',
+      artifacts: ['notes.md'],
+    } as unknown as TEnvelopeBase
+
+    // when
+    console_.envelopeSummary('DiagnosisOutput', envelope)
+
+    // then
+    expect(messages.some((line) => line.includes('could not reproduce the bug'))).toBe(true)
+    expect(messages.some((line) => line.includes('artifacts: notes.md'))).toBe(true)
   },
 )

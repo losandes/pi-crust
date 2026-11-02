@@ -25,7 +25,13 @@ const state = (
     failed_gates: [],
     warnings: [],
     envelopes: [
-      { activityRun: 'triage', agent, output_type: 'OperatorPlanOutput', valid, payload },
+      {
+        activityRun: 'triage',
+        agent,
+        output_type: 'OperatorPlanOutput',
+        valid,
+        payload,
+      },
     ],
   }) as TRunState
 
@@ -85,17 +91,20 @@ test(
     const empty = state({ steps: [] })
     const invalid = state({ steps: ['scout'] }, 'triage', false)
     const other = state({ steps: ['scout'] }, 'operator')
+    const notAnArray = state({ steps: 'scout' })
 
     // when
     const actual = [
       adviceCommand(empty, 'x'),
       adviceCommand(invalid, 'x'),
       adviceCommand(other, 'x'),
+      adviceCommand(notAnArray, 'x'),
     ]
 
     // then — including an envelope from a different agent: only the
-    // triage's recommendation is the triage's recommendation
-    expect(actual).toEqual([undefined, undefined, undefined])
+    // triage's recommendation is the triage's recommendation, and a
+    // malformed steps field is not an array to be trusted
+    expect(actual).toEqual([undefined, undefined, undefined, undefined])
   },
 )
 

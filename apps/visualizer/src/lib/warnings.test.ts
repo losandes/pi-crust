@@ -1,6 +1,11 @@
 import { expect, test } from 'bun:test'
 import type { EventRow } from './types'
-import { warningsFor, warningsIn } from './warnings'
+import {
+  warningExplanation,
+  warningsFor,
+  warningsIn,
+  warningTitle,
+} from './warnings'
 
 const event = (payload: Readonly<Record<string, unknown>>): EventRow =>
   ({
@@ -131,5 +136,67 @@ test(
         note: 'commit failed: 1Password: failed to fill whole buffer',
       },
     ])
+  },
+)
+
+test(
+  [
+    'given lib/warnings::warningsIn',
+    'when a tree_warning event carries malformed payload JSON',
+    'it should drop that row rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const broken: EventRow = { ...event(warning), payload_json: 'not json' }
+
+    // when
+    const actual = warningsIn([broken])
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given lib/warnings::warningsIn',
+    'when the payload names a kind this app does not recognise',
+    'it should drop that row',
+  ].join(', '),
+  () => {
+    // given
+    const unknown = event({ ...warning, kind: 'something-new' })
+
+    // when
+    const actual = warningsIn([unknown])
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given lib/warnings::warningExplanation and warningTitle',
+    'when asked for each kind this app knows',
+    'it should give each its own sentence and title',
+  ].join(', '),
+  () => {
+    // given
+    const kinds = ['unexpected', 'overstep', 'refusal', 'uncommitted'] as const
+
+    // when
+    const actual = kinds.map((kind) => ({
+      kind,
+      title: warningTitle(kind),
+      explanation: warningExplanation(kind),
+    }))
+
+    // then — every kind has its own wording, and none is empty
+    expect(new Set(actual.map((row) => row.title)).size).toBe(4)
+    expect(new Set(actual.map((row) => row.explanation)).size).toBe(4)
+    expect(
+      actual.every((row) => row.title !== '' && row.explanation !== ''),
+    ).toBe(true)
   },
 )

@@ -1,0 +1,45 @@
+[build]
+target = "node"
+
+[test]
+# directory to run tests in by default
+# root = "./src" # default "./src"
+
+coverageThreshold = 0.9 # { line = 0.7, function = 0.8, statement = 0.9 }
+
+pathIgnorePatterns = [
+  ".biome/*",
+  ".coverage/*",
+  ".git/*",
+  ".pi-crust/*",
+  "adr/*",
+  "cookbooks/*",
+  "node_modules/*",
+  "references/*",
+  "specs/*"
+]
+
+# Exclude specific files or file patterns from coverage reports using glob
+# patterns. Can be a single string pattern or an array of patterns.
+coveragePathIgnorePatterns = [
+  "apps/visualizer/src/components/SessionCard.layout.test.ts",
+  "apps/visualizer/src/components/ActivityRunDetail.layout.test.ts",
+  "apps/visualizer/src/components/ThemePicker.interaction.test.ts",
+  # Spawns the pi binary and folds its stream; no bun test process can run it.
+  "runtime/modules/data/pi-agent-run.ts",
+  # Raw-mode stdin listener and stream writes; no bun test process can drive a
+  # TTY. The frame arithmetic it used to hold lives in menu-frame.ts instead.
+  "runtime/modules/data/ask.ts",
+  # Live TAgentPorts adapters: a real agent spawn, real git, a real write.
+  # No bun test process can exercise a real coding-agent spawn.
+  "runtime/modules/use-cases/execute-agent-live.ts"
+]
+
+# Outputs for coverage reports.
+# "text" for printing to the console
+# "lcov" for generating persistent reports (for CI environments)
+coverageReporter = ["text", "lcov"] # default ["text"]
+
+# The path where coverage reports will be saved (for persistent
+# coverageReporters like lcov).
+coverageDir = ".coverage" # default "coverage"

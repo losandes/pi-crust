@@ -8,18 +8,19 @@
     "// LINT": "==============================LINT==============================",
     "lint": "biome check apps runtime scripts templates",
     "lint:fix": "biome check apps runtime scripts templates --fix",
+    "// BUILD": "=============================BUILD=============================",
+    "build": "bun run --cwd apps/visualizer build",
     "// TEST": "==============================TEST==============================",
-    "test": "bun test",
-    "test:with-logs": "bun test --verbose",
-    "test:ci": "CLAUDECODE=1 bun test --verbose --coverage",
-    "test:claude": "CLAUDECODE=1 bun test --verbose --bail",
-    "test:coverage": "CLAUDECODE=1 bun test --coverage",
+    "test": "./bin/test",
+    "test:agent": "./bin/test-agent",
+    "test:markdown": "./bin/test-markdown",
+    "test:verbose": "./bin/test-block --verbose --coverage",
     "test:watch": "bun test --watch",
     "// TYPECHECK": "=======================TYPECHECK===========================",
     "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
-    "typecheck:runtime": "cd runtime && bun x tsc --noEmit",
+    "typecheck:runtime": "bun x tsc --noEmit -p runtime",
     "typecheck:harness": "bun scripts/typecheck-harness.ts",
-    "typecheck:visualizer": "cd apps/visualizer && bun x tsc --noEmit"
+    "typecheck:visualizer": "bun x tsc --noEmit -p apps/visualizer"
   },
   "packageManager": "bun@1.4.2",
   "engines": {
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.12",
     "@types/bun": "1.4.2",
+    "buntap": "link:buntap",
     "markdownlint-cli2": "^0.23.3",
     "typescript": "5.9.3"
   }

@@ -248,6 +248,8 @@ export const startSteer = (
   target: "overwrite" | "branch",
   note: string,
   branchRunId?: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  spawnChild: typeof spawn = spawn,
 ): Readonly<{
   started: boolean;
   pid: number | undefined;
@@ -255,7 +257,7 @@ export const startSteer = (
   reason?: string;
   branch_run_id: string;
 }> => {
-  const runtime = crustRuntime(dbPath);
+  const runtime = crustRuntime(dbPath, env);
   if (runtime === undefined) {
     return {
       started: false,
@@ -282,11 +284,11 @@ export const startSteer = (
           note,
         ]
       : [join(runtime, "steer.ts"), runId, activity, "--overwrite", note];
-  const child = spawn("bun", args, {
+  const child = spawnChild("bun", args, {
     cwd: workspaceRoot(dbPath),
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, CRUST_DB: dbPath },
+    env: { ...env, CRUST_DB: dbPath },
   });
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
@@ -318,20 +320,22 @@ export const startConsult = (
   activity: string,
   mode: "ask" | "amend",
   question: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  spawnChild: typeof spawn = spawn,
 ): Readonly<{
   started: boolean;
   pid: number | undefined;
   log: string;
   reason?: string;
 }> => {
-  const runtime = crustRuntime(dbPath);
+  const runtime = crustRuntime(dbPath, env);
   if (runtime === undefined) {
     return { started: false, pid: undefined, log: "", reason: NO_RUNTIME };
   }
   const dir = sessionDir(dbPath, runId);
   mkdirSync(dir, { recursive: true });
   const log = join(dir, "consult.log");
-  const child = spawn(
+  const child = spawnChild(
     "bun",
     [join(runtime, "consult.ts"), mode, runId, activity, question],
     {
@@ -340,7 +344,7 @@ export const startConsult = (
       stdio: ["ignore", "pipe", "pipe"],
       // The consult must read the SAME trace this server is serving, which
       // is not necessarily the one its cwd would resolve to.
-      env: { ...process.env, CRUST_DB: dbPath },
+      env: { ...env, CRUST_DB: dbPath },
     },
   );
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
@@ -424,6 +428,8 @@ export const resumeRun = (
   runId: string,
   note = "",
   from = "the web app",
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  spawnChild: typeof spawn = spawn,
 ): Readonly<{
   resumed: boolean;
   pid: number | undefined;
@@ -471,10 +477,10 @@ export const resumeRun = (
   // milliseconds and has no terminal to attach to, so the run outlives the
   // request and its output goes to the session's own log.
   const log = join(sessionDir(dbPath, runId), "spawn.log");
-  const child = spawn(
+  const child = spawnChild(
     "bun",
     [script, ...carried, "--run-id", runId, "--resume"],
-    { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env } },
+    { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...env } },
   );
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));
   child.stderr?.on("data", (chunk) => appendFileSync(log, chunk));
@@ -501,13 +507,15 @@ export const startRun = (
   lifecycle: string,
   prompt: string,
   extraArgs: readonly string[],
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  spawnChild: typeof spawn = spawn,
 ): Readonly<{
   run_id: string;
   pid: number | undefined;
   log: string;
   reason?: string;
 }> => {
-  const runtime = crustRuntime(dbPath);
+  const runtime = crustRuntime(dbPath, env);
   if (runtime === undefined) {
     return { run_id: "", pid: undefined, log: "", reason: NO_RUNTIME };
   }
@@ -517,7 +525,7 @@ export const startRun = (
   mkdirSync(logDir, { recursive: true });
   const log = join(logDir, "spawn.log");
   writeFileSync(log, "", "utf8");
-  const child = spawn(
+  const child = spawnChild(
     "bun",
     [
       join(runtime, "lifecycles", "compose.ts"),
@@ -532,7 +540,7 @@ export const startRun = (
       cwd: root,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env },
+      env: { ...env },
     },
   );
   child.stdout?.on("data", (chunk) => appendFileSync(log, chunk));

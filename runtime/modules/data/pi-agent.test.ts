@@ -1,15 +1,44 @@
-import { expect, test } from 'bun:test'
+import { afterEach, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TPiRequest } from '../typedefs/pi'
 import { emptyUsage } from '../typedefs/pi'
 import {
   addTurn,
   buildArgv,
   contextTokensOf,
+  contextWindow,
+  createNarrationTracker,
   createToolCallTracker,
+  deltaText,
   EMPTY_STREAM_STATE,
   foldMessageEnd,
+  parseJsonLine,
+  textOf,
   toolLabel,
 } from './pi-agent'
+
+const originalPiModelsPath = process.env.PI_MODELS_PATH
+
+/**
+ * `process.env` is the external API `contextWindow` reads, and pointing it at
+ * a fixture is the only way to exercise the registry path without a real
+ * `~/.pi/agent/models.json`. Assigning to it is the adapter, said once here
+ * rather than at every call site.
+ */
+const setPiModelsPath = (value: string | undefined): void => {
+  if (value === undefined) {
+    delete process.env.PI_MODELS_PATH
+    return
+  }
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API contextWindow reads, and this function is the adapter that owns the assignment
+  process.env.PI_MODELS_PATH = value
+}
+
+afterEach(() => {
+  setPiModelsPath(originalPiModelsPath)
+})
 
 const assistantTurn = (
   usage: Readonly<Record<string, unknown>>,
@@ -365,7 +394,7 @@ test(
   [
     'given data/pi-agent::buildArgv',
     'when any agent is spawned',
-    'it should append its role to pi\'s system prompt rather than replace it',
+    "it should append its role to pi's system prompt rather than replace it",
   ].join(', '),
   () => {
     // given
@@ -398,5 +427,226 @@ test(
     expect(actual).not.toContain('--no-context-files')
     expect(actual).not.toContain('-ns')
     expect(actual).not.toContain('--no-skills')
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::contextWindow',
+    'when the model is registered in ~/.pi/agent/models.json',
+    'it should read the ceiling from the registry rather than the catalog',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-pi-models-'))
+    const path = join(dir, 'models.json')
+    writeFileSync(
+      path,
+      JSON.stringify({
+        providers: {
+          anthropic: {
+            models: [{ id: 'opus', contextWindow: 200_000 }],
+          },
+        },
+      }),
+    )
+    setPiModelsPath(path)
+
+    // when
+    const actual = contextWindow('anthropic', 'opus')
+
+    // then
+    expect(actual).toEqual(200_000)
+    rmSync(dir, { recursive: true, force: true })
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::textOf',
+    'when the container carries no content array at all',
+    'it should return an empty string rather than throw',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = textOf({ role: 'assistant' })
+
+    // then
+    expect(actual).toEqual('')
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::deltaText',
+    'when the delta is an array, a string, an object with text, and nested content',
+    'it should read the text out of every shape pi sends',
+  ].join(', '),
+  () => {
+    // given, when, then
+    expect(deltaText('plain')).toEqual('plain')
+    expect(deltaText(undefined)).toEqual('')
+    expect(deltaText(null)).toEqual('')
+    expect(deltaText(42)).toEqual('')
+    expect(deltaText(['a', 'b'])).toEqual('ab')
+    expect(deltaText({ text: 'leaf' })).toEqual('leaf')
+    expect(deltaText({ content: [{ text: 'nested' }] })).toEqual('nested')
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::parseJsonLine',
+    'when the line is a JSON object, invalid JSON, or a bare JSON scalar',
+    'it should parse the object, and skip everything else without throwing',
+  ].join(', '),
+  () => {
+    // given, when, then
+    expect(parseJsonLine('{"type":"agent_settled"}')).toEqual({
+      type: 'agent_settled',
+    })
+    expect(parseJsonLine('not json at all')).toBeUndefined()
+    expect(parseJsonLine('"just a string"')).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::createToolCallTracker',
+    'when tool_execution_start arrives with no call id',
+    'it should ignore the announcement rather than track an unkeyed call',
+  ].join(', '),
+  () => {
+    // given
+    const tracker = createToolCallTracker()
+
+    // when
+    const onStart = tracker.observe({
+      type: 'tool_execution_start',
+      toolCallId: undefined,
+      toolName: 'bash',
+      args: {},
+    })
+    const onUnknown = tracker.observe({ type: 'agent_settled' })
+
+    // then — neither produces a record, and an unrecognised event type is a
+    // no-op rather than a thrown error
+    expect(onStart).toBeUndefined()
+    expect(onUnknown).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::foldMessageEnd',
+    'when the message is not from the assistant',
+    'it should leave the running state untouched',
+  ].join(', '),
+  () => {
+    // given
+    const userTurn = {
+      type: 'message_end',
+      message: { role: 'user', content: [] },
+    }
+
+    // when
+    const actual = foldMessageEnd(EMPTY_STREAM_STATE, userTurn)
+
+    // then
+    expect(actual).toEqual(EMPTY_STREAM_STATE)
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::createNarrationTracker',
+    'when a harness closes passages with thinking_end and text_end',
+    'it should emit the completed text on the channel it belongs to',
+  ].join(', '),
+  () => {
+    // given
+    const tracker = createNarrationTracker()
+
+    // when
+    const thinking = tracker.observe({
+      type: 'thinking_end',
+      content: 'reasoning about it',
+    })
+    const text = tracker.observe({
+      type: 'text_end',
+      content: 'the answer',
+    })
+
+    // then
+    expect(thinking?.channel).toEqual('thinking')
+    expect(thinking?.text).toEqual('reasoning about it')
+    expect(text?.channel).toEqual('text')
+    expect(text?.text).toEqual('the answer')
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::createNarrationTracker',
+    'when the harness announces turns itself with turn_start',
+    'it should advance the turn on the second turn_start, not the first',
+  ].join(', '),
+  () => {
+    // given
+    const tracker = createNarrationTracker()
+
+    // when
+    tracker.observe({ type: 'turn_start' })
+    const afterFirst = tracker.turn()
+    tracker.observe({ type: 'turn_start' })
+    const afterSecond = tracker.turn()
+
+    // then — the first turn_start opens turn 1, which is already open
+    expect(afterFirst).toEqual(1)
+    expect(afterSecond).toEqual(2)
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::createNarrationTracker',
+    'when the harness marks its own turns and then sends message_end',
+    'it should NOT advance the turn a second time for the same boundary',
+  ].join(', '),
+  () => {
+    // given
+    const tracker = createNarrationTracker()
+    tracker.observe({ type: 'turn_start' })
+
+    // when
+    tracker.observe({
+      type: 'message_end',
+      message: { role: 'assistant', content: [] },
+    })
+
+    // then — message_end only advances the turn for a harness that never
+    // announced turn_start at all
+    expect(tracker.turn()).toEqual(1)
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::createNarrationTracker',
+    'when the harness never announces turn_start',
+    'it should advance the turn on message_end instead',
+  ].join(', '),
+  () => {
+    // given
+    const tracker = createNarrationTracker()
+
+    // when
+    tracker.observe({
+      type: 'message_end',
+      message: { role: 'assistant', content: [] },
+    })
+
+    // then
+    expect(tracker.turn()).toEqual(2)
   },
 )

@@ -6,15 +6,22 @@
    * compiler options (module system, lib, JSX, path aliases), and merging
    * their settings into one shared config would check each tree under the
    * other's rules. `package.json`'s own `typecheck` script reflects that:
-   * it runs `cd runtime && bun x tsc --noEmit` and
-   * `cd apps/visualizer && bun x tsc --noEmit` as two separate invocations,
-   * which remains how this repository verifies itself; see AGENTS.md.
+   * it runs `bun x tsc --noEmit -p runtime` and
+   * `bun x tsc --noEmit -p apps/visualizer` as two separate invocations, both
+   * from the repository root, which remains how this repository verifies
+   * itself; see AGENTS.md.
    *
    * This file exists only so a bare `bun x tsc --noEmit` run from the
-   * repository root — with no `cd` — type-checks both projects instead of
+   * repository root — with no project argument — type-checks both projects instead of
    * finding no tsconfig.json and failing before it reads a single file.
    * `files: []` plus `references` checks each project under its own
    * settings, the same as running it from that project's own directory.
+   *
+   * `apps/visualizer` is no longer `composite` (see its own tsconfig.json
+   * for why), so this bare invocation now silently checks zero of its
+   * files rather than erroring — the reference below still resolves, it
+   * just has nothing composite to build. `bun run typecheck` never goes
+   * through this file; it is the gate.
    */
   "files": [],
   "references": [{ "path": "./runtime" }, { "path": "./apps/visualizer" }]

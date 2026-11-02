@@ -8,16 +8,18 @@
 import { inboxSince } from '../data/inbox'
 import { join, resolve } from 'node:path'
 import { ensureDir, writeText } from '../data/files'
-import { changedFiles, isRepo, rev, untrackedFiles } from '../data/git'
 import { newId } from '../data/ids'
 import * as piAgent from '../data/pi-agent'
-import { render, savePrompt, resolveReference } from '../data/prompt-files'
-import { snapshotTree } from '../data/working-tree'
+import type { TPiHooks } from '../data/pi-agent'
+import { resolveReference } from '../data/prompt-files'
+import type { TTreeSnapshot } from '../data/working-tree'
+import type { TRoots } from '../data/roots'
+import { liveAgent } from './execute-agent-live'
 import type { TAgentConfig } from '../typedefs/config'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
 import type { TAgentCall } from '../typedefs/gate'
 import type { TActivityRun } from '../typedefs/activity-run'
-import type { TPiResult, TUsageBreakdown } from '../typedefs/pi'
+import type { TPiRequest, TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../typedefs/run'
 import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
@@ -61,6 +63,41 @@ export const JSON_FIX_ATTEMPTS = 2
  * the tool runs. Named relative to the package, like every other reference.
  */
 export const PATH_POLICY_EXTENSION = 'harness-engineering/path-policy.ts'
+
+/**
+ * Everything one agent call reaches outside this process, following
+ * `TDeliveryPorts` / `liveDelivery` in `gh-pull-request.ts`.
+ *
+ * Ports on the function rather than fields on `TRun` (1.1.5): `TRun` is
+ * passed through every layer and faked with `as unknown as TRun` in several
+ * existing tests, and only this one call actually spawns an agent.
+ */
+export type TAgentPorts = Readonly<{
+  run: (request: TPiRequest, hooks?: TPiHooks) => Promise<TPiResult>
+  /** uncommitted paths; the real implementation reads the process cwd */
+  changed: () => readonly string[]
+  /** untracked paths; the real implementation reads the process cwd */
+  untracked: () => readonly string[]
+  render: (
+    templatePath: string,
+    variables: Readonly<Record<string, string>>,
+  ) => string
+  savePrompt: (directory: string, name: string, content: string) => string
+  /** the working tree's own fingerprint; the real implementation reads disk */
+  snapshot: (roots: TRoots) => TTreeSnapshot
+  /**
+   * HEAD's revision; '' when the process cwd is not (yet) a git repository.
+   * The real implementation reads the process cwd.
+   */
+  rev: (ref: string) => string
+}>
+
+/**
+ * The real adapters, moved to `execute-agent-live.ts` and re-exported here
+ * so every existing importer compiles unchanged — see COVERAGE-GATE-POLICY.md
+ * and the module comment on `execute-agent-live.ts` for why.
+ */
+export { liveAgent }
 
 const agentSessionId = (run: TRun, agent: TAgentConfig): string => {
   const entry = run.agentMap()[agent.name]
@@ -245,17 +282,19 @@ export const callAgent = <TEnvelope extends TEnvelopeBase>(
   run: TRun,
   handle: TActivityRunHandle,
   call: TAgentCall<TEnvelope>,
+  ports: TAgentPorts = liveAgent,
 ): Promise<TEnvelope> => {
   if (handle.activityRun.params.kind !== 'agent') {
     throw new Error('callAgent() is only valid inside an agent activity-run')
   }
-  return executeAgent(run, handle.activityRun, call)
+  return executeAgent(run, handle.activityRun, call, ports)
 }
 
 export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   run: TRun,
   activityRun: TActivityRun,
   call: TAgentCall<TEnvelope>,
+  ports: TAgentPorts = liveAgent,
 ): Promise<TEnvelope> => {
   const agent = resolveAgent(run.cfg, activityRun.params.owner)
   const agentDir = ensureDir(join(run.sessionDir, agent.name))
@@ -282,7 +321,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // it is whatever the working tree currently has uncommitted.
   const changedPaths =
     call.changedPaths ??
-    [...changedFiles(), ...untrackedFiles()].toSorted().filter(Boolean)
+    [...ports.changed(), ...ports.untracked()].toSorted().filter(Boolean)
   const skills = matchingSkills(
     run.cfg,
     agent.name,
@@ -362,7 +401,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
      */
     trust_stance: trustStance(run.trust),
   }
-  const systemText = render(agent.prompt_engineering.system, variables)
+  const systemText = ports.render(agent.prompt_engineering.system, variables)
   /*
    * Steering is APPENDED, not rendered from a placeholder.
    *
@@ -372,11 +411,11 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * onward has to hear it, so no prompt gets a say in whether it does.
    */
   const steering = readSteering(run.contextHandoffDir)
-  const userText = `${render(agent.prompt_engineering.user, variables)}${steeringBlock(
+  const userText = `${ports.render(agent.prompt_engineering.user, variables)}${steeringBlock(
     steering,
   )}${feedbackBlock(call.feedback ?? [])}`
-  savePrompt(join(agentDir, 'prompts'), 'system.md', systemText)
-  savePrompt(join(agentDir, 'prompts'), 'user.md', userText)
+  ports.savePrompt(join(agentDir, 'prompts'), 'system.md', systemText)
+  ports.savePrompt(join(agentDir, 'prompts'), 'user.md', userText)
 
   /*
    * Filed once per activity run, not once per send: a parse retry or a gate
@@ -468,7 +507,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   let stopDelivery: () => void = () => undefined
 
   const send: TSend = async (promptText) => {
-    const result = await piAgent.run(
+    const result = await ports.run(
       {
         prompt: promptText,
         systemPrompt: systemText,
@@ -520,7 +559,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // What the tree looked like before this agent got its hands on it. Every
   // send in this activityRun — first prompt, JSON retries — is measured against
   // this one baseline.
-  const treeBefore = snapshotTree({ workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot })
+  const treeBefore = ports.snapshot({ workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot })
   /*
    * And where history was, so a commit this Activity was not asked to make is
    * caught. No prompt asks an agent to commit, but a prompt is advice:
@@ -528,7 +567,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * agent free to commit with `bash`, and the run would be reported as having
    * made no commits while carrying one.
    */
-  const headBefore = isRepo() ? rev('HEAD') : ''
+  const headBefore = ports.rev('HEAD')
 
   const parsed = parseWithRetries(
     run,

@@ -3,7 +3,13 @@
  *
  * Every decision this module could make lives in `use-cases/menu.ts` instead,
  * so what remains here is the part that genuinely needs a TTY and therefore
- * cannot be unit-tested: raw mode, escape sequences, cursor movement.
+ * cannot be unit-tested: raw mode, escape sequences, cursor movement, and the
+ * stream writes themselves. The frame arithmetic — row budgets, the scroll
+ * window, ANSI width — moved to `menu-frame.ts`, which has no terminal in it
+ * and is covered there. This module is excluded from the coverage gate
+ * (`bunfig.toml`, `coveragePathIgnorePatterns`) because what remains is a raw
+ * mode listener and thin wrappers that sequence it, and no `bun test` process
+ * can drive `process.stdin` into raw mode.
  *
  * No dependency for this. A prompt library is a reasonable thing to install,
  * but it brings a theming system, a plugin interface and a release cadence to
@@ -19,8 +25,11 @@ import {
   applyKey,
   applySingleKey,
   initialMenu,
-  visibleWindow,
 } from '../use-cases/menu'
+import { menuFrame, rowsFor } from './menu-frame'
+import type { TOption } from './menu-frame'
+
+export type { TOption } from './menu-frame'
 
 const ESC = '\u001B'
 
@@ -30,30 +39,6 @@ const viewport = (): Readonly<{ rows: number; cols: number }> => ({
   cols: process.stdout.columns && process.stdout.columns > 0 ? process.stdout.columns : 80,
 })
 
-/**
- * Printable width: escape sequences occupy no columns.
- *
- * Built from the named ESC rather than written as a literal, which is both a
- * control character in a regex source and a second place to get the escape
- * byte right.
- */
-const ANSI = new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g')
-
-const widthOf = (line: string): number => line.replaceAll(ANSI, '').length
-
-/**
- * How many ROWS a set of lines occupies, which is not how many lines it is.
- *
- * A line longer than the terminal wraps and costs two rows. Counting lines
- * instead of rows made every redraw erase too little, so a sliver of the
- * previous frame survived each keypress — invisible at 120 columns and
- * obvious at 80.
- */
-const rowsFor = (lines: readonly string[], cols: number): number =>
-  lines.reduce(
-    (rows, line) => rows + Math.max(1, Math.ceil(widthOf(line) / cols)),
-    0,
-  )
 const write = (text: string): void => {
   process.stdout.write(text)
 }
@@ -62,16 +47,6 @@ export const NOT_A_TERMINAL =
   'please needs a terminal to ask questions in — it is a menu, not a flag. ' +
   'Run it directly (`just crust please`), or use the command it would have ' +
   'built: `just crust sdlc "\u2026"`.'
-
-/** One option as a menu draws it. */
-export type TOption = Readonly<{
-  /** The value returned when chosen. */
-  value: string
-  /** What the person reads. */
-  label: string
-  /** The sentence under it, when there is something worth saying. */
-  detail?: string
-}>
 
 /**
  * Decode a read into the keys it contains — plural, deliberately.
@@ -140,11 +115,7 @@ const decodeChar = (char: string): TMenuKey | undefined => {
   return undefined
 }
 
-const bullet = (chosen: boolean, multiple: boolean): string => {
-  if (!multiple) return chosen ? '●' : '○'
-  return chosen ? '◉' : '◯'
-}
-
+/** Draw one frame of a menu: compute it in `menu-frame.ts`, print it here. */
 const draw = (
   title: string,
   options: readonly TOption[],
@@ -152,74 +123,9 @@ const draw = (
   multiple: boolean,
   preview?: (chosen: readonly string[], highlighted: string) => string,
 ): number => {
-  const { rows, cols } = viewport()
-
-  const linesFor = (option: TOption, index: number): readonly string[] => {
-    const here = index === state.cursor
-    const mark = bullet(state.chosen.includes(index), multiple)
-    const head = `${here ? '❯' : ' '} ${mark} ${option.label}`
-    const detail = option.detail ?? ''
-    return [
-      here ? paint(head, 'cyan') : head,
-      ...(detail === '' ? [] : [paint(`      ${detail}`, 'dim')]),
-    ]
-  }
-
-  const help = multiple
-    ? '  ↑↓ move · tab select · a all · n none · r reorder · enter confirm · esc cancel'
-    : '  ↑↓ move · enter choose · esc cancel'
-  /*
-   * What the answer currently MEANS, under the options rather than after
-   * them. A menu whose selection has to be mentally expanded into a chain is
-   * a menu you can leave holding a default you did not notice.
-   */
-  const summary =
-    preview === undefined
-      ? []
-      : [
-          paint(
-            `  → ${preview(
-              state.chosen
-                .map((index) => options[index]?.value)
-                .filter((value): value is string => value !== undefined),
-              options[state.cursor]?.value ?? '',
-            )}`,
-            'cyan',
-          ),
-        ]
-
-  /*
-   * Everything that is not an option: the title, the preview, the footer,
-   * and a row reserved for each scroll marker whether or not it is shown —
-   * budgeting for a marker that then appears would push the frame one row
-   * over, which is the whole failure this is avoiding.
-   */
-  const chrome = rowsFor([paint(title, 'bold'), ...summary, paint(help, 'dim')], cols) + 2
-  const costs = options.map((option, index) =>
-    rowsFor(linesFor(option, index), cols),
-  )
-  // One row short of the viewport: a frame that exactly fills the screen
-  // scrolls it by one when the trailing newline lands.
-  const budget = Math.max(1, rows - 1 - chrome)
-  const window = visibleWindow(costs, state.cursor, budget)
-
-  const before = window.start
-  const after = options.length - window.end
-  const shown = options
-    .slice(window.start, window.end)
-    .flatMap((option, offset) => linesFor(option, window.start + offset))
-
-  const lines = [
-    paint(title, 'bold'),
-    ...(before > 0 ? [paint(`  ↑ ${before} more`, 'dim')] : []),
-    ...shown,
-    ...(after > 0 ? [paint(`  ↓ ${after} more`, 'dim')] : []),
-    ...summary,
-    paint(help, 'dim'),
-  ]
-  write(`${lines.join('\n')}\n`)
-  // ROWS, not lines: a wrapped line costs two and erase has to match.
-  return rowsFor(lines, cols)
+  const frame = menuFrame(title, options, state, multiple, viewport(), preview)
+  write(`${frame.lines.join('\n')}\n`)
+  return frame.rows
 }
 
 /** Erase what we just drew, so the next frame replaces it rather than stacking. */

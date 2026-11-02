@@ -1,8 +1,13 @@
 import { expect, test } from 'bun:test'
-import { crustConfigSchema } from '../../typedefs/config'
 import type { TPiCrustConfig } from '../../typedefs/config'
+import { crustConfigSchema } from '../../typedefs/config'
 import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
-import { requiredAgents, runnableActivities, terminalActivityFor } from './index'
+import {
+  offeredActivities,
+  requiredAgents,
+  runnableActivities,
+  terminalActivityFor,
+} from './index'
 
 const prompts = { system: 'p/system.md', user: 'p/user.md' }
 
@@ -19,14 +24,26 @@ const anActivity = (
 
 const aConfig = (
   activities: readonly Readonly<Record<string, unknown>>[],
+  extra: Readonly<Record<string, unknown>> = {},
 ): TPiCrustConfig =>
   crustConfigSchema.parse({
     activities,
     agents: activities,
     planners: [
-      { name: 'operator', purpose: 'Choose the chain', prompt_engineering: prompts, writes: [] },
-      { name: 'triage', purpose: 'Choose the chain and hand it back', prompt_engineering: prompts, writes: [] },
+      {
+        name: 'operator',
+        purpose: 'Choose the chain',
+        prompt_engineering: prompts,
+        writes: [],
+      },
+      {
+        name: 'triage',
+        purpose: 'Choose the chain and hand it back',
+        prompt_engineering: prompts,
+        writes: [],
+      },
     ],
+    ...extra,
   })
 
 test(
@@ -51,10 +68,11 @@ test(
     const actual = runnableActivities(['plan', 'build'], given)
 
     // then — no performer to bridge to: the Activity is the owner
-    expect(actual.map((activity) => `${activity.params.kind}:${activity.params.owner}`)).toEqual([
-      'agent:plan',
-      'agent:build',
-    ])
+    expect(
+      actual.map(
+        (activity) => `${activity.params.kind}:${activity.params.owner}`,
+      ),
+    ).toEqual(['agent:plan', 'agent:build'])
     expect(actual[1]?.gates.map((gate) => gate.name)).toEqual([
       'diff_matches_claims',
       'checks',
@@ -98,7 +116,10 @@ test(
     ])
 
     // when
-    const actual = runnableActivities(['build', 'review', 'build', 'review'], given)
+    const actual = runnableActivities(
+      ['build', 'review', 'build', 'review'],
+      given,
+    )
 
     // then
     expect(actual.map((activity) => activity.instance)).toEqual([
@@ -209,9 +230,9 @@ test(
     const given = aConfig([anActivity('build', { output: 'buildOutput' })])
 
     // when, then
-    expect(() => runnableActivities(['build', 'gh-pull-request'], given)).toThrow(
-      /'gh-pull-request' is a terminal Activity.*runs it once the/,
-    )
+    expect(() =>
+      runnableActivities(['build', 'gh-pull-request'], given),
+    ).toThrow(/'gh-pull-request' is a terminal Activity.*runs it once the/)
   },
 )
 
@@ -228,7 +249,58 @@ test(
     // when, then
     expect(() =>
       terminalActivityFor('gh-pull-request', given, DEFAULT_ACTIVITY_OPTIONS),
-    ).toThrow(/'gh-pull-request' has no entry under terminal:.*crust\.activities\.yaml/)
+    ).toThrow(
+      /'gh-pull-request' has no entry under terminal:.*crust\.activities\.yaml/,
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/activities::offeredActivities',
+    'when the registry declares several Activities',
+    'it should list their names in declared order',
+  ].join(', '),
+  () => {
+    // given
+    const given = aConfig([anActivity('design'), anActivity('build')])
+
+    // when
+    const actual = offeredActivities(given)
+
+    // then
+    expect(actual).toEqual(['design', 'build'])
+  },
+)
+
+test(
+  [
+    'given use-cases/activities::terminalActivityFor',
+    'when the name has a configured entry under terminal:',
+    'it should resolve the terminal Activity rather than throwing',
+  ].join(', '),
+  () => {
+    // given
+    const given = aConfig([anActivity('build', { output: 'buildOutput' })], {
+      terminal: [
+        {
+          name: 'gh-pull-request',
+          purpose: 'Open the PR',
+          prompt_engineering: prompts,
+          writes: [],
+        },
+      ],
+    })
+
+    // when
+    const activity = terminalActivityFor(
+      'gh-pull-request',
+      given,
+      DEFAULT_ACTIVITY_OPTIONS,
+    )
+
+    // then
+    expect(activity.name).toEqual('gh-pull-request')
   },
 )
 

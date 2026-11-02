@@ -1,15 +1,47 @@
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   dedupe,
+  discover,
   readRegistry,
   registryStamp,
   resolveWorkspaces,
   slugify,
   workspaceRootOf,
+  worktreePaths,
 } from './workspaces.ts'
+
+const git = (cwd: string, ...args: readonly string[]): string =>
+  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+
+/** A real git repository, so worktreePaths/discover exercise the real boundary. */
+const repo = (name: string): string => {
+  // realpathSync: macOS's tmpdir() is itself a symlink, and git reports its
+  // own canonical path \u2014 comparing against the non-canonical one here would
+  // make the offset arithmetic disagree with what discover() actually sees.
+  const root = join(
+    realpathSync(mkdtempSync(join(tmpdir(), 'crust-workspaces-git-'))),
+    name,
+  )
+  mkdirSync(root, { recursive: true })
+  git(root, 'init', '-q', '-b', 'main')
+  git(root, 'config', 'user.email', 'tester@example.com')
+  git(root, 'config', 'user.name', 'tester')
+  git(root, 'config', 'commit.gpgsign', 'false')
+  writeFileSync(join(root, 'README.md'), 'hi\n')
+  git(root, 'add', '-A')
+  git(root, 'commit', '-qm', 'first')
+  return root
+}
 
 /** A working tree with a trace in it, which is all a workspace has to be. */
 const tree = (name: string): string => {
@@ -102,7 +134,9 @@ test(
     )
 
     // then
-    expect(actual).toEqual([{ label: 'feat-crust-agent', dbPath: dbIn(root), root }])
+    expect(actual).toEqual([
+      { label: 'feat-crust-agent', dbPath: dbIn(root), root },
+    ])
   },
 )
 
@@ -131,7 +165,9 @@ test(
     )
 
     // then — the empty trailing spec is ignored, not turned into a workspace
-    expect(viaEnv).toEqual([{ label: 'from-env', dbPath: dbIn(fromEnv), root: fromEnv }])
+    expect(viaEnv).toEqual([
+      { label: 'from-env', dbPath: dbIn(fromEnv), root: fromEnv },
+    ])
     // then — both are watched, with the flag's entry first
     expect(viaBoth.map((workspace) => workspace.label)).toEqual([
       'from-flag',
@@ -173,9 +209,21 @@ test(
     // given — worktrees are routinely named after the same ticket, and a
     // label that is not unique is a label that cannot route.
     const found = [
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
-      { label: 'stats', dbPath: '/trees/b/.pi-crust/data/crust.db', root: '/trees/b' },
+      {
+        label: 'stats',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
+      {
+        label: 'stats',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
+      {
+        label: 'stats',
+        dbPath: '/trees/b/.pi-crust/data/crust.db',
+        root: '/trees/b',
+      },
     ]
 
     // when
@@ -183,8 +231,16 @@ test(
 
     // then
     expect(actual).toEqual([
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
-      { label: 'stats-2', dbPath: '/trees/b/.pi-crust/data/crust.db', root: '/trees/b' },
+      {
+        label: 'stats',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
+      {
+        label: 'stats-2',
+        dbPath: '/trees/b/.pi-crust/data/crust.db',
+        root: '/trees/b',
+      },
     ])
   },
 )
@@ -313,7 +369,9 @@ test(
     })
 
     // then
-    expect(actual).toEqual([{ label: 'named', dbPath: dbIn(named), root: named }])
+    expect(actual).toEqual([
+      { label: 'named', dbPath: dbIn(named), root: named },
+    ])
   },
 )
 
@@ -351,7 +409,11 @@ test(
 
     // then
     expect(actual).toEqual([
-      { label: 'a', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      {
+        label: 'a',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
     ])
   },
 )
@@ -458,7 +520,14 @@ test(
   () => {
     // given \u2014 a pooled `data_dir`, the shape `workspaceRootOf` gets wrong
     const clone = mkdtempSync(join(tmpdir(), 'crust-workspace-root-'))
-    const pooledDb = join(clone, '.pi-crust', 'data', 'issues', '41', 'crust.db')
+    const pooledDb = join(
+      clone,
+      '.pi-crust',
+      'data',
+      'issues',
+      '41',
+      'crust.db',
+    )
     mkdirSync(join(clone, '.pi-crust', 'data', 'issues', '41'), {
       recursive: true,
     })
@@ -486,8 +555,16 @@ test(
   () => {
     // given
     const found = [
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      {
+        label: 'stats',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
+      {
+        label: 'stats',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
     ]
 
     // when
@@ -495,7 +572,120 @@ test(
 
     // then
     expect(actual).toEqual([
-      { label: 'stats', dbPath: '/trees/a/.pi-crust/data/crust.db', root: '/trees/a' },
+      {
+        label: 'stats',
+        dbPath: '/trees/a/.pi-crust/data/crust.db',
+        root: '/trees/a',
+      },
     ])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::worktreePaths',
+    'when the root is a real git repository with linked worktrees',
+    'it should list the main worktree and every linked one',
+  ].join(', '),
+  () => {
+    // given
+    const root = repo('main')
+    const linkedPath = join(root, '..', 'linked')
+    git(root, 'worktree', 'add', '-q', linkedPath, '-b', 'topic')
+
+    // when
+    const actual = worktreePaths(root)
+
+    // then
+    expect(actual.length).toBe(2)
+    expect(actual.some((path) => path.endsWith('main'))).toBe(true)
+    expect(actual.some((path) => path.endsWith('linked'))).toBe(true)
+  },
+)
+
+test(
+  [
+    'given server/workspaces::worktreePaths',
+    'when the root is not a git repository at all',
+    'it should report no worktrees rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), 'crust-not-a-repo-'))
+
+    // when
+    const actual = worktreePaths(root)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::discover',
+    'when a linked worktree holds a database at the same offset',
+    'it should find it, labelled by the worktree directory name',
+  ].join(', '),
+  () => {
+    // given
+    const root = repo('primary')
+    const linkedPath = join(root, '..', 'secondary')
+    git(root, 'worktree', 'add', '-q', linkedPath, '-b', 'topic')
+    mkdirSync(join(root, '.pi-crust', 'data'), { recursive: true })
+    writeFileSync(join(root, '.pi-crust', 'data', 'crust.db'), '')
+    mkdirSync(join(linkedPath, '.pi-crust', 'data'), { recursive: true })
+    writeFileSync(join(linkedPath, '.pi-crust', 'data', 'crust.db'), '')
+
+    // when
+    const actual = discover(join(root, '.pi-crust', 'data', 'crust.db'))
+
+    // then \u2014 every worktree that carries a database at the same offset,
+    // including this one
+    expect(actual.map((workspace) => workspace.label)).toEqual([
+      'primary',
+      'secondary',
+    ])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::discover',
+    'when the database is not inside a git repository',
+    'it should find nothing, rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const notARepo = mkdtempSync(join(tmpdir(), 'crust-discover-no-git-'))
+    mkdirSync(join(notARepo, '.pi-crust', 'data'), { recursive: true })
+    const dbPath = join(notARepo, '.pi-crust', 'data', 'crust.db')
+    writeFileSync(dbPath, '')
+
+    // when
+    const actual = discover(dbPath)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given server/workspaces::discover',
+    'when the database sits outside the repository it was found under',
+    'it should find nothing, since there is no offset to apply elsewhere',
+  ].join(', '),
+  () => {
+    // given — a repository root with a database that lives above it
+    const root = repo('offset-outside')
+    const outsideDb = join(root, '..', 'crust.db')
+    writeFileSync(outsideDb, '')
+
+    // when
+    const actual = discover(outsideDb)
+
+    // then
+    expect(actual).toEqual([])
   },
 )

@@ -107,6 +107,48 @@ test(
 
 test(
   [
+    'given data/pi-host::piLauncher',
+    'when PI_PATH is unset and no `pi` is anywhere on PATH',
+    'it should answer undefined rather than guess',
+  ].join(', '),
+  () => {
+    setPiPath(undefined)
+    const originalWhich = Bun.which
+    // biome-ignore lint/plugin/no-object-mutation: Bun.which has no PATH-independent fixture; stubbing the global is the only way to simulate no pi anywhere
+    Bun.which = () => null
+
+    try {
+      expect(piLauncher()).toBeUndefined()
+    } finally {
+      // biome-ignore lint/plugin/no-object-mutation: restoring the global stubbed above
+      Bun.which = originalWhich
+    }
+  },
+)
+
+test(
+  [
+    'given data/pi-host::piReleaseDir',
+    'when there is no launcher to resolve at all',
+    'it should answer undefined before touching the filesystem layout',
+  ].join(', '),
+  () => {
+    setPiPath(undefined)
+    const originalWhich = Bun.which
+    // biome-ignore lint/plugin/no-object-mutation: Bun.which has no PATH-independent fixture; stubbing the global is the only way to simulate no pi anywhere
+    Bun.which = () => null
+
+    try {
+      expect(piReleaseDir()).toBeUndefined()
+    } finally {
+      // biome-ignore lint/plugin/no-object-mutation: restoring the global stubbed above
+      Bun.which = originalWhich
+    }
+  },
+)
+
+test(
+  [
     'given data/pi-host::piReleaseDir',
     'when PI_PATH names a pi that is not a managed install',
     'it should answer undefined rather than guess at a layout',

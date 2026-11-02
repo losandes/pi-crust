@@ -22,15 +22,15 @@
 
 import { configPathFromEnv } from './modules/data/env-overrides'
 import { paint, writeLine } from './modules/data/terminal'
+import { PLANNER_NAMES } from './modules/typedefs/activity'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
+import { errorMessage } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   lifecyclesBeside,
   loadLifecycles,
 } from './modules/use-cases/load-lifecycles'
-import { PLANNER_NAMES } from './modules/typedefs/activity'
 import { PLANNERS } from './modules/use-cases/menu-options'
 import { RUN_RECIPE } from './modules/use-cases/recipe-line'
 
@@ -75,7 +75,8 @@ export const renderCatalogue = (catalogue: TCatalogue): string => {
     ...(entries.length === 0
       ? [paint('  (none)', 'dim')]
       : entries.map(
-          (entry) => `  ${entry.name.padEnd(width)}  ${paint(entry.detail, 'dim')}`,
+          (entry) =>
+            `  ${entry.name.padEnd(width)}  ${paint(entry.detail, 'dim')}`,
         )),
   ]
 
@@ -149,11 +150,17 @@ export const main = (argv: readonly string[]): number => {
   return EXIT.SUCCESS
 }
 
+/** A rejection from `main` is a usage error, reported the same way other CLI entries do. */
+export const reportUsageError = (error: unknown): number => {
+  process.stderr.write(`${errorMessage(error)}\n${USAGE}\n`)
+  return EXIT.USAGE
+}
+
 if (import.meta.main) {
-  const settled = safeParseSettlement(() => main(process.argv.slice(2)))
-  if (settled.status === 'error') {
-    process.stderr.write(`${errorMessage(settled.error)}\n${USAGE}\n`)
-    process.exit(EXIT.USAGE)
+  // biome-ignore lint/plugin/no-intermediate-try-catch: this is the process boundary itself \u2014 there is no settlement layer above it to hand the error to
+  try {
+    process.exit(main(process.argv.slice(2)))
+  } catch (error) {
+    process.exit(reportUsageError(error))
   }
-  process.exit(settled.data)
 }

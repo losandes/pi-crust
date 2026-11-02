@@ -1,19 +1,31 @@
 import { expect, test } from 'bun:test'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TEnvelopeBase } from '../typedefs/envelope'
+import type { TRun } from '../typedefs/run'
+
 /*
  * The conservative band, spelled out. These cases are about what a GATE does
  * with a consequential question, which is only observable below 50 — above
  * it the dial answers reversible ones before a gate is ever consulted.
  */
 const CAUTIOUS = 20
+
 import { TRUST_DEFAULT } from '../typedefs/trust'
 import {
+  answerAsFact,
+  answerPath,
   blockingQuestions,
+  decisionOptions,
+  decisionPath,
   gateReason,
-  selfAnswered,
   parseApproveAfter,
   renderDecisionRequest,
   resumeInvocation,
+  selfAnswered,
+  selfAnsweredIn,
+  writeDecisionRequest,
 } from './human-gate'
 
 /** A context envelope carrying questions, with sane defaults per question. */
@@ -195,6 +207,70 @@ test(
 
 test(
   [
+    'given use-cases/human-gate::renderDecisionRequest',
+    'when a planner chose a chain and is about to run it',
+    'it should list the chain and name the trust level that skips this stop',
+  ].join(', '),
+  () => {
+    // given
+    const reason = {
+      kind: 'plan',
+      activity: 'triage',
+      activities: ['design', 'build'],
+    } as const
+
+    // when
+    const actual = renderDecisionRequest(reason, 'a1b2c3d4', 'resume-line')
+
+    // then
+    expect(actual).toContain('1. `design`')
+    expect(actual).toContain('2. `build`')
+    expect(actual).toContain('--trust-level')
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::renderDecisionRequest',
+    'when the chain deadlocked',
+    'it should carry the detail explaining why',
+  ].join(', '),
+  () => {
+    // given
+    const reason = {
+      kind: 'deadlocked',
+      activity: 'revise',
+      detail: 'the dispute never resolved after three rounds',
+    } as const
+
+    // when
+    const actual = renderDecisionRequest(reason, 'a1b2c3d4', 'resume-line')
+
+    // then
+    expect(actual).toContain('the dispute never resolved after three rounds')
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::renderDecisionRequest',
+    'when a stop was simply requested with --approve-after',
+    'it should still explain what happens next, with no special-cased reason',
+  ].join(', '),
+  () => {
+    // given
+    const reason = { kind: 'requested', activity: 'plan' } as const
+
+    // when
+    const actual = renderDecisionRequest(reason, 'a1b2c3d4', 'resume-line')
+
+    // then
+    expect(actual).toContain('You asked to approve this stage')
+  },
+)
+
+test(
+  [
     'given use-cases/human-gate::gateReason',
     'when the LAST stage leaves a consequential question',
     'it should report it rather than stopping a chain that has already finished',
@@ -336,7 +412,11 @@ test(
   ].join(', '),
   () => {
     // given
-    const argv = ['bun', '/pkg/runtime/lifecycles/compose.ts', 'add a "health" endpoint']
+    const argv = [
+      'bun',
+      '/pkg/runtime/lifecycles/compose.ts',
+      'add a "health" endpoint',
+    ]
 
     // when
     const actual = resumeInvocation(argv, 'a1')
@@ -502,7 +582,11 @@ test(
     // given — "I carried on without deciding" is the worst case and must be
     // the most visible, not the blankest
     const decided = envelope([
-      { question: 'which region?', consequential: true, beyond_this_run: false },
+      {
+        question: 'which region?',
+        consequential: true,
+        beyond_this_run: false,
+      },
     ])
 
     // when
@@ -528,7 +612,8 @@ test(
         question: 'which temporal model — span-tagged or interval?',
         consequential: true,
         beyond_this_run: false,
-        provisional_answer: 'interval, because the reconciliation query reads ranges',
+        provisional_answer:
+          'interval, because the reconciliation query reads ranges',
       },
     ])
 
@@ -543,5 +628,175 @@ test(
 
     // then
     expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::writeDecisionRequest',
+    'when a run stops',
+    'it should write the rendered request to the decision path and return it',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-human-gate-'))
+    const reason = { kind: 'requested', activity: 'plan' } as const
+
+    // when
+    const path = writeDecisionRequest(dir, reason, 'a1b2c3d4', 'resume-line')
+
+    // then
+    expect(path).toEqual(decisionPath(dir))
+    expect(Bun.file(path).size).toBeGreaterThan(0)
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::answerAsFact',
+    'when no answer file exists yet',
+    'it should be undefined',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-human-gate-'))
+
+    // when
+    const actual = answerAsFact(dir, 'tester')
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::answerAsFact',
+    'when the answer file is empty',
+    'it should be undefined, not a fact with nothing in it',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-human-gate-'))
+    writeFileSync(answerPath(dir), '   ')
+
+    // when
+    const actual = answerAsFact(dir, 'tester')
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::answerAsFact',
+    'when a person answered',
+    'it should carry the text, attributed to who answered and where',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-human-gate-'))
+    writeFileSync(answerPath(dir), 'the retention window is 90 days')
+
+    // when
+    const actual = answerAsFact(dir, 'tester')
+
+    // then
+    expect(actual?.fact).toEqual('the retention window is 90 days')
+    expect(actual?.evidence).toContain('tester')
+    expect(actual?.evidence).toContain(answerPath(dir))
+  },
+)
+
+const runWithEvents = (
+  events: readonly Readonly<Record<string, unknown>>[],
+): TRun =>
+  ({
+    runId: 'a1b2c3d4',
+    tracer: {
+      eventsNamed: (_runId: string, _name: string) => events,
+    },
+  }) as unknown as TRun
+
+test(
+  [
+    'given use-cases/human-gate::selfAnsweredIn',
+    'when the run answered its own questions and trust permits reporting them',
+    'it should read them back from the trace',
+  ].join(', '),
+  () => {
+    // given
+    const run = runWithEvents([
+      { activity: 'design', question: 'which store?', answer: 'postgres' },
+    ])
+
+    // when
+    const actual = selfAnsweredIn(run, 70)
+
+    // then
+    expect(actual).toEqual([
+      { activity: 'design', question: 'which store?', answer: 'postgres' },
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::selfAnsweredIn',
+    'when trust is below the provisional floor',
+    'it should report nothing, since a low-trust run cannot answer for itself',
+  ].join(', '),
+  () => {
+    // given
+    const run = runWithEvents([
+      { activity: 'design', question: 'which store?', answer: 'postgres' },
+    ])
+
+    // when
+    const actual = selfAnsweredIn(run, 10)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::selfAnsweredIn',
+    'when an event carries no question',
+    'it should skip it rather than report a blank one',
+  ].join(', '),
+  () => {
+    // given
+    const run = runWithEvents([{ activity: 'design', answer: 'postgres' }])
+
+    // when
+    const actual = selfAnsweredIn(run, 70)
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/human-gate::decisionOptions',
+    'when a gate stops a run',
+    'it should name every way out, and the resume line at the end',
+  ].join(', '),
+  () => {
+    // given
+    const runId = 'a1b2c3d4'
+    const resume = 'just crust run spec.md --run-id a1b2c3d4 --resume'
+
+    // when
+    const actual = decisionOptions(runId, resume)
+
+    // then
+    expect(actual.join('\n')).toContain(`just crust answer  ${runId}`)
+    expect(actual.join('\n')).toContain(`just crust reject  ${runId}`)
+    expect(actual.join('\n')).toContain(`just crust approve ${runId}`)
+    expect(actual.join('\n')).toContain(resume)
   },
 )

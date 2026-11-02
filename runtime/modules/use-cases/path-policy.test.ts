@@ -14,7 +14,7 @@ import {
   refusalLine,
   repoRelative,
 } from './path-policy'
-import { armPolicy, refusalsIn, settingsFor } from './path-policy-run'
+import { armPolicy, refusalsIn, settingsFor, stopMessage } from './path-policy-run'
 
 const settings = (
   overrides: Partial<TPathSettings> = {},
@@ -513,6 +513,35 @@ test(
 
 test(
   [
+    'given use-cases/path-policy-run::stopMessage',
+    'when an agent reached a path governed with \'stop\'',
+    'it should name the agent and every stopped call, and say nothing was rolled back',
+  ].join(', '),
+  () => {
+    // given
+    const stopped: readonly TRefusal[] = [
+      {
+        tool: 'write',
+        path: 'specs/plan.md',
+        intent: 'write',
+        reason: 'protected',
+        verb: 'stop',
+        bestEffort: false,
+      },
+    ]
+
+    // when
+    const actual = stopMessage('builder', stopped)
+
+    // then
+    expect(actual).toContain('builder reached a path this repository governs')
+    expect(actual).toContain(refusalLine(stopped[0] as TRefusal))
+    expect(actual).toContain('Nothing was changed')
+  },
+)
+
+test(
+  [
     'given typedefs/warning::renderWarnings',
     'when the path policy refused a call',
     'it should reach the same report every other warning does',
@@ -558,17 +587,14 @@ test(
     })
     const handoffDir = join(dir, 'specs', 'a1b2c3d4')
     const resolved = settingsFor(cfg, dir, handoffDir)
-    const isIgnored = (path: string) =>
-      spawnSync('git', ['check-ignore', '--quiet', '--', path], {
-        cwd: dir,
-      }).status === 0
 
-    // when
+    // when — the `ungoverned` short-circuit resolves before `isIgnored` is
+    // ever consulted, so a stub that always answers false is enough
     const actual = decidePath({
       path: join(handoffDir, 'plan.md'),
       intent: 'write',
       settings: resolved,
-      isIgnored,
+      isIgnored: never,
     })
 
     // then

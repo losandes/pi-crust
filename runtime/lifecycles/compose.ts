@@ -42,17 +42,17 @@
  * Activity's `attempts`.
  */
 
+import type { TPiCrustConfig } from '../modules/typedefs/config'
+import type { TStage } from '../modules/typedefs/lifecycle'
+import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
 import {
   errorMessage,
   safeParseSettlement,
 } from '../modules/typedefs/settlement'
-import type { TPiCrustConfig } from '../modules/typedefs/config'
-import type { TStage } from '../modules/typedefs/lifecycle'
 import { loadConfigWithNotes } from '../modules/use-cases/load-config'
-import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
-import { parseActivities } from '../modules/use-cases/parse-activities'
 import { loadLifecycles } from '../modules/use-cases/load-lifecycles'
-import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
+import { parseActivities } from '../modules/use-cases/parse-activities'
+import type { TCliArgs, TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
 import { RUN_RECIPE } from '../modules/use-cases/recipe-line'
 import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
@@ -130,8 +130,10 @@ export const main = (args: TWorkflowArgs): Promise<number> => {
   return runWorkflow(args, planned.data)
 }
 
+/** Resolve the prompt and hand off to `main` \u2014 the shape `runCli` wants. */
+export const runFromCli = (args: TCliArgs): Promise<number> =>
+  main(workflowArgs(args, resolvePrompt(args.prompt)))
+
 if (import.meta.main) {
-  await runCli(RUN_RECIPE, (args) =>
-    main(workflowArgs(args, resolvePrompt(args.prompt))),
-  )
+  await runCli(RUN_RECIPE, runFromCli)
 }

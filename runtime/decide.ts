@@ -187,6 +187,12 @@ export const main = async (argv: readonly string[]): Promise<number> => {
   return await resumed.finished
 }
 
+/** A rejection from `main` is a usage error, reported the same way `runCli` does. */
+export const reportUsageError = (error: unknown): number => {
+  process.stderr.write(`${errorMessage(error)}\n${USAGE}\n`)
+  return EXIT.USAGE
+}
+
 if (import.meta.main) {
   /*
    * `main` now waits for the run it resumed, so its failures are rejections
@@ -194,9 +200,6 @@ if (import.meta.main) {
    * Same shape as `runCli`: parse errors are usage, everything else carries
    * the resumed run's own exit code out.
    */
-  const code = await main(process.argv.slice(2)).catch((error: unknown) => {
-    process.stderr.write(`${errorMessage(error)}\n${USAGE}\n`)
-    return EXIT.USAGE
-  })
+  const code = await main(process.argv.slice(2)).catch(reportUsageError)
   process.exit(code)
 }

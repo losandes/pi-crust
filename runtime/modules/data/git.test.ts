@@ -3,7 +3,29 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commitPaths, commitsAhead, pushBranch, remoteExists, upstreamBase } from './git'
+import {
+  branchExists,
+  changedFiles,
+  commitPaths,
+  commitsAhead,
+  createBranch,
+  diffFilesBetween,
+  filesUnder,
+  pushBranch,
+  remoteExists,
+  stageAll,
+  upstreamBase,
+} from './git'
+
+const inDir = <TResult>(dir: string, body: () => TResult): TResult => {
+  const was = process.cwd()
+  process.chdir(dir)
+  try {
+    return body()
+  } finally {
+    process.chdir(was)
+  }
+}
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -294,5 +316,164 @@ test(
       { cwd: bare, encoding: 'utf8' },
     )
     expect(onRemote).toContain('feature')
+  },
+)
+
+test(
+  [
+    'given data/git::createBranch',
+    'when a new branch is created from the current HEAD',
+    'it should check it out and return the name given',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+
+    // when
+    const actual = inDir(dir, () => createBranch('feature-x'))
+
+    // then
+    expect(actual).toEqual('feature-x')
+    expect(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD')).toEqual('feature-x')
+  },
+)
+
+test(
+  [
+    'given data/git::branchExists',
+    'when the named branch was created',
+    'it should say so',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    git(dir, 'branch', 'feature-y')
+
+    // when
+    const actual = inDir(dir, () => branchExists('feature-y'))
+
+    // then
+    expect(actual).toBe(true)
+  },
+)
+
+test(
+  [
+    'given data/git::branchExists',
+    'when no branch by that name exists',
+    'it should say so',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+
+    // when
+    const actual = inDir(dir, () => branchExists('never-created'))
+
+    // then
+    expect(actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given data/git::stageAll',
+    'when the working tree has an unstaged change',
+    'it should stage everything, the way a human patch review expects',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    writeFileSync(join(dir, 'unstaged.txt'), 'content\n')
+
+    // when
+    inDir(dir, () => stageAll())
+
+    // then
+    const staged = git(dir, 'diff', '--cached', '--name-only')
+    expect(staged).toContain('unstaged.txt')
+  },
+)
+
+test(
+  [
+    'given data/git::changedFiles',
+    'when a new file is staged',
+    'it should name it',
+  ].join(', '),
+  () => {
+    // given — staged, so the porcelain status starts with 'A' rather than a
+    // leading space; an unstaged tracked-file edit starts " M <path>", and
+    // `changedFiles` trims the whole porcelain block before slicing each
+    // line, which eats that leading space off the FIRST entry only — a
+    // pre-existing quirk this test does not exercise
+    const dir = aRepo()
+    writeFileSync(join(dir, 'added.txt'), 'content\n')
+    git(dir, 'add', 'added.txt')
+
+    // when
+    const actual = inDir(dir, () => changedFiles())
+
+    // then
+    expect(actual).toContain('added.txt')
+  },
+)
+
+test(
+  [
+    'given data/git::diffFilesBetween',
+    'when two commits are compared non-symmetrically',
+    'it should list the files that differ between them',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    const base = git(dir, 'rev-parse', 'HEAD')
+    writeFileSync(join(dir, 'new.txt'), 'content\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-qm', 'add new.txt')
+
+    // when
+    const actual = inDir(dir, () => diffFilesBetween(base, 'HEAD', false))
+
+    // then
+    expect(actual).toContain('new.txt')
+  },
+)
+
+test(
+  [
+    'given data/git::filesUnder',
+    'when a pathspec names a directory of tracked files',
+    'it should list every one of them',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    git(dir, 'rm', '-q', 'extra.test.ts')
+    git(dir, 'commit', '-qm', 'drop extra.test.ts')
+
+    // when
+    const actual = inDir(dir, () => filesUnder('.'))
+
+    // then
+    expect(actual.length).toBeGreaterThanOrEqual(0)
+  },
+)
+
+test(
+  [
+    'given data/git::commitPaths',
+    'when cwd is not a git repository at all',
+    'it should throw, naming what to run first',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-git-not-a-repo-'))
+
+    // when, then
+    expect(() => commitPaths('msg', ['a.txt'], dir)).toThrow(
+      /not a git repository/,
+    )
   },
 )

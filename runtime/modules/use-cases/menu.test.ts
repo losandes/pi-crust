@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import {
   applyExclusiveKey,
-  visibleWindow,
   applyKey,
   applySingleKey,
   initialMenu,
   selected,
+  visibleWindow,
 } from './menu'
 
 test(
@@ -456,5 +456,23 @@ test(
 
     // then
     expect(window).toEqual({ start: 0, end: 0 })
+  },
+)
+
+test(
+  [
+    'given use-cases/menu::applyKey',
+    'when the "all" key is pressed',
+    'it should select every option by index',
+  ].join(', '),
+  () => {
+    // given
+    const state = initialMenu([], 0)
+
+    // when
+    const after = applyKey(state, 'all', 3)
+
+    // then
+    expect(after.chosen).toEqual([0, 1, 2])
   },
 )

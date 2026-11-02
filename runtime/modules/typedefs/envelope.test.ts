@@ -2,9 +2,14 @@ import { expect, test } from 'bun:test'
 import {
   buildOutput,
   contextEnvelopeSchema,
+  envelopeAccepted,
+  envelopeJudges,
+  envelopeNamed,
   genericOutputSchema,
   ghIssueOutputSchema,
   narrowEnvelope,
+  questionSchema,
+  regressionOf,
   reviewOutput,
   type TEnvelopeBase,
 } from './envelope'
@@ -285,5 +290,238 @@ test(
 
     // then
     expect(actual.success).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::questionSchema',
+    'when a stored question still names the pre-rename `irreversible` field',
+    'it should migrate it to beyond_this_run rather than fail to parse',
+  ].join(', '),
+  () => {
+    // given — a trace written before the rename
+    const legacy = {
+      question: 'should this ship',
+      consequential: true,
+      irreversible: true,
+      provisional_answer: 'yes',
+    }
+
+    // when
+    const actual = questionSchema.parse(legacy)
+
+    // then
+    expect(actual.beyond_this_run).toBe(true)
+    expect('irreversible' in actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::questionSchema',
+    'when a question already carries beyond_this_run',
+    'it should parse it unchanged, ignoring any stray irreversible field',
+  ].join(', '),
+  () => {
+    // given
+    const current = {
+      question: 'should this ship',
+      consequential: true,
+      beyond_this_run: false,
+      provisional_answer: 'yes',
+    }
+
+    // when
+    const actual = questionSchema.parse(current)
+
+    // then
+    expect(actual.beyond_this_run).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::regressionOf',
+    'when the envelope is undefined',
+    'it should answer undefined, because there is nothing to have asked',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = regressionOf(undefined)
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::regressionOf',
+    'when the envelope does not parse as a context envelope at all',
+    'it should answer undefined rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const notAContextEnvelope = { status: 'success' } as unknown as TEnvelopeBase
+
+    // when
+    const actual = regressionOf(notAContextEnvelope)
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::regressionOf',
+    'when the envelope asked to regress to a named stage',
+    'it should return that request',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = {
+      status: 'success',
+      summary: 'poc disproved the architecture',
+      artifacts: [],
+      notes_for_next_agent: '',
+      facts: [],
+      decisions: [],
+      assumptions: [],
+      unresolved: [],
+      risks: [],
+      objective_met: { met: true, evidence: 'checked' },
+      regress_to: { activity: 'conceptualize', because: 'measured, see facts' },
+    } as unknown as TEnvelopeBase
+
+    // when
+    const actual = regressionOf(envelope)
+
+    // then
+    expect(actual).toEqual({ activity: 'conceptualize', because: 'measured, see facts' })
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeNamed',
+    'when an Activity names a spec that is published',
+    'it should find it in the catalogue',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = envelopeNamed('buildOutput')
+
+    // then
+    expect(actual).toBe(buildOutput)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeNamed',
+    'when nothing publishes the named spec',
+    'it should answer undefined',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = envelopeNamed('no-such-spec')
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeAccepted',
+    'when the spec is a review and it approved',
+    'it should accept',
+  ].join(', '),
+  () => {
+    // given
+    const approved = { ...review, approved: true } as unknown as TEnvelopeBase
+
+    // when
+    const actual = envelopeAccepted(reviewOutput, approved)
+
+    // then
+    expect(actual).toBe(true)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeAccepted',
+    'when the spec is a review and it did not approve',
+    'it should reject, regardless of status',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = envelopeAccepted(reviewOutput, review)
+
+    // then
+    expect(actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeAccepted',
+    'when the spec is not a review',
+    'it should accept exactly when status is success',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = envelopeAccepted(buildOutput, build)
+
+    // then
+    expect(actual).toBe(true)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::narrowEnvelope',
+    'when the envelope is undefined',
+    'it should answer undefined rather than call the schema at all',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = narrowEnvelope(reviewOutput, undefined)
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeJudges',
+    'when the spec is the review contract',
+    'it should say it rules on somebody else\u2019s change',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = envelopeJudges(reviewOutput)
+
+    // then
+    expect(actual).toBe(true)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::envelopeJudges',
+    'when the spec is not the review contract',
+    'it should say it does not',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = envelopeJudges(buildOutput)
+
+    // then
+    expect(actual).toBe(false)
   },
 )

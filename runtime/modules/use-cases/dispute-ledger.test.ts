@@ -1,7 +1,28 @@
 import { expect, test } from 'bun:test'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TBuildOutput, TReviewOutput } from '../typedefs/envelope'
 import { buildOutputSchema, reviewOutputSchema } from '../typedefs/envelope'
-import { roundRecord, unmovedFindings, ledgerSchema} from './dispute-ledger'
+import type { TRun } from '../typedefs/run'
+import {
+  ledgerPath,
+  ledgerSchema,
+  readLedger,
+  roundRecord,
+  unmovedFindings,
+  writeLedger,
+} from './dispute-ledger'
+import type { TRoundRecord } from './dispute-ledger'
+
+const runWith = (contextHandoffDir: string, notes: string[]): TRun =>
+  ({
+    contextHandoffDir,
+    console: {
+      // biome-ignore lint/plugin/no-array-mutation: recording what was noted is the test
+      note: (message: string) => notes.push(message),
+    },
+  }) as unknown as TRun
 
 /**
  * The six context fields every agent envelope now carries.
@@ -207,5 +228,97 @@ test(
 
     // then
     expect(actual.success).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/dispute-ledger::readLedger',
+    'when no ledger file exists yet',
+    'it should answer an empty ledger, with no note',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-dispute-ledger-none-'))
+    const notes: string[] = []
+    const run = runWith(dir, notes)
+
+    // when
+    const actual = readLedger(run)
+
+    // then
+    expect(actual).toEqual([])
+    expect(notes).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/dispute-ledger::writeLedger, readLedger',
+    'when a ledger is written and read back',
+    'it should round-trip every round exactly',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-dispute-ledger-roundtrip-'))
+    const notes: string[] = []
+    const run = runWith(dir, notes)
+    const rounds: readonly TRoundRecord[] = [
+      {
+        round: 1,
+        blocking: ['the handler is unguarded'],
+        evidence: { 'the handler is unguarded': 'src/server.ts:42' },
+        disputes: {},
+        changed: 2,
+      },
+    ]
+
+    // when
+    writeLedger(run, rounds)
+    const actual = readLedger(run)
+
+    // then
+    expect(actual).toEqual(rounds)
+  },
+)
+
+test(
+  [
+    'given use-cases/dispute-ledger::readLedger',
+    'when the ledger on disk does not parse',
+    'it should treat it as absent and note why, rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-dispute-ledger-corrupt-'))
+    writeFileSync(join(dir, 'disputes.json'), 'not json at all')
+    const notes: string[] = []
+    const run = runWith(dir, notes)
+
+    // when
+    const actual = readLedger(run)
+
+    // then
+    expect(actual).toEqual([])
+    expect(notes).toHaveLength(1)
+    expect(notes[0]).toContain('ignoring an unreadable dispute ledger')
+  },
+)
+
+test(
+  [
+    'given use-cases/dispute-ledger::ledgerPath',
+    'when asked where a run keeps its ledger',
+    'it should resolve under the run\u2019s own context_handoff directory',
+  ].join(', '),
+  () => {
+    // given
+    const run = runWith('/tmp/crust-handoff', [])
+
+    // when
+    const actual = ledgerPath(run)
+
+    // then
+    expect(actual).toEqual(join('/tmp/crust-handoff', 'disputes.json'))
   },
 )

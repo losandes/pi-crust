@@ -181,6 +181,42 @@ test(
 
 test(
   [
+    'given use-cases/gates::diffMatchesClaims (resolve)',
+    'when a claimed path exists at the VCS root but not inside the narrower workspace root',
+    'it should still settle the claim and emit the outside-workspace warning event',
+  ].join(', '),
+  () => {
+    // given — a monorepo workspace nested under a VCS root, with the claimed
+    // file only present above the workspace
+    const vcsRoot = mkdtempSync(join(tmpdir(), 'crust-diff-evidence-vcs-'))
+    const repoRoot = join(vcsRoot, 'packages', 'gateway')
+    mkdirSync(repoRoot, { recursive: true })
+    const claimedPath = 'shared/lockfile.txt'
+    mkdirSync(join(vcsRoot, 'shared'), { recursive: true })
+    writeFileSync(join(vcsRoot, 'shared', 'lockfile.txt'), 'content\n')
+    const events: unknown[] = []
+    const run = {
+      ...traced(),
+      repoRoot,
+      vcsRoot,
+      tracer: {
+        // biome-ignore lint/plugin/no-array-mutation: recording what was filed is the test
+        event: (payload: unknown) => events.push(payload),
+      },
+    } as unknown as TRun
+    const envelope = envelopeClaiming([claimedPath])
+
+    // when
+    const report = diffMatchesClaims.check(envelope, run, [])
+
+    // then — settled by existence at the wider root, and the warning fired
+    expect(violationsOf(report)).toHaveLength(0)
+    expect(events).toHaveLength(1)
+  },
+)
+
+test(
+  [
     'given use-cases/gates::diffMatchesClaims (1.1.4)',
     'when the changedPaths argument passed to check is simply ignored by the implementation',
     'it should fail a deleted-but-observed claim, proving the third argument is actually consulted',

@@ -39,7 +39,9 @@ const inDir = <TResult>(dir: string, body: () => TResult): TResult => {
 }
 
 /** Capture what `main` printed, without depending on how it is painted. */
-const captureStdout = <TResult>(body: () => TResult): Readonly<{
+const captureStdout = <TResult>(
+  body: () => TResult,
+): Readonly<{
   result: TResult
   printed: string
 }> => {
@@ -119,5 +121,60 @@ test(
 
     // then
     expect(result).toEqual(EXIT.FAILED)
+  },
+)
+
+test(
+  [
+    'given checks::main ("just crust verify")',
+    'when the config declares no routing.checks rules at all',
+    'it should say so and exit success',
+  ].join(', '),
+  () => {
+    // given
+    const { dir } = aRepoWith(['routing:', '  checks: []', ''].join('\n'))
+    writeFileSync(join(dir, 'NOTES.md'), 'a change\n')
+
+    // when
+    const { result, printed } = inDir(dir, () =>
+      captureStdout(() => main(['--config', 'crust.config.yaml'])),
+    )
+
+    // then
+    expect(result).toEqual(EXIT.SUCCESS)
+    expect(printed).toContain('no checks')
+  },
+)
+
+test(
+  [
+    'given checks::main ("just crust verify")',
+    'when nothing has changed in the working tree',
+    'it should say so and exit success',
+  ].join(', '),
+  () => {
+    // given — a rule exists, but there is no diff for it to apply to.
+    // The config itself is committed, so writing it does not count as a change.
+    const { dir } = aRepoWith(
+      [
+        'routing:',
+        '  checks:',
+        '    - name: lint',
+        "      when: ['**/*.ts']",
+        "      argv: ['true']",
+        '',
+      ].join('\n'),
+    )
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-qm', 'config')
+
+    // when
+    const { result, printed } = inDir(dir, () =>
+      captureStdout(() => main(['--config', 'crust.config.yaml'])),
+    )
+
+    // then
+    expect(result).toEqual(EXIT.SUCCESS)
+    expect(printed).toContain('nothing changed')
   },
 )

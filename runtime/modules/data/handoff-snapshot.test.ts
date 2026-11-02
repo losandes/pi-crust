@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, mock, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,8 +6,16 @@ import {
   changed,
   diffHandoff,
   readAll,
+  restoreAll,
   snapshotHandoff,
 } from './handoff-snapshot'
+
+afterAll(() => {
+  // mock.module() leaks across files in bun's shared module registry
+  // (https://bun.sh/docs/test/parallel); restore the real module explicitly
+  // rather than rely on mock.restore(), which does not undo it.
+  mock.module('node:fs', () => require('node:fs'))
+})
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-handoff-'))
 
@@ -123,5 +131,84 @@ test(
     // then
     expect([...copies.keys()]).toEqual(['design.md'])
     expect(copies.get('design.md')?.toString()).toEqual('the original design')
+  },
+)
+
+test(
+  [
+    'given data/handoff-snapshot::snapshotHandoff',
+    'when a file in the directory cannot be read',
+    'it should skip it rather than fail the activity run it watches',
+  ].join(', '),
+  () => {
+    // given — mocked, because provoking a real unreadable entry mid-listing
+    // needs a race this test cannot depend on
+    const dir = scratch()
+    writeFileSync(join(dir, 'design.md'), 'content')
+    const real = require('node:fs')
+    mock.module('node:fs', () => ({
+      ...real,
+      readFileSync: () => {
+        throw new Error('vanished mid-listing')
+      },
+    }))
+
+    // when
+    const actual = snapshotHandoff(dir)
+
+    // then
+    expect(actual.size).toBe(0)
+    mock.module('node:fs', () => require('node:fs'))
+  },
+)
+
+test(
+  [
+    'given data/handoff-snapshot::snapshotHandoff',
+    'when the directory itself disappears between the check and the walk',
+    'it should yield an empty snapshot rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const real = require('node:fs')
+    mock.module('node:fs', () => ({
+      ...real,
+      readdirSync: () => {
+        throw new Error('ENOENT: no such directory')
+      },
+    }))
+
+    // when
+    const actual = snapshotHandoff('/some/dir')
+
+    // then
+    expect(actual.size).toBe(0)
+    mock.module('node:fs', () => require('node:fs'))
+  },
+)
+
+test(
+  [
+    'given data/handoff-snapshot::restoreAll',
+    'when a copy cannot be written back',
+    'it should report it as not restored rather than throw',
+  ].join(', '),
+  () => {
+    // given
+    const real = require('node:fs')
+    mock.module('node:fs', () => ({
+      ...real,
+      chmodSync: () => {
+        throw new Error('EPERM')
+      },
+    }))
+    const originals = new Map([['design.md', Buffer.from('original')]])
+
+    // when
+    const actual = restoreAll('/some/dir', originals, ['design.md'])
+
+    // then
+    expect(actual).toEqual([])
+    mock.module('node:fs', () => require('node:fs'))
   },
 )

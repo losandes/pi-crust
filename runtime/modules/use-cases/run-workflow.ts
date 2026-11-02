@@ -16,46 +16,46 @@
  * generalisation is the activity library's rather than one workflow's.
  */
 
-import { runLink, visualizerIsUp } from '../data/visualizer'
-import { isRepo, rev, shortSha } from '../data/git'
-import type { TActivityContext, TActivityOptions } from '../typedefs/runnable-activity'
-import { DEFAULT_ACTIVITY_OPTIONS } from '../typedefs/runnable-activity'
-import type { TAttemptLedger } from './attempts'
-import type { TPiCrustConfig } from '../typedefs/config'
-import type { TRun } from '../typedefs/run'
-import type { TGateReason } from './human-gate'
-import {
-  parseApproveAfter,
-  resumeInvocation,
-  writeDecisionRequest,
-} from './human-gate'
-import { attemptLedger } from './attempts'
 import { dataDirFromEnv } from '../data/env-overrides'
-import { loadConfigWithNotes } from './load-config'
-import { readRunState } from './read-run-state'
-import type { TWorkflowArgs } from './parse-cli'
-import { loopAgents, runReviseLoop } from './revise-loop'
-import { selfAnsweredIn } from './human-gate'
-import { counts, finish, finishWaiting } from './run-activity-run'
-import type { TWaiting } from './run-activities'
+import { isRepo, rev, shortSha } from '../data/git'
+import { runLink, visualizerIsUp } from '../data/visualizer'
+import type { TPiCrustConfig } from '../typedefs/config'
 import type { TStage } from '../typedefs/lifecycle'
 import { terminalIn, withoutTerminal } from '../typedefs/lifecycle'
-import { plannedNames, unitsFrom } from './plan-units'
-import { recordRequest, runActivities, runUnits } from './run-activities'
-import { chainNote, plannedChain } from './operator-plan'
-import {
-  describeTrust,
-  TRUST_PROVISIONAL,
-  trustLevel,
-} from '../typedefs/trust'
-import { startSession } from './start-session'
+import type { TRun } from '../typedefs/run'
+import type {
+  TActivityContext,
+  TActivityOptions,
+} from '../typedefs/runnable-activity'
+import { DEFAULT_ACTIVITY_OPTIONS } from '../typedefs/runnable-activity'
+import { describeTrust, TRUST_PROVISIONAL, trustLevel } from '../typedefs/trust'
 import {
   requiredAgents,
   runnableActivities,
   terminalActivityFor,
 } from './activities'
-import { validateAgents } from './validate-agents'
+import type { TAttemptLedger } from './attempts'
+import { attemptLedger } from './attempts'
+import type { TAgentPorts } from './execute-agent'
+import type { TGateReason } from './human-gate'
+import {
+  parseApproveAfter,
+  resumeInvocation,
+  selfAnsweredIn,
+  writeDecisionRequest,
+} from './human-gate'
+import { loadConfigWithNotes } from './load-config'
+import { chainNote, plannedChain } from './operator-plan'
+import type { TWorkflowArgs } from './parse-cli'
+import { plannedNames, unitsFrom } from './plan-units'
+import { readRunState } from './read-run-state'
+import { loopAgents, runReviseLoop } from './revise-loop'
+import type { TWaiting } from './run-activities'
+import { recordRequest, runActivities, runUnits } from './run-activities'
+import { counts, finish, finishWaiting } from './run-activity-run'
 import { runTerminal } from './run-terminal'
+import { startSession } from './start-session'
+import { validateAgents } from './validate-agents'
 
 export const NOT_ACCEPTED =
   'a activity did not meet its own criterion — a check failed, or a review was ' +
@@ -69,7 +69,7 @@ export const NOT_ACCEPTED =
  * Superseded rows are excluded, because they are the ones a person steered
  * — human-directed re-execution is not an attempt.
  */
-const spentAlready = (
+export const spentAlready = (
   cfg: TPiCrustConfig,
   runId: string | undefined,
 ): readonly string[] => {
@@ -79,7 +79,9 @@ const spentAlready = (
   const state = readRunState(cfg.observability.db, runId)
 
   return (state?.activityRuns ?? [])
-    .filter((activityRun) => activityRun.kind === 'agent' && counts(activityRun))
+    .filter(
+      (activityRun) => activityRun.kind === 'agent' && counts(activityRun),
+    )
     .map((activityRun) => activityRun.name)
 }
 
@@ -89,7 +91,7 @@ const spentAlready = (
  * Only pinned when a activity needs it: a repository with no commit yet cannot
  * resolve HEAD, and a chain that never documents should not fail on that.
  */
-const pinBaseline = (names: readonly string[]): string =>
+export const pinBaseline = (names: readonly string[]): string =>
   names.includes('document') && isRepo() ? rev('HEAD') : ''
 
 /**
@@ -99,7 +101,7 @@ const pinBaseline = (names: readonly string[]): string =>
  * settles the run as waiting, and a resume replays the operator activityRun from
  * the trace and picks the chain up where it stopped.
  */
-const runPlannedChain = async (
+export const runPlannedChain = async (
   run: TRun,
   planned: readonly string[],
   options: Readonly<Partial<TActivityOptions>>,
@@ -107,10 +109,15 @@ const runPlannedChain = async (
   args: TWorkflowArgs,
   trust: number,
   ledger: TAttemptLedger,
+  /** see `runWorkflow`'s own parameter of the same name */
+  agentPorts?: TAgentPorts,
 ): Promise<TActivityContext | undefined> => {
-  const activities = runnableActivities(planned, run.cfg, options)
+  const activities = runnableActivities(planned, run.cfg, options, agentPorts)
   validateAgents(run.cfg, [
-    ...new Set([...requiredAgents(activities), ...loopAgents(run.cfg, planned)]),
+    ...new Set([
+      ...requiredAgents(activities),
+      ...loopAgents(run.cfg, planned),
+    ]),
   ])
   run.console.note(chainNote(planned))
 
@@ -149,7 +156,12 @@ const runPlannedChain = async (
       activity_run_id: '',
       type: 'log',
       name: 'human_gate_open',
-      payload: { activity: 'operator', kind: 'plan', request: path, activities: planned },
+      payload: {
+        activity: 'operator',
+        kind: 'plan',
+        request: path,
+        activities: planned,
+      },
     })
     return undefined
   }
@@ -172,6 +184,14 @@ const runPlannedChain = async (
 export const runWorkflow = async (
   args: TWorkflowArgs,
   plan: readonly TStage[],
+  /**
+   * Defaults to `agentActivity`'s own `liveAgent`. No real caller passes
+   * anything else \u2014 this exists so a test can drive an actually-executed
+   * (not merely replayed) Activity Run through a canned, in-process
+   * response, the seam COVERAGE-AGENT-PORTS.md built and said this file
+   * would go on to consume.
+   */
+  agentPorts?: TAgentPorts,
 ): Promise<number> => {
   /*
    * A terminal Activity never enters the fold — it is wired to run once the
@@ -188,7 +208,7 @@ export const runWorkflow = async (
     ...(args.base === undefined ? {} : { base: args.base }),
     committing: args.commit !== 'false',
   }
-  const activities = runnableActivities(names, cfg, options)
+  const activities = runnableActivities(names, cfg, options, agentPorts)
   const terminalOptions: TActivityOptions = {
     ...DEFAULT_ACTIVITY_OPTIONS,
     ...options,
@@ -262,10 +282,14 @@ export const runWorkflow = async (
      * saying so, is a run whose trace cannot be compared with anyone else's.
      */
     if (loaded.localPath !== '') {
-      run.console.note(`local config in force: ${loaded.localPath} (not in git)`)
+      run.console.note(
+        `local config in force: ${loaded.localPath} (not in git)`,
+      )
     }
     if (loaded.machinePath !== '') {
-      run.console.note(`machine config in force: ${loaded.machinePath} (not in git, not this repository)`)
+      run.console.note(
+        `machine config in force: ${loaded.machinePath} (not in git, not this repository)`,
+      )
     }
     for (const warning of loaded.warnings) {
       run.console.note(warning)
@@ -298,7 +322,10 @@ export const runWorkflow = async (
 
     const baseline = pinBaseline(names)
 
-    const wholeChain = [...names, ...(terminal === undefined ? [] : [terminal.name])]
+    const wholeChain = [
+      ...names,
+      ...(terminal === undefined ? [] : [terminal.name]),
+    ]
     await recordRequest(
       run,
       args.prompt,
@@ -354,7 +381,16 @@ export const runWorkflow = async (
     const after =
       planned.length === 0
         ? ctx
-        : await runPlannedChain(run, planned, options, ctx, args, trust, ledger)
+        : await runPlannedChain(
+            run,
+            planned,
+            options,
+            ctx,
+            args,
+            trust,
+            ledger,
+            agentPorts,
+          )
     if (after === undefined) {
       return finishWaiting(run, run.contextHandoffDir)
     }

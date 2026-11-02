@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { hasFence, splitFences, splitFencesAndJson } from './fences'
+import { hasCode, hasFence, splitFences, splitFencesAndJson } from './fences'
 
 test(
   [
@@ -142,9 +142,9 @@ test(
     const segments = splitFences(text)
 
     // then
-    expect(segments.map((segment) => `${segment.kind}:${segment.text}`)).toEqual(
-      ['code:a', 'prose:mid', 'code:b'],
-    )
+    expect(
+      segments.map((segment) => `${segment.kind}:${segment.text}`),
+    ).toEqual(['code:a', 'prose:mid', 'code:b'])
   },
 )
 
@@ -271,8 +271,10 @@ test(
   ].join(', '),
   () => {
     // given — accepting anything unterminated would turn half the prose in
-    // the pane into code. The shape test is: a quoted key, then a colon.
-    const source = 'I opened the config with {\n  timeout: 30'
+    // the pane into code. The shape test is: a quoted key, then a colon. The
+    // brace sits at the start of a line, so the scan reaches the shape test
+    // rather than failing earlier on where the brace appears.
+    const source = 'Config:\n{\n  timeout: 30'
 
     // when
     const actual = splitFencesAndJson(source)
@@ -291,7 +293,8 @@ test(
   () => {
     // given — the factory's own evidence strings quote shell and code, so a
     // naive brace count ends the block in the middle of a sentence
-    const source = '{\n  "evidence": "ran `awk \'{print $1}\'` and it exited 0"\n}'
+    const source =
+      '{\n  "evidence": "ran `awk \'{print $1}\'` and it exited 0"\n}'
 
     // when
     const actual = splitFencesAndJson(source)
@@ -337,5 +340,83 @@ test(
 
     // then
     expect(actual.map((part) => part.kind)).toEqual(['code', 'prose', 'code'])
+  },
+)
+
+test(
+  [
+    'given lib/fences::splitFencesAndJson',
+    'when a JSON string contains an escaped quote',
+    'it should not treat the escaped quote as ending the string',
+  ].join(', '),
+  () => {
+    // given — the escape must be tracked, or the quote inside closes the
+    // string early and the next real quote reopens it in the wrong place
+    const source = '{\n  "quote": "he said \\"hi\\" to me"\n}'
+
+    // when
+    const actual = splitFencesAndJson(source)
+
+    // then
+    expect(actual.map((part) => part.kind)).toEqual(['code'])
+    expect(JSON.parse(actual[0]?.text ?? '')).toEqual({
+      quote: 'he said "hi" to me',
+    })
+  },
+)
+
+test(
+  [
+    'given lib/fences::splitFencesAndJson',
+    'when the braces balance but the content is not valid JSON',
+    'it should fall back to prose rather than throw',
+  ].join(', '),
+  () => {
+    // given — single-quoted keys balance the braces the scanner counts, but
+    // JSON.parse rejects them
+    const source = "{ 'a': 1 }"
+
+    // when
+    const actual = splitFencesAndJson(source)
+
+    // then
+    expect(actual.map((part) => part.kind)).toEqual(['prose'])
+  },
+)
+
+test(
+  [
+    'given lib/fences::hasCode',
+    'when the text has neither a fence nor an embedded JSON value',
+    'it should say there is no code',
+  ].join(', '),
+  () => {
+    // given
+    const source = 'just a sentence, no code at all'
+
+    // when
+    const actual = hasCode(source)
+
+    // then
+    expect(actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given lib/fences::hasCode',
+    'when the text has a fence or an embedded JSON value',
+    'it should say there is code',
+  ].join(', '),
+  () => {
+    // given
+    const fenced = '```js\nconst x = 1\n```'
+    const json = '{\n  "a": 1\n}'
+
+    // when
+    const actual = [hasCode(fenced), hasCode(json)]
+
+    // then
+    expect(actual).toEqual([true, true])
   },
 )
