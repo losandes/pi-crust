@@ -271,9 +271,9 @@ test(
   ].join(', '),
   async () => {
     // given
-    const agentPorts = fakeAgentPorts(async () => {
-      throw new Error('agent process exited 1')
-    })
+    const agentPorts = fakeAgentPorts(() =>
+      Promise.reject(new Error('agent process exited 1')),
+    )
     const { ports, calls } = fakePorts()
     const activity = ghPullRequestActivity(config(), OPTIONS, ports, agentPorts)
     const run = aRun()
@@ -294,7 +294,7 @@ test(
     'when every git and gh operation it can perform runs',
     'it should never construct --force, -f or --force-with-lease (1.5.4)',
   ].join(', '),
-  async () => {
+  () => {
     // given — spy the one function both git.ts and this module's own `gh`
     // wiring call through: the real argv passed to the process, not a typed
     // port a fake could paper over.

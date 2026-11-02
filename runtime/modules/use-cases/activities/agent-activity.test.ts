@@ -60,9 +60,8 @@ const fakePorts = (
   const calls: string[] = []
   const runImpl =
     overrides.run ??
-    (async () => {
-      throw new Error('this fake was not expected to run the agent')
-    })
+    (() =>
+      Promise.reject(new Error('this fake was not expected to run the agent')))
   const ports: TAgentPorts = {
     changed: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
@@ -79,7 +78,7 @@ const fakePorts = (
     snapshot: () => ({}),
     rev: () => '',
     ...overrides,
-    run: async (request, hooks) => {
+    run: (request, hooks) => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push('run')
       return runImpl(request, hooks)
@@ -387,7 +386,7 @@ test(
     'when replay cannot read a stored envelope',
     'it should throw naming the activity run and both ways forward',
   ].join(', '),
-  async () => {
+  () => {
     // given — no envelope.json was ever written for this instance
     const repoRoot = aRepo()
     const run = aRun(repoRoot)

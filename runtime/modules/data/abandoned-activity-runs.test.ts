@@ -20,10 +20,11 @@ const tracerIn = (): ReturnType<typeof createTracer> & {
 } => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-trace-'))
   const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
-  return Object.assign(tracer, {
+  return {
+    ...tracer,
     dir,
     dispose: () => rmSync(dir, { recursive: true, force: true }),
-  })
+  }
 }
 
 /** A activityRun mid-flight: written as `running`, never updated again. */

@@ -81,10 +81,10 @@ const fakePorts = (
 ): Readonly<{ ports: TAgentPorts; calls: Record<string, unknown>[] }> => {
   const calls: Record<string, unknown>[] = []
   const ports: TAgentPorts = {
-    run: async () => {
+    run: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push({ op: 'run' })
-      return aPiResult({ text: VALID_ENVELOPE_TEXT })
+      return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
     },
     changed: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
@@ -251,13 +251,15 @@ test(
     let attempt = 0
     const retried: string[] = []
     const { ports } = fakePorts({
-      run: async (request) => {
+      run: (request) => {
         attempt += 1
         // biome-ignore lint/plugin/no-array-mutation: recording what was sent is the test
         retried.push(request.prompt)
-        return aPiResult({
-          text: attempt === 1 ? 'not json at all' : VALID_ENVELOPE_TEXT,
-        })
+        return Promise.resolve(
+          aPiResult({
+            text: attempt === 1 ? 'not json at all' : VALID_ENVELOPE_TEXT,
+          }),
+        )
       },
     })
 
@@ -284,9 +286,9 @@ test(
     const activityRun = anActivityRun()
     let attempt = 0
     const { ports } = fakePorts({
-      run: async () => {
+      run: () => {
         attempt += 1
-        return aPiResult({ text: 'still not json' })
+        return Promise.resolve(aPiResult({ text: 'still not json' }))
       },
     })
 
@@ -456,7 +458,7 @@ test(
     const { run, events } = aRun(repoRoot)
     const activityRun = anActivityRun()
     const { ports } = fakePorts({
-      run: async (_request, hooks) => {
+      run: (_request, hooks) => {
         hooks?.onEvent?.({
           type: 'text_end',
           content: [{ type: 'text', text: 'thinking out loud' }],
@@ -482,7 +484,7 @@ test(
           args: { command: 'ls' },
           result: { content: [{ type: 'text', text: 'README.md' }] },
         })
-        return aPiResult({ text: VALID_ENVELOPE_TEXT })
+        return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
       },
     })
 
@@ -501,7 +503,7 @@ test(
     "when the handle's activity run kind is not 'agent'",
     'it should throw before executeAgent ever runs',
   ].join(', '),
-  async () => {
+  () => {
     // given
     const repoRoot = aRepo()
     const { run } = aRun(repoRoot)
@@ -569,9 +571,10 @@ test(
     expect(envelope.status).toBe('success')
     const touched = events.find((event) => event.name === PATHS_TOUCHED)
     expect(touched).toBeDefined()
-    expect(
-      (touched?.payload as Readonly<{ paths: readonly string[] }>).paths,
-    ).toContain('README.md')
+    const touchedPayload = (touched?.payload ?? {}) as Readonly<{
+      paths?: readonly string[]
+    }>
+    expect(touchedPayload.paths).toContain('README.md')
     const warnings = events.filter((event) => event.name === WARNING_EVENT)
     expect(
       warnings.some(
@@ -646,9 +649,10 @@ test(
     // then
     const applied = events.find((event) => event.name === 'steering_applied')
     expect(applied).toBeDefined()
-    expect((applied?.payload as Readonly<{ text: string }>).text).toBe(
-      'Use tabs, not spaces.',
-    )
+    const appliedPayload = (applied?.payload ?? {}) as Readonly<{
+      text?: string
+    }>
+    expect(appliedPayload.text).toBe('Use tabs, not spaces.')
   },
 )
 
