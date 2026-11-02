@@ -67,7 +67,7 @@
 
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
-    "buntap": ["buntap@github:losandes/buntap#1f0abfa", { "bin": { "buntap": "./dist/bin.js", "bunt": "./dist/bunt.js" } }, "losandes-buntap-1f0abfa", "sha512-P89uHqqrSfmNPsc1QDIxRoX4Ec2/kn81md95ZIENsQhtlhNTNgZfowgC52uUKKUSo7AsmGODXWtV1+exCqBNaQ=="],
+    "buntap": ["buntap@github:losandes/buntap#5096ebb", { "bin": { "buntap": "./dist/bin.js", "bunt": "./dist/bunt.js" } }, "losandes-buntap-5096ebb", "sha512-SZE5Q8Dk2wxizlH8bszuXsq9aBqTOrIbky/BrvUTMjPoi5rcMFFYK3SBo+MUXDmxVW6AOup7wDMlvla+nHh2iA=="],
 
     "character-entities": ["character-entities@2.0.2", "", {}, "sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ=="],
 

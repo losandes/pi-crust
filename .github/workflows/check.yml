@@ -26,7 +26,13 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Without it the browser-driven visualizer tests skip, and a suite that
+      # did not run them is green for the wrong reason.
+      - name: Install Chromium for the browser-driven tests
+        run: bunx playwright install --with-deps chromium
+
+      # No CRUST_STRICT here, deliberately: no pi is installed on the runner,
+      # so typecheck:harness reports that it did not check
+      # harness-engineering/ and the build carries that gap knowingly.
       - name: Check the code
-        env:
-          CI: true
         run: bun run check
