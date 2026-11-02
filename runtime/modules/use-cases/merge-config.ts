@@ -49,18 +49,28 @@ export const applyLocalOverrides = (
   if (!isRecord(local)) return { document: base, warnings: [] }
   if (!isRecord(base)) return { document: base, warnings: [] }
 
-  /** Per key, with the local value winning; nested objects merge. */
-  const mergeInto = (left: TRecord, right: TRecord): TRecord =>
-    Object.entries(right).reduce<TRecord>(
-      (merged, [key, value]) => ({
-        ...merged,
-        [key]:
-          isRecord(value) && isRecord(merged[key])
-            ? mergeInto(merged[key], value)
+  /**
+   * Per key, with the local value winning; nested objects merge.
+   *
+   * Built in one pass over the union of the keys rather than by folding a
+   * spread, which copies the whole accumulator per entry.
+   */
+  const mergeInto = (left: TRecord, right: TRecord): TRecord => {
+    const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])]
+    return Object.fromEntries(
+      keys.map((key) => {
+        if (!Object.hasOwn(right, key)) return [key, left[key]]
+        const value = right[key]
+        const existing = left[key]
+        return [
+          key,
+          isRecord(value) && isRecord(existing)
+            ? mergeInto(existing, value)
             : value,
+        ]
       }),
-      left,
     )
+  }
 
   const localAgents = Array.isArray(local.agents)
     ? local.agents.filter(isRecord)

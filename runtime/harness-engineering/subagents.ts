@@ -35,6 +35,7 @@ import { DynamicBorder } from '@earendil-works/pi-coding-agent'
 import type { TUI } from '@earendil-works/pi-tui'
 import { Container, Text } from '@earendil-works/pi-tui'
 import { Type } from 'typebox'
+import { safeParseSettlement } from '../../lib/typedefs/src/settlement'
 import { applyExtensionDefaults } from './theme-map'
 
 /*
@@ -75,20 +76,36 @@ const textResult = (text: string): AgentToolResult<undefined> => ({
   details: undefined,
 })
 
+/**
+ * One subagent, as a value.
+ *
+ * Every field is readonly and a change produces a new record in the map,
+ * so nothing holding a reference can observe a half-applied update. The
+ * corollary is that a reference goes stale the moment anything changes it:
+ * read through `agents.get(id)` at the point of use, never from a binding
+ * captured earlier.
+ */
 interface SubState {
-  id: number
-  status: 'running' | 'done' | 'error'
-  task: string
-  textChunks: string[]
-  toolCount: number
-  elapsed: number
-  sessionFile: string // persistent JSONL session path — used by /subcont to resume
-  turnCount: number // increments each time /subcont continues this agent
-  model: string
+  readonly id: number
+  readonly status: 'running' | 'done' | 'error'
+  readonly task: string
+  /**
+   * Everything the agent has emitted, as text.
+   *
+   * It was an array of chunks that existed only to be joined; appending to
+   * a string is the same answer without the mutation, and without copying
+   * the whole array on every streamed delta.
+   */
+  readonly text: string
+  readonly toolCount: number
+  readonly elapsed: number
+  readonly sessionFile: string // persistent JSONL session path — used by /subcont to resume
+  readonly turnCount: number // increments each time /subcont continues this agent
+  readonly model: string
   // The host's level, which includes `off`. `exactOptionalPropertyTypes`
   // wants the `undefined` spelled out on an optional it is assigned.
-  thinking: ModelThinkingLevel
-  proc?: ChildProcess | undefined // active child ref (for kill on /subrm)
+  readonly thinking: ModelThinkingLevel
+  readonly proc?: ChildProcess | undefined // active child ref (for kill on /subrm)
 }
 
 interface ParsedCommand {
@@ -114,14 +131,20 @@ function readCommandValue(input: string): { value?: string; rest: string } {
     : { value: trimmed.slice(0, end), rest: trimmed.slice(end) }
 }
 
+/**
+ * One flag at a time, each step returning the options it has so far.
+ *
+ * The loop this replaces assigned into one options object as it went; the
+ * recursion carries the options forward instead, so a parse that fails
+ * half-way reports exactly what it had read, as it always did.
+ */
 function parseCommandOptions(input: string): ParsedCommand {
-  const options: SpawnOptions = {}
-  let rest = input.trimStart()
+  const step = (options: SpawnOptions, input: string): ParsedCommand => {
+    if (!input.startsWith('--')) return { options, rest: input.trim() }
 
-  while (rest.startsWith('--')) {
-    const flagMatch = rest.match(/^--(model|thinking)(?:=([^\s]+))?(?:\s+|$)/)
+    const flagMatch = input.match(/^--(model|thinking)(?:=([^\s]+))?(?:\s+|$)/)
     if (!flagMatch) {
-      const flag = rest.match(/^\S+/)?.[0] || rest
+      const flag = input.match(/^\S+/)?.[0] || input
       return {
         options,
         rest: '',
@@ -130,20 +153,17 @@ function parseCommandOptions(input: string): ParsedCommand {
     }
 
     const flag = flagMatch[1]
-    let value = flagMatch[2]
-    rest = rest.slice(flagMatch[0].length)
-    if (!value) {
-      const parsed = readCommandValue(rest)
-      value = parsed.value
-      rest = parsed.rest
-    }
+    const afterFlag = input.slice(flagMatch[0].length)
+    // `--model=x` carries its value; `--model x` is the next token.
+    const read = flagMatch[2]
+      ? { value: flagMatch[2], rest: afterFlag }
+      : readCommandValue(afterFlag)
+    const value = read.value
     if (!value)
       return { options, rest: '', error: `Missing value for --${flag}` }
 
     if (flag === 'model') {
-      options.model = value
-      rest = rest.trimStart()
-      continue
+      return step({ ...options, model: value }, read.rest.trimStart())
     }
 
     const thinking = value.toLowerCase()
@@ -154,11 +174,13 @@ function parseCommandOptions(input: string): ParsedCommand {
         error: 'Thinking must be one of: low, medium, high, xhigh',
       }
     }
-    options.thinking = thinking as ThinkingOverride
-    rest = rest.trimStart()
+    return step(
+      { ...options, thinking: thinking as ThinkingOverride },
+      read.rest.trimStart(),
+    )
   }
 
-  return { options, rest: rest.trim() }
+  return step({}, input.trimStart())
 }
 
 export default function (pi: ExtensionAPI) {
@@ -174,12 +196,27 @@ export default function (pi: ExtensionAPI) {
     return path.join(dir, `subagent-${id}-${Date.now()}.jsonl`)
   }
 
+  /**
+   * The next value of a subagent, in the map.
+   *
+   * Returns it, because the caller usually needs what it just wrote and the
+   * binding it held is now the previous value. Unknown id writes nothing,
+   * which is what every `agents.get(...)` guard already assumed.
+   */
+  function patch(id: number, change: Partial<SubState>): SubState | undefined {
+    const previous = agents.get(id)
+    if (previous === undefined) return undefined
+    const next: SubState = { ...previous, ...change }
+    agents.set(id, next)
+    return next
+  }
+
   // ── Widget rendering ──────────────────────────────────────────────────────
 
   function updateWidgets() {
     if (!widgetCtx) return
 
-    for (const [id, state] of Array.from(agents.entries())) {
+    for (const id of Array.from(agents.keys())) {
       const key = `sub-${id}`
       widgetCtx?.ui.setWidget(key, (_tui: TUI, theme: Theme) => {
         const container = new Container()
@@ -193,7 +230,12 @@ export default function (pi: ExtensionAPI) {
 
         return {
           render(width: number): string[] {
-            const lines: string[] = []
+            // Read at render time: the record is replaced on every change,
+            // so a reference captured when the widget was registered would
+            // paint the agent as it was then.
+            const state = agents.get(id)
+            if (state === undefined) return container.render(width)
+
             const statusColor =
               state.status === 'running'
                 ? 'accent'
@@ -217,27 +259,25 @@ export default function (pi: ExtensionAPI) {
                 ? theme.fg('dim', ` · Turn ${state.turnCount}`)
                 : ''
 
-            lines.push(
+            const header =
               theme.fg(statusColor, `${statusIcon} Subagent #${state.id}`) +
-                turnLabel +
-                theme.fg('dim', `  ${taskPreview}`) +
-                theme.fg('dim', `  (${Math.round(state.elapsed / 1000)}s)`) +
-                theme.fg('dim', ` | Tools: ${state.toolCount}`),
-            )
+              turnLabel +
+              theme.fg('dim', `  ${taskPreview}`) +
+              theme.fg('dim', `  (${Math.round(state.elapsed / 1000)}s)`) +
+              theme.fg('dim', ` | Tools: ${state.toolCount}`)
 
-            const fullText = state.textChunks.join('')
             const lastLine =
-              fullText
+              state.text
                 .split('\n')
                 .filter((l: string) => l.trim())
-                .pop() || ''
-            if (lastLine) {
-              const trimmed =
-                lastLine.length > width - 10
-                  ? `${lastLine.slice(0, width - 13)}...`
-                  : lastLine
-              lines.push(theme.fg('muted', `  ${trimmed}`))
-            }
+                .at(-1) || ''
+            const trimmed =
+              lastLine.length > width - 10
+                ? `${lastLine.slice(0, width - 13)}...`
+                : lastLine
+            const lines = lastLine
+              ? [header, theme.fg('muted', `  ${trimmed}`)]
+              : [header]
 
             content.setText(lines.join('\n'))
             return container.render(width)
@@ -252,27 +292,39 @@ export default function (pi: ExtensionAPI) {
 
   // ── Streaming helpers ─────────────────────────────────────────────────────
 
-  function processLine(state: SubState, line: string) {
+  /** One line of the child's JSON stream, applied to the agent it belongs to. */
+  function processLine(id: number, line: string) {
     if (!line.trim()) return
-    try {
-      const event = JSON.parse(line)
-      const type = event.type
+    // A torn or non-JSON line is skipped, which is what the empty catch did.
+    const settled = safeParseSettlement(
+      () =>
+        JSON.parse(line) as {
+          type?: string
+          assistantMessageEvent?: { type?: string; delta?: string }
+        },
+    )
+    if (settled.status === 'error') return
+    const event = settled.data
+    const current = agents.get(id)
+    if (current === undefined) return
 
-      if (type === 'message_update') {
-        const delta = event.assistantMessageEvent
-        if (delta?.type === 'text_delta') {
-          state.textChunks.push(delta.delta || '')
-          updateWidgets()
-        }
-      } else if (type === 'tool_execution_start') {
-        state.toolCount++
+    if (event.type === 'message_update') {
+      const delta = event.assistantMessageEvent
+      if (delta?.type === 'text_delta') {
+        patch(id, { text: current.text + (delta.delta || '') })
         updateWidgets()
       }
-    } catch {}
+      return
+    }
+
+    if (event.type === 'tool_execution_start') {
+      patch(id, { toolCount: current.toolCount + 1 })
+      updateWidgets()
+    }
   }
 
   function spawnAgent(
-    state: SubState,
+    id: number,
     prompt: string,
     ctx: ExtensionContext,
     options: SpawnOptions = {},
@@ -289,8 +341,8 @@ export default function (pi: ExtensionAPI) {
       : FALLBACK_MODEL
     const model = options.model?.trim() || parentModel
     const thinking = options.thinking || pi.getThinkingLevel()
-    state.model = model
-    state.thinking = thinking
+    const started = patch(id, { model, thinking })
+    if (started === undefined) return Promise.resolve()
 
     return new Promise<void>((resolve) => {
       const proc = spawn(
@@ -300,7 +352,7 @@ export default function (pi: ExtensionAPI) {
           'json',
           '-p',
           '--session',
-          state.sessionFile, // persistent session for /subcont resumption
+          started.sessionFile, // persistent session for /subcont resumption
           '--no-extensions',
           '--model',
           model,
@@ -316,11 +368,11 @@ export default function (pi: ExtensionAPI) {
         },
       )
 
-      state.proc = proc
+      patch(id, { proc })
 
       const startTime = Date.now()
       const timer = setInterval(() => {
-        state.elapsed = Date.now() - startTime
+        patch(id, { elapsed: Date.now() - startTime })
         updateWidgets()
       }, 1000)
 
@@ -330,40 +382,49 @@ export default function (pi: ExtensionAPI) {
       // and asserting here turns that into a crash inside a callback.
       proc.stdout?.setEncoding('utf-8')
       proc.stdout?.on('data', (chunk: string) => {
-        buffer += chunk
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) processLine(state, line)
+        const pending = buffer + chunk
+        const lines = pending.split('\n')
+        // The last element is whatever follows the final newline, which is
+        // the start of a line the next chunk finishes.
+        buffer = lines.at(-1) ?? ''
+        for (const line of lines.slice(0, -1)) processLine(id, line)
       })
 
       proc.stderr?.setEncoding('utf-8')
       proc.stderr?.on('data', (chunk: string) => {
-        if (chunk.trim()) {
-          state.textChunks.push(chunk)
+        const current = agents.get(id)
+        if (chunk.trim() && current !== undefined) {
+          patch(id, { text: current.text + chunk })
           updateWidgets()
         }
       })
 
       proc.on('close', (code) => {
-        if (buffer.trim()) processLine(state, buffer)
+        if (buffer.trim()) processLine(id, buffer)
         clearInterval(timer)
-        state.elapsed = Date.now() - startTime
-        state.status = code === 0 ? 'done' : 'error'
-        state.proc = undefined
+        const finished = patch(id, {
+          elapsed: Date.now() - startTime,
+          status: code === 0 ? 'done' : 'error',
+          proc: undefined,
+        })
         updateWidgets()
+        if (finished === undefined) {
+          resolve()
+          return
+        }
 
-        const result = state.textChunks.join('')
+        const result = finished.text
         // The host's notify takes info | warning | error; there is no
         // success tier to report a finished agent with.
         ctx.ui.notify(
-          `Subagent #${state.id} ${state.status} in ${Math.round(state.elapsed / 1000)}s`,
-          state.status === 'done' ? 'info' : 'error',
+          `Subagent #${finished.id} ${finished.status} in ${Math.round(finished.elapsed / 1000)}s`,
+          finished.status === 'done' ? 'info' : 'error',
         )
 
         pi.sendMessage(
           {
             customType: 'subagent-result',
-            content: `Subagent #${state.id}${state.turnCount > 1 ? ` (Turn ${state.turnCount})` : ''} finished "${prompt}" in ${Math.round(state.elapsed / 1000)}s.\n\nResult:\n${result.slice(0, 8000)}${result.length > 8000 ? '\n\n... [truncated]' : ''}`,
+            content: `Subagent #${finished.id}${finished.turnCount > 1 ? ` (Turn ${finished.turnCount})` : ''} finished "${prompt}" in ${Math.round(finished.elapsed / 1000)}s.\n\nResult:\n${result.slice(0, 8000)}${result.length > 8000 ? '\n\n... [truncated]' : ''}`,
             display: true,
           },
           { deliverAs: 'followUp', triggerTurn: true },
@@ -374,9 +435,12 @@ export default function (pi: ExtensionAPI) {
 
       proc.on('error', (err) => {
         clearInterval(timer)
-        state.status = 'error'
-        state.proc = undefined
-        state.textChunks.push(`Error: ${err.message}`)
+        const current = agents.get(id)
+        patch(id, {
+          status: 'error',
+          proc: undefined,
+          text: `${current?.text ?? ''}Error: ${err.message}`,
+        })
         updateWidgets()
         resolve()
       })
@@ -410,29 +474,31 @@ export default function (pi: ExtensionAPI) {
     execute: async (_callId, args, _signal, _onUpdate, ctx) => {
       widgetCtx = ctx
       const id = nextId++
-      const state: SubState = {
+      agents.set(id, {
         id,
         status: 'running',
         task: args.task,
-        textChunks: [],
+        text: '',
         toolCount: 0,
         elapsed: 0,
         sessionFile: makeSessionFile(id),
         turnCount: 1,
         model: '',
         thinking: pi.getThinkingLevel(),
-      }
-      agents.set(id, state)
+      })
       updateWidgets()
 
       // Fire-and-forget
-      spawnAgent(state, args.task, ctx, {
+      spawnAgent(id, args.task, ctx, {
         model: args.model,
         thinking: args.thinking,
       })
 
+      // Read back: spawnAgent resolved the model and thinking level before
+      // it returned, into a record this scope does not hold.
+      const spawned = agents.get(id)
       return textResult(
-        `Subagent #${id} spawned with ${state.model} (${state.thinking} thinking) and is running in background.`,
+        `Subagent #${id} spawned with ${spawned?.model ?? ''} (${spawned?.thinking ?? ''} thinking) and is running in background.`,
       )
     },
   })
@@ -469,24 +535,27 @@ export default function (pi: ExtensionAPI) {
         return textResult(`Error: Subagent #${args.id} is still running.`)
       }
 
-      state.status = 'running'
-      state.task = args.prompt
-      state.textChunks = []
-      state.elapsed = 0
-      state.turnCount++
+      const resumed = patch(args.id, {
+        status: 'running',
+        task: args.prompt,
+        text: '',
+        elapsed: 0,
+        turnCount: state.turnCount + 1,
+      })
       updateWidgets()
 
       ctx.ui.notify(
-        `Continuing Subagent #${args.id} (Turn ${state.turnCount})…`,
+        `Continuing Subagent #${args.id} (Turn ${resumed?.turnCount ?? state.turnCount})…`,
         'info',
       )
-      spawnAgent(state, args.prompt, ctx, {
+      spawnAgent(args.id, args.prompt, ctx, {
         model: args.model,
         thinking: args.thinking,
       })
 
+      const running = agents.get(args.id)
       return textResult(
-        `Subagent #${args.id} continuing with ${state.model} (${state.thinking} thinking) in background.`,
+        `Subagent #${args.id} continuing with ${running?.model ?? ''} (${running?.thinking ?? ''} thinking) in background.`,
       )
     },
   })
@@ -563,25 +632,25 @@ export default function (pi: ExtensionAPI) {
       }
 
       const id = nextId++
-      const state: SubState = {
+      agents.set(id, {
         id,
         status: 'running',
         task,
-        textChunks: [],
+        text: '',
         toolCount: 0,
         elapsed: 0,
         sessionFile: makeSessionFile(id),
         turnCount: 1,
         model: '',
         thinking: pi.getThinkingLevel(),
-      }
-      agents.set(id, state)
+      })
       updateWidgets()
 
       // Fire-and-forget
-      spawnAgent(state, task, ctx, parsed.options)
+      spawnAgent(id, task, ctx, parsed.options)
+      const spawned = agents.get(id)
       ctx.ui.notify(
-        `Subagent #${id}: ${state.model} (${state.thinking} thinking)`,
+        `Subagent #${id}: ${spawned?.model ?? ''} (${spawned?.thinking ?? ''} thinking)`,
         'info',
       )
     },
@@ -639,23 +708,26 @@ export default function (pi: ExtensionAPI) {
         return
       }
 
-      // Resume: update state for a new turn
-      state.status = 'running'
-      state.task = prompt
-      state.textChunks = []
-      state.elapsed = 0
-      state.turnCount++
+      // Resume: the next value of this agent, for a new turn
+      const resumed = patch(num, {
+        status: 'running',
+        task: prompt,
+        text: '',
+        elapsed: 0,
+        turnCount: state.turnCount + 1,
+      })
       updateWidgets()
 
       ctx.ui.notify(
-        `Continuing Subagent #${num} (Turn ${state.turnCount})…`,
+        `Continuing Subagent #${num} (Turn ${resumed?.turnCount ?? state.turnCount})…`,
         'info',
       )
 
       // Fire-and-forget — reuses the same sessionFile for conversation history
-      spawnAgent(state, prompt, ctx, parsed.options)
+      spawnAgent(num, prompt, ctx, parsed.options)
+      const running = agents.get(num)
       ctx.ui.notify(
-        `Subagent #${num}: ${state.model} (${state.thinking} thinking)`,
+        `Subagent #${num}: ${running?.model ?? ''} (${running?.thinking ?? ''} thinking)`,
         'info',
       )
     },

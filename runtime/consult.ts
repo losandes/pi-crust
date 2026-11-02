@@ -21,6 +21,7 @@
 import { Database } from 'bun:sqlite'
 import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
+import { safeParseSettlement } from '../lib/typedefs/src/settlement'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { handoffDirFor } from './modules/data/handoff-pointer'
 import { createTracer } from './modules/data/trace-db'
@@ -83,19 +84,16 @@ const ownedBy = (db: Database, activityRunId: string): readonly string[] =>
     )
     .all(activityRunId)
     .flatMap((row) => {
-      try {
-        const created = (
-          JSON.parse(row.payload_json ?? '{}') as {
-            created?: unknown
-          }
-        ).created
-        return Array.isArray(created)
-          ? created.filter((item): item is string => typeof item === 'string')
-          : []
-      } catch (cause) {
-        void cause
-        return []
-      }
+      // An unreadable row claims nothing, which is what the catch decided.
+      const settled = safeParseSettlement(
+        () =>
+          (JSON.parse(row.payload_json ?? '{}') as { created?: unknown })
+            .created,
+      )
+      const created = settled.status === 'ok' ? settled.data : undefined
+      return Array.isArray(created)
+        ? created.filter((item): item is string => typeof item === 'string')
+        : []
     })
 
 const invoke = async (
@@ -114,12 +112,16 @@ const invoke = async (
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
-    const chunks: string[] = []
-    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk.toString()))
-    child.stderr.on('data', (chunk: Buffer) => chunks.push(chunk.toString()))
-    child.on('close', (code) =>
-      settle({ ok: code === 0, output: chunks.join('') }),
-    )
+    // The joined text, accumulated as text: `chunks.join('')` was the only
+    // thing the array was ever used for.
+    let output = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    child.on('close', (code) => settle({ ok: code === 0, output }))
   })
 
 const main = async (): Promise<number> => {
