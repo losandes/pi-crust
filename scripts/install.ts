@@ -124,7 +124,10 @@ const JUST_SETTING = 'set positional-arguments'
 const HOME_RESOLUTION_BODY = [
   '    #!/usr/bin/env bash',
   '    set -euo pipefail',
-  '    home="${CRUST_HOME:-}"',
+  // A template literal with the dollar escaped, so what reaches the file is
+  // the bash parameter expansion `${CRUST_HOME:-}` and nothing here reads as
+  // a JavaScript placeholder written in the wrong quotes.
+  `    home="\${CRUST_HOME:-}"`,
   '    if [[ -z "$home" && -f .pi-crust/data/pi-crust-home ]]; then',
   '      home="$(cat .pi-crust/data/pi-crust-home)"',
   '    fi',
