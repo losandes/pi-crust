@@ -26,7 +26,7 @@
 
 1.2.1 When every child is finished, `bun run lint` MUST exit 0.
 
-1.2.2 When every child is finished, the repository MUST report zero diagnostic lines, warnings included, not merely zero errors — `biome check` exits 0 with warnings outstanding, so the exit code alone does not settle it.
+1.2.2 When every child is finished, the repository MUST report zero diagnostics of every shape Biome prints — errors, warnings, configuration notices, and formatting violations, which print as `path format` with no line or column and are invisible to a pattern anchored on `path:line:column`.
 
 1.2.3 When every child is finished, `bun run test:agent` MUST exit 0 and `bun run typecheck` MUST exit 0.
 
@@ -51,13 +51,17 @@ Document 0 was added after the sequence began, when the visualizer's try-catch s
 
 Where this table and any prose disagree about which document owns a file, this table governs.
 
-The command that measures any scope, because `biome check` exits 0 while warnings and configuration notices remain:
+The exit code settles whether a scope is clean: `bun run lint` exits 0 only when nothing at all is reported, and it is the check a child document MUST finish against. A count is for watching progress between children, never for declaring one done.
+
+The command that counts, because `biome check` exits 0 while warnings and configuration notices remain:
 
 ```sh
-bun run lint --max-diagnostics=500 2>&1 | grep -cE '^[^ ]+:[0-9]+:[0-9]+ '
+bun run lint --max-diagnostics=500 2>&1 | grep -cE '^[^ ]*[/.][^ ]* [^ ]+ ━'
 ```
 
-The pattern anchors on `path:line:column ` and MUST NOT anchor on a leading `apps/`, `runtime/`, `scripts/` or `templates/`. The pinned Biome prints absolute paths for configuration diagnostics and repository-relative ones for source diagnostics, and an earlier version printed relative paths throughout. A pattern that assumes one shape prints a smaller number against the other and reads as progress.
+The pattern matches a first field that looks like a path — it contains a `/` or a `.` — followed by a category and the start of the header's box-drawing run. It MUST match both diagnostic shapes Biome prints. A rule violation is `path:line:column <rule>`; a formatting violation is `path format`, with no line and no column. A pattern anchored on `path:line:column ` cannot see a formatting violation at all, and a run that counted that way reported a package clean while `biome check` on that same package exited 1.
+
+It MUST NOT anchor on a leading `apps/`, `lib/`, `runtime/`, `scripts/` or `templates/` either. The pinned Biome prints absolute paths for configuration diagnostics and repository-relative ones for source diagnostics, and an earlier version printed relative paths throughout. A pattern that assumes one shape prints a smaller number against the other and reads as progress. The trailing `check` summary line is excluded because `check` holds neither a `/` nor a `.`.
 
 ## 3. Out of scope
 
@@ -73,7 +77,7 @@ The pattern anchors on `path:line:column ` and MUST NOT anchor on a leading `app
 | --- | ------------------------------------------- | ------------------------------------------------------------------------------ |
 | 1   | 1.1.2 — every child named here exists        | `ls specs/LINT-GREEN-0-SHARED-SETTLEMENTS.md specs/LINT-GREEN-1-VISUALIZER-TESTS.md specs/LINT-GREEN-2-VISUALIZER-SRC.md specs/LINT-GREEN-3-RUNTIME-TESTS.md specs/LINT-GREEN-4-RUNTIME-SRC.md specs/LINT-GREEN-5-SCRIPTS.md` exits 0 |
 | 2   | 1.2.1 — the linter passes                    | `bun run lint` exits 0                                                         |
-| 3   | 1.2.2 — nothing is left, warnings included   | the counting command in section 2 prints `0`                                   |
+| 3   | 1.2.2 — nothing is left, warnings and formatting included | the counting command in section 2 prints `0`                     |
 | 4   | 1.2.3 — nothing was broken to get there      | `bun run test:agent` exits 0; `bun run typecheck` exits 0                      |
 | 5   | 1.2.4 — the executed documents are filed     | `ls specs/completed` lists all six child documents                             |
 
