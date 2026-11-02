@@ -18,7 +18,11 @@
     "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
     "typecheck:runtime": "bun x tsc --noEmit -p runtime",
     "typecheck:harness": "bun scripts/typecheck-harness.ts",
-    "typecheck:visualizer": "bun x tsc --noEmit -p apps/visualizer"
+    "typecheck:visualizer": "bun x tsc --noEmit -p apps/visualizer",
+    "// CHECK": "=============================CHECK=============================",
+    "check": "bun run lint && bun run typecheck && bun run test:agent && bun run build && bun run check:install && bun run check:stdout",
+    "check:install": "bun scripts/check-install.ts",
+    "check:stdout": "bash scripts/check-stdout.sh"
   },
   "packageManager": "bun@1.4.2",
   "engines": {
