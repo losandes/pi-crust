@@ -43,25 +43,41 @@ This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` i
 
 ## Verification
 
-Run these from the repository root before claiming anything works:
+Every check is a script in `package.json`, run from the repository root. Nothing here needs a `cd`: a `cd` into a package picks up that directory's `bunfig.toml` and `tsconfig.json` instead of the repository's, so a check run that way is not the check CI runs.
 
 ```sh
-(cd runtime && bun test && bun x tsc --noEmit)
-(cd apps/visualizer && bun test && bun x tsc --noEmit && bun x vite build)
-bun scripts/typecheck-harness.ts
+bun run test:agent
+bun run typecheck
+bun run build
 ```
 
-Test output is the runner's and nothing else. bun writes its own lines to stderr and exactly one banner line to stdout, so anything else on stdout came from the code under test — and a suite that prints CLI banners hides the one failure a reader opened the log for:
+Scope the suite to one package while iterating — `bun run test:agent -- runtime`, `bun run test:agent -- apps/visualizer`. The argument is a path from the root, and the claim that the suite passes is settled only by the unscoped run.
+
+Each script is a wrapper in `bin/`, and they differ in reporter and in whether they gate on coverage. `test:agent` and `test:verbose` pass `--coverage`; `test` and `test:markdown` do not, so they report what the tests did and nothing about the gate. Only a run carrying `--coverage` settles the claim. `.envrc` puts `bin/` on `PATH`, so `test-agent apps/visualizer` works directly in a direnv shell and means the same thing as going through `bun run`.
+
+Run the tests through those wrappers and nothing else, because **`bun test --coverage` fails silently**. `bunfig.toml` sets `coverageThreshold`, bun applies it PER FILE, and a file below it makes bun exit non-zero having printed no message at all — no `error:` line, nothing but the ordinary coverage table and `0 fail`. Read straight, a run that failed its gate looks exactly like a run that passed. The wrappers pipe bun through `buntap`, which reads the same threshold and says so:
+
+```text
+COVERAGE FAIL 2 files below the minimum (functions 90.00%, lines 90.00%)
+  apps/visualizer/server/db.ts functions 62.96%, lines 66.03%
+  apps/visualizer/server/writes.ts functions 38.46%, lines 40.91%
+```
+
+The exit code says which gate went red: `1` is a failing test, `3` is coverage. Both are failures. Because coverage is judged per file, a package whose total is 96% still fails on one 40% file, and no threshold above roughly 0.40 can pass while `apps/visualizer/server/writes.ts` sits where it is.
+
+A pipeline reports the last command's status, so what reaches you is `buntap`'s parse of bun's console output rather than bun's own exit code. That is the trade the wrappers make for a legible failure.
+
+Test output is the runner's and nothing else. bun writes its own lines to stderr and exactly one banner line to stdout, so anything else on stdout came from the code under test, and a suite that prints CLI banners hides the one failure a reader opened the log for. This is the one check that must bypass the wrappers — they fold stderr into stdout to feed the pipe, which is exactly the distinction being measured:
 
 ```sh
-test "$(cd runtime && bun test 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')" = 0
+test "$(bun test runtime 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')" = 0
 ```
 
 A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/modules/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
 
-`runtime/tsconfig.json` excludes `harness-engineering/`, so the first line does not check it. The third does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one.
+`bun run typecheck` is three checks in sequence: `typecheck:runtime`, `typecheck:harness`, and `typecheck:visualizer`. `runtime/tsconfig.json` excludes `harness-engineering/`, so the first does not check it. The second does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one.
 
-`apps/visualizer`'s suite also includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing `bun test` — a skipped check, not a passed one. Run `bunx playwright install chromium` to make it run for real.
+`apps/visualizer`'s suite also includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing the suite — a skipped check, not a passed one. Run `bunx playwright install chromium` to make it run for real.
 
 Then prove a stamp still matches its source, in a directory that is thrown away in the same breath:
 
@@ -74,10 +90,12 @@ probe="$(mktemp -d)" && (cd "$probe" && bun "$OLDPWD/scripts/install.ts" && "$OL
 Lint is wired up — `biome.json` at the root, with the convention plugins in `.biome/`:
 
 ```sh
-bunx @biomejs/biome lint --max-diagnostics=500 .
+bun run lint
 ```
 
-It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [issue #5](https://github.com/losandes/pi-crust/issues/5). Do not report lint as passing on a narrowed path: the claim is only ever settled by the whole-repository run above, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
+That is `biome check` over `apps`, `runtime`, `scripts` and `templates` — every root that holds source. Add `--max-diagnostics=500` when the default cap truncates the report.
+
+It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [issue #5](https://github.com/losandes/pi-crust/issues/5). Do not report lint as passing on a narrowed path: the claim is only ever settled by `bun run lint` with no path argument, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
 
 ## Contributing
 
