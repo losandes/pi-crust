@@ -1,9 +1,73 @@
+import { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
+import type { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
-import { crustRuntime, NO_RUNTIME, postMessage, resumeRun, sessionDir, startRun, startSteer } from "./writes.ts";
+import {
+  crustRuntime,
+  isInboxKind,
+  isSafeSegment,
+  NO_RUNTIME,
+  postMessage,
+  recordDecision,
+  refuseUnlessAuthorised,
+  resumeRun,
+  sessionDir,
+  startConsult,
+  startRun,
+  startSteer,
+  startupFailure,
+  TOKEN_HEADER,
+} from "./writes.ts";
+
+/**
+ * A fake `spawn` that records every call rather than starting a real
+ * process (1.3.7, 1.4.2) \u2014 the function under test receives this in place
+ * of `node:child_process`'s own `spawn`, which is exactly what the injected
+ * parameter exists for.
+ */
+type TFakeChild = Readonly<{
+  pid: number;
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  unref: () => void;
+}>;
+
+type TSpawnCall = Readonly<{
+  command: string;
+  args: readonly string[];
+  options: Readonly<Record<string, unknown>>;
+  child: TFakeChild;
+}>;
+
+const spawnSpy = (): Readonly<{ calls: readonly TSpawnCall[]; spawnChild: typeof spawn }> => {
+  let calls: readonly TSpawnCall[] = [];
+  const spawnChild = ((
+    command: string,
+    args: readonly string[],
+    options: Record<string, unknown>,
+  ) => {
+    const child: TFakeChild = {
+      pid: 4242,
+      stdout: new EventEmitter(),
+      stderr: new EventEmitter(),
+      unref: () => {},
+    };
+    calls = [...calls, { command, args, options, child }];
+    return child;
+  }) as unknown as typeof spawn;
+  return {
+    // A getter rather than returning the array by value: each call captures
+    // the current snapshot, so a test sees every call made up to the point
+    // it reads `calls`, not just the empty array this closure started with.
+    get calls() {
+      return calls;
+    },
+    spawnChild,
+  };
+};
 
 /**
  * A stamped tree, as an install leaves one: config, data, and NO runtime.
@@ -358,5 +422,572 @@ test(
     // then
     const text = readFileSync(join(handoffDir, "steering.md"), "utf8");
     expect(text).toMatch(/^## Instruction from the developer at .+\n\nsmoke test note\n/);
+  },
+);
+
+test(
+  [
+    "given server/writes::startSteer",
+    "when the target is overwrite and the runtime is found",
+    "it should spawn steer.ts with the overwrite argv, cwd, CRUST_DB and detached (1.3.3)",
+  ].join(", "),
+  () => {
+    // given
+    const home = track(packageTree());
+    const root = track(stampedTree(home));
+    const spy = spawnSpy();
+    const { spawnChild } = spy;
+
+    // when
+    const actual = startSteer(
+      dbOf(root),
+      "a1b2c3d4",
+      "plan",
+      "overwrite",
+      "try again",
+      undefined,
+      withHome(home),
+      spawnChild,
+    );
+
+    // then
+    expect(actual.started).toBe(true);
+    expect(spy.calls).toHaveLength(1);
+    expect(spy.calls[0]?.command).toBe("bun");
+    expect(spy.calls[0]?.args).toEqual([
+      join(home, "runtime", "steer.ts"),
+      "a1b2c3d4",
+      "plan",
+      "--overwrite",
+      "try again",
+    ]);
+    expect(spy.calls[0]?.options.cwd).toBe(root);
+    expect(spy.calls[0]?.options.detached).toBe(true);
+    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(dbOf(root));
+
+    // and — the stdout/stderr listeners this function wires up actually forward to the log
+    spy.calls[0]?.child.stdout.emit("data", "stdout line\n");
+    spy.calls[0]?.child.stderr.emit("data", "stderr line\n");
+    const logged = readFileSync(actual.log, "utf8");
+    expect(logged).toContain("stdout line");
+    expect(logged).toContain("stderr line");
+  },
+);
+
+test(
+  [
+    "given server/writes::startSteer",
+    "when the target is branch",
+    "it should spawn with --branch, --seeding fork and the branch id (1.3.4)",
+  ].join(", "),
+  () => {
+    // given
+    const home = track(packageTree());
+    const root = track(stampedTree(home));
+    const spy = spawnSpy();
+    const { spawnChild } = spy;
+
+    // when
+    const actual = startSteer(
+      dbOf(root),
+      "a1b2c3d4",
+      "plan",
+      "branch",
+      "try again",
+      "deadbeef",
+      withHome(home),
+      spawnChild,
+    );
+
+    // then
+    expect(actual.started).toBe(true);
+    expect(actual.branch_run_id).toBe("deadbeef");
+    expect(spy.calls[0]?.args).toEqual([
+      join(home, "runtime", "steer.ts"),
+      "a1b2c3d4",
+      "plan",
+      "--branch",
+      "--seeding",
+      "fork",
+      "--branch-id",
+      "deadbeef",
+      "try again",
+    ]);
+  },
+);
+
+test(
+  [
+    "given server/writes::startConsult",
+    "when the runtime is found",
+    "it should spawn consult.ts with the mode, run id, activity and question, in the run's tree (1.3.3)",
+  ].join(", "),
+  () => {
+    // given
+    const home = track(packageTree());
+    const root = track(stampedTree(home));
+    const spy = spawnSpy();
+    const { spawnChild } = spy;
+
+    // when
+    const actual = startConsult(
+      dbOf(root),
+      "a1b2c3d4",
+      "plan",
+      "ask",
+      "why did this fail?",
+      withHome(home),
+      spawnChild,
+    );
+
+    // then
+    expect(actual.started).toBe(true);
+    expect(spy.calls[0]?.args).toEqual([
+      join(home, "runtime", "consult.ts"),
+      "ask",
+      "a1b2c3d4",
+      "plan",
+      "why did this fail?",
+    ]);
+    expect(spy.calls[0]?.options.cwd).toBe(root);
+    expect(spy.calls[0]?.options.detached).toBe(true);
+    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(dbOf(root));
+
+    spy.calls[0]?.child.stdout.emit("data", "stdout line\n");
+    spy.calls[0]?.child.stderr.emit("data", "stderr line\n");
+    const logged = readFileSync(actual.log, "utf8");
+    expect(logged).toContain("stdout line");
+    expect(logged).toContain("stderr line");
+  },
+);
+
+test(
+  [
+    "given server/writes::resumeRun",
+    "when invocation.json records the original argv",
+    "it should re-spawn that script with the run id and --resume, carrying CRUST_DB (1.3.3)",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+    const dir = sessionDir(dbOf(root), "a1b2c3d4");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "invocation.json"),
+      JSON.stringify({ argv: ["bun", "runtime/cli.ts", "--lifecycle", "sdlc"], cwd: root }),
+    );
+    const spy = spawnSpy();
+    const { spawnChild } = spy;
+    const env = { ...withHome(), CRUST_DB: dbOf(root) };
+
+    // when
+    const actual = resumeRun(dbOf(root), "a1b2c3d4", "", "the web app", env, spawnChild);
+
+    // then
+    expect(actual.resumed).toBe(true);
+    expect(spy.calls[0]?.command).toBe("bun");
+    expect(spy.calls[0]?.args).toEqual(["runtime/cli.ts", "--lifecycle", "sdlc", "--run-id", "a1b2c3d4", "--resume"]);
+    expect(spy.calls[0]?.options.cwd).toBe(root);
+    expect(spy.calls[0]?.options.detached).toBe(true);
+    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(dbOf(root));
+
+    spy.calls[0]?.child.stdout.emit("data", "stdout line\n");
+    spy.calls[0]?.child.stderr.emit("data", "stderr line\n");
+    const logged = readFileSync(join(sessionDir(dbOf(root), "a1b2c3d4"), "spawn.log"), "utf8");
+    expect(logged).toContain("stdout line");
+    expect(logged).toContain("stderr line");
+  },
+);
+
+test(
+  [
+    "given server/writes::startRun",
+    "when the runtime is found",
+    "it should spawn compose.ts with the lifecycle, prompt, minted run id and extra args, carrying CRUST_DB (1.3.3)",
+  ].join(", "),
+  () => {
+    // given
+    const home = track(packageTree());
+    const root = track(stampedTree(home));
+    const spy = spawnSpy();
+    const { spawnChild } = spy;
+    const env = { ...withHome(home), CRUST_DB: dbOf(root) };
+
+    // when
+    const actual = startRun(dbOf(root), "sdlc", "add a /health endpoint", ["--name", "health"], env, spawnChild);
+
+    // then
+    expect(actual.run_id).not.toBe("");
+    expect(spy.calls[0]?.command).toBe("bun");
+    expect(spy.calls[0]?.args).toEqual([
+      join(home, "runtime", "lifecycles", "compose.ts"),
+      "add a /health endpoint",
+      "--lifecycle",
+      "sdlc",
+      "--run-id",
+      actual.run_id,
+      "--name",
+      "health",
+    ]);
+    expect(spy.calls[0]?.options.cwd).toBe(root);
+    expect(spy.calls[0]?.options.detached).toBe(true);
+    expect((spy.calls[0]?.options.env as Record<string, string>).CRUST_DB).toBe(dbOf(root));
+
+    spy.calls[0]?.child.stdout.emit("data", "stdout line\n");
+    spy.calls[0]?.child.stderr.emit("data", "stderr line\n");
+    const logged = readFileSync(actual.log, "utf8");
+    expect(logged).toContain("stdout line");
+    expect(logged).toContain("stderr line");
+  },
+);
+
+test(
+  [
+    "given server/writes::isSafeSegment",
+    "when the value is alphanumeric with dashes and underscores",
+    "it should accept it as a path segment",
+  ].join(", "),
+  () => {
+    // given / when
+    const actual = isSafeSegment("a1b2_c3-d4");
+
+    // then
+    expect(actual).toBe(true);
+  },
+);
+
+test(
+  [
+    "given server/writes::isSafeSegment",
+    "when the value carries a path separator",
+    "it should refuse it",
+  ].join(", "),
+  () => {
+    // given / when
+    const actual = isSafeSegment("../etc/passwd");
+
+    // then
+    expect(actual).toBe(false);
+  },
+);
+
+test(
+  [
+    "given server/writes::isSafeSegment",
+    "when the value is longer than 64 characters",
+    "it should refuse it",
+  ].join(", "),
+  () => {
+    // given
+    const value = "a".repeat(65);
+
+    // when
+    const actual = isSafeSegment(value);
+
+    // then
+    expect(actual).toBe(false);
+  },
+);
+
+/**
+ * Borrow `process.env.CRUST_TOKEN` for the duration of `run`, then restore
+ * whatever was there before — `refuseUnlessAuthorised` reads it directly
+ * rather than through an injected parameter, so this is the only seam a
+ * test has. Centralised here rather than repeated per test, matching
+ * `runtime/decide.test.ts`'s own pattern for borrowing an environment
+ * variable: one assignment, one ignore, one reason.
+ */
+const withCrustToken = async (
+  value: string | undefined,
+  run: () => void | Promise<void>,
+): Promise<void> => {
+  const before = process.env.CRUST_TOKEN;
+  if (value === undefined) {
+    delete process.env.CRUST_TOKEN;
+  } else {
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API refuseUnlessAuthorised reads through
+    process.env.CRUST_TOKEN = value;
+  }
+  try {
+    await run();
+  } finally {
+    if (before === undefined) {
+      delete process.env.CRUST_TOKEN;
+    } else {
+      // biome-ignore lint/plugin/no-object-mutation: restoring the environment this test borrowed
+      process.env.CRUST_TOKEN = before;
+    }
+  }
+};
+
+test(
+  [
+    "given server/writes::refuseUnlessAuthorised",
+    "when CRUST_TOKEN is not set",
+    "it should refuse with 503, fail-closed",
+  ].join(", "),
+  async () => {
+    await withCrustToken(undefined, async () => {
+      // given
+      const req = new Request("http://localhost/api/writes");
+
+      // when
+      const actual = refuseUnlessAuthorised(req);
+
+      // then
+      expect(actual?.status).toBe(503);
+      const body = (await actual?.json()) as { error: string };
+      expect(body.error).toContain("CRUST_TOKEN");
+    });
+  },
+);
+
+test(
+  [
+    "given server/writes::refuseUnlessAuthorised",
+    "when the header matches CRUST_TOKEN",
+    "it should return undefined, meaning the caller may write",
+  ].join(", "),
+  async () => {
+    await withCrustToken("s3cret", () => {
+      // given
+      const req = new Request("http://localhost/api/writes", {
+        headers: { [TOKEN_HEADER]: "s3cret" },
+      });
+
+      // when
+      const actual = refuseUnlessAuthorised(req);
+
+      // then
+      expect(actual).toBeUndefined();
+    });
+  },
+);
+
+test(
+  [
+    "given server/writes::refuseUnlessAuthorised",
+    "when the header does not match CRUST_TOKEN",
+    "it should refuse with 401",
+  ].join(", "),
+  async () => {
+    await withCrustToken("s3cret", async () => {
+      // given
+      const req = new Request("http://localhost/api/writes", {
+        headers: { [TOKEN_HEADER]: "wrong" },
+      });
+
+      // when
+      const actual = refuseUnlessAuthorised(req);
+
+      // then
+      expect(actual?.status).toBe(401);
+      const body = (await actual?.json()) as { error: string };
+      expect(body.error).toBe("unauthorised");
+    });
+  },
+);
+
+test(
+  [
+    "given server/writes::startupFailure",
+    "when only spawn.log carries content",
+    "it should read it back",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+    const dir = sessionDir(dbOf(root), "a1b2c3d4");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "spawn.log"), "refused: no such Activity\n");
+
+    // when
+    const actual = startupFailure(dbOf(root), "a1b2c3d4");
+
+    // then
+    expect(actual).toBe("refused: no such Activity");
+  },
+);
+
+test(
+  [
+    "given server/writes::startupFailure",
+    "when spawn.log and resume.log both carry content",
+    "it should join them and keep only the last 12 lines",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+    const dir = sessionDir(dbOf(root), "a1b2c3d4");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "spawn.log"), "refused: no such Activity\n");
+    writeFileSync(join(dir, "resume.log"), "line\n".repeat(20));
+
+    // when
+    const actual = startupFailure(dbOf(root), "a1b2c3d4");
+
+    // then — spawn.log's one line plus resume.log's 20 is 21, so the oldest
+    // lines (spawn.log's) fall off the trailing slice(-12)
+    expect(actual?.split("\n")).toHaveLength(12);
+    expect(actual).not.toContain("refused: no such Activity");
+  },
+);
+
+test(
+  [
+    "given server/writes::startupFailure",
+    "when neither log exists",
+    "it should be undefined",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+
+    // when
+    const actual = startupFailure(dbOf(root), "a1b2c3d4");
+
+    // then
+    expect(actual).toBeUndefined();
+  },
+);
+
+test(
+  [
+    "given server/writes::isInboxKind",
+    "when the value is one of steer, follow_up or abort",
+    "it should accept it",
+  ].join(", "),
+  () => {
+    // given / when / then
+    expect(isInboxKind("steer")).toBe(true);
+    expect(isInboxKind("follow_up")).toBe(true);
+    expect(isInboxKind("abort")).toBe(true);
+  },
+);
+
+test(
+  [
+    "given server/writes::isInboxKind",
+    "when the value is not a recognised kind",
+    "it should refuse it",
+  ].join(", "),
+  () => {
+    // given / when / then
+    expect(isInboxKind("nonsense")).toBe(false);
+    expect(isInboxKind(42)).toBe(false);
+  },
+);
+
+test(
+  [
+    "given server/writes::recordDecision",
+    "when the action is approve with no text",
+    "it should write just the approval line",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+
+    // when
+    const path = recordDecision(dbOf(root), "a1b2c3d4", "approve", "", "alice");
+
+    // then
+    expect(readFileSync(path, "utf8")).toBe("Approved by alice.\n");
+  },
+);
+
+test(
+  [
+    "given server/writes::recordDecision",
+    "when the action is reject with text",
+    "it should write the rejection and the reason",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+
+    // when
+    const path = recordDecision(dbOf(root), "a1b2c3d4", "reject", "needs more tests", "alice");
+
+    // then
+    expect(readFileSync(path, "utf8")).toBe("Rejected by alice.\n\nneeds more tests\n");
+  },
+);
+
+test(
+  [
+    "given server/writes::recordDecision",
+    "when the action is answer",
+    "it should write the text verbatim",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+
+    // when
+    const path = recordDecision(dbOf(root), "a1b2c3d4", "answer", "yes, proceed", "alice");
+
+    // then
+    expect(readFileSync(path, "utf8")).toBe("yes, proceed\n");
+  },
+);
+
+test(
+  [
+    "given server/writes::startConsult",
+    "when the runtime cannot be found",
+    "it should refuse and say so (1.3.5)",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+
+    // when
+    const actual = startConsult(dbOf(root), "a1b2c3d4", "plan", "ask", "why?");
+
+    // then
+    expect(actual.started).toBe(false);
+    expect(actual.reason).toBe(NO_RUNTIME);
+  },
+);
+
+test(
+  [
+    "given server/writes::resumeRun",
+    "when there is no invocation.json for the run",
+    "it should refuse with a reason naming the run",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+
+    // when
+    const actual = resumeRun(dbOf(root), "a1b2c3d4");
+
+    // then
+    expect(actual.resumed).toBe(false);
+    expect(actual.reason).toBe("no invocation.json for a1b2c3d4 — resume it by hand");
+  },
+);
+
+test(
+  [
+    "given server/writes::resumeRun",
+    "when the recorded argv has no script at index 1",
+    "it should refuse as unusable",
+  ].join(", "),
+  () => {
+    // given
+    const root = track(stampedTree());
+    const dir = sessionDir(dbOf(root), "a1b2c3d4");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "invocation.json"), JSON.stringify({ argv: ["bun"] }));
+
+    // when
+    const actual = resumeRun(dbOf(root), "a1b2c3d4");
+
+    // then
+    expect(actual.resumed).toBe(false);
+    expect(actual.reason).toBe("recorded argv is unusable");
   },
 );

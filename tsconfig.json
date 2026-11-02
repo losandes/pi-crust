@@ -16,6 +16,12 @@
    * finding no tsconfig.json and failing before it reads a single file.
    * `files: []` plus `references` checks each project under its own
    * settings, the same as running it from that project's own directory.
+   *
+   * `apps/visualizer` is no longer `composite` (see its own tsconfig.json
+   * for why), so this bare invocation now silently checks zero of its
+   * files rather than erroring — the reference below still resolves, it
+   * just has nothing composite to build. `bun run typecheck` never goes
+   * through this file; it is the gate.
    */
   "files": [],
   "references": [{ "path": "./runtime" }, { "path": "./apps/visualizer" }]

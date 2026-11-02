@@ -24,7 +24,15 @@ pathIgnorePatterns = [
 coveragePathIgnorePatterns = [
   "apps/visualizer/src/components/SessionCard.layout.test.ts",
   "apps/visualizer/src/components/ActivityRunDetail.layout.test.ts",
-  "apps/visualizer/src/components/ThemePicker.interaction.test.ts"
+  "apps/visualizer/src/components/ThemePicker.interaction.test.ts",
+  # Spawns the pi binary and folds its stream; no bun test process can run it.
+  "runtime/modules/data/pi-agent-run.ts",
+  # Raw-mode stdin listener and stream writes; no bun test process can drive a
+  # TTY. The frame arithmetic it used to hold lives in menu-frame.ts instead.
+  "runtime/modules/data/ask.ts",
+  # Live TAgentPorts adapters: a real agent spawn, real git, a real write.
+  # No bun test process can exercise a real coding-agent spawn.
+  "runtime/modules/use-cases/execute-agent-live.ts"
 ]
 
 # Outputs for coverage reports.

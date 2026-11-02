@@ -97,6 +97,8 @@ That is `biome check` over `apps`, `runtime`, `scripts` and `templates` — ever
 
 It is not green yet. Biome had never run here before the configuration landed, so the backlog is a first enforcement rather than a regression, and it is being worked through in [issue #5](https://github.com/losandes/pi-crust/issues/5). Do not report lint as passing on a narrowed path: the claim is only ever settled by `bun run lint` with no path argument, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`.
 
+A file in `bunfig.toml`'s `coveragePathIgnorePatterns` is not a gap in the test suite; it is a claim about what the module IS, not about the state of its tests. Each entry names a module that performs process-boundary I/O — a spawn, a raw-mode TTY, a real network call — and holds no decision logic of its own, with a comment on the line above stating what no `bun test` process can execute, and a matching comment at the top of the excluded file naming what was moved out of it so the remainder could be covered. A module is never excluded merely because covering it is difficult, slow, or unfinished — difficulty is a reason to write the test, not to exclude the file — and the threshold itself never moves to make a gate pass, because that would trade nine named problems for one invisible one.
+
 ## Contributing
 
 Branching, commit messages, and pull requests are in [CONTRIBUTING.md](CONTRIBUTING.md). They apply to the maintainer too.

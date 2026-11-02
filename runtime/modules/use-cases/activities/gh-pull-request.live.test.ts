@@ -1,45 +1,31 @@
 /**
  * Covers the one branch `gh-pull-request.test.ts` cannot reach without
- * faking the agent call itself: the LIVE (non-`--resume`) path through
+ * injecting the agent call itself: the LIVE (non-`--resume`) path through
  * `deliver()`, where `callAgent` is actually invoked rather than an
  * already-stored envelope being read back with `readEnvelope` (1.6.7).
  *
- * This repository has no existing convention for faking `callAgent` — there
- * is no `execute-agent.test.ts` and no `agent-activity.test.ts` anywhere,
- * because spawning the real agent is treated as outside what a `bun test`
- * unit crosses. `mock.module()` is used here, scoped to this file, because
- * it is the only way to exercise 1.6.5's "when the agent call throws" clause
- * and the ordinary (non-resume) success path without changing
- * `gh-pull-request.ts` to accept callAgent as an injected port — which is
- * implementation work, not available to a test-only change.
- *
- * `bun test` shares one module registry across every file in the suite
- * (https://bun.sh/docs/test/parallel — isolation is opt-in), so the mock is
- * restored to the real module in `afterAll`. The only two importers of
- * `callAgent` are `agent-activity.ts` and `gh-pull-request.ts`, and nothing
- * else in the suite invokes it for real, so the window this file holds the
- * mock open is the only place it is observable at all.
+ * `ghPullRequestActivity` takes a `TAgentPorts` (COVERAGE-AGENT-PORTS.md),
+ * so the agent half is faked the same way `TDeliveryPorts` fakes the git and
+ * `gh` half below — no module-registry override, and nothing here spawns a
+ * coding agent, a git subprocess, or any other child process.
  */
 
-import { afterAll, expect, mock, spyOn, test } from 'bun:test'
+import { expect, spyOn, test } from 'bun:test'
 import * as childProcess from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as realExecuteAgent from '../execute-agent'
+import { tmpdir } from 'node:os'
 import { terminalConfigSchema } from '../../typedefs/activity'
 import type { TTerminalConfig } from '../../typedefs/activity'
+import { agentConfigSchema, crustConfigSchema } from '../../typedefs/config'
+import { emptyUsage } from '../../typedefs/pi'
+import type { TPiResult } from '../../typedefs/pi'
 import type { TActivityContext, TActivityOptions } from '../../typedefs/runnable-activity'
 import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
 import type { TActivityRunHandle, TRun } from '../../typedefs/run'
+import type { TAgentPorts } from '../execute-agent'
 import { ghPullRequestActivity, liveDelivery } from './gh-pull-request'
 import type { TDeliveryPorts, TForge } from './gh-pull-request'
-
-afterAll(() => {
-  // Undo the override: mock.restore() does not revert mock.module() per
-  // Bun's own docs, so the real module is handed back explicitly.
-  mock.module('../execute-agent', () => realExecuteAgent)
-})
 
 const config = (overrides: Readonly<Partial<Record<string, unknown>>> = {}): TTerminalConfig =>
   terminalConfigSchema.parse({
@@ -100,29 +86,112 @@ const fakePorts = (
   return { ports, calls }
 }
 
+const aPiResult = (text: string): TPiResult => ({
+  text,
+  returncode: 0,
+  sessionId: 'session-1',
+  tokens: 0,
+  cost: 0,
+  usage: emptyUsage,
+  contextTokens: 0,
+  contextWindow: 0,
+})
+
+/** A `TAgentPorts` whose `run` is the only member any test here overrides. */
+const fakeAgentPorts = (
+  run: TAgentPorts['run'],
+): TAgentPorts => ({
+  run,
+  changed: () => [],
+  untracked: () => [],
+  render: (templatePath) => `rendered:${templatePath}`,
+  savePrompt: (directory, name) => join(directory, name),
+  snapshot: () => ({}),
+  rev: () => '',
+})
+
+const CONTEXT_ENVELOPE_DEFAULTS = {
+  facts: [],
+  decisions: [],
+  assumptions: [],
+  unresolved: [],
+  risks: [],
+  objective_met: { met: true, evidence: 'fixture' },
+  regress_to: { activity: '', because: '' },
+  artifacts: [],
+  notes_for_next_agent: '',
+}
+
 const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
   const contextHandoffDir = mkdtempSync(join(tmpdir(), 'crust-gh-pr-live-handoff-'))
   const sessionDir = mkdtempSync(join(tmpdir(), 'crust-gh-pr-live-session-'))
   return {
     runId: 'ffff6666',
     engineer: 'tester',
+    repoRoot: '/does-not-matter',
     vcsRoot: '/does-not-matter',
     sessionDir,
     contextHandoffDir,
     resume: new Set<string>(),
-    cfg: {
+    cfg: crustConfigSchema.parse({
+      agents: [
+        agentConfigSchema.parse({
+          name: 'gh-pull-request',
+          writes: [],
+          prompt_engineering: { system: 's.md', user: 'u.md' },
+          purpose: 'Push the run and open or update a pull request',
+        }),
+      ],
       observability: { db: join(contextHandoffDir, 'no-such.db') },
-      routing: { skills: [], checks: [], unmatched: 'warn' },
+      defaults: { data_dir: join(contextHandoffDir, 'runtime'), protected_files: [] },
+    }),
+    console: {
+      sessionStarted: () => undefined,
+      promptReceived: () => undefined,
+      sessionFinished: () => undefined,
+      activityRunStarted: () => undefined,
+      activityRunEnded: () => undefined,
+      note: () => undefined,
+      instructions: () => undefined,
+      agentStarted: () => undefined,
+      agentFinished: () => undefined,
+      retry: () => undefined,
+      gateResult: () => undefined,
+      envelopeSummary: () => undefined,
+      narrate: () => undefined,
     },
-    console: { note: () => undefined },
-    tracer: { event: () => undefined },
+    tracer: {
+      dbPath: ':memory:',
+      event: () => 'evt',
+      sessionStart: () => undefined,
+      sessionWorkspace: () => undefined,
+      sessionRequest: () => undefined,
+      sessionWaiting: () => undefined,
+      sessionFinish: () => undefined,
+      sessionAddUsage: () => undefined,
+      processStart: () => undefined,
+      processEnd: () => undefined,
+      processesEndAll: () => undefined,
+      maxActivityRunSeq: () => 0,
+      eventsNamed: () => [],
+      activityRunsFor: () => [],
+      activityRunUpsert: () => undefined,
+      envelopeRow: () => undefined,
+      agentSessionRow: () => undefined,
+    },
+    addUsage: () => undefined,
+    agentMap: () => ({}),
+    saveAgentMap: () => undefined,
     ...overrides,
   } as unknown as TRun
 }
 
 const aHandle = (): TActivityRunHandle =>
   ({
-    activityRun: { activity_run_id: 'id_gh-pull-request-live', params: { kind: 'agent' } },
+    activityRun: {
+      activity_run_id: 'id_gh-pull-request-live',
+      params: { kind: 'agent', owner: 'gh-pull-request', name: 'gh-pull-request' },
+    },
     log: () => undefined,
   }) as unknown as TActivityRunHandle
 
@@ -140,18 +209,6 @@ const aCtx = (run: TRun, extra: Readonly<Partial<TActivityContext>> = {}): TActi
     ...extra,
   }) as unknown as TActivityContext
 
-const CONTEXT_ENVELOPE_DEFAULTS = {
-  facts: [],
-  decisions: [],
-  assumptions: [],
-  unresolved: [],
-  risks: [],
-  objective_met: { met: true, evidence: 'fixture' },
-  regress_to: { activity: '', because: '' },
-  artifacts: [],
-  notes_for_next_agent: '',
-}
-
 const OPTIONS: TActivityOptions = DEFAULT_ACTIVITY_OPTIONS
 
 test(
@@ -163,17 +220,19 @@ test(
   async () => {
     // given — no `run.resume` entry, so deliver() takes the live callAgent
     // branch (gh-pull-request.ts) instead of readEnvelope (1.6.7)
-    mock.module('../execute-agent', () => ({
-      callAgent: async () => ({
-        ...CONTEXT_ENVELOPE_DEFAULTS,
-        status: 'success',
-        summary: 'opened the PR',
-        title: 'Ship the live-path feature',
-        body: 'This is the agent-composed body, not a fallback.',
-      }),
-    }))
+    const agentPorts = fakeAgentPorts(async () =>
+      aPiResult(
+        JSON.stringify({
+          ...CONTEXT_ENVELOPE_DEFAULTS,
+          status: 'success',
+          summary: 'opened the PR',
+          title: 'Ship the live-path feature',
+          body: 'This is the agent-composed body, not a fallback.',
+        }),
+      ),
+    )
     const { ports, calls } = fakePorts()
-    const activity = ghPullRequestActivity(config(), OPTIONS, ports)
+    const activity = ghPullRequestActivity(config(), OPTIONS, ports, agentPorts)
     const run = aRun()
 
     // when
@@ -197,13 +256,11 @@ test(
   ].join(', '),
   async () => {
     // given
-    mock.module('../execute-agent', () => ({
-      callAgent: () => {
-        throw new Error('agent process exited 1')
-      },
-    }))
+    const agentPorts = fakeAgentPorts(async () => {
+      throw new Error('agent process exited 1')
+    })
     const { ports, calls } = fakePorts()
-    const activity = ghPullRequestActivity(config(), OPTIONS, ports)
+    const activity = ghPullRequestActivity(config(), OPTIONS, ports, agentPorts)
     const run = aRun()
 
     // when
@@ -222,8 +279,8 @@ test(
     'when every git and gh operation it can perform runs',
     'it should never construct --force, -f or --force-with-lease (1.5.4)',
   ].join(', '),
-  () => {
-    // given — spyOn the one function both git.ts and this module's own `gh`
+  async () => {
+    // given — spy the one function both git.ts and this module's own `gh`
     // wiring call through: the real argv passed to the process, not a typed
     // port a fake could paper over.
     const recorded: string[][] = []

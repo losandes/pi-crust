@@ -35,7 +35,8 @@ import { narrowEnvelope, pullRequestOutput } from '../../typedefs/envelope'
 import type { TPullRequestOutput } from '../../typedefs/envelope'
 import type { TSettlement } from '../../typedefs/settlement'
 import { fail, succeed } from '../../typedefs/settlement'
-import { callAgent } from '../execute-agent'
+import type { TAgentPorts } from '../execute-agent'
+import { callAgent, liveAgent } from '../execute-agent'
 import { readEnvelope } from '../read-envelope'
 import { readRunState } from '../read-run-state'
 import type { TBodyFacts } from './pull-request-body'
@@ -337,6 +338,7 @@ export const ghPullRequestActivity = (
   config: TTerminalConfig,
   options: TActivityOptions,
   ports: TDeliveryPorts = liveDelivery,
+  agentPorts: TAgentPorts = liveAgent,
 ): TTerminalActivity => ({
   name: config.name,
   params: activityRunParams({
@@ -401,15 +403,20 @@ export const ghPullRequestActivity = (
       : await (async () => {
           // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — a failed agent call must become a fallback, not a thrown activity-run failure (1.6.5)
           try {
-            const envelope = await callAgent(run, handle, {
-              outputType: pullRequestOutput,
-              prompt: ctx.prompt,
-              ...(ctx.previous === undefined ? {} : { previous: ctx.previous }),
-              upstream: ctx.upstream,
-              cohort: ctx.cohort,
-              feedback: ctx.feedback,
-              committing: false,
-            })
+            const envelope = await callAgent(
+              run,
+              handle,
+              {
+                outputType: pullRequestOutput,
+                prompt: ctx.prompt,
+                ...(ctx.previous === undefined ? {} : { previous: ctx.previous }),
+                upstream: ctx.upstream,
+                cohort: ctx.cohort,
+                feedback: ctx.feedback,
+                committing: false,
+              },
+              agentPorts,
+            )
             return succeed(envelope)
           } catch (error) {
             return fail(error instanceof Error ? error : new Error(String(error)))

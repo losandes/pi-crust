@@ -30,7 +30,8 @@ import type { TActivity, TActivityContext, TActivityOptions } from '../../typede
 import { activityRunName } from '../../typedefs/runnable-activity'
 import type { TResolvedActivity } from '../activity-registry'
 import { captureChanges, changesAsEnvelope } from '../capture-changes'
-import { callAgent } from '../execute-agent'
+import type { TAgentPorts } from '../execute-agent'
+import { callAgent, liveAgent } from '../execute-agent'
 import { intakeRejection, intakeViolations } from '../intake'
 import { readEnvelope } from '../read-envelope'
 import { selectedPaths } from '../select-range'
@@ -87,6 +88,7 @@ const capturedChanges = (ctx: TActivityContext, base: string) => {
 export const agentActivity = (
   activity: TResolvedActivity,
   options: TActivityOptions,
+  ports: TAgentPorts = liveAgent,
 ): TActivity => {
   const { config, spec, gates } = activity
   const instance = activityRunName(config.name, options.instance)
@@ -136,19 +138,24 @@ export const agentActivity = (
             ? judgedPaths(ctx, options.base)
             : undefined
           : [...captured.files, ...captured.untracked]
-      const envelope = await callAgent(ctx.run, handle, {
-        outputType: spec,
-        prompt: ctx.prompt,
-        ...(previous === undefined ? {} : { previous }),
-        upstream: ctx.upstream,
-        cohort: ctx.cohort,
-        feedback: ctx.feedback,
-        committing: config.commit && options.committing,
-        ...(changedPaths === undefined ? {} : { changedPaths }),
-        ...(envelopeJudges(spec) && options.base !== ''
-          ? { changeBase: options.base }
-          : {}),
-      })
+      const envelope = await callAgent(
+        ctx.run,
+        handle,
+        {
+          outputType: spec,
+          prompt: ctx.prompt,
+          ...(previous === undefined ? {} : { previous }),
+          upstream: ctx.upstream,
+          cohort: ctx.cohort,
+          feedback: ctx.feedback,
+          committing: config.commit && options.committing,
+          ...(changedPaths === undefined ? {} : { changedPaths }),
+          ...(envelopeJudges(spec) && options.base !== ''
+            ? { changeBase: options.base }
+            : {}),
+        },
+        ports,
+      )
 
       return { previous: envelope, accepted: accepted(envelope) }
     },

@@ -11,10 +11,13 @@
  * developer asked for.
  */
 
-import { isPlannerName, isTerminalName } from '../../typedefs/activity'
 import type { TTerminalConfig } from '../../typedefs/activity'
+import { isPlannerName, isTerminalName } from '../../typedefs/activity'
 import type { TPiCrustConfig } from '../../typedefs/config'
-import type { TActivity, TActivityOptions } from '../../typedefs/runnable-activity'
+import type {
+  TActivity,
+  TActivityOptions,
+} from '../../typedefs/runnable-activity'
 import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
 import type { TResolvedActivity } from '../activity-registry'
 import {
@@ -22,10 +25,11 @@ import {
   resolveActivities,
   resolvedNamed,
 } from '../activity-registry'
+import type { TAgentPorts } from '../execute-agent'
 import { agentActivity } from './agent-activity'
-import { plannerActivity } from './planner-activity'
 import type { TTerminalActivity } from './gh-pull-request'
 import { ghPullRequestActivity } from './gh-pull-request'
+import { plannerActivity } from './planner-activity'
 
 export { agentActivity } from './agent-activity'
 export { plannerActivity } from './planner-activity'
@@ -74,9 +78,8 @@ export const terminalActivityFor = (
 }
 
 /** The Activities a run may name, in the order the registry declares them. */
-export const offeredActivities = (
-  cfg: TPiCrustConfig,
-): readonly string[] => cfg.activities.map((one) => one.name)
+export const offeredActivities = (cfg: TPiCrustConfig): readonly string[] =>
+  cfg.activities.map((one) => one.name)
 
 /**
  * Resolve names to activities, numbering repeats so their activityRun names stay
@@ -90,6 +93,13 @@ export const runnableActivities = (
   names: readonly string[],
   cfg: TPiCrustConfig,
   options: Readonly<Partial<TActivityOptions>> = {},
+  /**
+   * Defaults to `agentActivity`'s own `liveAgent`. Exists so a test can
+   * drive a real (unresumed) Activity Run through a canned, in-process
+   * response — never a real `pi` spawn — the seam COVERAGE-AGENT-PORTS.md
+   * built and said run-workflow.ts would go on to consume.
+   */
+  ports?: TAgentPorts,
 ): readonly TActivity[] => {
   const registry = resolveActivities(cfg.activities)
   const canonical = canonicalActivityNames(cfg.activities, names)
@@ -116,7 +126,11 @@ export const runnableActivities = (
       )
     }
     if (!isPlannerName(name)) {
-      return agentActivity(resolvedNamed(registry, name) as TResolvedActivity, at)
+      return agentActivity(
+        resolvedNamed(registry, name) as TResolvedActivity,
+        at,
+        ports,
+      )
     }
     const planner = cfg.planners.find((one) => one.name === name)
     if (planner === undefined) {
