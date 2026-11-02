@@ -1,5 +1,8 @@
 import { expect, spyOn, test } from 'bun:test'
-import { errorMessage, safeParseSettlement } from '../../../lib/typedefs/src/settlement'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import {
   FLAG_TABLE,
   longFlagArgv,

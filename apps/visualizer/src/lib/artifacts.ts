@@ -156,9 +156,7 @@ export const observedByActivityRun = (
  * A reported artifact and the file on disk are the same document, and the
  * reported one is kept because it is the one that can say what it means.
  */
-const firstByPath = (
-  entries: readonly TArtifact[],
-): readonly TArtifact[] => {
+const firstByPath = (entries: readonly TArtifact[]): readonly TArtifact[] => {
   const seen = new Set<string>()
   return entries.filter((entry) => {
     if (seen.has(entry.path)) return false

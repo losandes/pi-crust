@@ -39,8 +39,7 @@ export const consultsOf = (events: readonly EventRow[]): readonly TConsult[] =>
     )
     .flatMap((event) => {
       const settled = safeParseSettlement(
-        () =>
-          JSON.parse(event.payload_json ?? '{}') as Record<string, unknown>,
+        () => JSON.parse(event.payload_json ?? '{}') as Record<string, unknown>,
       )
       // An unreadable consult is one missing message, never a broken thread.
       if (settled.status === 'error') return []
