@@ -51,6 +51,7 @@ import {
   runWorkflow,
   spentAlready,
 } from './run-workflow'
+import type { TResolveModel } from './validate-agents'
 
 const aPiResult = (text: string): TPiResult => ({
   text,
@@ -96,6 +97,24 @@ beforeEach(() => {
   process.env.CRUST_MACHINE_CONFIG = '/nonexistent/crust-machine-config.yaml'
 })
 afterEach(restoreTerminal)
+
+/**
+ * Model resolution as a value, so no test here needs a pi install.
+ *
+ * `validateAgents` resolves every required agent's model through
+ * `pi --list-models`, and an absent pi reads as "no model by that name" —
+ * which turned a missing host into a configuration fault on any machine
+ * without one, this repository's CI runner included. The production default
+ * is unchanged; these tests pass their own, because whether the fixture's
+ * model is registered on the machine running the suite is not what any of
+ * them is about.
+ */
+const fixtureModel: TResolveModel = (pattern) => {
+  const slash = pattern.indexOf('/')
+  return slash === -1
+    ? { provider: 'anthropic', modelId: pattern }
+    : { provider: pattern.slice(0, slash), modelId: pattern.slice(slash + 1) }
+}
 
 const MODEL = 'anthropic/claude-haiku-4-5'
 
@@ -273,9 +292,12 @@ test(
 
     // when, then
     await expect(
-      runWorkflow(args, [
-        { name: 'implement', strategy: 'serial', activities: ['build'] },
-      ]),
+      runWorkflow(
+        args,
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        undefined,
+        fixtureModel,
+      ),
     ).rejects.toThrow(/build.*is not defined/s)
   },
 )
@@ -340,9 +362,12 @@ test(
     const args = argsFor(configPath, runId)
 
     // when
-    const exitCode = await runWorkflow(args, [
-      { name: 'implement', strategy: 'serial', activities: ['build'] },
-    ])
+    const exitCode = await runWorkflow(
+      args,
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
@@ -470,6 +495,7 @@ test(
         },
       ],
       ports,
+      fixtureModel,
     )
 
     // then \u2014 waiting, not accepted or failed; 'document' never reached
@@ -558,6 +584,7 @@ test(
       50,
       attemptLedger(),
       ports,
+      fixtureModel,
     )
 
     // then \u2014 stopped for a person; 'document' never reached
@@ -652,9 +679,12 @@ test(
     const args = { ...argsFor(configPath, runId), trustLevel: '100' }
 
     // when
-    const exitCode = await runWorkflow(args, [
-      { name: 'implement', strategy: 'serial', activities: ['build'] },
-    ])
+    const exitCode = await runWorkflow(
+      args,
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
@@ -727,9 +757,12 @@ test(
     tracer.close()
 
     // when
-    const exitCode = await runWorkflow(argsFor(configPath, runId), [
-      { name: 'implement', strategy: 'serial', activities: ['build'] },
-    ])
+    const exitCode = await runWorkflow(
+      argsFor(configPath, runId),
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
@@ -788,9 +821,12 @@ test(
 
     // when, then
     await expect(
-      runWorkflow(argsFor(configPath, runId), [
-        { name: 'implement', strategy: 'serial', activities: ['build'] },
-      ]),
+      runWorkflow(
+        argsFor(configPath, runId),
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        undefined,
+        fixtureModel,
+      ),
     ).rejects.toThrow()
     const after = createTracer(dbPath, join(sessionDir, 'events.jsonl'))
     const state = after.activityRunsFor(runId)
@@ -860,6 +896,8 @@ test(
       argsFor(configPath, 'eeee5555'),
       50,
       attemptLedger(),
+      undefined,
+      fixtureModel,
     )
 
     // then
@@ -912,6 +950,8 @@ test(
       argsFor(configPath, 'dddd4444'),
       0,
       attemptLedger(),
+      undefined,
+      fixtureModel,
     )
 
     // then — nothing ran; the run is waiting on a person instead
