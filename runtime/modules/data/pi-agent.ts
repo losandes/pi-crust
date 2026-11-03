@@ -7,7 +7,6 @@
  * continuing an agent are the same call: same session id = same context window.
  */
 
-import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -23,6 +22,7 @@ import { emptyUsage, mergeUsage } from '../typedefs/pi'
 import { monotonicMs, nowIso } from './clock'
 import { readText } from './files'
 import { operatorEnv } from './operator-env'
+import { listModelsOutput } from './pi-catalog-source'
 
 export const piPath = (): string => process.env.PI_PATH ?? 'pi'
 
@@ -46,7 +46,7 @@ export const PRIMARY_ARGS = [
   'url',
 ] as const
 
-type TCatalogRow = Readonly<{
+export type TCatalogRow = Readonly<{
   provider: string
   modelId: string
   window: number
@@ -67,25 +67,15 @@ const parseCount = (value: string): number => {
   return parsed
 }
 
-// Memoised once per process, the way the Python's lru_cache was — `pi
-// --list-models` spawns a process and the catalog does not change mid-run.
-let catalogCache: readonly TCatalogRow[] | undefined
-
-/** Read pi's merged catalog, including built-in providers and custom models. */
-export const piCatalog = (): readonly TCatalogRow[] => {
-  if (catalogCache !== undefined) {
-    return catalogCache
-  }
-  const result = spawnSync(piPath(), ['--list-models'], {
-    encoding: 'utf8',
-    timeout: 30_000,
-    env: { ...operatorEnv() },
-  })
-  if (result.status !== 0 || typeof result.stdout !== 'string') {
-    catalogCache = []
-    return catalogCache
-  }
-  catalogCache = result.stdout
+/**
+ * The rows in `pi --list-models` output, skipping its header line.
+ *
+ * A line this cannot read contributes nothing rather than failing the
+ * catalogue: the table is a human-readable listing from another program,
+ * and one unparseable row is not a reason to claim no models exist.
+ */
+export const catalogRows = (stdout: string): readonly TCatalogRow[] =>
+  stdout
     .split('\n')
     .slice(1)
     .flatMap((line) => {
@@ -103,6 +93,18 @@ export const piCatalog = (): readonly TCatalogRow[] => {
         : parseCount(count)
       return window === undefined ? [] : [{ provider, modelId, window }]
     })
+
+// Memoised once per process, the way the Python's lru_cache was — `pi
+// --list-models` spawns a process and the catalog does not change mid-run.
+let catalogCache: readonly TCatalogRow[] | undefined
+
+/** Read pi's merged catalog, including built-in providers and custom models. */
+export const piCatalog = (): readonly TCatalogRow[] => {
+  if (catalogCache !== undefined) {
+    return catalogCache
+  }
+  const stdout = listModelsOutput(piPath(), operatorEnv())
+  catalogCache = stdout === undefined ? [] : catalogRows(stdout)
   return catalogCache
 }
 
@@ -115,8 +117,9 @@ export const piCatalog = (): readonly TCatalogRow[] => {
  */
 export const resolveModel = (
   pattern: string,
+  /** The rows to match against. Defaults to this machine's pi catalogue. */
+  catalog: readonly TCatalogRow[] = piCatalog(),
 ): Readonly<{ provider: string; modelId: string }> => {
-  const catalog = piCatalog()
   if (pattern.includes('/')) {
     const slash = pattern.indexOf('/')
     const provider = pattern.slice(0, slash)

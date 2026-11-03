@@ -7,6 +7,7 @@ import { emptyUsage } from '../typedefs/pi'
 import {
   addTurn,
   buildArgv,
+  catalogRows,
   contextTokensOf,
   contextWindow,
   createNarrationTracker,
@@ -15,6 +16,7 @@ import {
   EMPTY_STREAM_STATE,
   foldMessageEnd,
   parseJsonLine,
+  resolveModel,
   textOf,
   toolLabel,
 } from './pi-agent'
@@ -648,5 +650,187 @@ test(
 
     // then
     expect(tracker.turn()).toEqual(2)
+  },
+)
+
+/*
+ * The catalogue as a value.
+ *
+ * Reading it from this machine is a subprocess, and that spawn is the whole
+ * of `pi-catalog-source.ts`. Everything below parses or matches what the
+ * spawn returned, so it takes the text or the rows as an argument and needs
+ * no pi install anywhere.
+ */
+const LISTING = [
+  'PROVIDER        MODEL                     CONTEXT',
+  'anthropic       claude-haiku-4-5          272K',
+  'openai          gpt-5.6-terra             1.0M',
+  'openrouter      google/gemini-3.5-flash   1048576',
+].join('\n')
+
+const ROWS = catalogRows(LISTING)
+
+test(
+  [
+    'given data/pi-agent::catalogRows',
+    'when pi lists models with compact and plain context counts',
+    'it should read each row, expanding K and M into whole numbers',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = catalogRows(LISTING)
+
+    // then
+    expect(actual).toEqual([
+      { provider: 'anthropic', modelId: 'claude-haiku-4-5', window: 272_000 },
+      { provider: 'openai', modelId: 'gpt-5.6-terra', window: 1_000_000 },
+      {
+        provider: 'openrouter',
+        modelId: 'google/gemini-3.5-flash',
+        window: 1_048_576,
+      },
+    ])
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::catalogRows',
+    'when a line is short of columns or its count is not a number',
+    'it should skip that line rather than refuse the whole catalogue',
+  ].join(', '),
+  () => {
+    // given
+    const given = [
+      'PROVIDER  MODEL  CONTEXT',
+      'anthropic  claude-haiku-4-5  272K',
+      '',
+      'ragged-line-with-two  columns',
+      'openai  gpt-5.6-terra  not-a-number',
+    ].join('\n')
+
+    // when
+    const actual = catalogRows(given)
+
+    // then
+    expect(actual).toEqual([
+      { provider: 'anthropic', modelId: 'claude-haiku-4-5', window: 272_000 },
+    ])
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::resolveModel',
+    'when the pattern names a provider and a model the catalogue has',
+    'it should return that pair without searching',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = resolveModel('anthropic/claude-haiku-4-5', ROWS)
+
+    // then
+    expect(actual).toEqual({
+      provider: 'anthropic',
+      modelId: 'claude-haiku-4-5',
+    })
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::resolveModel',
+    'when a bare pattern matches exactly one model id',
+    'it should resolve it to that row’s provider',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = resolveModel('gpt-5.6-terra', ROWS)
+
+    // then
+    expect(actual).toEqual({ provider: 'openai', modelId: 'gpt-5.6-terra' })
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::resolveModel',
+    'when a pattern matches one model id as a substring',
+    'it should resolve it, because one candidate is not ambiguous',
+  ].join(', '),
+  () => {
+    // given, when
+    const actual = resolveModel('gemini', ROWS)
+
+    // then
+    expect(actual).toEqual({
+      provider: 'openrouter',
+      modelId: 'google/gemini-3.5-flash',
+    })
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::resolveModel',
+    'when a provider-qualified pattern names a model the catalogue lacks',
+    'it should fall through to matching and report it as not found',
+  ].join(', '),
+  () => {
+    // given, when, then
+    expect(() => resolveModel('anthropic/claude-opus-9', ROWS)).toThrow(
+      /not found in pi --list-models/,
+    )
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::resolveModel',
+    'when a pattern matches several models and none exactly',
+    'it should refuse and name every candidate it is choosing between',
+  ].join(', '),
+  () => {
+    // given — two rows whose ids both contain the pattern
+    const given = catalogRows(
+      [
+        'PROVIDER  MODEL  CONTEXT',
+        'openai  gpt-5.6-terra  1.0M',
+        'openai  gpt-5.6-mini  272K',
+      ].join('\n'),
+    )
+
+    // when, then
+    expect(() => resolveModel('gpt-5.6', given)).toThrow(
+      /is ambiguous: openai\/gpt-5.6-terra, openai\/gpt-5.6-mini/,
+    )
+  },
+)
+
+test(
+  [
+    'given data/pi-agent::resolveModel',
+    'when several rows match but exactly one matches by suffix',
+    'it should prefer that one over the substring matches',
+  ].join(', '),
+  () => {
+    // given — `google/gemini-3.5-flash` ends with the pattern; the other
+    // merely contains it
+    const given = catalogRows(
+      [
+        'PROVIDER  MODEL  CONTEXT',
+        'openrouter  google/gemini-3.5-flash  1.0M',
+        'openrouter  gemini-3.5-flash-preview  272K',
+      ].join('\n'),
+    )
+
+    // when
+    const actual = resolveModel('gemini-3.5-flash', given)
+
+    // then
+    expect(actual).toEqual({
+      provider: 'openrouter',
+      modelId: 'google/gemini-3.5-flash',
+    })
   },
 )
