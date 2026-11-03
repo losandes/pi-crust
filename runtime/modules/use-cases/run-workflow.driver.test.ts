@@ -773,6 +773,94 @@ test(
 test(
   [
     'given use-cases/run-workflow::runWorkflow',
+    'when a machine layer and CRUST_DATA_DIR are both in force',
+    'it should say so before anything runs, naming the file and what set the data directory',
+  ].join(', '),
+  async () => {
+    // given — a machine config outside the repository, and a data directory
+    // the environment chose rather than the repository's own config: both
+    // are invisible in a trace unless the run says so at the start
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-machine-'))
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+    const configPath = configFor(dir, [
+      {
+        name: 'build',
+        purpose: 'Build the thing',
+        output: 'genericOutput',
+        attempts: 1,
+        commit: false,
+      },
+    ])
+    const dataDir = join(dir, 'data')
+    const machineConfig = join(dir, 'machine.yaml')
+    writeFileSync(
+      machineConfig,
+      Bun.YAML.stringify({ defaults: { data_dir: dataDir } }),
+    )
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machineConfig
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_DATA_DIR = dataDir
+
+    const dbPath = join(dataDir, 'crust.db')
+    const runId = 'aaaa7777'
+    const sessionDir = join(dataDir, 'sessions', runId)
+    mkdirSync(join(sessionDir, 'build'), { recursive: true })
+    writeFileSync(
+      join(sessionDir, 'build', 'envelope.json'),
+      `${JSON.stringify({
+        agent_name: 'build',
+        purpose: 'Build the thing',
+        output_type: 'GenericOutput',
+        status: 'success',
+        summary: 'built it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      })}\n`,
+    )
+    const tracer = createTracer(dbPath, join(sessionDir, 'events.jsonl'))
+    tracer.sessionStart(runId, 'tester', 'compose')
+    tracer.activityRunUpsert({
+      activity_run_id: `${runId}_01_build`,
+      run_id: runId,
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'build',
+        description: 'the piece this resume should replay',
+      }),
+      status: 'success',
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: '2024-01-01T00:00:01.000Z',
+    })
+    tracer.sessionFinish(runId, false)
+    tracer.close()
+
+    // when
+    const exitCode = await runWorkflow(
+      argsFor(configPath, runId),
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
+
+    // then
+    expect(exitCode).toEqual(EXIT.SUCCESS)
+    expect(terminalOutput()).toContain('machine config in force')
+    expect(terminalOutput()).toContain(machineConfig)
+    expect(terminalOutput()).toContain('CRUST_DATA_DIR')
+
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_DATA_DIR = undefined
+  },
+)
+
+test(
+  [
+    'given use-cases/run-workflow::runWorkflow',
     'when the run throws after the session has already started',
     'it should still close the session before the error leaves the process',
   ].join(', '),
