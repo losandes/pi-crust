@@ -205,6 +205,17 @@ export const runWorkflow = async (
    * need a pi install to be told its own fixture's model exists.
    */
   resolveModel?: TResolveModel,
+  /**
+   * Whether a visualizer is listening, defaulted to a real probe of this
+   * machine's port.
+   *
+   * Injected for the same reason as the two above, and found the same way:
+   * the probe makes the run take a different path on a developer with the
+   * visualizer open than on one without, so the suite covered a branch on
+   * one machine and not on another, and no test could choose.
+   */
+  visualizerUp: (port: number) => Promise<boolean> = (port) =>
+    visualizerIsUp(process.env, fetch, port),
 ): Promise<number> => {
   /*
    * A terminal Activity never enters the fold — it is wired to run once the
@@ -331,7 +342,7 @@ export const runWorkflow = async (
      * ignore the next hint too.
      */
     const ports = cfg.observability.ports
-    if (await visualizerIsUp(process.env, fetch, ports.backend)) {
+    if (await visualizerUp(ports.backend)) {
       run.console.instructions([
         `watch: ${runLink(run.runId, process.env, ports.frontend)}`,
       ])

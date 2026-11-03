@@ -230,6 +230,8 @@ test(
 const configFor = (
   dir: string,
   activities: readonly Readonly<Record<string, unknown>>[],
+  /** Entries for `terminal:`, for a plan that names a terminal Activity. */
+  terminal: readonly Readonly<Record<string, unknown>>[] = [],
 ): string => {
   const system = join(dir, 'system.md')
   const user = join(dir, 'user.md')
@@ -243,17 +245,31 @@ const configFor = (
     writes: [],
     ...activity,
   }))
+  const terminalEntries = terminal.map((one) => ({
+    model: MODEL,
+    prompt_engineering: { system, user },
+    writes: [],
+    ...one,
+  }))
   writeFileSync(
     configPath,
     Bun.YAML.stringify({
       defaults: { data_dir: dataDir },
       observability: { db: join(dataDir, 'crust.db') },
-      agents: entries,
+      agents: [...entries, ...terminalEntries],
       activities: entries,
+      terminal: terminalEntries,
     }),
   )
   return configPath
 }
+
+/** A fresh run: no run id, nothing to resume. */
+const freshArgs = (configPath: string): Parameters<typeof runWorkflow>[0] => ({
+  ...argsFor(configPath, ''),
+  runId: undefined,
+  resume: false,
+})
 
 const argsFor = (
   configPath: string,
@@ -870,6 +886,180 @@ test(
     expect(terminalOutput()).toContain('machine config in force')
     expect(terminalOutput()).toContain(machineConfig)
     expect(terminalOutput()).toContain('CRUST_DATA_DIR')
+  },
+)
+
+test(
+  [
+    'given use-cases/run-workflow::runWorkflow',
+    'when the plan ends in a terminal Activity and an earlier activity run failed',
+    'it should cancel the terminal rather than deliver, and say why',
+  ].join(', '),
+  async () => {
+    /*
+     * given — a resumed run whose planned chain replays clean, but whose
+     * trace already carries a counted activity run that failed. A terminal
+     * Activity never enters the fold; it is settled after the loop, and a
+     * run with a failure in it must not open a pull request for itself.
+     */
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-terminal-'))
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+    const configPath = configFor(
+      dir,
+      [
+        {
+          name: 'build',
+          purpose: 'Build the thing',
+          output: 'genericOutput',
+          attempts: 1,
+          commit: false,
+        },
+      ],
+      [
+        {
+          name: 'gh-pull-request',
+          purpose: 'Open the pull request',
+          output: 'genericOutput',
+        },
+      ],
+    )
+    const dataDir = join(dir, 'data')
+    const dbPath = join(dataDir, 'crust.db')
+    const runId = 'bbbb8888'
+    const sessionDir = join(dataDir, 'sessions', runId)
+    mkdirSync(join(sessionDir, 'build'), { recursive: true })
+    writeFileSync(
+      join(sessionDir, 'build', 'envelope.json'),
+      `${JSON.stringify({
+        agent_name: 'build',
+        purpose: 'Build the thing',
+        output_type: 'GenericOutput',
+        status: 'success',
+        summary: 'built it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      })}\n`,
+    )
+    const tracer = createTracer(dbPath, join(sessionDir, 'events.jsonl'))
+    tracer.sessionStart(runId, 'tester', 'compose')
+    tracer.activityRunUpsert({
+      activity_run_id: `${runId}_01_build`,
+      run_id: runId,
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'build',
+        description: 'the piece this resume replays',
+      }),
+      status: 'success',
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: '2024-01-01T00:00:01.000Z',
+    })
+    tracer.activityRunUpsert({
+      activity_run_id: `${runId}_02_review`,
+      run_id: runId,
+      seq: 2,
+      params: activityRunParams({
+        name: 'review',
+        kind: 'agent',
+        owner: 'review',
+        description: 'an earlier leg that failed and is not in this plan',
+      }),
+      status: 'fail',
+      error: 'reviewer refused',
+      started_at: '2024-01-01T00:00:02.000Z',
+      ended_at: '2024-01-01T00:00:03.000Z',
+    })
+    tracer.sessionFinish(runId, false)
+    tracer.close()
+
+    // when
+    const exitCode = await runWorkflow(
+      argsFor(configPath, runId),
+      [
+        { name: 'implement', strategy: 'serial', activities: ['build'] },
+        { name: 'push', strategy: 'serial', activities: ['gh-pull-request'] },
+      ],
+      undefined,
+      fixtureModel,
+    )
+
+    // then — cancelled with its reason, and recorded as cancelled rather
+    // than quietly skipped
+    expect(terminalOutput()).toContain('gh-pull-request: cancelled')
+    expect(exitCode).not.toEqual(EXIT.RUNNING)
+    const after = createTracer(dbPath, join(sessionDir, 'events.jsonl'))
+    expect(
+      after
+        .activityRunsFor(runId)
+        .filter((one) => one.params.name === 'gh-pull-request')
+        .map((one) => one.status),
+    ).toEqual(['cancelled'])
+    after.close()
+  },
+)
+
+test(
+  [
+    'given use-cases/run-workflow::runWorkflow',
+    'when a visualizer is listening on the configured backend port',
+    'it should print a link to this run, and none when nothing answers',
+  ].join(', '),
+  async () => {
+    // given — the probe as a port, because whether a developer happens to
+    // have the visualizer open must not decide what a run prints
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-watch-'))
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+    const configPath = configFor(dir, [
+      {
+        name: 'build',
+        purpose: 'Build the thing',
+        output: 'genericOutput',
+        attempts: 1,
+        commit: false,
+      },
+    ])
+    const ports = fakeAgentPorts({
+      agent_name: 'build',
+      purpose: 'Build the thing',
+      output_type: 'GenericOutput',
+      status: 'success',
+      summary: 'built it',
+      artifacts: [],
+      notes_for_next_agent: '',
+    })
+    const plan = [
+      { name: 'implement', strategy: 'serial' as const, activities: ['build'] },
+    ]
+
+    // when
+    const watched = await runWorkflow(
+      freshArgs(configPath),
+      plan,
+      ports,
+      fixtureModel,
+      () => Promise.resolve(true),
+    )
+    const withLink = terminalOutput()
+    restoreTerminal()
+    silenceTerminal()
+    const unwatched = await runWorkflow(
+      freshArgs(configPath),
+      plan,
+      ports,
+      fixtureModel,
+      () => Promise.resolve(false),
+    )
+
+    // then
+    expect(watched).toEqual(EXIT.SUCCESS)
+    expect(unwatched).toEqual(EXIT.SUCCESS)
+    expect(withLink).toContain('watch:')
+    expect(terminalOutput()).not.toContain('watch:')
   },
 )
 
