@@ -17,6 +17,19 @@ import { join } from 'node:path'
  * test of the surrounding runtime would not touch it at all.
  */
 
+/**
+ * Integration: every test here runs the real `just` binary against the real
+ * `crust.just`, because the behaviour under test IS the resolution chain
+ * `just` evaluates — there is nothing left to check without it.
+ *
+ * Guarded on the binary rather than on `CI`, because the binary is what the
+ * tests need: a runner that installs `just` runs them for real, and a
+ * machine without one reports them as skipped instead of reading a failed
+ * spawn's empty stdout as a broken resolution chain. A skip here is a check
+ * that did not run, which the suite says out loud.
+ */
+const integrationTest = test.skipIf(Bun.which('just') === null)
+
 const CRUST_JUST = join(import.meta.dir, 'crust.just')
 
 const git = (cwd: string, ...args: readonly string[]): string =>
@@ -131,7 +144,7 @@ const aPrimaryAndLinkedWorktree = (
 // Issue #24 stage 2 (1.6.1): the `crust` variable falls back through the
 // pointer beside the shared git directory when a linked worktree has no
 // pointer of its own.
-test(
+integrationTest(
   [
     'given crust.just’s crust variable',
     'when evaluated in a linked worktree that was never stamped, with no CRUST_HOME',
@@ -152,7 +165,7 @@ test(
   },
 )
 
-test(
+integrationTest(
   [
     'given crust.just’s crust variable',
     'when the linked worktree has its own pointer file',
@@ -175,7 +188,7 @@ test(
   },
 )
 
-test(
+integrationTest(
   [
     'given crust.just’s crust variable',
     'when CRUST_HOME is exported in a linked worktree that has no pointer file at all',
@@ -197,7 +210,7 @@ test(
 
 // Issue #24 stage 2 (1.6.4): naming all three resolution links in the
 // failure, rather than a bare bun "module not found".
-test(
+integrationTest(
   [
     'given crust.just’s crust-dependent recipes',
     'when none of CRUST_HOME, a local pointer, or the shared git directory names a package',
@@ -222,7 +235,7 @@ test(
 
 // Issue #24 stage 2 (1.6.2): `update` falls back through the shared git
 // directory too, not only CRUST_HOME and the local pointer.
-test(
+integrationTest(
   [
     'given crust.just’s update recipe',
     'when run in a linked worktree with no local pointer file',
@@ -257,7 +270,7 @@ test(
 
 // Issue #24 stage 2 (1.6.2): `observe` falls back through the shared git
 // directory too, not only CRUST_HOME and the local pointer.
-test(
+integrationTest(
   [
     'given crust.just’s observe recipe',
     'when run in a linked worktree with no local pointer file',
