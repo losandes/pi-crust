@@ -95,8 +95,26 @@ beforeEach(() => {
    */
   // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
   process.env.CRUST_MACHINE_CONFIG = '/nonexistent/crust-machine-config.yaml'
+  /*
+   * Empty, never `undefined`.
+   *
+   * `process.env.X = undefined` deletes the variable in bun 1.3 and stores
+   * the literal string "undefined" in bun 1.4, so a test that "cleaned up"
+   * that way left CRUST_DATA_DIR="undefined" behind for every file that ran
+   * after it — paths with a `/undefined/` segment, and a provenance of
+   * "CRUST_DATA_DIR (environment)", in eleven tests that had nothing to do
+   * with it. Empty is what `dataDirFromEnv` already reads as unset.
+   */
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+  process.env.CRUST_DATA_DIR = ''
 })
-afterEach(restoreTerminal)
+afterEach(() => {
+  restoreTerminal()
+  // Reset here too: a test that sets it and then fails would otherwise leak
+  // it into the next file, which is how this was found.
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+  process.env.CRUST_DATA_DIR = ''
+})
 
 /**
  * Model resolution as a value, so no test here needs a pi install.
@@ -852,9 +870,6 @@ test(
     expect(terminalOutput()).toContain('machine config in force')
     expect(terminalOutput()).toContain(machineConfig)
     expect(terminalOutput()).toContain('CRUST_DATA_DIR')
-
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_DATA_DIR = undefined
   },
 )
 
