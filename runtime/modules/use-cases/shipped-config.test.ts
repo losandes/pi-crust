@@ -224,7 +224,7 @@ test(
       actual.find((one) => one.name === name)?.stages.map((s) => s.name)
 
     // then
-    expect(stagesOf('sdlc')).toEqual(['discover', 'deliver', 'accept', 'push'])
+    expect(stagesOf('ship')).toEqual(['discover', 'deliver', 'accept', 'push'])
     expect(stagesOf('bugfix')).toEqual([
       'diagnose',
       'deliver',
@@ -238,8 +238,8 @@ test(
 test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
-    'when the shipped sdlc is flattened',
-    'it should run the same activities in the same order it always has',
+    'when ship is flattened',
+    'it should run these activities',
   ].join(', '),
   () => {
     // given
@@ -247,16 +247,14 @@ test(
 
     // when
     const actual = loadLifecycles(given, shippedConfig())
-    const sdlc = actual.find((one) => one.name === 'sdlc')
+    const ship = actual.find((one) => one.name === 'ship')
 
     // then
     expect(
-      activityOrder(sdlc ?? { name: '', description: '', stages: [] }),
+      activityOrder(ship ?? { name: '', description: '', stages: [] }),
     ).toEqual([
       'identify',
-      'conceptualize',
       'plan',
-      'design',
       'build',
       'test',
       'outcome-review',
@@ -278,12 +276,12 @@ test(
 
     // when
     const actual = loadLifecycles(given, shippedConfig())
-    const sdlc = actual.find((one) => one.name === 'sdlc')
-    const deliver = sdlc?.stages.find((one) => one.name === 'deliver')
+    const ship = actual.find((one) => one.name === 'ship')
+    const deliver = ship?.stages.find((one) => one.name === 'deliver')
 
     // then
     expect(deliver?.strategy).toBe('serial')
-    expect(deliver?.activities).toEqual(['plan', 'design', 'build', 'test'])
+    expect(deliver?.activities).toEqual(['build', 'test'])
   },
 )
 
