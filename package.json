@@ -12,7 +12,7 @@
     "build": "bun run --cwd apps/visualizer build",
     "// TEST": "==============================TEST==============================",
     "test": "bunt apps/visualizer lib runtime scripts | buntap --nyan",
-    "test:agent": "CLAUDECODE=1 bunt apps/visualizer lib runtime scripts --coverage | buntap --agent",
+    "test:agent": "CLAUDECODE=1 bunt apps/visualizer lib runtime scripts --coverage | buntap --agent --coverage-report=full",
     "test:ci": "CLAUDECODE=1 bun test apps/visualizer lib runtime scripts --coverage",
     "// TYPECHECK": "=======================TYPECHECK===========================",
     "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
