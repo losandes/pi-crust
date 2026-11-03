@@ -2,9 +2,9 @@
  * Traced events, and the shape of the tracer every layer writes through.
  */
 
+import type { TActivityRun } from './activity-run'
 import type { TAgentConfig } from './config'
 import type { TGateReport } from './gate'
-import type { TActivityRun } from './activity-run'
 
 export type TEventPayload = Readonly<Record<string, unknown>>
 

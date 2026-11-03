@@ -111,7 +111,10 @@ const main = (): number => {
   const bePort = process.env.CRUST_BE_PORT ?? String(ports.backend)
   const fePort = process.env.CRUST_FE_PORT ?? String(ports.frontend)
 
-  const installed = spawnSync('bun', ['install'], { cwd: app, encoding: 'utf8' })
+  const installed = spawnSync('bun', ['install'], {
+    cwd: app,
+    encoding: 'utf8',
+  })
   if (installed.status !== 0) {
     say(`observe: bun install failed in ${app}`)
     say(`  ${(installed.stderr ?? '').trim().slice(-300)}`)

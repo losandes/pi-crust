@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer, MIGRATIONS } from './trace-db'
 
-const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-trace-db-test-'))
+const scratch = (): string =>
+  mkdtempSync(join(tmpdir(), 'crust-trace-db-test-'))
 
 const tableNames = (dbPath: string): readonly string[] => {
   const db = new Database(dbPath, { readonly: true })
@@ -29,7 +30,10 @@ test(
     const dir = scratch()
 
     // when
-    const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
+    const tracer = createTracer(
+      join(dir, 'crust.db'),
+      join(dir, 'events.jsonl'),
+    )
     tracer.close()
 
     // then

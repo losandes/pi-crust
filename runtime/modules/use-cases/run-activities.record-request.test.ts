@@ -41,9 +41,9 @@ test(
     await recordRequest(run, 'add a /health endpoint')
 
     // then
-    expect(run.activityRuns().map((activityRun) => activityRun.params.name)).toEqual([
-      'request',
-    ])
+    expect(
+      run.activityRuns().map((activityRun) => activityRun.params.name),
+    ).toEqual(['request'])
   },
 )
 
@@ -76,7 +76,9 @@ test(
     await recordRequest(run, 'add a /health endpoint')
 
     // when — a second, resumed run with the same name already completed
-    const resumedDir = mkdtempSync(join(tmpdir(), 'crust-run-activities-request-resumed-'))
+    const resumedDir = mkdtempSync(
+      join(tmpdir(), 'crust-run-activities-request-resumed-'),
+    )
     const resumedTracer = createTracer(
       join(resumedDir, 'crust.db'),
       join(resumedDir, 'events.jsonl'),

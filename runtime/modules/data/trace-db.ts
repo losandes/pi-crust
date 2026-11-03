@@ -8,10 +8,10 @@
 
 import { Database } from 'bun:sqlite'
 import { dirname } from 'node:path'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TAgentConfig } from '../typedefs/config'
 import type { TGateReport } from '../typedefs/gate'
 import { reportPassed, violationsOf } from '../typedefs/gate'
-import type { TActivityRun } from '../typedefs/activity-run'
 import type { TEventInput, TTracer } from '../typedefs/trace'
 import { nowIso } from './clock'
 import { appendText, ensureDir } from './files'
@@ -282,7 +282,10 @@ export const createTracer = (
       processesEndAll(runId)
       // A gate opens between activityRuns, so there should be none open. If there
       // is, it did not finish, and saying so beats leaving it mid-sentence.
-      activityRunsAbandon(runId, 'the run stopped for a person while this activityRun was open')
+      activityRunsAbandon(
+        runId,
+        'the run stopped for a person while this activityRun was open',
+      )
     },
 
     sessionFinish: (runId, ok) => {

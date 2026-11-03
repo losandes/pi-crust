@@ -16,9 +16,9 @@
  * either one testable.
  */
 
-import { paint } from './terminal'
 import type { TMenuState } from '../use-cases/menu'
 import { visibleWindow } from '../use-cases/menu'
+import { paint } from './terminal'
 
 const ESC = '\u001B'
 
@@ -47,7 +47,8 @@ export type TOption = Readonly<{
  */
 const ANSI = new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g')
 
-export const widthOf = (line: string): number => line.replaceAll(ANSI, '').length
+export const widthOf = (line: string): number =>
+  line.replaceAll(ANSI, '').length
 
 /**
  * How many ROWS a set of lines occupies, which is not how many lines it is.
@@ -125,7 +126,8 @@ export const menuFrame = (
    * budgeting for a marker that then appears would push the frame one row
    * over, which is the whole failure this is avoiding.
    */
-  const chrome = rowsFor([paint(title, 'bold'), ...summary, paint(help, 'dim')], cols) + 2
+  const chrome =
+    rowsFor([paint(title, 'bold'), ...summary, paint(help, 'dim')], cols) + 2
   const costs = options.map((option, index) =>
     rowsFor(linesFor(option, index), cols),
   )

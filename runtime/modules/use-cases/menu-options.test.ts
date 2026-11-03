@@ -65,9 +65,9 @@ test(
     const actual = menuOptions(given, []).map((option) => option.value)
 
     // then
-    expect(actual.filter((value) => value.includes('gh-pull-request'))).toEqual([
-      'gh-pull-request',
-    ])
+    expect(actual.filter((value) => value.includes('gh-pull-request'))).toEqual(
+      ['gh-pull-request'],
+    )
     expect(actual).not.toContain('gh-pr')
   },
 )

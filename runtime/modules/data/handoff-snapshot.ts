@@ -19,7 +19,13 @@
  */
 
 import { createHash } from 'node:crypto'
-import { chmodSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, relative } from 'node:path'
 import { ensureParentDir, fileExists } from './files'
 

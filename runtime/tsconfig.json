@@ -8,8 +8,12 @@
    * silently unchecked, and an import of a module that does not exist
    * compiled clean and failed at run time. An include list is a second
    * inventory of the tree, and the tree is the one that changes.
+   *
+   * `../lib` is named because this tree imports the shared settlement module
+   * from outside its own directory, and a file reached only through an
+   * import is checked but never reported as the project's own.
    */
-  "include": ["."],
+  "include": [".", "../lib/**/*.ts"],
   /*
    * `harness-engineering` is pi's, not ours. It imports @earendil-works/*
    * and typebox — modules the pi host provides to an extension at run time

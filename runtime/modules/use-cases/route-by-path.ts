@@ -120,6 +120,5 @@ export const unmatchedPaths = (
   paths: readonly string[],
 ): readonly string[] =>
   paths.filter(
-    (path) =>
-      !cfg.routing.checks.some((check) => applies([path], check.when)),
+    (path) => !cfg.routing.checks.some((check) => applies([path], check.when)),
   )

@@ -9,7 +9,8 @@ import {
   writeHandoffPointer,
 } from './handoff-pointer'
 
-const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-handoff-pointer-'))
+const scratch = (): string =>
+  mkdtempSync(join(tmpdir(), 'crust-handoff-pointer-'))
 
 test(
   [

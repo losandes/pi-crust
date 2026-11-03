@@ -121,7 +121,10 @@ export const decidePath = (
     reason: 'ungoverned',
     verb: 'allow',
   }
-  if (underDataDir(params.settings, path) || underHandoffDir(params.settings, path)) {
+  if (
+    underDataDir(params.settings, path) ||
+    underHandoffDir(params.settings, path)
+  ) {
     return ungoverned
   }
   if (

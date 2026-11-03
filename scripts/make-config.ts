@@ -24,7 +24,12 @@ const say = (line: string): void => {
 
 const main = (): number => {
   const force = process.argv.includes('--force')
-  const destination = join(process.cwd(), '.pi-crust', 'config', 'crust.config.yaml')
+  const destination = join(
+    process.cwd(),
+    '.pi-crust',
+    'config',
+    'crust.config.yaml',
+  )
   if (existsSync(destination) && !force) {
     say(`${destination} already exists — use --force to overwrite`)
     return 1

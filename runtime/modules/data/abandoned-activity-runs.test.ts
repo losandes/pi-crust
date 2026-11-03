@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test'
 import { Database } from 'bun:sqlite'
+import { expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,10 +20,11 @@ const tracerIn = (): ReturnType<typeof createTracer> & {
 } => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-trace-'))
   const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
-  return Object.assign(tracer, {
+  return {
+    ...tracer,
     dir,
     dispose: () => rmSync(dir, { recursive: true, force: true }),
-  })
+  }
 }
 
 /** A activityRun mid-flight: written as `running`, never updated again. */
@@ -54,11 +55,21 @@ const openActivityRun = (
 const activityRunRow = (
   tracer: ReturnType<typeof createTracer> & { readonly dir: string },
   activityRunId: string,
-): Readonly<{ status: string; error: string | null; ended_at: string | null }> => {
+): Readonly<{
+  status: string
+  error: string | null
+  ended_at: string | null
+}> => {
   const db = new Database(join(tracer.dir, 'crust.db'), { readonly: true })
   const row = db
-    .query('SELECT status, error, ended_at FROM activity_runs WHERE activity_run_id = ?')
-    .get(activityRunId) as { status: string; error: string | null; ended_at: string | null }
+    .query(
+      'SELECT status, error, ended_at FROM activity_runs WHERE activity_run_id = ?',
+    )
+    .get(activityRunId) as {
+    status: string
+    error: string | null
+    ended_at: string | null
+  }
   db.close()
   return row
 }
@@ -132,7 +143,9 @@ test(
     tracer.sessionWaiting('c1')
 
     // then
-    expect(activityRunRow(tracer, activityRun.activity_run_id).status).toBe('fail')
+    expect(activityRunRow(tracer, activityRun.activity_run_id).status).toBe(
+      'fail',
+    )
     tracer.dispose()
   },
 )

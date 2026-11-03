@@ -141,7 +141,6 @@ test(
   },
 )
 
-
 test(
   [
     'given typedefs/activity::activityNamed',

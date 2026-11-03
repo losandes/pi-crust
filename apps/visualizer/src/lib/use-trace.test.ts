@@ -10,23 +10,44 @@ import { expect, test } from 'bun:test'
  * poller that then discards them, leaving the live poller asking for events
  * after a cursor nothing will ever follow.
  */
+type Bookkeeping = { readonly cursor: number; readonly inflight: boolean }
+
+type Shared = {
+  readonly read: () => Bookkeeping
+  readonly update: (next: (prev: Bookkeeping) => Bookkeeping) => void
+}
+
+/**
+ * The bookkeeping a ref held, behind read and update so each step builds the
+ * next value rather than editing the one it was given.
+ */
+const bookkeeping = (initial: Bookkeeping): Shared => {
+  let state = initial
+  return {
+    read: () => state,
+    update: (next) => {
+      state = next(state)
+    },
+  }
+}
+
 const makePoller = (
-  state: { cursor: number; inflight: boolean },
+  state: Shared,
   pages: ReadonlyMap<number, readonly number[]>,
 ) => {
-  const collected: number[] = []
+  let collected: readonly number[] = []
   const tick = async (live: () => boolean): Promise<readonly number[]> => {
-    if (state.inflight) return collected
-    state.inflight = true
+    if (state.read().inflight) return collected
+    state.update((prev) => ({ ...prev, inflight: true }))
     try {
       await Promise.resolve()
-      const page = pages.get(state.cursor) ?? []
-      state.cursor += page.length
+      const page = pages.get(state.read().cursor) ?? []
+      state.update((prev) => ({ ...prev, cursor: prev.cursor + page.length }))
       if (!live()) return collected
-      collected.push(...page)
+      collected = [...collected, ...page]
       return collected
     } finally {
-      state.inflight = false
+      state.update((prev) => ({ ...prev, inflight: false }))
     }
   }
   return { tick, collected: () => collected }
@@ -37,12 +58,12 @@ const PAGES = new Map<number, readonly number[]>([[0, [1, 2, 3]]])
 test(
   [
     'given lib/use-trace::the poll cursor',
-    'when a second mount shares the first mount\'s cursor',
+    "when a second mount shares the first mount's cursor",
     'it should be able to lose every event of a finished run',
   ].join(', '),
   async () => {
     // given — one piece of shared bookkeeping, as refs made it
-    const shared = { cursor: 0, inflight: false }
+    const shared = bookkeeping({ cursor: 0, inflight: false })
     const first = makePoller(shared, PAGES)
     const second = makePoller(shared, PAGES)
 
@@ -55,7 +76,7 @@ test(
     // then — the first advanced the cursor and threw its results away, so the
     // second polls past the end and the UI shows a activityRun with no events
     expect(second.collected()).toEqual([])
-    expect(shared.cursor).toBe(3)
+    expect(shared.read().cursor).toBe(3)
   },
 )
 
@@ -67,8 +88,11 @@ test(
   ].join(', '),
   async () => {
     // given — bookkeeping created per instance, as the hook now does
-    const first = makePoller({ cursor: 0, inflight: false }, PAGES)
-    const second = makePoller({ cursor: 0, inflight: false }, PAGES)
+    const first = makePoller(bookkeeping({ cursor: 0, inflight: false }), PAGES)
+    const second = makePoller(
+      bookkeeping({ cursor: 0, inflight: false }),
+      PAGES,
+    )
 
     // when
     const firstRun = first.tick(() => false)

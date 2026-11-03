@@ -57,7 +57,9 @@ export const positionalArgs = (
       if (acc.skipNext) {
         return { positional: acc.positional, skipNext: false }
       }
-      const name = token.includes('=') ? token.slice(0, token.indexOf('=')) : token
+      const name = token.includes('=')
+        ? token.slice(0, token.indexOf('='))
+        : token
       if (cli.switches.includes(name)) {
         return { positional: acc.positional, skipNext: false }
       }

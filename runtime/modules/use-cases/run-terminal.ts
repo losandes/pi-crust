@@ -10,11 +10,10 @@
 
 import { nowIso } from '../data/clock'
 import type { TActivityRun } from '../typedefs/activity-run'
-import type { TActivityContext } from '../typedefs/runnable-activity'
 import type { TRun } from '../typedefs/run'
-import { counts } from './run-activity-run'
-import { runActivityRun } from './run-activity-run'
+import type { TActivityContext } from '../typedefs/runnable-activity'
 import type { TTerminalActivity } from './activities/gh-pull-request'
+import { counts, runActivityRun } from './run-activity-run'
 
 export type TRunTerminalParams = Readonly<{
   run: TRun
@@ -82,7 +81,9 @@ const recordCancelled = (
   run.console.note(`${activity.params.name}: cancelled — ${reason}`)
 }
 
-export const runTerminal = async (params: TRunTerminalParams): Promise<void> => {
+export const runTerminal = async (
+  params: TRunTerminalParams,
+): Promise<void> => {
   const { run, activity, ctx, accepted } = params
   if (!accepted) {
     recordCancelled(
@@ -93,12 +94,10 @@ export const runTerminal = async (params: TRunTerminalParams): Promise<void> => 
     return
   }
   if (anyCountedFailed(run)) {
-    recordCancelled(
-      run,
-      activity,
-      'a counted activity run in this run failed',
-    )
+    recordCancelled(run, activity, 'a counted activity run in this run failed')
     return
   }
-  await runActivityRun(run)(activity.params, (handle) => activity.deliver(ctx, handle))
+  await runActivityRun(run)(activity.params, (handle) =>
+    activity.deliver(ctx, handle),
+  )
 }

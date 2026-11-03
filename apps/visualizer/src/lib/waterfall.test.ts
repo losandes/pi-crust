@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import type { ActivityRun } from './types'
 import {
-  MIN_BLOCK_PCT,
   blockLayout,
   contextLabel,
   laneContext,
+  MIN_BLOCK_PCT,
   originMs,
   timeRange,
   toolTickPositions,
@@ -95,7 +95,9 @@ test(
     const code = layout['code-review']
     if (!(review && code)) throw new Error('every activityRun must be laid out')
     expect(code.left).toBeLessThan(review.left + review.width)
-    expect(code.left + code.width).toBeLessThanOrEqual(review.left + review.width + 0.001)
+    expect(code.left + code.width).toBeLessThanOrEqual(
+      review.left + review.width + 0.001,
+    )
   },
 )
 
@@ -131,7 +133,7 @@ test(
 test(
   [
     'given lib/waterfall::originMs',
-    'when a later run pushes the request activityRun\'s end forward',
+    "when a later run pushes the request activityRun's end forward",
     'it should start the timeline at the first real activityRun, not at that end',
   ].join(', '),
   () => {
@@ -141,7 +143,13 @@ test(
       owner: null,
     })
     const activityRuns = [request, activityRun('plan', at(10), at(70))]
-    const range = timeRange(activityRuns, at(0), null, true, Date.parse(at(700)))
+    const range = timeRange(
+      activityRuns,
+      at(0),
+      null,
+      true,
+      Date.parse(at(700)),
+    )
 
     // when
     const actual = originMs(activityRuns, request, range)
@@ -236,7 +244,8 @@ test(
     // then — adjacent, never covering
     const first = layout.build_1
     const second = layout.build_2
-    if (!(first && second)) throw new Error('every activityRun must be laid out')
+    if (!(first && second))
+      throw new Error('every activityRun must be laid out')
     expect(first.left + first.width).toBeLessThanOrEqual(second.left + 0.001)
   },
 )

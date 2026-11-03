@@ -73,6 +73,7 @@ export const navigate = (
   activityRunId?: string,
   workspace?: string,
 ): void => {
+  // biome-ignore lint/plugin/no-object-mutation: assigning location.hash IS the navigation API; this function is the adapter that owns the assignment
   window.location.hash = hrefFor(runId, activityRunId, workspace)
 }
 

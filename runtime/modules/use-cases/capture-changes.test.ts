@@ -6,9 +6,9 @@ import { join } from 'node:path'
 import { changeCapture } from '../typedefs/changes'
 import type { TRun } from '../typedefs/run'
 import {
-  DIFF_FILENAME,
   captureChanges,
   changesAsEnvelope,
+  DIFF_FILENAME,
   resolveBase,
 } from './capture-changes'
 

@@ -50,7 +50,10 @@ export const attemptLedger = (
 ): TAttemptLedger => {
   const ledger = new Map<string, readonly string[]>()
   for (const instance of seed) {
-    ledger.set(instance, [...(ledger.get(instance) ?? []), 'an earlier run of this session'])
+    ledger.set(instance, [
+      ...(ledger.get(instance) ?? []),
+      'an earlier run of this session',
+    ])
   }
   const causes = (instance: string): readonly string[] =>
     ledger.get(instance) ?? []

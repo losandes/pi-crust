@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { activityConfigSchema } from '../typedefs/activity'
 import type { TActivityConfig } from '../typedefs/activity'
+import { activityConfigSchema } from '../typedefs/activity'
 import { activityCatalogue } from './activity-catalogue'
 
 const prompts = { system: 'p/system.md', user: 'p/user.md' }
@@ -70,7 +70,11 @@ test(
 
     // then
     expect(actual).toBe(
-      ['- `plan` — Decide the chain', '- `build`', '- `review` — Check the build'].join('\n'),
+      [
+        '- `plan` — Decide the chain',
+        '- `build`',
+        '- `review` — Check the build',
+      ].join('\n'),
     )
   },
 )

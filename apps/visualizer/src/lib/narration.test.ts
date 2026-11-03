@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import {
-  JUMP_THRESHOLD,
   isAtBottom,
+  JUMP_THRESHOLD,
   shouldOfferJump,
   turnsOf,
 } from './narration'
@@ -65,7 +65,11 @@ test(
   () => {
     // given — every session traced before this feature existed
     const events = [
-      event({ type: 'tool_call', name: 'bash: bun test', payload_json: '{"tool":"bash"}' }),
+      event({
+        type: 'tool_call',
+        name: 'bash: bun test',
+        payload_json: '{"tool":"bash"}',
+      }),
     ]
 
     // when

@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
   primaryWorktree,
@@ -66,7 +65,7 @@ test(
   [
     'given data/data-paths::resolveConfiguredPath',
     'when the value starts with ~',
-    'it should expand to the user\'s home directory',
+    "it should expand to the user's home directory",
   ].join(', '),
   () => {
     // given
@@ -149,10 +148,15 @@ test(
     git(primary, 'worktree', 'add', '-q', '--force', linked, '-b', 'feature2')
 
     // when
-    const actual = resolveConfiguredPath('{primary_worktree}/.pi-crust/data', linked)
+    const actual = resolveConfiguredPath(
+      '{primary_worktree}/.pi-crust/data',
+      linked,
+    )
 
     // then
-    expect(actual).toEqual(join(realpathSync(resolve(primary)), '.pi-crust', 'data'))
+    expect(actual).toEqual(
+      join(realpathSync(resolve(primary)), '.pi-crust', 'data'),
+    )
   },
 )
 

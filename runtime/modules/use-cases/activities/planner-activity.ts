@@ -16,10 +16,13 @@
  * gate hands the Planner its own mistake inside the same session.
  */
 
-import { DEFAULT_ATTEMPTS } from '../../typedefs/activity'
 import type { TPlannerConfig } from '../../typedefs/activity'
+import { DEFAULT_ATTEMPTS } from '../../typedefs/activity'
 import { operatorPlanOutput } from '../../typedefs/envelope'
-import type { TActivity, TActivityOptions } from '../../typedefs/runnable-activity'
+import type {
+  TActivity,
+  TActivityOptions,
+} from '../../typedefs/runnable-activity'
 import { stepsValid } from '../gates'
 import { agentActivity } from './agent-activity'
 

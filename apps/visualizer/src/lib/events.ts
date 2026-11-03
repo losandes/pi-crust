@@ -1,5 +1,6 @@
-import type { AgentStartPayload, EventRow, ToolCallPayload } from './types'
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import { agentRole, paletteColor } from './palette'
+import type { AgentStartPayload, EventRow, ToolCallPayload } from './types'
 
 // ── Event dot colors ─────────────────────────────────────────────────────────
 // One color per event type, shared by the session-card timelines and the activityRun
@@ -48,17 +49,18 @@ export function hexAlpha(color: string, alpha: number): string {
 
 // ── Payload parsing ──────────────────────────────────────────────────────────
 
-export function parsePayload(raw: string | null | undefined): Record<string, unknown> | null {
+export function parsePayload(
+  raw: string | null | undefined,
+): Record<string, unknown> | null {
   if (!raw) return null
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {
-    /* legacy or truncated payloads render raw */
-  }
-  return null
+  // A legacy or truncated payload renders raw rather than failing the view.
+  const parsed = settledOr<unknown>(
+    safeParseSettlement(() => JSON.parse(raw) as unknown),
+    undefined,
+  )
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null
 }
 
 export function parseToolCall(e: EventRow): ToolCallPayload | null {
@@ -99,11 +101,11 @@ export function argsSummary(args: Record<string, unknown> | undefined): string {
     const v = args[key]
     if (typeof v === 'string' && v.trim() !== '') return oneLine(v)
   }
-  const parts: string[] = []
-  for (const [key, v] of Object.entries(args)) {
-    if (v == null) continue
-    parts.push(`${key}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
-  }
+  const parts = Object.entries(args)
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(
+      ([key, v]) => `${key}=${typeof v === 'string' ? v : JSON.stringify(v)}`,
+    )
   return oneLine(parts.join(' '))
 }
 

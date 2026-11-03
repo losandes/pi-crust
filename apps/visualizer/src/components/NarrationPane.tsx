@@ -1,23 +1,23 @@
 import { ArrowDown } from 'lucide-react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import type { TConsult, TPendingConsult } from '../lib/consult'
+import { hasCode, splitFencesAndJson } from '../lib/fences'
 import { fmtClock } from '../lib/format'
-import {
-  isAtBottom,
-  shouldOfferJump,
-  turnsOf,
-  type TTurn,
-} from '../lib/narration'
+import { highlightJsonText } from '../lib/highlight'
 import {
   conversationOf,
   developerMessagesOf,
   type TDeveloperMessage,
 } from '../lib/messages'
-import type { TConsult, TPendingConsult } from '../lib/consult'
+import {
+  isAtBottom,
+  shouldOfferJump,
+  type TTurn,
+  turnsOf,
+} from '../lib/narration'
 import type { Envelope, EventRow } from '../lib/types'
 import { DecisionRequest } from './DecisionRequest'
 import styles from './NarrationPane.module.css'
-import { hasCode, splitFencesAndJson } from '../lib/fences'
-import { highlightJsonText } from '../lib/highlight'
 
 /** The one sentence a activity ends on, out of its envelope. */
 const summaryOf = (envelope: Envelope | undefined): string => {
@@ -112,7 +112,11 @@ export const NarrationPane = ({
   const onScroll = useCallback(() => {
     const node = scroller.current
     if (node === null) return
-    const bottom = isAtBottom(node.scrollTop, node.scrollHeight, node.clientHeight)
+    const bottom = isAtBottom(
+      node.scrollTop,
+      node.scrollHeight,
+      node.clientHeight,
+    )
     setFollowing(bottom)
     if (bottom) setMissed(0)
   }, [])
@@ -124,7 +128,6 @@ export const NarrationPane = ({
     setFollowing(true)
     setMissed(0)
   }
-
 
   const summary = summaryOf(envelope)
 
@@ -145,7 +148,10 @@ export const NarrationPane = ({
             item.kind === 'turn' ? (
               <TurnNarration key={`turn-${item.turn.turn}`} turn={item.turn} />
             ) : (
-              <DeveloperMessageCard key={item.message.id} message={item.message} />
+              <DeveloperMessageCard
+                key={item.message.id}
+                message={item.message}
+              />
             ),
           )}
           {/*
@@ -213,8 +219,8 @@ export const NarrationPane = ({
               )}
               {consult.amended.length > 0 && (
                 <p className={styles.amended}>
-                  amended {consult.amended.join(', ')} — the activities after this
-                  one ran against the previous version
+                  amended {consult.amended.join(', ')} — the activities after
+                  this one ran against the previous version
                 </p>
               )}
               {consult.restored.length > 0 && (
@@ -256,7 +262,6 @@ export const NarrationPane = ({
           <ArrowDown size={16} /> {missed} new
         </button>
       )}
-
     </div>
   )
 }
@@ -291,12 +296,18 @@ const NarrationBlock = ({
           <pre
             // biome-ignore lint/suspicious/noArrayIndexKey: segments have no id and are re-derived whole on every change
             key={index}
-            className={segment.open ? `${styles.code} ${styles.codeOpen}` : styles.code}
+            className={
+              segment.open ? `${styles.code} ${styles.codeOpen}` : styles.code
+            }
             data-language={segment.language || undefined}
           >
             {segment.language === 'json' ? (
-              // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJsonText escapes its input
-              <code dangerouslySetInnerHTML={{ __html: highlightJsonText(segment.text) }} />
+              <code
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJsonText escapes its input
+                dangerouslySetInnerHTML={{
+                  __html: highlightJsonText(segment.text),
+                }}
+              />
             ) : (
               <code>{segment.text}</code>
             )}
@@ -319,10 +330,17 @@ const TurnNarration = ({ turn }: Readonly<{ turn: TTurn }>) => (
   <article className={styles.turn}>
     <span className={styles.turnMark}>
       {turn.turn === 0 ? 'untraced' : `turn ${turn.turn}`}
-      <span className="faint"> {fmtClock(new Date(turn.at).toISOString())}</span>
+      <span className="faint">
+        {' '}
+        {fmtClock(new Date(turn.at).toISOString())}
+      </span>
     </span>
     {turn.blocks.map((block) => (
-      <NarrationBlock key={block.id} channel={block.channel} text={block.text} />
+      <NarrationBlock
+        key={block.id}
+        channel={block.channel}
+        text={block.text}
+      />
     ))}
     {turn.blocks.length === 0 && (
       <p className={`${styles.thinking} faint`}>no narration for this turn</p>
@@ -343,12 +361,15 @@ const DeveloperMessageCard = ({
 }: Readonly<{ message: TDeveloperMessage }>) => (
   <article className={styles.asked}>
     <span className={styles.askedMark}>
-      {message.from} · {message.kind === 'standing' ? 'standing instruction' : message.kind}
-      <span className="faint"> {fmtClock(new Date(message.at).toISOString())}</span>
+      {message.from} ·{' '}
+      {message.kind === 'standing' ? 'standing instruction' : message.kind}
+      <span className="faint">
+        {' '}
+        {fmtClock(new Date(message.at).toISOString())}
+      </span>
     </span>
     <p className={styles.askedText}>
       {message.kind === 'abort' ? 'aborted this activity run' : message.text}
     </p>
   </article>
 )
-

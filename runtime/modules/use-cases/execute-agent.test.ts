@@ -15,22 +15,20 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { agentConfigSchema, crustConfigSchema } from '../typedefs/config'
-import type { TPiCrustConfig } from '../typedefs/config'
-import { genericOutput } from '../typedefs/envelope'
-import type { TAgentCall } from '../typedefs/gate'
+import { postToInbox } from '../data/inbox'
+import type { TPiControl, TPiHooks } from '../data/pi-agent'
+import { appendSteering } from '../data/steering'
 import type { TActivityRun } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
+import type { TPiCrustConfig } from '../typedefs/config'
+import { agentConfigSchema, crustConfigSchema } from '../typedefs/config'
+import { genericOutput } from '../typedefs/envelope'
+import type { TAgentCall } from '../typedefs/gate'
 import type { TPiResult } from '../typedefs/pi'
 import { emptyUsage } from '../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../typedefs/run'
 import type { TEventInput } from '../typedefs/trace'
-import { policyPaths } from './path-policy-run'
-import { PATHS_TOUCHED } from './observed-paths'
 import { WARNING_EVENT } from '../typedefs/warning'
-import { postToInbox } from '../data/inbox'
-import { appendSteering } from '../data/steering'
-import type { TPiControl, TPiHooks } from '../data/pi-agent'
 import type { TAgentPorts } from './execute-agent'
 import {
   callAgent,
@@ -38,6 +36,8 @@ import {
   feedbackBlock,
   JSON_FIX_ATTEMPTS,
 } from './execute-agent'
+import { PATHS_TOUCHED } from './observed-paths'
+import { policyPaths } from './path-policy-run'
 
 /** A throwaway git repository, so `enforcePermissions`' own real diff resolves. */
 const aRepo = (): string => {
@@ -54,7 +54,9 @@ const aRepo = (): string => {
   return dir
 }
 
-const aPiResult = (overrides: Readonly<Partial<TPiResult>> = {}): TPiResult => ({
+const aPiResult = (
+  overrides: Readonly<Partial<TPiResult>> = {},
+): TPiResult => ({
   text: '',
   returncode: 0,
   sessionId: 'session-1',
@@ -79,10 +81,10 @@ const fakePorts = (
 ): Readonly<{ ports: TAgentPorts; calls: Record<string, unknown>[] }> => {
   const calls: Record<string, unknown>[] = []
   const ports: TAgentPorts = {
-    run: async () => {
+    run: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push({ op: 'run' })
-      return aPiResult({ text: VALID_ENVELOPE_TEXT })
+      return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
     },
     changed: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
@@ -228,9 +230,7 @@ const anActivityRun = (
   ...overrides,
 })
 
-const aCall = (
-  overrides: Readonly<Partial<TAgentCall>> = {},
-): TAgentCall => ({
+const aCall = (overrides: Readonly<Partial<TAgentCall>> = {}): TAgentCall => ({
   outputType: genericOutput,
   prompt: 'build the thing',
   committing: true,
@@ -251,13 +251,15 @@ test(
     let attempt = 0
     const retried: string[] = []
     const { ports } = fakePorts({
-      run: async (request) => {
+      run: (request) => {
         attempt += 1
         // biome-ignore lint/plugin/no-array-mutation: recording what was sent is the test
         retried.push(request.prompt)
-        return aPiResult({
-          text: attempt === 1 ? 'not json at all' : VALID_ENVELOPE_TEXT,
-        })
+        return Promise.resolve(
+          aPiResult({
+            text: attempt === 1 ? 'not json at all' : VALID_ENVELOPE_TEXT,
+          }),
+        )
       },
     })
 
@@ -284,16 +286,16 @@ test(
     const activityRun = anActivityRun()
     let attempt = 0
     const { ports } = fakePorts({
-      run: async () => {
+      run: () => {
         attempt += 1
-        return aPiResult({ text: 'still not json' })
+        return Promise.resolve(aPiResult({ text: 'still not json' }))
       },
     })
 
     // when / then
-    await expect(executeAgent(run, activityRun, aCall(), ports)).rejects.toThrow(
-      /never produced valid GenericOutput JSON/,
-    )
+    await expect(
+      executeAgent(run, activityRun, aCall(), ports),
+    ).rejects.toThrow(/never produced valid GenericOutput JSON/)
     expect(attempt).toBe(JSON_FIX_ATTEMPTS + 1)
   },
 )
@@ -351,7 +353,9 @@ test(
     const { ports } = fakePorts()
 
     // when / then
-    await expect(executeAgent(run, activityRun, aCall(), ports)).rejects.toThrow(
+    await expect(
+      executeAgent(run, activityRun, aCall(), ports),
+    ).rejects.toThrow(
       /builder reached a path this repository governs with 'stop'/,
     )
   },
@@ -445,7 +449,7 @@ test(
 test(
   [
     'given use-cases/execute-agent::executeAgent',
-    "when pi forwards narration and a completed tool call through onEvent",
+    'when pi forwards narration and a completed tool call through onEvent',
     'it should trace both as events, labelled with the agent and the turn',
   ].join(', '),
   async () => {
@@ -454,7 +458,7 @@ test(
     const { run, events } = aRun(repoRoot)
     const activityRun = anActivityRun()
     const { ports } = fakePorts({
-      run: async (_request, hooks) => {
+      run: (_request, hooks) => {
         hooks?.onEvent?.({
           type: 'text_end',
           content: [{ type: 'text', text: 'thinking out loud' }],
@@ -464,7 +468,12 @@ test(
           message: {
             role: 'assistant',
             content: [
-              { type: 'toolCall', id: 'call_1', name: 'bash', arguments: { command: 'ls' } },
+              {
+                type: 'toolCall',
+                id: 'call_1',
+                name: 'bash',
+                arguments: { command: 'ls' },
+              },
             ],
           },
         })
@@ -475,7 +484,7 @@ test(
           args: { command: 'ls' },
           result: { content: [{ type: 'text', text: 'README.md' }] },
         })
-        return aPiResult({ text: VALID_ENVELOPE_TEXT })
+        return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
       },
     })
 
@@ -494,7 +503,7 @@ test(
     "when the handle's activity run kind is not 'agent'",
     'it should throw before executeAgent ever runs',
   ].join(', '),
-  async () => {
+  () => {
     // given
     const repoRoot = aRepo()
     const { run } = aRun(repoRoot)
@@ -562,13 +571,16 @@ test(
     expect(envelope.status).toBe('success')
     const touched = events.find((event) => event.name === PATHS_TOUCHED)
     expect(touched).toBeDefined()
-    expect(
-      (touched?.payload as Readonly<{ paths: readonly string[] }>).paths,
-    ).toContain('README.md')
+    const touchedPayload = (touched?.payload ?? {}) as Readonly<{
+      paths?: readonly string[]
+    }>
+    expect(touchedPayload.paths).toContain('README.md')
     const warnings = events.filter((event) => event.name === WARNING_EVENT)
-    expect(warnings.some((event) => (event.payload as { kind: string }).kind === 'overstep')).toBe(
-      true,
-    )
+    expect(
+      warnings.some(
+        (event) => (event.payload as { kind: string }).kind === 'overstep',
+      ),
+    ).toBe(true)
   },
 )
 
@@ -600,7 +612,12 @@ test(
         upstream: [
           {
             activity: 'scout',
-            envelope: { status: 'success', summary: 'found it', artifacts: [], notes_for_next_agent: '' },
+            envelope: {
+              status: 'success',
+              summary: 'found it',
+              artifacts: [],
+              notes_for_next_agent: '',
+            },
           },
         ],
       }),
@@ -632,9 +649,10 @@ test(
     // then
     const applied = events.find((event) => event.name === 'steering_applied')
     expect(applied).toBeDefined()
-    expect(
-      (applied?.payload as Readonly<{ text: string }>).text,
-    ).toBe('Use tabs, not spaces.')
+    const appliedPayload = (applied?.payload ?? {}) as Readonly<{
+      text?: string
+    }>
+    expect(appliedPayload.text).toBe('Use tabs, not spaces.')
   },
 )
 
@@ -680,50 +698,50 @@ test(
   },
 )
 
-test(
-  [
-    'given use-cases/execute-agent::executeAgent',
-    'when a message lands in this run\'s inbox while the agent is working',
-    'it should forward it to the control surface and trace the inbox event',
-  ].join(', '),
-  async () => {
-    // given
-    const repoRoot = aRepo()
-    const { run, events } = aRun(repoRoot)
-    const activityRun = anActivityRun()
-    const steered: string[] = []
-    const control: TPiControl = {
-      steer: (message) => {
-        // biome-ignore lint/plugin/no-array-mutation: recording what was steered is the test
-        steered.push(message)
-      },
-      followUp: () => undefined,
-      abort: () => undefined,
-    }
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-    const { ports } = fakePorts({
-      run: async (_request: Parameters<TAgentPorts['run']>[0], hooks?: TPiHooks) => {
-        hooks?.onControl?.(control)
-        hooks?.onSpawn?.(4242)
-        // posted AFTER control starts \u2014 deliverFromInbox's cursor begins at
-        // whatever was already in the file, same as a run resuming mid-stream
-        postToInbox(run.sessionDir, 'steer', 'be more careful', 'tester')
-        // long enough for the 1s poll inside deliverFromInbox to fire at least once
-        await sleep(1100)
-        hooks?.onExit?.(4242)
-        return aPiResult({ text: VALID_ENVELOPE_TEXT })
-      },
-    })
+test([
+  'given use-cases/execute-agent::executeAgent',
+  "when a message lands in this run's inbox while the agent is working",
+  'it should forward it to the control surface and trace the inbox event',
+].join(', '), async () => {
+  // given
+  const repoRoot = aRepo()
+  const { run, events } = aRun(repoRoot)
+  const activityRun = anActivityRun()
+  const steered: string[] = []
+  const control: TPiControl = {
+    steer: (message) => {
+      // biome-ignore lint/plugin/no-array-mutation: recording what was steered is the test
+      steered.push(message)
+    },
+    followUp: () => undefined,
+    abort: () => undefined,
+  }
+  const sleep = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms))
+  const { ports } = fakePorts({
+    run: async (
+      _request: Parameters<TAgentPorts['run']>[0],
+      hooks?: TPiHooks,
+    ) => {
+      hooks?.onControl?.(control)
+      hooks?.onSpawn?.(4242)
+      // posted AFTER control starts \u2014 deliverFromInbox's cursor begins at
+      // whatever was already in the file, same as a run resuming mid-stream
+      postToInbox(run.sessionDir, 'steer', 'be more careful', 'tester')
+      // long enough for the 1s poll inside deliverFromInbox to fire at least once
+      await sleep(1100)
+      hooks?.onExit?.(4242)
+      return aPiResult({ text: VALID_ENVELOPE_TEXT })
+    },
+  })
 
-    // when
-    await executeAgent(run, activityRun, aCall(), ports)
+  // when
+  await executeAgent(run, activityRun, aCall(), ports)
 
-    // then
-    expect(steered).toEqual(['be more careful'])
-    expect(events.some((event) => event.name === 'inbox_steer')).toBe(true)
-  },
-  5_000,
-)
+  // then
+  expect(steered).toEqual(['be more careful'])
+  expect(events.some((event) => event.name === 'inbox_steer')).toBe(true)
+}, 5_000)
 
 test(
   [
@@ -749,8 +767,8 @@ test(
     })
 
     // when / then
-    await expect(executeAgent(run, activityRun, aCall(), ports)).rejects.toThrow(
-      /builder reported status='fail': could not finish/,
-    )
+    await expect(
+      executeAgent(run, activityRun, aCall(), ports),
+    ).rejects.toThrow(/builder reported status='fail': could not finish/)
   },
 )

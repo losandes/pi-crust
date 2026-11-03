@@ -1,3 +1,5 @@
+import { isOk, safeParseSettlement } from '@typedefs/settlement'
+
 export function ts(iso: string | null | undefined): number {
   if (!iso) return Number.NaN
   return new Date(iso).getTime()
@@ -54,39 +56,44 @@ export function fmtOffset(ms: number): string {
   return mrem ? `${h}h${String(mrem).padStart(2, '0')}m` : `${h}h`
 }
 
-const TICK_STEPS_MS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600].map(
-  (s) => s * 1000,
-)
+const TICK_STEPS_MS = [
+  1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600,
+].map((s) => s * 1000)
 
 /** Evenly-stepped time-axis ticks over a span, ≤ maxTicks of them. */
-export function axisTicks(spanMs: number, maxTicks = 8): { pct: number; label: string }[] {
+export function axisTicks(
+  spanMs: number,
+  maxTicks = 8,
+): { pct: number; label: string }[] {
   const span = Math.max(spanMs, 1)
   const activity = TICK_STEPS_MS.find((s) => span / s <= maxTicks) ?? 3_600_000
-  const out: { pct: number; label: string }[] = []
-  for (let t = 0; t <= span; t += activity) {
-    out.push({ pct: (t / span) * 100, label: fmtOffset(t) })
-  }
-  return out
+  // One tick at every step up to and including the span, which is the last
+  // index the old `t <= span` loop reached.
+  return Array.from({ length: Math.floor(span / activity) + 1 }, (_, index) => {
+    const t = index * activity
+    return { pct: (t / span) * 100, label: fmtOffset(t) }
+  })
 }
 
 // New-tracer tool_call payloads carry ok:false on tool errors; older payloads
 // have no ok key and count as ok.
 export function payloadOk(raw: string | null | undefined): boolean {
   if (!raw) return true
-  try {
-    const p: unknown = JSON.parse(raw)
-    if (p && typeof p === 'object' && 'ok' in p) return (p as { ok?: unknown }).ok !== false
-  } catch {
-    /* not JSON — treat as ok */
+  const settled = safeParseSettlement(() => JSON.parse(raw) as unknown)
+  // Not JSON — treat as ok, which is what the catch used to decide.
+  if (!isOk(settled)) return true
+  const p = settled.data
+  if (p && typeof p === 'object' && 'ok' in p) {
+    return (p as { ok?: unknown }).ok !== false
   }
   return true
 }
 
 export function prettyJson(raw: string | null | undefined): string {
   if (!raw) return ''
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
-  } catch {
-    return raw
-  }
+  const settled = safeParseSettlement(() =>
+    JSON.stringify(JSON.parse(raw), null, 2),
+  )
+  // Unparseable text is shown as it was written, never as an error.
+  return isOk(settled) ? settled.data : raw
 }

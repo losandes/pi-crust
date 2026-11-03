@@ -62,7 +62,8 @@ export const DocumentViewer = ({
       .catch((cause: unknown) => {
         // A document that cannot be read is worth saying out loud: it was
         // listed, so something expected it to be there.
-        if (live) setProblem(cause instanceof Error ? cause.message : String(cause))
+        if (live)
+          setProblem(cause instanceof Error ? cause.message : String(cause))
       })
     return () => {
       live = false
@@ -79,7 +80,9 @@ export const DocumentViewer = ({
         event.preventDefault()
         onClose()
       }}
-      aria-label={artifact?.title === '' ? artifact.name : (artifact?.title ?? '')}
+      aria-label={
+        artifact?.title === '' ? artifact.name : (artifact?.title ?? '')
+      }
     >
       {/*
         The click-away target: a real button filling the dialog behind the
@@ -118,7 +121,9 @@ export const DocumentViewer = ({
         <p className={styles.path}>{artifact?.path}</p>
         <div className={styles.body}>
           {problem !== '' && <div className="error-bar">{problem}</div>}
-          {problem === '' && text === '' && <div className="faint">loading…</div>}
+          {problem === '' && text === '' && (
+            <div className="faint">loading…</div>
+          )}
           {text !== '' &&
             (artifact !== undefined && isMarkdown(artifact.path) ? (
               // Safe: renderMarkdown HTML-escapes all input before producing

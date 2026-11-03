@@ -92,7 +92,10 @@ test(
   ].join(' '),
   () => {
     // given
-    const ctx = contextOf('operator', envelope(['plan', 'retired-activity', 'build']))
+    const ctx = contextOf(
+      'operator',
+      envelope(['plan', 'retired-activity', 'build']),
+    )
 
     // when
     const chain = plannedChain(ctx)

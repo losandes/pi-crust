@@ -119,9 +119,7 @@ const aliasFaults = (
         ]
       }
 
-      const aliasedEarlier = earlier.find((one) =>
-        one.aliases.includes(alias),
-      )
+      const aliasedEarlier = earlier.find((one) => one.aliases.includes(alias))
       if (aliasedEarlier !== undefined) {
         return [
           `activity '${activity.name}': alias '${alias}' is already an alias ` +

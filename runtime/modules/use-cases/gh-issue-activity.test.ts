@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { activitiesFileSchema, DEFAULT_ATTEMPTS } from '../typedefs/activity'
-import { crustConfigSchema } from '../typedefs/config'
 import type { TPiCrustConfig } from '../typedefs/config'
+import { crustConfigSchema } from '../typedefs/config'
 import { lifecyclesFileSchema } from '../typedefs/lifecycle'
 import { offeredActivities, runnableActivities } from './activities/index'
 import { resolveActivities, resolvedNamed } from './activity-registry'
@@ -22,7 +22,15 @@ import { loadLifecycles } from './load-lifecycles'
  * file proves the SHAPE of the `gh-issue` entry and its Lifecycle match what
  * the issue asked for, which a registry-fault check does not look at.
  */
-const STAMP = join(import.meta.dir, '..', '..', '..', 'templates', 'stamp', 'config')
+const STAMP = join(
+  import.meta.dir,
+  '..',
+  '..',
+  '..',
+  'templates',
+  'stamp',
+  'config',
+)
 
 const shippedConfig = (): TPiCrustConfig => {
   const registry = activitiesFileSchema.parse(
@@ -98,7 +106,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = shippedConfig().activities.find((one) => one.name === 'gh-issue')
+    const given = shippedConfig().activities.find(
+      (one) => one.name === 'gh-issue',
+    )
 
     // when
     const actual = given?.gates
@@ -116,7 +126,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = shippedConfig().activities.find((one) => one.name === 'gh-issue')
+    const given = shippedConfig().activities.find(
+      (one) => one.name === 'gh-issue',
+    )
 
     // then
     expect(given?.output).toBe('ghIssueOutput')
@@ -131,7 +143,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = shippedConfig().activities.find((one) => one.name === 'gh-issue')
+    const given = shippedConfig().activities.find(
+      (one) => one.name === 'gh-issue',
+    )
 
     // then
     expect(given?.writes).toEqual(['{handoff}/gh_issue.md'])
@@ -146,7 +160,9 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = shippedConfig().activities.find((one) => one.name === 'gh-issue')
+    const given = shippedConfig().activities.find(
+      (one) => one.name === 'gh-issue',
+    )
 
     // then
     expect(given?.commit).toBe(false)
@@ -178,7 +194,11 @@ test(
     // then
     expect(actual?.stages).toHaveLength(1)
     expect(actual?.stages[0]?.strategy).toBe('serial')
-    expect(actual?.stages[0]?.activities).toEqual(['identify', 'plan', 'gh-issue'])
+    expect(actual?.stages[0]?.activities).toEqual([
+      'identify',
+      'plan',
+      'gh-issue',
+    ])
   },
 )
 
@@ -202,9 +222,6 @@ test(
       ['outcome-review', 'code-review'],
       ['gh-pull-request'],
     ])
-    expect(stagesOf('de-risk')).toEqual([
-      ['identify'],
-      ['plan', 'build'],
-    ])
+    expect(stagesOf('de-risk')).toEqual([['identify'], ['plan', 'build']])
   },
 )

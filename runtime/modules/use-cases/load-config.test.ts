@@ -2,8 +2,13 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { configProvenance, loadConfig, parseConfig, resolveAgent } from './load-config'
 import { runnableActivities } from './activities'
+import {
+  configProvenance,
+  loadConfig,
+  parseConfig,
+  resolveAgent,
+} from './load-config'
 
 const ROSTER = `
 defaults:
@@ -173,7 +178,7 @@ test(
       'crust.observe.yaml':
         'db: .pi-crust/data/other.db\npoll_ms: 100\n' +
         'ports:\n  backend: 5600\n  frontend: 5601\n' +
-        "themes:\n  - name: dark\n    builtin: true\n",
+        'themes:\n  - name: dark\n    builtin: true\n',
     })
     // Isolated from whatever machine layer this developer's own $HOME may
     // carry (issue #24): a path naming no file reads as 'no machine config'
@@ -181,7 +186,10 @@ test(
     // machine the suite happens to run on.
     const previous = process.env.CRUST_MACHINE_CONFIG
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = join(dirname(path), 'no-machine-config.yaml')
+    process.env.CRUST_MACHINE_CONFIG = join(
+      dirname(path),
+      'no-machine-config.yaml',
+    )
 
     // when / then
     try {
@@ -242,7 +250,10 @@ test(
     // identically-reasoned fixture two tests above.
     const previous = process.env.CRUST_MACHINE_CONFIG
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = join(dirname(path), 'no-machine-config.yaml')
+    process.env.CRUST_MACHINE_CONFIG = join(
+      dirname(path),
+      'no-machine-config.yaml',
+    )
 
     // when / then
     try {
@@ -331,9 +342,14 @@ activities:
     // then — registered, on the roster, and resolved into something runnable
     expect(cfg.activities.map((one) => one.name)).toEqual(['plan', 'spike'])
     expect(cfg.agents.map((one) => one.name)).toContain('spike')
-    expect(actual.map((activity) => activity.params.owner)).toEqual(['plan', 'spike'])
+    expect(actual.map((activity) => activity.params.owner)).toEqual([
+      'plan',
+      'spike',
+    ])
     expect(actual[1]?.attempts).toEqual(1)
-    expect(actual[1]?.gates.map((gate) => gate.name)).toEqual(['artifacts_exist'])
+    expect(actual[1]?.gates.map((gate) => gate.name)).toEqual([
+      'artifacts_exist',
+    ])
   },
 )
 
@@ -360,9 +376,9 @@ test(
       'operator',
       'triage',
     ])
-    expect(
-      actual.planners.find((one) => one.name === 'triage')?.model,
-    ).toEqual('anthropic/claude-haiku-4-5')
+    expect(actual.planners.find((one) => one.name === 'triage')?.model).toEqual(
+      'anthropic/claude-haiku-4-5',
+    )
   },
 )
 
@@ -479,7 +495,9 @@ test(
     const actual = () => loadConfig(path)
 
     // then
-    expect(actual).toThrow(/'strategist' is under planners: and is not a Planner/)
+    expect(actual).toThrow(
+      /'strategist' is under planners: and is not a Planner/,
+    )
   },
 )
 
@@ -562,7 +580,9 @@ test(
     expect(modelOf('plan')).toEqual('anthropic/claude-sonnet-5')
     expect(modelOf('build')).toEqual('openai/gpt-5.6-terra')
     expect(actual.planners[0]?.model).toEqual('anthropic/claude-sonnet-5')
-    expect(actual.activities.find((one) => one.name === 'plan')?.thinking).toEqual('high')
+    expect(
+      actual.activities.find((one) => one.name === 'plan')?.thinking,
+    ).toEqual('high')
   },
 )
 
@@ -697,7 +717,10 @@ test(
     // given
     const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-repo-'))
     const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(configPath, 'defaults:\n  data_dir: repo-stated-dir\nagents: []')
+    writeFileSync(
+      configPath,
+      'defaults:\n  data_dir: repo-stated-dir\nagents: []',
+    )
     // Isolated from this developer's own $HOME machine layer — see the
     // identically-reasoned loadConfig fixtures above.
     const previous = process.env.CRUST_MACHINE_CONFIG
@@ -731,11 +754,16 @@ test(
     // given
     const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-override-'))
     const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(configPath, 'defaults:\n  data_dir: repo-stated-dir\nagents: []')
+    writeFileSync(
+      configPath,
+      'defaults:\n  data_dir: repo-stated-dir\nagents: []',
+    )
     const machinePath = join(dir, 'machine-crust.config.yaml')
     writeFileSync(
       machinePath,
-      ['override:', '  defaults:', '    data_dir: machine-override-dir'].join('\n'),
+      ['override:', '  defaults:', '    data_dir: machine-override-dir'].join(
+        '\n',
+      ),
     )
     const previous = process.env.CRUST_MACHINE_CONFIG
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment

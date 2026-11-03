@@ -16,10 +16,13 @@
  */
 
 import { resolve } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { commitPaths } from '../data/git'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
 import { touchedBy } from './observed-paths'
 

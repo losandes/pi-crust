@@ -1,17 +1,23 @@
 import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createTracer } from './trace-db'
-import { appendSteering, readSteering } from './steering'
-import { writeHandoffPointer } from './handoff-pointer'
 import type { TActivityRun, TActivityRunStatus } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TTracer } from '../typedefs/trace'
 import { readRunState } from '../use-cases/read-run-state'
 import { activityRunsToCarry } from '../use-cases/steer'
 import { seedBranch } from './branch-seed'
+import { writeHandoffPointer } from './handoff-pointer'
+import { appendSteering, readSteering } from './steering'
+import { createTracer } from './trace-db'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-branch-seed-'))
 
@@ -40,12 +46,21 @@ const activityRunRecord = (
 const buildSourceRun = (
   dataDir: string,
   runId: string,
-): Readonly<{ dbPath: string; carry: readonly string[]; sessionDir: string }> => {
+): Readonly<{
+  dbPath: string
+  carry: readonly string[]
+  sessionDir: string
+}> => {
   const dbPath = join(dataDir, 'crust.db')
-  const tracer: TTracer = createTracer(dbPath, join(dataDir, 'sessions', runId, 'events.jsonl'))
+  const tracer: TTracer = createTracer(
+    dbPath,
+    join(dataDir, 'sessions', runId, 'events.jsonl'),
+  )
   tracer.sessionStart(runId, 'tester', 'sdlc')
   tracer.sessionWorkspace(runId, '/repo', 'main')
-  const activities: ReadonlyArray<readonly [number, string, TActivityRunStatus]> = [
+  const activities: ReadonlyArray<
+    readonly [number, string, TActivityRunStatus]
+  > = [
     [1, 'scout', 'success'],
     [2, 'conceptualize', 'success'],
     [3, 'design', 'success'],
@@ -61,12 +76,23 @@ const buildSourceRun = (
       name: `${name} text`,
       payload: { turn: 1, channel: 'text', text: `thinking about ${name}` },
     })
-    tracer.envelopeRow(record, name, 'TEnvelope', JSON.stringify({ summary: name }), true)
+    tracer.envelopeRow(
+      record,
+      name,
+      'TEnvelope',
+      JSON.stringify({ summary: name }),
+      true,
+    )
     tracer.gateRow(record, 'plan-gate', { checks: [], notes: '' } as never)
   }
   tracer.agentSessionRow(
     runId,
-    { name: 'scout', coding_agent: 'claude', model: 'opus', color: 'blue' } as never,
+    {
+      name: 'scout',
+      coding_agent: 'claude',
+      model: 'opus',
+      color: 'blue',
+    } as never,
     'sess_1',
     100,
     200,
@@ -75,15 +101,28 @@ const buildSourceRun = (
 
   const sessionDir = join(dataDir, 'sessions', runId)
   mkdirSync(join(sessionDir, 'scout', 'pi_sessions'), { recursive: true })
-  writeFileSync(join(sessionDir, 'scout', 'envelope.json'), '{"summary":"scout"}\n')
+  writeFileSync(
+    join(sessionDir, 'scout', 'envelope.json'),
+    '{"summary":"scout"}\n',
+  )
   writeFileSync(join(sessionDir, 'scout', 'pi_sessions', 'sess_1.json'), '{}\n')
-  writeFileSync(join(sessionDir, 'agent_map.json'), '{"scout":{"session_id":"sess_1"}}\n')
+  writeFileSync(
+    join(sessionDir, 'agent_map.json'),
+    '{"scout":{"session_id":"sess_1"}}\n',
+  )
   writeFileSync(join(sessionDir, 'events.jsonl'), 'should not be carried\n')
   writeFileSync(join(sessionDir, 'resume.log'), 'should not be carried\n')
   writeFileSync(
     join(sessionDir, 'invocation.json'),
     `${JSON.stringify({
-      argv: ['bun', 'runtime/cli.ts', '--handoff', '/somewhere/else', '--run-id', runId],
+      argv: [
+        'bun',
+        'runtime/cli.ts',
+        '--handoff',
+        '/somewhere/else',
+        '--run-id',
+        runId,
+      ],
       cwd: '/repo',
     })}\n`,
   )
@@ -95,9 +134,12 @@ const buildSourceRun = (
   appendSteering(handoffDir, 'an earlier instruction\n')
 
   const state = readRunState(dbPath, runId)
-  const carry = state === undefined ? [] : activityRunsToCarry(state.activityRuns, 'design').map(
-    (activityRun) => activityRun.activity_run_id,
-  )
+  const carry =
+    state === undefined
+      ? []
+      : activityRunsToCarry(state.activityRuns, 'design').map(
+          (activityRun) => activityRun.activity_run_id,
+        )
   return { dbPath, carry, sessionDir }
 }
 
@@ -125,7 +167,9 @@ test(
 
     // then — the branch reads as having completed exactly the carried names
     const state = readRunState(dbPath, 'brn00001')
-    expect(state?.completed.toSorted()).toEqual(['scout', 'conceptualize'].toSorted())
+    expect(state?.completed.toSorted()).toEqual(
+      ['scout', 'conceptualize'].toSorted(),
+    )
     expect(state?.resumable).toBe(true)
   },
 )
@@ -159,7 +203,9 @@ test(
     expect(after?.activityRuns.map((a) => a.status)).toEqual(
       before?.activityRuns.map((a) => a.status),
     )
-    expect(readSteering(join(sessionDir, 'context_handoff'))).toBe(steeringBefore)
+    expect(readSteering(join(sessionDir, 'context_handoff'))).toBe(
+      steeringBefore,
+    )
   },
 )
 
@@ -188,10 +234,14 @@ test(
     // then
     const db = new Database(dbPath, { readonly: true })
     const sourceEvents = db
-      .query<{ event_id: string }, [string]>('SELECT event_id FROM events WHERE run_id=?')
+      .query<{ event_id: string }, [string]>(
+        'SELECT event_id FROM events WHERE run_id=?',
+      )
       .all('src00003')
     const branchEvents = db
-      .query<{ event_id: string }, [string]>('SELECT event_id FROM events WHERE run_id=?')
+      .query<{ event_id: string }, [string]>(
+        'SELECT event_id FROM events WHERE run_id=?',
+      )
       .all('brn00003')
     db.close()
     expect(sourceEvents.length).toBeGreaterThan(0)
@@ -227,8 +277,14 @@ test(
 
     // then
     expect(existsSync(join(seeded.sessionDir, 'agent_map.json'))).toBe(true)
-    expect(existsSync(join(seeded.sessionDir, 'scout', 'pi_sessions', 'sess_1.json'))).toBe(true)
-    expect(existsSync(join(seeded.sessionDir, 'scout', 'envelope.json'))).toBe(true)
+    expect(
+      existsSync(
+        join(seeded.sessionDir, 'scout', 'pi_sessions', 'sess_1.json'),
+      ),
+    ).toBe(true)
+    expect(existsSync(join(seeded.sessionDir, 'scout', 'envelope.json'))).toBe(
+      true,
+    )
   },
 )
 
@@ -256,8 +312,12 @@ test(
 
     // then
     expect(existsSync(join(seeded.sessionDir, 'agent_map.json'))).toBe(false)
-    expect(existsSync(join(seeded.sessionDir, 'scout', 'pi_sessions'))).toBe(false)
-    expect(existsSync(join(seeded.sessionDir, 'scout', 'envelope.json'))).toBe(true)
+    expect(existsSync(join(seeded.sessionDir, 'scout', 'pi_sessions'))).toBe(
+      false,
+    )
+    expect(existsSync(join(seeded.sessionDir, 'scout', 'envelope.json'))).toBe(
+      true,
+    )
   },
 )
 
@@ -265,7 +325,7 @@ test(
   [
     'given data/branch-seed::seedBranch',
     'when the branch is seeded',
-    "it should rewrite invocation.json to drop --handoff and its value",
+    'it should rewrite invocation.json to drop --handoff and its value',
   ].join(', '),
   () => {
     // given
@@ -304,9 +364,10 @@ test(
     const dataDir = scratch()
     const { dbPath, carry } = buildSourceRun(dataDir, 'src00007')
     const db = new Database(dbPath)
-    db.run('UPDATE sessions SET total_tokens=12345, total_cost=6.78 WHERE run_id=?', [
-      'src00007',
-    ])
+    db.run(
+      'UPDATE sessions SET total_tokens=12345, total_cost=6.78 WHERE run_id=?',
+      ['src00007'],
+    )
     db.close()
 
     // when

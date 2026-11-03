@@ -75,7 +75,8 @@ test(
   ].join(', '),
   () => {
     // given/when
-    const mediaBlocks = css.match(/@media \(max-width: 1100px\) \{[\s\S]*?\n\}/g) ?? []
+    const mediaBlocks =
+      css.match(/@media \(max-width: 1100px\) \{[\s\S]*?\n\}/g) ?? []
 
     // then — 1.1.5: no remaining 1100px media query mentions the context tab or its
     // old grid selector; the one that remains (`.chatCols`/`.chatCol`) belongs to a
@@ -107,12 +108,16 @@ test(
   ].join(', '),
   () => {
     // then — 1.1.6: ActivityRunDetail.tsx:428 was updated to the renamed class
-    expect(tsx).toMatch(/active === 'context' \? styles\.context : styles\.hidden/)
+    expect(tsx).toMatch(
+      /active === 'context' \? styles\.context : styles\.hidden/,
+    )
     // then — target-state block: no reference to the old class remains
     expect(tsx).not.toMatch(/styles\.grid\b/)
     // then — 1.3.1: the dead `styles.col` wrapper inside the context panel stays
     // (also the events tab's own wrapper at ActivityRunDetail.tsx:785 — two in total)
-    const colWrapperCount = (tsx.match(/<div className=\{styles\.col\}>/g) ?? []).length
+    const colWrapperCount = (
+      tsx.match(/<div className=\{styles\.col\}>/g) ?? []
+    ).length
     expect(colWrapperCount).toBe(2)
   },
 )

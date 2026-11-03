@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Ask a finished activity a question, or let it amend its own document.
  *
@@ -17,12 +18,14 @@
  * env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.
  */
 
+import { Database } from 'bun:sqlite'
 import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
-import { Database } from 'bun:sqlite'
+import { safeParseSettlement } from '../lib/typedefs/src/settlement'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
 import { handoffDirFor } from './modules/data/handoff-pointer'
-import { loadConfig } from './modules/use-cases/load-config'
+import { createTracer } from './modules/data/trace-db'
+import { DEFAULT_DB } from './modules/typedefs/config'
 import {
   consultArgv,
   consultEvent,
@@ -31,8 +34,7 @@ import {
   type TConsultMode,
   type TConsultRequest,
 } from './modules/use-cases/consult'
-import { createTracer } from './modules/data/trace-db'
-import { DEFAULT_DB } from './modules/typedefs/config'
+import { loadConfig } from './modules/use-cases/load-config'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
@@ -82,17 +84,16 @@ const ownedBy = (db: Database, activityRunId: string): readonly string[] =>
     )
     .all(activityRunId)
     .flatMap((row) => {
-      try {
-        const created = (JSON.parse(row.payload_json ?? '{}') as {
-          created?: unknown
-        }).created
-        return Array.isArray(created)
-          ? created.filter((item): item is string => typeof item === 'string')
-          : []
-      } catch (cause) {
-        void cause
-        return []
-      }
+      // An unreadable row claims nothing, which is what the catch decided.
+      const settled = safeParseSettlement(
+        () =>
+          (JSON.parse(row.payload_json ?? '{}') as { created?: unknown })
+            .created,
+      )
+      const created = settled.status === 'ok' ? settled.data : undefined
+      return Array.isArray(created)
+        ? created.filter((item): item is string => typeof item === 'string')
+        : []
     })
 
 const invoke = async (
@@ -111,12 +112,16 @@ const invoke = async (
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
-    const chunks: string[] = []
-    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk.toString()))
-    child.stderr.on('data', (chunk: Buffer) => chunks.push(chunk.toString()))
-    child.on('close', (code) =>
-      settle({ ok: code === 0, output: chunks.join('') }),
-    )
+    // The joined text, accumulated as text: `chunks.join('')` was the only
+    // thing the array was ever used for.
+    let output = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+    })
+    child.on('close', (code) => settle({ ok: code === 0, output }))
   })
 
 const main = async (): Promise<number> => {
@@ -172,7 +177,11 @@ const main = async (): Promise<number> => {
   const [provider = 'anthropic', modelId = session.model] = (
     session.model ?? ''
   ).split('/')
-  const argv = consultArgv(request, { provider, modelId }, process.env.PI_PATH ?? 'pi')
+  const argv = consultArgv(
+    request,
+    { provider, modelId },
+    process.env.PI_PATH ?? 'pi',
+  )
 
   say(`${mode} → ${activityRun.owner} (${activity}) in run ${runId}`)
   const outcome = await runConsult(
@@ -188,7 +197,10 @@ const main = async (): Promise<number> => {
 
   // Recorded against the activityRun it asked about, so the thread is found where
   // the question made sense rather than at the end of the run.
-  const tracer = createTracer(dbPath, resolve(dataDir, 'sessions', runId, 'events.jsonl'))
+  const tracer = createTracer(
+    dbPath,
+    resolve(dataDir, 'sessions', runId, 'events.jsonl'),
+  )
   const event = consultEvent(request, outcome)
   tracer.event({
     run_id: runId,
@@ -210,7 +222,9 @@ const main = async (): Promise<number> => {
     )
   }
   if (outcome.restored.length > 0) {
-    say(`restored (belonged to another activity): ${outcome.restored.join(', ')}`)
+    say(
+      `restored (belonged to another activity): ${outcome.restored.join(', ')}`,
+    )
   }
   return 0
 }

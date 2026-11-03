@@ -51,7 +51,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const events = [inbox('steer', 'stop and check the registry'), inbox('follow_up', 'also rename it')]
+    const events = [
+      inbox('steer', 'stop and check the registry'),
+      inbox('follow_up', 'also rename it'),
+    ]
 
     // when
     const actual = developerMessagesOf(events)
@@ -134,7 +137,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const turns = [turn(1, '2026-01-01T00:00:00.000Z'), turn(2, '2026-01-01T00:02:00.000Z')]
+    const turns = [
+      turn(1, '2026-01-01T00:00:00.000Z'),
+      turn(2, '2026-01-01T00:02:00.000Z'),
+    ]
     const messages = developerMessagesOf([
       inbox('steer', 'mid-turn note', 'alice', '2026-01-01T00:01:00.000Z'),
     ])
@@ -179,7 +185,10 @@ test(
     const messages = developerMessagesOf([inbox('steer', 'use the registry')])
 
     // when
-    const actual = stillPendingMessage({ kind: 'steer', text: 'use the registry' }, messages)
+    const actual = stillPendingMessage(
+      { kind: 'steer', text: 'use the registry' },
+      messages,
+    )
 
     // then
     expect(actual).toBeUndefined()
@@ -197,7 +206,10 @@ test(
     const messages = developerMessagesOf([inbox('steer', 'something else')])
 
     // when
-    const actual = stillPendingMessage({ kind: 'steer', text: 'use the registry' }, messages)
+    const actual = stillPendingMessage(
+      { kind: 'steer', text: 'use the registry' },
+      messages,
+    )
 
     // then
     expect(actual).toEqual({ kind: 'steer', text: 'use the registry' })

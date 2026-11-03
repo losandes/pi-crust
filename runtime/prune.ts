@@ -20,14 +20,14 @@
 import { Database } from 'bun:sqlite'
 import { rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { safeParseSettlement } from '../lib/typedefs/src/settlement'
 import { resolveDataPaths } from './modules/data/data-paths'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
+import { fileExists } from './modules/data/files'
 import { repoRoot } from './modules/data/git'
 import { box, paint, writeLine } from './modules/data/terminal'
-import { fileExists } from './modules/data/files'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import { safeParseSettlement } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   parseAge,
@@ -62,7 +62,9 @@ const defaultDbPath = (): string => {
   const cfg = safeParseSettlement(() =>
     loadConfig(configPathFromEnv() ?? DEFAULT_CONFIG_PATH),
   )
-  return cfg.status === 'ok' ? resolveDataPaths(cfg.data, repoRoot()).db : DEFAULT_DB
+  return cfg.status === 'ok'
+    ? resolveDataPaths(cfg.data, repoRoot()).db
+    : DEFAULT_DB
 }
 
 export const main = (argv: readonly string[]): number => {
@@ -118,8 +120,8 @@ export const main = (argv: readonly string[]): number => {
         [
           `${paint(String(verdict.doomed.length), 'bold')} run(s): ${verdict.doomed.join(', ')}`,
           '',
-          ...verdict.spared.map(
-            (kept) => paint(`keeping ${kept.run_id} — ${kept.because}`, 'dim'),
+          ...verdict.spared.map((kept) =>
+            paint(`keeping ${kept.run_id} — ${kept.because}`, 'dim'),
           ),
           '',
           paint('add --yes to delete them', 'bold'),

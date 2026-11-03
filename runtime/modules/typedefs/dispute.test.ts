@@ -84,7 +84,10 @@ test(
     const text = 'the latest contest results'
 
     // when
-    const actual = [namesWord(text, 'test'), namesWord('the test failed', 'test')]
+    const actual = [
+      namesWord(text, 'test'),
+      namesWord('the test failed', 'test'),
+    ]
 
     // then
     expect(actual).toEqual([false, true])

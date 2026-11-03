@@ -17,8 +17,8 @@
 import { EXIT } from '../modules/typedefs/run-state'
 import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
 import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
-import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
 import { asSingleStage } from '../modules/use-cases/plan-units'
+import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
 import { runWorkflow } from '../modules/use-cases/run-workflow'
 
 export const ACTIVITIES = ['operator'] as const

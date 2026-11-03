@@ -9,7 +9,11 @@ const GLYPHS: Readonly<Record<string, string>> = {
   fail: '\u2717',
 }
 
-export const ActivityRunDots = ({ activityRuns }: { activityRuns: readonly ActivityRun[] }) => {
+export const ActivityRunDots = ({
+  activityRuns,
+}: {
+  activityRuns: readonly ActivityRun[]
+}) => {
   // By start, not by `seq`: two dots for a concurrent Stage must not claim
   // an order the run did not have.
   const ordered = activityRuns.toSorted(byStart)
@@ -24,7 +28,9 @@ export const ActivityRunDots = ({ activityRuns }: { activityRuns: readonly Activ
         return (
           <span
             key={activityRun.activity_run_id}
-            className={tone === undefined ? styles.dot : `${styles.dot} ${tone}`}
+            className={
+              tone === undefined ? styles.dot : `${styles.dot} ${tone}`
+            }
             title={`${activityRun.name} \u2014 ${status}`}
           >
             {GLYPHS[status] ?? '\u25cb'}

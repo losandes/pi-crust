@@ -50,7 +50,11 @@ export const TreeWarnings = ({
         return (
           <section key={kind} className={styles.group}>
             <h5 className={styles.head}>
-              <TriangleAlert className={styles.icon} size={16} strokeWidth={2} />
+              <TriangleAlert
+                className={styles.icon}
+                size={16}
+                strokeWidth={2}
+              />
               {warningTitle(kind)}
             </h5>
             {group.map((warning) => (

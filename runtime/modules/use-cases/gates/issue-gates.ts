@@ -12,7 +12,8 @@ import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
 
-const ISSUE_URL_PATTERN = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)$/
+const ISSUE_URL_PATTERN =
+  /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)$/
 
 type TClaim = Readonly<{
   issue_url?: unknown

@@ -28,13 +28,10 @@ test(
     const given = lifecycle('concurrent', ['review', 'code-review'])
 
     // when
-    const actual = concurrencyFaults(
-      given,
-      [
-        activityWriting('review', ['{handoff}/review.md']),
-        activityWriting('code-review', ['{handoff}/code_review.md']),
-      ],
-    )
+    const actual = concurrencyFaults(given, [
+      activityWriting('review', ['{handoff}/review.md']),
+      activityWriting('code-review', ['{handoff}/code_review.md']),
+    ])
 
     // then
     expect(actual).toEqual([])
@@ -52,13 +49,10 @@ test(
     const given = lifecycle('concurrent', ['review', 'code-review'])
 
     // when
-    const actual = concurrencyFaults(
-      given,
-      [
-        activityWriting('review', ['{handoff}/plan.md']),
-        activityWriting('code-review', ['{handoff}/plan.md']),
-      ],
-    )
+    const actual = concurrencyFaults(given, [
+      activityWriting('review', ['{handoff}/plan.md']),
+      activityWriting('code-review', ['{handoff}/plan.md']),
+    ])
 
     // then
     expect(actual).toHaveLength(1)
@@ -78,10 +72,10 @@ test(
     const given = lifecycle('concurrent', ['build', 'review'])
 
     // when
-    const actual = concurrencyFaults(
-      given,
-      [activityWriting('build', ['*']), activityWriting('review', ['{handoff}/review.md'])],
-    )
+    const actual = concurrencyFaults(given, [
+      activityWriting('build', ['*']),
+      activityWriting('review', ['{handoff}/review.md']),
+    ])
 
     // then
     expect(actual).toHaveLength(1)
@@ -99,10 +93,10 @@ test(
     const given = lifecycle('serial', ['build', 'review'])
 
     // when
-    const actual = concurrencyFaults(
-      given,
-      [activityWriting('build', ['*']), activityWriting('review', ['*'])],
-    )
+    const actual = concurrencyFaults(given, [
+      activityWriting('build', ['*']),
+      activityWriting('review', ['*']),
+    ])
 
     // then
     expect(actual).toEqual([])

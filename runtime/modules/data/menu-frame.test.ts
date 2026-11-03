@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { initialMenu } from '../use-cases/menu'
-import { bullet, menuFrame, rowsFor, widthOf } from './menu-frame'
 import type { TOption, TViewport } from './menu-frame'
+import { bullet, menuFrame, rowsFor, widthOf } from './menu-frame'
 
 const options = (count: number): readonly TOption[] =>
   Array.from({ length: count }, (_, index) => ({
@@ -136,12 +136,12 @@ test(
 
     // then
     expect(frame.lines.some((line) => line.includes('option 0'))).toBe(true)
-    expect(frame.lines.some((line) => line.includes('↓') && line.includes('more'))).toBe(
-      true,
-    )
-    expect(frame.lines.some((line) => line.includes('↑') && line.includes('more'))).toBe(
-      false,
-    )
+    expect(
+      frame.lines.some((line) => line.includes('↓') && line.includes('more')),
+    ).toBe(true)
+    expect(
+      frame.lines.some((line) => line.includes('↑') && line.includes('more')),
+    ).toBe(false)
   },
 )
 
@@ -161,12 +161,12 @@ test(
 
     // then
     expect(frame.lines.some((line) => line.includes('option 19'))).toBe(true)
-    expect(frame.lines.some((line) => line.includes('↑') && line.includes('more'))).toBe(
-      true,
-    )
-    expect(frame.lines.some((line) => line.includes('↓') && line.includes('more'))).toBe(
-      false,
-    )
+    expect(
+      frame.lines.some((line) => line.includes('↑') && line.includes('more')),
+    ).toBe(true)
+    expect(
+      frame.lines.some((line) => line.includes('↓') && line.includes('more')),
+    ).toBe(false)
   },
 )
 
@@ -185,12 +185,12 @@ test(
     const frame = menuFrame('pick one', list, state, false, viewport(10))
 
     // then
-    expect(frame.lines.some((line) => line.includes('↑') && line.includes('more'))).toBe(
-      true,
-    )
-    expect(frame.lines.some((line) => line.includes('↓') && line.includes('more'))).toBe(
-      true,
-    )
+    expect(
+      frame.lines.some((line) => line.includes('↑') && line.includes('more')),
+    ).toBe(true)
+    expect(
+      frame.lines.some((line) => line.includes('↓') && line.includes('more')),
+    ).toBe(true)
   },
 )
 
@@ -221,7 +221,9 @@ test(
   ].join(' '),
   () => {
     // given
-    const list: readonly TOption[] = [{ value: 'v', label: 'option', detail: 'the detail' }]
+    const list: readonly TOption[] = [
+      { value: 'v', label: 'option', detail: 'the detail' },
+    ]
     const state = initialMenu([0], 0)
 
     // when
@@ -250,8 +252,8 @@ test(
     const frame = menuFrame('title', list, state, true, viewport(24), preview)
 
     // then
-    expect(frame.lines.some((line) => line.includes('chosen=v0 highlighted=v1'))).toBe(
-      true,
-    )
+    expect(
+      frame.lines.some((line) => line.includes('chosen=v0 highlighted=v1')),
+    ).toBe(true)
   },
 )

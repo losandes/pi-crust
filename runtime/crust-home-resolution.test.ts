@@ -17,6 +17,19 @@ import { join } from 'node:path'
  * test of the surrounding runtime would not touch it at all.
  */
 
+/**
+ * Integration: every test here runs the real `just` binary against the real
+ * `crust.just`, because the behaviour under test IS the resolution chain
+ * `just` evaluates — there is nothing left to check without it.
+ *
+ * Guarded on the binary rather than on `CI`, because the binary is what the
+ * tests need: a runner that installs `just` runs them for real, and a
+ * machine without one reports them as skipped instead of reading a failed
+ * spawn's empty stdout as a broken resolution chain. A skip here is a check
+ * that did not run, which the suite says out loud.
+ */
+const integrationTest = test.skipIf(Bun.which('just') === null)
+
 const CRUST_JUST = join(import.meta.dir, 'crust.just')
 
 const git = (cwd: string, ...args: readonly string[]): string =>
@@ -37,7 +50,14 @@ const justEvaluate = (
   try {
     const stdout = execFileSync(
       'just',
-      ['--working-directory', cwd, '--justfile', CRUST_JUST, '--evaluate', variable],
+      [
+        '--working-directory',
+        cwd,
+        '--justfile',
+        CRUST_JUST,
+        '--evaluate',
+        variable,
+      ],
       {
         cwd,
         encoding: 'utf8',
@@ -48,7 +68,10 @@ const justEvaluate = (
     return { stdout: stdout.trim(), status: 0 }
   } catch (error) {
     const err = error as { readonly stdout?: string; readonly status?: number }
-    return { stdout: (err.stdout ?? '').toString().trim(), status: err.status ?? 1 }
+    return {
+      stdout: (err.stdout ?? '').toString().trim(),
+      status: err.status ?? 1,
+    }
   }
 }
 
@@ -56,7 +79,11 @@ const justRecipe = (
   cwd: string,
   recipe: string,
   env?: Record<string, string>,
-): { readonly stdout: string; readonly stderr: string; readonly status: number } => {
+): {
+  readonly stdout: string
+  readonly stderr: string
+  readonly status: number
+} => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: converting a failing subprocess exit into an assertable result is this helper's job
   try {
     const stdout = execFileSync(
@@ -103,7 +130,10 @@ const aPrimaryAndLinkedWorktree = (
   git(primary, 'add', '-A')
   git(primary, 'commit', '-qm', 'init')
   mkdirSync(join(primary, '.pi-crust', 'data'), { recursive: true })
-  writeFileSync(join(primary, '.pi-crust', 'data', 'pi-crust-home'), `${home}\n`)
+  writeFileSync(
+    join(primary, '.pi-crust', 'data', 'pi-crust-home'),
+    `${home}\n`,
+  )
 
   const linked = join(root, 'linked')
   git(primary, 'worktree', 'add', '-q', linked, '-b', 'feature')
@@ -114,7 +144,7 @@ const aPrimaryAndLinkedWorktree = (
 // Issue #24 stage 2 (1.6.1): the `crust` variable falls back through the
 // pointer beside the shared git directory when a linked worktree has no
 // pointer of its own.
-test(
+integrationTest(
   [
     'given crust.just’s crust variable',
     'when evaluated in a linked worktree that was never stamped, with no CRUST_HOME',
@@ -135,7 +165,7 @@ test(
   },
 )
 
-test(
+integrationTest(
   [
     'given crust.just’s crust variable',
     'when the linked worktree has its own pointer file',
@@ -158,7 +188,7 @@ test(
   },
 )
 
-test(
+integrationTest(
   [
     'given crust.just’s crust variable',
     'when CRUST_HOME is exported in a linked worktree that has no pointer file at all',
@@ -169,7 +199,9 @@ test(
     const { linked } = aPrimaryAndLinkedWorktree('/primary/package/home')
 
     // when
-    const actual = justEvaluate(linked, 'crust', { CRUST_HOME: '/explicit/home' })
+    const actual = justEvaluate(linked, 'crust', {
+      CRUST_HOME: '/explicit/home',
+    })
 
     // then
     expect(actual.stdout).toEqual('/explicit/home')
@@ -178,7 +210,7 @@ test(
 
 // Issue #24 stage 2 (1.6.4): naming all three resolution links in the
 // failure, rather than a bare bun "module not found".
-test(
+integrationTest(
   [
     'given crust.just’s crust-dependent recipes',
     'when none of CRUST_HOME, a local pointer, or the shared git directory names a package',
@@ -203,7 +235,7 @@ test(
 
 // Issue #24 stage 2 (1.6.2): `update` falls back through the shared git
 // directory too, not only CRUST_HOME and the local pointer.
-test(
+integrationTest(
   [
     'given crust.just’s update recipe',
     'when run in a linked worktree with no local pointer file',
@@ -238,7 +270,7 @@ test(
 
 // Issue #24 stage 2 (1.6.2): `observe` falls back through the shared git
 // directory too, not only CRUST_HOME and the local pointer.
-test(
+integrationTest(
   [
     'given crust.just’s observe recipe',
     'when run in a linked worktree with no local pointer file',

@@ -65,7 +65,9 @@ test(
     } as const
 
     // when, then
-    expect(() => activityRunParams(input)).toThrow(/only restates the activityRun name/)
+    expect(() => activityRunParams(input)).toThrow(
+      /only restates the activityRun name/,
+    )
   },
 )
 

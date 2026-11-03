@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
-import type { TRoundRecord } from './dispute-ledger'
-import { renderReport } from './dispute-report'
 import { crustConfigSchema } from '../typedefs/config'
 import { acceptedExcluding } from '../typedefs/runnable-activity'
+import type { TRoundRecord } from './dispute-ledger'
+import { renderReport } from './dispute-report'
 import {
   groupApproved,
   loopAgents,
@@ -36,7 +36,8 @@ const cfg = crustConfigSchema.parse({
     {
       name: 'code-review',
       output: 'reviewOutput',
-      purpose: 'Judge the change against the conventions this repository ratified',
+      purpose:
+        'Judge the change against the conventions this repository ratified',
       prompt_engineering: { system: 's.md', user: 'u.md' },
     },
     /*

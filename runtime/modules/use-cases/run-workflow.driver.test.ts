@@ -51,6 +51,7 @@ import {
   runWorkflow,
   spentAlready,
 } from './run-workflow'
+import type { TResolveModel } from './validate-agents'
 
 const aPiResult = (text: string): TPiResult => ({
   text,
@@ -94,8 +95,44 @@ beforeEach(() => {
    */
   // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
   process.env.CRUST_MACHINE_CONFIG = '/nonexistent/crust-machine-config.yaml'
+  /*
+   * Empty, never `undefined`.
+   *
+   * `process.env.X = undefined` deletes the variable in bun 1.3 and stores
+   * the literal string "undefined" in bun 1.4, so a test that "cleaned up"
+   * that way left CRUST_DATA_DIR="undefined" behind for every file that ran
+   * after it — paths with a `/undefined/` segment, and a provenance of
+   * "CRUST_DATA_DIR (environment)", in eleven tests that had nothing to do
+   * with it. Empty is what `dataDirFromEnv` already reads as unset.
+   */
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+  process.env.CRUST_DATA_DIR = ''
 })
-afterEach(restoreTerminal)
+afterEach(() => {
+  restoreTerminal()
+  // Reset here too: a test that sets it and then fails would otherwise leak
+  // it into the next file, which is how this was found.
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+  process.env.CRUST_DATA_DIR = ''
+})
+
+/**
+ * Model resolution as a value, so no test here needs a pi install.
+ *
+ * `validateAgents` resolves every required agent's model through
+ * `pi --list-models`, and an absent pi reads as "no model by that name" —
+ * which turned a missing host into a configuration fault on any machine
+ * without one, this repository's CI runner included. The production default
+ * is unchanged; these tests pass their own, because whether the fixture's
+ * model is registered on the machine running the suite is not what any of
+ * them is about.
+ */
+const fixtureModel: TResolveModel = (pattern) => {
+  const slash = pattern.indexOf('/')
+  return slash === -1
+    ? { provider: 'anthropic', modelId: pattern }
+    : { provider: pattern.slice(0, slash), modelId: pattern.slice(slash + 1) }
+}
 
 const MODEL = 'anthropic/claude-haiku-4-5'
 
@@ -273,9 +310,12 @@ test(
 
     // when, then
     await expect(
-      runWorkflow(args, [
-        { name: 'implement', strategy: 'serial', activities: ['build'] },
-      ]),
+      runWorkflow(
+        args,
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        undefined,
+        fixtureModel,
+      ),
     ).rejects.toThrow(/build.*is not defined/s)
   },
 )
@@ -340,9 +380,12 @@ test(
     const args = argsFor(configPath, runId)
 
     // when
-    const exitCode = await runWorkflow(args, [
-      { name: 'implement', strategy: 'serial', activities: ['build'] },
-    ])
+    const exitCode = await runWorkflow(
+      args,
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
@@ -470,6 +513,7 @@ test(
         },
       ],
       ports,
+      fixtureModel,
     )
 
     // then \u2014 waiting, not accepted or failed; 'document' never reached
@@ -558,6 +602,7 @@ test(
       50,
       attemptLedger(),
       ports,
+      fixtureModel,
     )
 
     // then \u2014 stopped for a person; 'document' never reached
@@ -652,9 +697,12 @@ test(
     const args = { ...argsFor(configPath, runId), trustLevel: '100' }
 
     // when
-    const exitCode = await runWorkflow(args, [
-      { name: 'implement', strategy: 'serial', activities: ['build'] },
-    ])
+    const exitCode = await runWorkflow(
+      args,
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
@@ -727,13 +775,101 @@ test(
     tracer.close()
 
     // when
-    const exitCode = await runWorkflow(argsFor(configPath, runId), [
-      { name: 'implement', strategy: 'serial', activities: ['build'] },
-    ])
+    const exitCode = await runWorkflow(
+      argsFor(configPath, runId),
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
     expect(terminalOutput()).toContain('local config in force')
+  },
+)
+
+test(
+  [
+    'given use-cases/run-workflow::runWorkflow',
+    'when a machine layer and CRUST_DATA_DIR are both in force',
+    'it should say so before anything runs, naming the file and what set the data directory',
+  ].join(', '),
+  async () => {
+    // given — a machine config outside the repository, and a data directory
+    // the environment chose rather than the repository's own config: both
+    // are invisible in a trace unless the run says so at the start
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-machine-'))
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+    const configPath = configFor(dir, [
+      {
+        name: 'build',
+        purpose: 'Build the thing',
+        output: 'genericOutput',
+        attempts: 1,
+        commit: false,
+      },
+    ])
+    const dataDir = join(dir, 'data')
+    const machineConfig = join(dir, 'machine.yaml')
+    writeFileSync(
+      machineConfig,
+      Bun.YAML.stringify({ defaults: { data_dir: dataDir } }),
+    )
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_MACHINE_CONFIG = machineConfig
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
+    process.env.CRUST_DATA_DIR = dataDir
+
+    const dbPath = join(dataDir, 'crust.db')
+    const runId = 'aaaa7777'
+    const sessionDir = join(dataDir, 'sessions', runId)
+    mkdirSync(join(sessionDir, 'build'), { recursive: true })
+    writeFileSync(
+      join(sessionDir, 'build', 'envelope.json'),
+      `${JSON.stringify({
+        agent_name: 'build',
+        purpose: 'Build the thing',
+        output_type: 'GenericOutput',
+        status: 'success',
+        summary: 'built it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      })}\n`,
+    )
+    const tracer = createTracer(dbPath, join(sessionDir, 'events.jsonl'))
+    tracer.sessionStart(runId, 'tester', 'compose')
+    tracer.activityRunUpsert({
+      activity_run_id: `${runId}_01_build`,
+      run_id: runId,
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'build',
+        description: 'the piece this resume should replay',
+      }),
+      status: 'success',
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: '2024-01-01T00:00:01.000Z',
+    })
+    tracer.sessionFinish(runId, false)
+    tracer.close()
+
+    // when
+    const exitCode = await runWorkflow(
+      argsFor(configPath, runId),
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      undefined,
+      fixtureModel,
+    )
+
+    // then
+    expect(exitCode).toEqual(EXIT.SUCCESS)
+    expect(terminalOutput()).toContain('machine config in force')
+    expect(terminalOutput()).toContain(machineConfig)
+    expect(terminalOutput()).toContain('CRUST_DATA_DIR')
   },
 )
 
@@ -788,9 +924,12 @@ test(
 
     // when, then
     await expect(
-      runWorkflow(argsFor(configPath, runId), [
-        { name: 'implement', strategy: 'serial', activities: ['build'] },
-      ]),
+      runWorkflow(
+        argsFor(configPath, runId),
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        undefined,
+        fixtureModel,
+      ),
     ).rejects.toThrow()
     const after = createTracer(dbPath, join(sessionDir, 'events.jsonl'))
     const state = after.activityRunsFor(runId)
@@ -860,6 +999,8 @@ test(
       argsFor(configPath, 'eeee5555'),
       50,
       attemptLedger(),
+      undefined,
+      fixtureModel,
     )
 
     // then
@@ -912,6 +1053,8 @@ test(
       argsFor(configPath, 'dddd4444'),
       0,
       attemptLedger(),
+      undefined,
+      fixtureModel,
     )
 
     // then — nothing ran; the run is waiting on a person instead

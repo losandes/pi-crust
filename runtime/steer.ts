@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Send a run back to a activity with new instructions.
  *
@@ -31,33 +32,36 @@
  * env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.
  */
 
-import { join, resolve } from 'node:path'
 import { Database } from 'bun:sqlite'
+import { join, resolve } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../lib/typedefs/src/settlement'
+import { seedBranch } from './modules/data/branch-seed'
 import { nowIso } from './modules/data/clock'
 import { resolveDataPaths } from './modules/data/data-paths'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { repoRoot } from './modules/data/git'
-import { appendSteering } from './modules/data/steering'
-import { handoffDirFor } from './modules/data/handoff-pointer'
-import { seedBranch } from './modules/data/branch-seed'
-import { newId } from './modules/data/ids'
 import { appendText, ensureDir } from './modules/data/files'
-import { STEER_CLI, positionalArgs } from './modules/use-cases/cli-positionals'
-import { readRunState } from './modules/use-cases/read-run-state'
+import { repoRoot } from './modules/data/git'
+import { handoffDirFor } from './modules/data/handoff-pointer'
+import { newId } from './modules/data/ids'
+import { appendSteering } from './modules/data/steering'
 import { runHasLiveProcess } from './modules/data/trace-reader'
+import { DEFAULT_DB } from './modules/typedefs/config'
+import { positionalArgs, STEER_CLI } from './modules/use-cases/cli-positionals'
+import { loadConfig } from './modules/use-cases/load-config'
+import { readRunState } from './modules/use-cases/read-run-state'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import {
+  activitiesToReplay,
   activityRunsToCarry,
   activityRunsToSupersede,
   flagValue,
   seedingOf,
   steeringEntry,
-  activitiesToReplay,
   steerTargetOf,
 } from './modules/use-cases/steer'
-import { loadConfig } from './modules/use-cases/load-config'
-import { DEFAULT_DB } from './modules/typedefs/config'
-import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
@@ -113,7 +117,10 @@ const runOverwrite = async (params: {
   const superseding = activityRunsToSupersede(state.activityRuns, activity)
 
   const handoffDir = handoffDirFor(dataDir, runId)
-  const path = appendSteering(handoffDir, steeringEntry(activity, note, nowIso()))
+  const path = appendSteering(
+    handoffDir,
+    steeringEntry(activity, note, nowIso()),
+  )
 
   /*
    * Marking the standing activityRuns superseded is what makes the replay happen:
@@ -124,7 +131,10 @@ const runOverwrite = async (params: {
   const db = new Database(dbPath)
   db.run('PRAGMA busy_timeout=5000;')
   for (const activityRunId of superseding) {
-    db.run("UPDATE activity_runs SET status='superseded' WHERE activity_run_id=?", [activityRunId])
+    db.run(
+      "UPDATE activity_runs SET status='superseded' WHERE activity_run_id=?",
+      [activityRunId],
+    )
   }
   db.run(
     'INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)' +
@@ -286,7 +296,12 @@ const main = (): Promise<number> => {
   const target = steerTargetOf(argv)
   const note = positionals.data.slice(2).join(' ').trim()
 
-  if (runId === undefined || activity === undefined || target === undefined || note === '') {
+  if (
+    runId === undefined ||
+    activity === undefined ||
+    target === undefined ||
+    note === ''
+  ) {
     say(USAGE)
     return Promise.resolve(2)
   }

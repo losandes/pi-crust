@@ -6,9 +6,7 @@ import { issueCreated } from './issue-gates'
 /** This gate reads only the envelope, so the run is never touched. */
 const NO_RUN = {} as TRun
 
-const ghIssue = (
-  overrides: Readonly<Record<string, unknown>>,
-): TEnvelopeBase =>
+const ghIssue = (overrides: Readonly<Record<string, unknown>>): TEnvelopeBase =>
   ({
     status: 'success',
     summary: 'opened an issue',

@@ -20,10 +20,7 @@
  */
 
 import type { TActivityConfig } from '../typedefs/activity'
-import type {
-  TLifecycleConfig,
-  TLifecycleFault,
-} from '../typedefs/lifecycle'
+import type { TLifecycleConfig, TLifecycleFault } from '../typedefs/lifecycle'
 import { matchesPattern } from './enforce-permissions'
 
 /** A pattern reduced to the literal prefix it cannot match outside of. */
@@ -73,7 +70,9 @@ const collisions = (
        * evidence.
        */
       const hit = left.writes.flatMap((lp) =>
-        right.writes.filter((rp) => patternsOverlap(lp, rp)).map((rp) => [lp, rp]),
+        right.writes
+          .filter((rp) => patternsOverlap(lp, rp))
+          .map((rp) => [lp, rp]),
       )[0]
       if (hit === undefined) {
         return []

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import type { TFetch } from './visualizer'
 import {
+  backendPort,
   DEFAULT_BE_PORT,
   DEFAULT_FE_PORT,
-  backendPort,
   frontendPort,
   runLink,
   visualizerIsUp,

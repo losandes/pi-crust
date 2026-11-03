@@ -4,8 +4,8 @@ import {
   Brain,
   Fingerprint,
   Inbox,
-  MessagesSquare,
   MessageSquareText,
+  MessagesSquare,
   Package,
   Receipt,
   Scale,
@@ -14,29 +14,31 @@ import {
   SquareTerminal,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { eventLabel, parseAgentStart, parseToolCall } from '../lib/events'
-import { fmtClock, payloadOk, ts } from '../lib/format'
-import { highlightJson, highlightJsonText } from '../lib/highlight'
-import { modelIcon, modelName } from '../lib/models'
-import { byStart, startedAfter } from '../lib/order'
 import {
+  activityRunUsage,
   checksLabel,
   eventDurationMs,
   gateChecks,
   money,
-  activityRunUsage,
   requestText,
   violations,
 } from '../lib/activity-run-facts'
-import { needsYou, activityRunLedger } from '../lib/ledger'
 import type { TArtifact } from '../lib/artifacts'
 import { activityRunArtifacts, runArtifacts } from '../lib/artifacts'
-import type { Envelope, EventRow, GateResult, ActivityRun } from '../lib/types'
+import type { TPendingConsult } from '../lib/consult'
+import { consultsFor, consultsOf, stillPending } from '../lib/consult'
+import { eventLabel, parseAgentStart, parseToolCall } from '../lib/events'
+import { fmtClock, payloadOk, ts } from '../lib/format'
+import { highlightJson, highlightJsonText } from '../lib/highlight'
+import { activityRunLedger, needsYou } from '../lib/ledger'
+import { developerMessagesOf, stillPendingMessage } from '../lib/messages'
+import { modelIcon, modelName } from '../lib/models'
+import { byStart, startedAfter } from '../lib/order'
+import type { ActivityRun, Envelope, EventRow, GateResult } from '../lib/types'
 import { useHandoff } from '../lib/use-handoff'
 import { usePrompts } from '../lib/use-prompts'
-import { consultsFor, consultsOf, stillPending } from '../lib/consult'
-import type { TPendingConsult } from '../lib/consult'
-import { developerMessagesOf, stillPendingMessage } from '../lib/messages'
+import { warningsFor } from '../lib/warnings'
+import styles from './ActivityRunDetail.module.css'
 import { ArtifactList } from './ArtifactList'
 import { DecisionLedger } from './DecisionLedger'
 import { DetailSection } from './DetailSection'
@@ -46,8 +48,6 @@ import { RunControls } from './RunControls'
 import { StatChip } from './StatChip'
 import { StatusChip } from './StatusChip'
 import { TreeWarnings } from './TreeWarnings'
-import { warningsFor } from '../lib/warnings'
-import styles from './ActivityRunDetail.module.css'
 
 const NUM = new Intl.NumberFormat('en-US')
 
@@ -83,7 +83,9 @@ const useOpenSet = <TKey extends string | number>(resetKey: string) => {
     set: (id: TKey, value: boolean) =>
       setState({
         key: resetKey,
-        open: value ? [...new Set([...open, id])] : open.filter((x) => x !== id),
+        open: value
+          ? [...new Set([...open, id])]
+          : open.filter((x) => x !== id),
       }),
   }
 }
@@ -129,7 +131,9 @@ export const ActivityRunDetail = ({
   const activityRunEvents = useMemo(
     () =>
       events
-        .filter((event) => event.activity_run_id === activityRun.activity_run_id)
+        .filter(
+          (event) => event.activity_run_id === activityRun.activity_run_id,
+        )
         .toSorted((a, b) => a.rowid - b.rowid),
     [events, activityRun.activity_run_id],
   )
@@ -144,9 +148,9 @@ export const ActivityRunDetail = ({
 
   const activityRunOutputs = useMemo(
     () =>
-      envelopes
-        .filter((envelope) => envelope.activity_run_id === activityRun.activity_run_id)
-        ,
+      envelopes.filter(
+        (envelope) => envelope.activity_run_id === activityRun.activity_run_id,
+      ),
     [envelopes, activityRun.activity_run_id],
   )
 
@@ -156,12 +160,20 @@ export const ActivityRunDetail = ({
    */
   const agentConfig = useMemo(() => {
     if (activityRun.kind !== 'agent') return undefined
-    const start = activityRunEvents.find((event) => event.type === 'agent_start')
+    const start = activityRunEvents.find(
+      (event) => event.type === 'agent_start',
+    )
     return start ? (parseAgentStart(start) ?? undefined) : undefined
   }, [activityRun.kind, activityRunEvents])
 
-  const usage = useMemo(() => activityRunUsage(activityRun, activityRunEvents), [activityRun, activityRunEvents])
-  const ask = useMemo(() => requestText(activityRun, activityRunEvents), [activityRun, activityRunEvents])
+  const usage = useMemo(
+    () => activityRunUsage(activityRun, activityRunEvents),
+    [activityRun, activityRunEvents],
+  )
+  const ask = useMemo(
+    () => requestText(activityRun, activityRunEvents),
+    [activityRun, activityRunEvents],
+  )
 
   const sections = useOpenSet<string>(activityRun.activity_run_id)
   const openGates = useOpenSet<number>(activityRun.activity_run_id)
@@ -200,7 +212,9 @@ export const ActivityRunDetail = ({
    * whole.
    */
   const replaying = useMemo(() => {
-    const target = activityRuns.filter((entry) => entry.name === activityRun.name).at(-1)
+    const target = activityRuns
+      .filter((entry) => entry.name === activityRun.name)
+      .at(-1)
     if (target === undefined) return []
     return [
       ...new Set(
@@ -249,8 +263,10 @@ export const ActivityRunDetail = ({
     activityRun: activityRun.activity_run_id,
     name: 'chat',
   })
-  const active: TTab = tab.activityRun === activityRun.activity_run_id ? tab.name : 'chat'
-  const show = (name: TTab) => () => setTab({ activityRun: activityRun.activity_run_id, name })
+  const active: TTab =
+    tab.activityRun === activityRun.activity_run_id ? tab.name : 'chat'
+  const show = (name: TTab) => () =>
+    setTab({ activityRun: activityRun.activity_run_id, name })
 
   const ledger = useMemo(
     () => activityRunLedger(activityRun.activity_run_id, envelopes, events),
@@ -260,7 +276,8 @@ export const ActivityRunDetail = ({
   const activityRunDurationMs = useMemo(() => {
     const start = ts(activityRun.started_at)
     if (!Number.isFinite(start)) return Number.NaN
-    const end = activityRun.status === 'running' ? Date.now() : ts(activityRun.ended_at)
+    const end =
+      activityRun.status === 'running' ? Date.now() : ts(activityRun.ended_at)
     return Number.isFinite(end) ? end - start : Number.NaN
   }, [activityRun.started_at, activityRun.ended_at, activityRun.status])
 
@@ -294,7 +311,9 @@ export const ActivityRunDetail = ({
         </button>
       </header>
 
-      {activityRun.error && <div className={`error-bar ${styles.error}`}>{activityRun.error}</div>}
+      {activityRun.error && (
+        <div className={`error-bar ${styles.error}`}>{activityRun.error}</div>
+      )}
 
       <DocumentViewer
         artifact={viewing}
@@ -308,7 +327,9 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'chat'}
-          className={active === 'chat' ? `${styles.tab} ${styles.on}` : styles.tab}
+          className={
+            active === 'chat' ? `${styles.tab} ${styles.on}` : styles.tab
+          }
           onClick={show('chat')}
         >
           <MessageSquareText size={16} strokeWidth={2} /> chat
@@ -339,7 +360,9 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'context'}
-          className={active === 'context' ? `${styles.tab} ${styles.on}` : styles.tab}
+          className={
+            active === 'context' ? `${styles.tab} ${styles.on}` : styles.tab
+          }
           onClick={show('context')}
         >
           <SlidersHorizontal size={16} strokeWidth={2} /> context
@@ -348,10 +371,13 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'events'}
-          className={active === 'events' ? `${styles.tab} ${styles.on}` : styles.tab}
+          className={
+            active === 'events' ? `${styles.tab} ${styles.on}` : styles.tab
+          }
           onClick={show('events')}
         >
-          <Activity size={16} strokeWidth={2} /> events ({activityRunEvents.length})
+          <Activity size={16} strokeWidth={2} /> events (
+          {activityRunEvents.length})
         </button>
       </div>
 
@@ -393,7 +419,11 @@ export const ActivityRunDetail = ({
             runId={runId}
             status={runStatus}
             workspace={workspace}
-            consultStep={activityRun.kind === 'agent' ? (activityRun.name ?? '') : undefined}
+            consultStep={
+              activityRun.kind === 'agent'
+                ? (activityRun.name ?? '')
+                : undefined
+            }
             onConsultSent={(mode, question) => setPending({ mode, question })}
             onMessageSent={(kind, text) => setPendingMessage({ kind, text })}
             replaying={replaying}
@@ -406,7 +436,9 @@ export const ActivityRunDetail = ({
         a long ledger and stepped away to the conversation should come back
         to where they were.
       */}
-      <div className={active === 'highlights' ? styles.highlights : styles.hidden}>
+      <div
+        className={active === 'highlights' ? styles.highlights : styles.hidden}
+      >
         {/*
           What changed during this Activity Run that it did not account for,
           and what the path policy refused it. Beside the decisions rather
@@ -450,7 +482,11 @@ export const ActivityRunDetail = ({
                   <div className={styles.cfgRow}>
                     <span className={styles.cfgK}>coding agent</span>
                     <span className={styles.cfgChip}>
-                      <SquareTerminal className={styles.cfgIcon} size={18} strokeWidth={2} />
+                      <SquareTerminal
+                        className={styles.cfgIcon}
+                        size={18}
+                        strokeWidth={2}
+                      />
                       {agentConfig.coding_agent}
                     </span>
                   </div>
@@ -474,7 +510,11 @@ export const ActivityRunDetail = ({
                   <div className={styles.cfgRow}>
                     <span className={styles.cfgK}>thinking</span>
                     <span className={styles.cfgChip}>
-                      <Brain className={styles.cfgIcon} size={18} strokeWidth={2} />
+                      <Brain
+                        className={styles.cfgIcon}
+                        size={18}
+                        strokeWidth={2}
+                      />
                       {agentConfig.thinking}
                     </span>
                   </div>
@@ -521,7 +561,11 @@ export const ActivityRunDetail = ({
                   <div className={styles.cfgRow}>
                     <span className={styles.cfgK}>session</span>
                     <span className={styles.cfgChip}>
-                      <Fingerprint className={styles.cfgIcon} size={18} strokeWidth={2} />
+                      <Fingerprint
+                        className={styles.cfgIcon}
+                        size={18}
+                        strokeWidth={2}
+                      />
                       {agentConfig.session_id}
                     </span>
                   </div>
@@ -545,12 +589,18 @@ export const ActivityRunDetail = ({
             <DetailSection
               title="compiled prompts"
               icon={MessagesSquare}
-              count={prompts.state === 'ready' ? prompts.panels.length : undefined}
+              count={
+                prompts.state === 'ready' ? prompts.panels.length : undefined
+              }
               open={sections.has('prompts')}
               onToggle={() => sections.toggle('prompts')}
             >
-              {prompts.state === 'loading' && <div className="faint">loading prompts…</div>}
-              {prompts.state === 'error' && <div className="faint">prompts unavailable</div>}
+              {prompts.state === 'loading' && (
+                <div className="faint">loading prompts…</div>
+              )}
+              {prompts.state === 'error' && (
+                <div className="faint">prompts unavailable</div>
+              )}
               {prompts.state === 'ready' && prompts.panels.length === 0 && (
                 <div className="faint">no compiled prompts recorded</div>
               )}
@@ -573,14 +623,18 @@ export const ActivityRunDetail = ({
                         <div className={styles.promptTools}>
                           <button
                             type="button"
-                            className={rawView.has(panel.id) ? undefined : styles.active}
+                            className={
+                              rawView.has(panel.id) ? undefined : styles.active
+                            }
                             onClick={() => rawView.set(panel.id, false)}
                           >
                             rendered
                           </button>
                           <button
                             type="button"
-                            className={rawView.has(panel.id) ? styles.active : undefined}
+                            className={
+                              rawView.has(panel.id) ? styles.active : undefined
+                            }
                             onClick={() => rawView.set(panel.id, true)}
                           >
                             raw
@@ -611,7 +665,9 @@ export const ActivityRunDetail = ({
             open={sections.has('gates')}
             onToggle={() => sections.toggle('gates')}
           >
-            {activityRunGates.length === 0 && <div className="faint">no gate results</div>}
+            {activityRunGates.length === 0 && (
+              <div className="faint">no gate results</div>
+            )}
             {activityRunGates.map((gate) => {
               const checks = gateChecks(gate)
               const failures = violations(gate)
@@ -623,7 +679,9 @@ export const ActivityRunDetail = ({
                   {checks === undefined ? (
                     <>
                       <div className={styles.gateLine}>
-                        <span className={styles.gateMark}>{gate.passed ? '✓' : '✗'}</span>
+                        <span className={styles.gateMark}>
+                          {gate.passed ? '✓' : '✗'}
+                        </span>
                         <span className={styles.gateName}>{gate.gate}</span>
                         <span className={`dim ${styles.gateTime}`}>
                           {fmtClock(gate.created_at)}
@@ -647,15 +705,21 @@ export const ActivityRunDetail = ({
                         <span className={styles.chev}>
                           {openGates.has(gate.id) ? '▾' : '▸'}
                         </span>
-                        <span className={styles.gateMark}>{gate.passed ? '✓' : '✗'}</span>
+                        <span className={styles.gateMark}>
+                          {gate.passed ? '✓' : '✗'}
+                        </span>
                         <span className={styles.gateName}>{gate.gate}</span>
                         <span
                           className={
-                            gate.passed ? styles.tag : `${styles.tag} ${styles.tagFail}`
+                            gate.passed
+                              ? styles.tag
+                              : `${styles.tag} ${styles.tagFail}`
                           }
                         >
                           <span className={styles.tagK}>checks</span>
-                          <span className={styles.tagV}>{checksLabel(checks)}</span>
+                          <span className={styles.tagV}>
+                            {checksLabel(checks)}
+                          </span>
                         </span>
                         <span className={`dim ${styles.gateTime}`}>
                           {fmtClock(gate.created_at)}
@@ -673,17 +737,25 @@ export const ActivityRunDetail = ({
                               key={`${gate.id}-${check.item}`}
                               className={`${styles.gateCheck} ${check.ok ? styles.pass : styles.fail}`}
                             >
-                              <span className={styles.checkMark}>{check.ok ? '✓' : '✗'}</span>
-                              <span className={styles.checkItem}>{check.item}</span>
+                              <span className={styles.checkMark}>
+                                {check.ok ? '✓' : '✗'}
+                              </span>
+                              <span className={styles.checkItem}>
+                                {check.item}
+                              </span>
                               {/*
                                 A failed `checks` note is "`<command>` exited
                                 N" plus a command-output tail: multi-line
                                 evidence gets a block, one-liners stay inline.
                               */}
                               {check.note?.includes('\n') ? (
-                                <pre className={styles.checkNoteBlock}>{check.note}</pre>
+                                <pre className={styles.checkNoteBlock}>
+                                  {check.note}
+                                </pre>
                               ) : check.note ? (
-                                <span className={`${styles.checkNote} dim`}>{check.note}</span>
+                                <span className={`${styles.checkNote} dim`}>
+                                  {check.note}
+                                </span>
                               ) : undefined}
                             </div>
                           ))}
@@ -722,11 +794,15 @@ export const ActivityRunDetail = ({
                   {usage.rows.map((row) => (
                     <tr
                       key={row.label}
-                      className={row.kind === undefined ? undefined : styles[row.kind]}
+                      className={
+                        row.kind === undefined ? undefined : styles[row.kind]
+                      }
                       title={row.title}
                     >
                       <td className={styles.usageK}>{row.label}</td>
-                      <td className={styles.usageN}>{NUM.format(row.tokens)}</td>
+                      <td className={styles.usageN}>
+                        {NUM.format(row.tokens)}
+                      </td>
                       <td className={styles.usageC}>{money(row.cost)}</td>
                     </tr>
                   ))}
@@ -734,8 +810,8 @@ export const ActivityRunDetail = ({
               </table>
               {usage.partial && (
                 <p className={`faint ${styles.usageNote}`}>
-                  this run predates the per-component breakdown — only the total was
-                  recorded
+                  this run predates the per-component breakdown — only the total
+                  was recorded
                 </p>
               )}
             </DetailSection>
@@ -759,7 +835,9 @@ export const ActivityRunDetail = ({
             {activityRunOutputs.map((envelope) => (
               <div key={envelope.envelope_id} className={styles.output}>
                 <div className={styles.outputLine}>
-                  <span className={styles.outputType}>{envelope.output_type}</span>
+                  <span className={styles.outputType}>
+                    {envelope.output_type}
+                  </span>
                   <span className={styles.tag}>
                     <span className={styles.tagK}>agent</span>
                     <span className={styles.tagV}>{envelope.agent ?? '—'}</span>
@@ -773,7 +851,9 @@ export const ActivityRunDetail = ({
                 {/* Safe: highlightJson escapes ALL input before emitting its own spans. */}
                 <pre
                   // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
-                  dangerouslySetInnerHTML={{ __html: highlightJson(envelope.payload_json) }}
+                  dangerouslySetInnerHTML={{
+                    __html: highlightJson(envelope.payload_json),
+                  }}
                 />
               </div>
             ))}
@@ -783,27 +863,35 @@ export const ActivityRunDetail = ({
 
       <div className={active === 'events' ? styles.events : styles.hidden}>
         <div className={styles.col}>
-          {activityRunEvents.length === 0 && <div className="faint">no events</div>}
+          {activityRunEvents.length === 0 && (
+            <div className="faint">no events</div>
+          )}
           {activityRunEvents.map((event) => {
             const duration = eventDurationMs(event)
-            const call = event.type === 'tool_call' ? parseToolCall(event) : null
+            const call =
+              event.type === 'tool_call' ? parseToolCall(event) : null
             const open = openEvents.has(event.event_id)
             return (
               <div key={event.event_id} className={styles.event}>
                 <button
                   type="button"
-                  className={open ? `${styles.eventRow} ${styles.open}` : styles.eventRow}
+                  className={
+                    open ? `${styles.eventRow} ${styles.open}` : styles.eventRow
+                  }
                   onClick={() => openEvents.toggle(event.event_id)}
                 >
                   <span className={`${styles.eventTime} dim`}>
                     {fmtClock(event.started_at)}
                   </span>
-                  <span className={`${styles.eventType} ${TYPE_CLASS[event.type ?? ''] ?? ''}`}>
+                  <span
+                    className={`${styles.eventType} ${TYPE_CLASS[event.type ?? ''] ?? ''}`}
+                  >
                     {event.type}
                   </span>
                   <span
                     className={
-                      event.type === 'tool_call' && payloadOk(event.payload_json)
+                      event.type === 'tool_call' &&
+                      payloadOk(event.payload_json)
                         ? styles.eventName
                         : `${styles.eventName} t-red`
                     }
@@ -823,37 +911,49 @@ export const ActivityRunDetail = ({
 
                 {open && (
                   <div className={styles.payloadPanel}>
-                    {call === null ? event.type === 'tool_call' && event.payload_json ? (
-                      <>
-                        <div className="faint">no detail available — legacy event payload</div>
-                        <pre
-                          className={styles.payloadPre}
-                          // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
-                          dangerouslySetInnerHTML={{
-                            __html: highlightJson(event.payload_json),
-                          }}
-                        />
-                      </>
-                    ) : event.payload_json ? (
-                      <>
-                        <h4>payload</h4>
-                        <pre
-                          className={styles.payloadPre}
-                          // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
-                          dangerouslySetInnerHTML={{
-                            __html: highlightJson(event.payload_json),
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <div className="faint">no payload</div>
+                    {call === null ? (
+                      event.type === 'tool_call' && event.payload_json ? (
+                        <>
+                          <div className="faint">
+                            no detail available — legacy event payload
+                          </div>
+                          <pre
+                            className={styles.payloadPre}
+                            // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
+                            dangerouslySetInnerHTML={{
+                              __html: highlightJson(event.payload_json),
+                            }}
+                          />
+                        </>
+                      ) : event.payload_json ? (
+                        <>
+                          <h4>payload</h4>
+                          <pre
+                            className={styles.payloadPre}
+                            // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
+                            dangerouslySetInnerHTML={{
+                              __html: highlightJson(event.payload_json),
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <div className="faint">no payload</div>
+                      )
                     ) : (
                       <>
                         <div className={styles.payloadMeta}>
-                          <span className={styles.payloadTool}>{call.tool}</span>
-                          {call.ok === false && <span className="t-red">failed</span>}
+                          <span className={styles.payloadTool}>
+                            {call.tool}
+                          </span>
+                          {call.ok === false && (
+                            <span className="t-red">failed</span>
+                          )}
                           {call.duration_ms != null && (
-                            <StatChip kind="runtime" compact value={call.duration_ms} />
+                            <StatChip
+                              kind="runtime"
+                              compact
+                              value={call.duration_ms}
+                            />
                           )}
                         </div>
                         <h4>args</h4>
@@ -869,7 +969,9 @@ export const ActivityRunDetail = ({
                         {call.result_snippet && (
                           <>
                             <h4>result</h4>
-                            <pre className={styles.payloadPre}>{call.result_snippet}</pre>
+                            <pre className={styles.payloadPre}>
+                              {call.result_snippet}
+                            </pre>
                           </>
                         )}
                       </>

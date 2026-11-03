@@ -2,10 +2,7 @@ import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createTracer } from './modules/data/trace-db'
-import { INVOCATION_FILENAME } from './modules/use-cases/resume-run'
-import { restoreTerminal, silenceTerminal, terminalOutput } from './modules/testing/terminal-capture'
-import { EXIT } from './modules/typedefs/run-state'
+import type { TDecideArgs } from './decide'
 import {
   answerText,
   isVerb,
@@ -15,7 +12,14 @@ import {
   USAGE,
   VERBS,
 } from './decide'
-import type { TDecideArgs } from './decide'
+import { createTracer } from './modules/data/trace-db'
+import {
+  restoreTerminal,
+  silenceTerminal,
+  terminalOutput,
+} from './modules/testing/terminal-capture'
+import { EXIT } from './modules/typedefs/run-state'
+import { INVOCATION_FILENAME } from './modules/use-cases/resume-run'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)
@@ -29,7 +33,9 @@ afterEach(restoreTerminal)
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-decide-'))
 
-const anArgs = (overrides: Readonly<Partial<TDecideArgs>> = {}): TDecideArgs => ({
+const anArgs = (
+  overrides: Readonly<Partial<TDecideArgs>> = {},
+): TDecideArgs => ({
   verb: 'approve',
   runId: 'fbf49583',
   note: '',
@@ -249,7 +255,9 @@ test(
   ].join(', '),
   () => {
     // given, when
-    const actual = answerText(anArgs({ verb: 'reject', note: 'use a different queue' }))
+    const actual = answerText(
+      anArgs({ verb: 'reject', note: 'use a different queue' }),
+    )
 
     // then
     expect(actual).toContain('Rejected')
@@ -355,7 +363,10 @@ test(
     mkdirSync(sessionDir, { recursive: true })
     writeFileSync(
       join(sessionDir, INVOCATION_FILENAME),
-      JSON.stringify({ argv: ['bun', '-e', 'process.exit(0)'], cwd: process.cwd() }),
+      JSON.stringify({
+        argv: ['bun', '-e', 'process.exit(0)'],
+        cwd: process.cwd(),
+      }),
     )
     const configPath = join(dataDir, 'crust.config.yaml')
     writeFileSync(
@@ -366,7 +377,10 @@ test(
     // this test's own data_dir with whatever this developer machine has set.
     const originalMachineConfig = process.env.CRUST_MACHINE_CONFIG
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfig reads through machineConfigPath
-    process.env.CRUST_MACHINE_CONFIG = join(dataDir, 'no-such-machine-config.yaml')
+    process.env.CRUST_MACHINE_CONFIG = join(
+      dataDir,
+      'no-such-machine-config.yaml',
+    )
 
     try {
       // when
@@ -418,7 +432,10 @@ test(
     )
     const originalMachineConfig = process.env.CRUST_MACHINE_CONFIG
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfig reads through machineConfigPath
-    process.env.CRUST_MACHINE_CONFIG = join(dataDir, 'no-such-machine-config.yaml')
+    process.env.CRUST_MACHINE_CONFIG = join(
+      dataDir,
+      'no-such-machine-config.yaml',
+    )
 
     try {
       // when

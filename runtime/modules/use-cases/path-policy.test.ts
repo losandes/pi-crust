@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crustConfigSchema } from '../typedefs/config'
 import { renderWarnings } from '../typedefs/warning'
-import type { TGoverned, TPathSettings, TRefusal, TToolCall } from './path-policy'
+import type {
+  TGoverned,
+  TPathSettings,
+  TRefusal,
+  TToolCall,
+} from './path-policy'
 import {
   bashTokens,
   decidePath,
@@ -14,11 +19,14 @@ import {
   refusalLine,
   repoRelative,
 } from './path-policy'
-import { armPolicy, refusalsIn, settingsFor, stopMessage } from './path-policy-run'
+import {
+  armPolicy,
+  refusalsIn,
+  settingsFor,
+  stopMessage,
+} from './path-policy-run'
 
-const settings = (
-  overrides: Partial<TPathSettings> = {},
-): TPathSettings => ({
+const settings = (overrides: Partial<TPathSettings> = {}): TPathSettings => ({
   repoRoot: '/repo',
   dataDir: '.pi-crust/data',
   handoffDir: '',
@@ -259,7 +267,11 @@ const governing = (dir: string) => {
       data_dir: '.pi-crust/data',
     },
   })
-  const resolved = settingsFor(cfg, dir, join(dir, '.pi-crust', 'data', 'sessions', 'test', 'context_handoff'))
+  const resolved = settingsFor(
+    cfg,
+    dir,
+    join(dir, '.pi-crust', 'data', 'sessions', 'test', 'context_handoff'),
+  )
 
   return (toolName: string, input: Record<string, unknown>): TGoverned =>
     governToolCall({
@@ -339,13 +351,22 @@ test(
   () => {
     // given
     const dir = aRepo()
-    const cfg = crustConfigSchema.parse({ defaults: { data_dir: '.pi-crust/data' } })
+    const cfg = crustConfigSchema.parse({
+      defaults: { data_dir: '.pi-crust/data' },
+    })
 
     // when
     const actual = armPolicy({
       cfg,
       repoRoot: dir,
-      handoffDir: join(dir, '.pi-crust', 'data', 'sessions', 'run_01', 'context_handoff'),
+      handoffDir: join(
+        dir,
+        '.pi-crust',
+        'data',
+        'sessions',
+        'run_01',
+        'context_handoff',
+      ),
       agentDir: join(dir, 'agent'),
       activityRunId: 'run_01_build',
     })
@@ -514,7 +535,7 @@ test(
 test(
   [
     'given use-cases/path-policy-run::stopMessage',
-    'when an agent reached a path governed with \'stop\'',
+    "when an agent reached a path governed with 'stop'",
     'it should name the agent and every stopped call, and say nothing was rolled back',
   ].join(', '),
   () => {
@@ -661,7 +682,12 @@ test(
         data_dir: pooledStore,
       },
     })
-    const handoffDir = join(pooledStore, 'sessions', 'run_01', 'context_handoff')
+    const handoffDir = join(
+      pooledStore,
+      'sessions',
+      'run_01',
+      'context_handoff',
+    )
     const resolved = settingsFor(cfg, dir, handoffDir)
     const call: TToolCall = {
       toolName: 'write',
@@ -706,9 +732,16 @@ test(
     // through governToolCall, so this pins settingsFor's own contract
     // regardless of how any particular call happens to be governed
     const dir = aRepo()
-    const pooledStore = mkdtempSync(join(tmpdir(), 'crust-policy-pooled-direct-'))
+    const pooledStore = mkdtempSync(
+      join(tmpdir(), 'crust-policy-pooled-direct-'),
+    )
     const cfg = crustConfigSchema.parse({ defaults: { data_dir: pooledStore } })
-    const handoffDir = join(pooledStore, 'sessions', 'run_02', 'context_handoff')
+    const handoffDir = join(
+      pooledStore,
+      'sessions',
+      'run_02',
+      'context_handoff',
+    )
 
     // when
     const resolved = settingsFor(cfg, dir, handoffDir)

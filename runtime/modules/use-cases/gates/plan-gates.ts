@@ -11,10 +11,10 @@
  * operator gets one chance to fix its own plan before anyone sees it.
  */
 
+import { isPlannerName, PLANNER_NAMES } from '../../typedefs/activity'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
-import { isPlannerName, PLANNER_NAMES } from '../../typedefs/activity'
 
 /**
  * A Planner may never be planned, and the agent is told why.
@@ -36,7 +36,9 @@ export const plannedNames = (envelope: TEnvelopeBase): readonly string[] => {
   // Activities; the field keeps the name the envelope published.
   const activities = (envelope as { steps?: unknown }).steps
   return Array.isArray(activities)
-    ? activities.filter((activity): activity is string => typeof activity === 'string')
+    ? activities.filter(
+        (activity): activity is string => typeof activity === 'string',
+      )
     : []
 }
 
@@ -80,7 +82,7 @@ export const stepsValid: TGate = {
         known
           ? 'an Activity this repository offers'
           : 'not an Activity this repository offers. They are: ' +
-            `${offered.join(', ')}`,
+              `${offered.join(', ')}`,
       )
     }, emptyReport)
   },

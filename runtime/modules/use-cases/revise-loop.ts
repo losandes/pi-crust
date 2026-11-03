@@ -44,22 +44,30 @@ import {
   reviewOutput,
 } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
-import type { TActivity, TActivityContext, TActivityOptions } from '../typedefs/runnable-activity'
-import type { TActivityOutcome } from '../typedefs/runnable-activity'
-import { acceptedExcluding, allAccepted, DEFAULT_ACTIVITY_OPTIONS } from '../typedefs/runnable-activity'
+import type {
+  TActivity,
+  TActivityContext,
+  TActivityOptions,
+  TActivityOutcome,
+} from '../typedefs/runnable-activity'
+import {
+  acceptedExcluding,
+  allAccepted,
+  DEFAULT_ACTIVITY_OPTIONS,
+} from '../typedefs/runnable-activity'
+import { agentActivity, runnableActivities } from './activities'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger, reviseCause } from './attempts'
 import type { TRoundRecord } from './dispute-ledger'
-import { REPORT_FILENAME, renderReport } from './dispute-report'
 import {
   readLedger,
   roundRecord,
   unmovedFindings,
   writeLedger,
 } from './dispute-ledger'
+import { REPORT_FILENAME, renderReport } from './dispute-report'
 import { disputesSupported } from './gates'
 import { runActivities, runUnits } from './run-activities'
-import { agentActivity, runnableActivities } from './activities'
 
 /** The Activity Run name every round of the loop runs under. */
 export const REVISE = 'revise'
@@ -191,7 +199,12 @@ export const reviseActivity = (
     { ...DEFAULT_ACTIVITY_OPTIONS, ...options, instance: 1 },
   )
 
-  return { ...activity, name: REVISE, instance: REVISE, params: { ...activity.params, name: REVISE } }
+  return {
+    ...activity,
+    name: REVISE,
+    instance: REVISE,
+    params: { ...activity.params, name: REVISE },
+  }
 }
 
 /** What `finish` is told, per outcome. The developer's next move is in it. */
@@ -288,10 +301,8 @@ export const groupApproved = (
       true,
   )
 
-const approvedOf = (
-  ctx: TActivityContext,
-  group: readonly string[],
-): boolean => groupApproved(ctx.outcomes, group)
+const approvedOf = (ctx: TActivityContext, group: readonly string[]): boolean =>
+  groupApproved(ctx.outcomes, group)
 
 /**
  * The group re-asked, as an Activity Run name and the instance it runs under.
@@ -358,11 +369,11 @@ export const runReviseLoop = (
       ctx: state.ctx,
       outcome,
       /*
-        * Exactly the verdicts this loop re-asks are set aside, and no
-        * others. A rejection nobody revisited stays decisive: excluding it
-        * would report a run accepted over a reviewer that is still saying
-        * no.
-        */
+       * Exactly the verdicts this loop re-asks are set aside, and no
+       * others. A rejection nobody revisited stays decisive: excluding it
+       * would report a run accepted over a reviewer that is still saying
+       * no.
+       */
       accepted:
         acceptedExcluding(state.ctx.outcomes, group) && outcome === 'approved',
       reason: outcomeReason(outcome, {
@@ -489,10 +500,7 @@ export const runReviseLoop = (
     if (approvedOf(reviewed, group)) {
       return settle(next, 'approved', [])
     }
-    const unmoved = unmovedFindings(
-      state.rounds.at(-1) ?? record,
-      record,
-    )
+    const unmoved = unmovedFindings(state.rounds.at(-1) ?? record, record)
     if (unmoved.length > 0) {
       run.console.note(
         `deadlock: ${unmoved.length} finding(s) repeated with no new evidence ` +

@@ -17,7 +17,9 @@ const chainOf = (state: TRunState): readonly string[] =>
     .flatMap((envelope) => {
       const activities = (envelope.payload as { steps?: unknown }).steps
       return Array.isArray(activities)
-        ? activities.filter((activity): activity is string => typeof activity === 'string')
+        ? activities.filter(
+            (activity): activity is string => typeof activity === 'string',
+          )
         : []
     })
 

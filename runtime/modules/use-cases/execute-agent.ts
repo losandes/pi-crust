@@ -5,37 +5,40 @@
  * correction — context intact, bounded retries. Agent proposes, code disposes.
  */
 
-import { inboxSince } from '../data/inbox'
 import { join, resolve } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { ensureDir, writeText } from '../data/files'
 import { newId } from '../data/ids'
-import * as piAgent from '../data/pi-agent'
+import { inboxSince } from '../data/inbox'
 import type { TPiHooks } from '../data/pi-agent'
+import * as piAgent from '../data/pi-agent'
 import { resolveReference } from '../data/prompt-files'
-import type { TTreeSnapshot } from '../data/working-tree'
 import type { TRoots } from '../data/roots'
-import { liveAgent } from './execute-agent-live'
+import { readSteering } from '../data/steering'
+import type { TTreeSnapshot } from '../data/working-tree'
+import type { TActivityRun } from '../typedefs/activity-run'
 import type { TAgentConfig } from '../typedefs/config'
 import type { TEnvelopeBase, TEnvelopeSpec } from '../typedefs/envelope'
 import type { TAgentCall } from '../typedefs/gate'
-import type { TActivityRun } from '../typedefs/activity-run'
 import type { TPiRequest, TPiResult, TUsageBreakdown } from '../typedefs/pi'
 import { emptyUsage, mergeUsage } from '../typedefs/pi'
 import type { TActivityRunHandle, TRun } from '../typedefs/run'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
-import { enforcePermissions, handoffDocument } from './enforce-permissions'
-import { armPolicy, refusalsIn, stopMessage } from './path-policy-run'
-import { refusalLine } from './path-policy'
-import { claimedPaths, observedPayload, PATHS_TOUCHED } from './observed-paths'
+import { trustStance } from '../typedefs/trust'
 import type { TTreeWarning } from '../typedefs/warning'
 import { WARNING_EVENT, warningPayload } from '../typedefs/warning'
+import { activityCatalogue } from './activity-catalogue'
+import { enforcePermissions, handoffDocument } from './enforce-permissions'
+import { liveAgent } from './execute-agent-live'
 import { extractJson } from './extract-json'
 import { resolveAgent } from './load-config'
-import { trustStance } from '../typedefs/trust'
-import { readSteering } from '../data/steering'
-import { steeringAppliedEvent, steeringBlock } from './steer'
-import { activityCatalogue } from './activity-catalogue'
+import { claimedPaths, observedPayload, PATHS_TOUCHED } from './observed-paths'
+import { refusalLine } from './path-policy'
+import { armPolicy, refusalsIn, stopMessage } from './path-policy-run'
 import { matchingSkills } from './route-by-path'
+import { steeringAppliedEvent, steeringBlock } from './steer'
 
 /**
  * What a gate said about the LAST attempt, appended to this one's prompt.
@@ -50,7 +53,7 @@ export const feedbackBlock = (violations: readonly string[]): string =>
   violations.length === 0
     ? ''
     : '\n\n## What failed last time\n\n' +
-      'Your previous attempt was rejected by this repository\'s gates:\n\n' +
+      "Your previous attempt was rejected by this repository's gates:\n\n" +
       `${violations.map((one) => `- ${one}`).join('\n')}\n\n` +
       'Fix every one of them. They are checked again, the same way, when ' +
       'you are done.'
@@ -559,7 +562,10 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // What the tree looked like before this agent got its hands on it. Every
   // send in this activityRun — first prompt, JSON retries — is measured against
   // this one baseline.
-  const treeBefore = ports.snapshot({ workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot })
+  const treeBefore = ports.snapshot({
+    workspaceRoot: run.repoRoot,
+    vcsRoot: run.vcsRoot,
+  })
   /*
    * And where history was, so a commit this Activity was not asked to make is
    * caught. No prompt asks an agent to commit, but a prompt is advice:

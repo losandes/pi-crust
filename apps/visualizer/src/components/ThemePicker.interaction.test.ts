@@ -302,60 +302,56 @@ test.skipIf(browser === undefined)(
   async () => {
     if (browser === undefined) return // unreachable; narrows the type for tsc
 
-    await withPage(
-      TWELVE_THEMES,
-      browser,
-      async (page) => {
-        await page.evaluate(
-          ([key, value]) => window.localStorage.setItem(key, value),
-          [THEME_STORAGE_KEY, 'high-contrast'] as const,
-        )
-        await page.reload()
-        await page.waitForSelector('#picker button')
+    await withPage(TWELVE_THEMES, browser, async (page) => {
+      await page.evaluate(
+        ([key, value]) => window.localStorage.setItem(key, value),
+        [THEME_STORAGE_KEY, 'high-contrast'] as const,
+      )
+      await page.reload()
+      await page.waitForSelector('#picker button')
 
-        const trigger = page.locator('#picker button')
-        expect(await trigger.getAttribute('aria-haspopup')).toBe('listbox')
-        expect(await trigger.getAttribute('aria-expanded')).toBe('false')
+      const trigger = page.locator('#picker button')
+      expect(await trigger.getAttribute('aria-haspopup')).toBe('listbox')
+      expect(await trigger.getAttribute('aria-expanded')).toBe('false')
 
-        const accessibleName = await trigger.evaluate(
-          (el) => el.getAttribute('aria-label') ?? el.textContent ?? '',
-        )
-        expect(accessibleName).toContain('High contrast')
+      const accessibleName = await trigger.evaluate(
+        (el) => el.getAttribute('aria-label') ?? el.textContent ?? '',
+      )
+      expect(accessibleName).toContain('High contrast')
 
-        await trigger.click()
-        expect(await trigger.getAttribute('aria-expanded')).toBe('true')
+      await trigger.click()
+      expect(await trigger.getAttribute('aria-expanded')).toBe('true')
 
-        const listbox = page.locator('[role="listbox"]')
-        expect(await listbox.count()).toBe(1)
-        const listAccessibleName = await listbox.evaluate(
-          (el) => el.getAttribute('aria-label') ?? '',
-        )
-        expect(listAccessibleName.length).toBeGreaterThan(0)
+      const listbox = page.locator('[role="listbox"]')
+      expect(await listbox.count()).toBe(1)
+      const listAccessibleName = await listbox.evaluate(
+        (el) => el.getAttribute('aria-label') ?? '',
+      )
+      expect(listAccessibleName.length).toBeGreaterThan(0)
 
-        const options = await page.$$eval('[role="option"]', (rows) =>
-          rows.map((row) => ({
-            text: row.textContent ?? '',
-            selected: row.getAttribute('aria-selected'),
-          })),
-        )
-        expect(options).toHaveLength(TWELVE_THEMES.length)
+      const options = await page.$$eval('[role="option"]', (rows) =>
+        rows.map((row) => ({
+          text: row.textContent ?? '',
+          selected: row.getAttribute('aria-selected'),
+        })),
+      )
+      expect(options).toHaveLength(TWELVE_THEMES.length)
 
-        const selected = options.filter((row) => row.selected === 'true')
-        expect(selected).toHaveLength(1)
-        expect(selected[0]?.text).toContain('High contrast')
+      const selected = options.filter((row) => row.selected === 'true')
+      expect(selected).toHaveLength(1)
+      expect(selected[0]?.text).toContain('High contrast')
 
-        // 'high-contrast' (the name) and 'High contrast' (the label) only
-        // disagree by punctuation and case, which alone would not prove
-        // selection is keyed on `name` rather than `label`. No other theme
-        // in this fixture starts with "High", so an accidental label-prefix
-        // match is ruled out directly.
-        const notSelected = options.filter((row) => row.selected !== 'true')
-        expect(notSelected).toHaveLength(TWELVE_THEMES.length - 1)
-        for (const row of notSelected) {
-          expect(row.text.startsWith('High')).toBe(false)
-        }
-      },
-    )
+      // 'high-contrast' (the name) and 'High contrast' (the label) only
+      // disagree by punctuation and case, which alone would not prove
+      // selection is keyed on `name` rather than `label`. No other theme
+      // in this fixture starts with "High", so an accidental label-prefix
+      // match is ruled out directly.
+      const notSelected = options.filter((row) => row.selected !== 'true')
+      expect(notSelected).toHaveLength(TWELVE_THEMES.length - 1)
+      for (const row of notSelected) {
+        expect(row.text.startsWith('High')).toBe(false)
+      }
+    })
   },
   20_000,
 )

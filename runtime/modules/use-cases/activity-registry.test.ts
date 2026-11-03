@@ -251,7 +251,7 @@ test(
 test(
   [
     'given use-cases/activity-registry::registryFaults',
-    'when an alias is equal to its own entry\'s name',
+    "when an alias is equal to its own entry's name",
     'it should refuse, because it is harmless to run and pointless to write',
   ].join(', '),
   () => {

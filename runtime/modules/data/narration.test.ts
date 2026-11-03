@@ -23,7 +23,10 @@ test(
     const emitted = deltas(tracker, [
       {
         type: 'message_update',
-        assistantMessageEvent: { type: 'thinking_delta', delta: 'the config may be stale' },
+        assistantMessageEvent: {
+          type: 'thinking_delta',
+          delta: 'the config may be stale',
+        },
       },
       { type: 'message_end' },
     ])
@@ -47,11 +50,23 @@ test(
 
     // when
     const emitted = deltas(tracker, [
-      { type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'the config ' } },
-      { type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'may be stale' } },
       {
         type: 'message_update',
-        assistantMessageEvent: { type: 'thinking_end', content: 'the config may be stale' },
+        assistantMessageEvent: { type: 'thinking_delta', delta: 'the config ' },
+      },
+      {
+        type: 'message_update',
+        assistantMessageEvent: {
+          type: 'thinking_delta',
+          delta: 'may be stale',
+        },
+      },
+      {
+        type: 'message_update',
+        assistantMessageEvent: {
+          type: 'thinking_end',
+          content: 'the config may be stale',
+        },
       },
       { type: 'message_end' },
     ])
@@ -106,7 +121,10 @@ test(
     ])
 
     // then
-    expect(emitted.map((record) => record?.channel)).toEqual(['thinking', 'text'])
+    expect(emitted.map((record) => record?.channel)).toEqual([
+      'thinking',
+      'text',
+    ])
   },
 )
 

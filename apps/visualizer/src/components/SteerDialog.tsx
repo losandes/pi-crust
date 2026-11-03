@@ -77,8 +77,8 @@ export const SteerDialog = ({
         >
           overwrite
           <span className={styles.hint}>
-            these activities rewrite their own documents; what they produced before
-            is not kept
+            these activities rewrite their own documents; what they produced
+            before is not kept
           </span>
         </button>
         <button

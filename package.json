@@ -6,34 +6,36 @@
   "scripts": {
     "postinstall": "cd apps/visualizer && bun install",
     "// LINT": "==============================LINT==============================",
-    "lint": "biome check apps runtime scripts templates",
-    "lint:fix": "biome check apps runtime scripts templates --fix",
+    "lint": "biome check apps lib runtime scripts templates",
+    "lint:fix": "biome check apps lib runtime scripts templates --fix",
     "// BUILD": "=============================BUILD=============================",
     "build": "bun run --cwd apps/visualizer build",
     "// TEST": "==============================TEST==============================",
-    "test": "./bin/test",
-    "test:agent": "./bin/test-agent",
-    "test:markdown": "./bin/test-markdown",
-    "test:verbose": "./bin/test-block --verbose --coverage",
-    "test:watch": "bun test --watch",
+    "test": "bunt apps/visualizer lib runtime scripts | buntap --nyan",
+    "test:agent": "CLAUDECODE=1 bunt apps/visualizer lib runtime scripts --coverage | buntap --agent",
+    "test:ci": "CLAUDECODE=1 bun test apps/visualizer lib runtime scripts --coverage",
     "// TYPECHECK": "=======================TYPECHECK===========================",
     "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
     "typecheck:runtime": "bun x tsc --noEmit -p runtime",
     "typecheck:harness": "bun scripts/typecheck-harness.ts",
-    "typecheck:visualizer": "bun x tsc --noEmit -p apps/visualizer"
+    "typecheck:visualizer": "bun x tsc --noEmit -p apps/visualizer",
+    "// CHECK": "=============================CHECK=============================",
+    "check": "bun run lint && bun run typecheck && bun run test:agent && bun run build && bun run check:install && bun run check:stdout",
+    "check:install": "bun scripts/check-install.ts",
+    "check:stdout": "bash scripts/check-stdout.sh"
   },
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "engines": {
     "node": ">=24.8.0",
-    "bun": ">=1.4"
+    "bun": ">=1.4.4"
   },
   "dependencies": {
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.12",
+    "@biomejs/biome": "2.6.4",
     "@types/bun": "1.4.2",
-    "buntap": "link:buntap",
+    "buntap": "github:losandes/buntap",
     "markdownlint-cli2": "^0.23.3",
     "typescript": "5.9.3"
   }

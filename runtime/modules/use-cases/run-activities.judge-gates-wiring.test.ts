@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { activityRunParams } from '../typedefs/activity-run'
 import type { TActivityRun } from '../typedefs/activity-run'
+import { activityRunParams } from '../typedefs/activity-run'
 import type { TBuildOutput } from '../typedefs/envelope'
 import type { TRun } from '../typedefs/run'
 import type { TActivity } from '../typedefs/runnable-activity'
@@ -29,10 +29,7 @@ import { judgeGates } from './run-activities'
  * requirement, which neither file exercises today.
  */
 
-const activityRunRow = (
-  name: string,
-  activityRunId: string,
-): TActivityRun => ({
+const activityRunRow = (name: string, activityRunId: string): TActivityRun => ({
   activity_run_id: activityRunId,
   run_id: 'dddd4444',
   seq: 1,

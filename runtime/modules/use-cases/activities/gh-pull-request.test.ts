@@ -3,19 +3,28 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ensureDir, readText, writeText } from '../../data/files'
-import { terminalConfigSchema } from '../../typedefs/activity'
 import type { TTerminalConfig } from '../../typedefs/activity'
-import type { TActivityContext, TActivityOptions } from '../../typedefs/runnable-activity'
-import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
+import { terminalConfigSchema } from '../../typedefs/activity'
 import type { TActivityRunHandle, TRun } from '../../typedefs/run'
+import type {
+  TActivityContext,
+  TActivityOptions,
+} from '../../typedefs/runnable-activity'
+import { DEFAULT_ACTIVITY_OPTIONS } from '../../typedefs/runnable-activity'
+import type {
+  TDeliveryPorts,
+  TForge,
+  TPullRequestParams,
+} from './gh-pull-request'
 import {
   attributedBody,
   fallbackPullRequest,
   ghPullRequestActivity,
 } from './gh-pull-request'
-import type { TDeliveryPorts, TForge, TPullRequestParams } from './gh-pull-request'
 
-const config = (overrides: Readonly<Partial<Record<string, unknown>>> = {}): TTerminalConfig =>
+const config = (
+  overrides: Readonly<Partial<Record<string, unknown>>> = {},
+): TTerminalConfig =>
   terminalConfigSchema.parse({
     name: 'gh-pull-request',
     purpose: 'Push the run and open or update a pull request',
@@ -101,7 +110,10 @@ const aHandle = (): TActivityRunHandle =>
     log: () => undefined,
   }) as unknown as TActivityRunHandle
 
-const aCtx = (run: TRun, extra: Readonly<Partial<TActivityContext>> = {}): TActivityContext =>
+const aCtx = (
+  run: TRun,
+  extra: Readonly<Partial<TActivityContext>> = {},
+): TActivityContext =>
   ({
     run,
     prompt: 'ship the feature',
@@ -127,7 +139,10 @@ const CONTEXT_ENVELOPE_DEFAULTS = {
   notes_for_next_agent: '',
 }
 
-const resumedEnvelope = (run: TRun, body: Readonly<Record<string, unknown>>): void => {
+const resumedEnvelope = (
+  run: TRun,
+  body: Readonly<Record<string, unknown>>,
+): void => {
   const dir = join(run.sessionDir, 'gh-pull-request')
   ensureDir(dir)
   writeText(
@@ -147,7 +162,11 @@ test(
   async () => {
     // given
     const { ports, calls } = fakePorts()
-    const activity = ghPullRequestActivity(config(), { ...OPTIONS, committing: false }, ports)
+    const activity = ghPullRequestActivity(
+      config(),
+      { ...OPTIONS, committing: false },
+      ports,
+    )
     const run = aRun()
 
     // when
@@ -489,7 +508,10 @@ test(
     })
 
     // when
-    await activity.deliver(aCtx(run, { prompt: 'ship it, closes #54' }), aHandle())
+    await activity.deliver(
+      aCtx(run, { prompt: 'ship it, closes #54' }),
+      aHandle(),
+    )
 
     // then
     const body = readText(created?.bodyPath ?? '')
@@ -575,7 +597,9 @@ test(
     const actual = attributedBody('the body', 'openai/gpt-5', 'octocat')
 
     // then
-    expect(actual).toMatch(/^> Written by pi-crust \(an AI coding agent running openai\/gpt-5\) on behalf of @octocat\./)
+    expect(actual).toMatch(
+      /^> Written by pi-crust \(an AI coding agent running openai\/gpt-5\) on behalf of @octocat\./,
+    )
     expect(actual).toMatch(/— pi-crust, on behalf of @octocat\.$/)
     expect(actual).toContain('the body')
   },

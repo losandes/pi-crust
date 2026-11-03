@@ -29,7 +29,9 @@ const HARNESS_HTML = `<!doctype html>
  * verification command AGENTS.md tells people to run on a fresh clone. A
  * skip is a check not run, not a check that passed.
  */
-const browser: Browser | undefined = await chromium.launch().catch(() => undefined)
+const browser: Browser | undefined = await chromium
+  .launch()
+  .catch(() => undefined)
 if (browser === undefined) {
   console.warn(
     'ActivityRunDetail.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
@@ -43,7 +45,12 @@ afterAll(async () => {
 const panelWidths = async (activeBrowser: Browser) => {
   const server = await createServer({
     root: new URL('../../', import.meta.url).pathname,
-    server: { host: '127.0.0.1', port: HARNESS_PORT, strictPort: true, hmr: false },
+    server: {
+      host: '127.0.0.1',
+      port: HARNESS_PORT,
+      strictPort: true,
+      hmr: false,
+    },
     logLevel: 'silent',
   })
   await server.listen()
@@ -103,7 +110,9 @@ test.skipIf(browser === undefined)(
     ).toBeLessThanOrEqual(0.5)
 
     // 1.1.3 — the context tab's content width matches the events tab's.
-    expect(Math.abs(contextWidth.contentWidth - eventsWidth.contentWidth)).toBeLessThanOrEqual(0.5)
+    expect(
+      Math.abs(contextWidth.contentWidth - eventsWidth.contentWidth),
+    ).toBeLessThanOrEqual(0.5)
   },
   20_000,
 )

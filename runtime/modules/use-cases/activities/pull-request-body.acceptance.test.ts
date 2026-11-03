@@ -12,14 +12,18 @@
  */
 
 import { expect, test } from 'bun:test'
-import type { TActivityRunState, TEnvelopeRecord, TRunState } from '../../typedefs/run-state'
+import type {
+  TActivityRunState,
+  TEnvelopeRecord,
+  TRunState,
+} from '../../typedefs/run-state'
+import type { TBodyFacts } from './pull-request-body'
 import {
   agentProse,
   checksSection,
   composedBody,
   issueRefs,
 } from './pull-request-body'
-import type { TBodyFacts } from './pull-request-body'
 
 const activityRun = (
   overrides: Readonly<Partial<TActivityRunState>> = {},
@@ -93,7 +97,9 @@ test(
     // given — three sources the spec names (1.1.3) all naming #54
     const state = aState({
       request: 'implements #54',
-      envelopes: [envelope({ activityRun: 'gh-issue', payload: { issue_number: 54 } })],
+      envelopes: [
+        envelope({ activityRun: 'gh-issue', payload: { issue_number: 54 } }),
+      ],
     })
     const facts = aFacts({ prompt: 'closes #54', state })
 
@@ -115,7 +121,9 @@ test(
     // given
     const state = aState({
       request: 'also touches #7',
-      envelopes: [envelope({ activityRun: 'gh-issue', payload: { issue_number: 61 } })],
+      envelopes: [
+        envelope({ activityRun: 'gh-issue', payload: { issue_number: 61 } }),
+      ],
     })
     const facts = aFacts({ prompt: 'closes #54, see #7', state })
 
@@ -176,7 +184,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const facts = aFacts({ state: aState(), declaredChecks: ['typecheck', 'lint'] })
+    const facts = aFacts({
+      state: aState(),
+      declaredChecks: ['typecheck', 'lint'],
+    })
 
     // when
     const actual = checksSection(facts)
@@ -210,13 +221,19 @@ test(
           seq: 1,
           name: 'build',
           gates: [
-            { gate: 'diff_matches_claims', activityRun: 'build', passed: true, violations: [], checks: [] },
+            {
+              gate: 'diff_matches_claims',
+              activityRun: 'build',
+              passed: true,
+              violations: [],
+              checks: [],
+            },
             {
               gate: 'checks',
               activityRun: 'build',
               passed: false,
               violations: [],
-              checks: [{ item: 'test', ok: true, note: "`bun test` exited 0" }],
+              checks: [{ item: 'test', ok: true, note: '`bun test` exited 0' }],
             },
           ],
         }),
@@ -225,7 +242,13 @@ test(
           name: 'code-review',
           status: 'success',
           gates: [
-            { gate: 'artifacts_exist', activityRun: 'code-review', passed: true, violations: [], checks: [] },
+            {
+              gate: 'artifacts_exist',
+              activityRun: 'code-review',
+              passed: true,
+              violations: [],
+              checks: [],
+            },
             {
               gate: 'verdict_consistent',
               activityRun: 'code-review',
@@ -240,10 +263,12 @@ test(
         envelope({
           activityRun: 'build',
           payload: {
-            summary: 'Implemented the flag table and the shared positional parser.',
+            summary:
+              'Implemented the flag table and the shared positional parser.',
             decisions: [
               {
-                decision: 'Normalised short flags inside read() — one resolution point keeps TCliArgs free of aliases.',
+                decision:
+                  'Normalised short flags inside read() — one resolution point keeps TCliArgs free of aliases.',
               },
             ],
           },
@@ -251,7 +276,8 @@ test(
         envelope({
           activityRun: 'code-review',
           payload: {
-            summary: 'New tests comply with the TypeScript testing ADR; one non-blocking style observation.',
+            summary:
+              'New tests comply with the TypeScript testing ADR; one non-blocking style observation.',
           },
         }),
       ],
@@ -287,7 +313,9 @@ test(
     // envelope-derived answer and decisions, not just the Stage directly
     // upstream of gh-pull-request
     expect(actual).toContain('### build')
-    expect(actual).toContain('- Answer: Implemented the flag table and the shared positional parser.')
+    expect(actual).toContain(
+      '- Answer: Implemented the flag table and the shared positional parser.',
+    )
     expect(actual).toContain('- Decisions')
     expect(actual).toContain(
       '  - Normalised short flags inside read() — one resolution point keeps TCliArgs free of aliases.',
@@ -304,7 +332,9 @@ test(
     // line, a declared-but-unrun check is unchecked, and the dirty tree is
     // reported
     expect(actual).not.toContain('everything is fine, trust me')
-    expect(actual).toContain('- [x] test — `bun test` exited 0 (checks gate, build)')
+    expect(actual).toContain(
+      '- [x] test — `bun test` exited 0 (checks gate, build)',
+    )
     expect(actual).toContain(
       '- [ ] verdict_consistent — the envelope claimed success but a gate failed (verdict_consistent gate, code-review)',
     )

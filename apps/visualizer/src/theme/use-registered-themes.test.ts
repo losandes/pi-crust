@@ -22,6 +22,25 @@ afterEach(() => {
 
 originalFetch = globalThis.fetch
 
+/**
+ * The component every test here mounts: it calls the hook and hands each
+ * render's value back to the test.
+ *
+ * It lives at module level because React treats a component declared inside a
+ * function as a new type on every call, which remounts the subtree instead of
+ * re-rendering it — the distinction the workspace-change test depends on.
+ */
+const Probe = ({
+  workspace,
+  onThemes,
+}: {
+  readonly workspace: string | undefined
+  readonly onThemes: (themes: readonly TRegisteredTheme[]) => void
+}) => {
+  onThemes(useRegisteredThemes(workspace))
+  return null
+}
+
 const mountHook = async (
   workspace: string | undefined,
 ): Promise<{
@@ -34,14 +53,16 @@ const mountHook = async (
   const root = createRoot(container)
   let latest: readonly TRegisteredTheme[] = BUILTIN_THEMES
 
-  const Probe = () => {
-    latest = useRegisteredThemes(workspace)
-    return null
-  }
-
   // biome-ignore lint/suspicious/useAwait: act's own scheduling, not an await in this body, is what flushes the effect this mount triggers
   await act(async () => {
-    root.render(createElement(Probe))
+    root.render(
+      createElement(Probe, {
+        workspace,
+        onThemes: (themes) => {
+          latest = themes
+        },
+      }),
+    )
   })
 
   return { root, container, latest: () => latest }
@@ -109,12 +130,15 @@ test(
     document.body.appendChild(container)
     const root = createRoot(container)
     let latest: readonly TRegisteredTheme[] = []
-    const Probe = () => {
-      latest = useRegisteredThemes(undefined)
-      return null
-    }
     act(() => {
-      root.render(createElement(Probe))
+      root.render(
+        createElement(Probe, {
+          workspace: undefined,
+          onThemes: (themes) => {
+            latest = themes
+          },
+        }),
+      )
     })
     expect(latest).toBe(BUILTIN_THEMES)
     await act(() => {
@@ -242,17 +266,18 @@ test(
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
-    const Probe = ({ workspace }: { workspace: string }) => {
-      useRegisteredThemes(workspace)
-      return null
-    }
+    const ignoreThemes = () => undefined
     // biome-ignore lint/suspicious/useAwait: act's own scheduling, not an await in this body, is what flushes the effect each render triggers
     await act(async () => {
-      root.render(createElement(Probe, { workspace: 'a' }))
+      root.render(
+        createElement(Probe, { workspace: 'a', onThemes: ignoreThemes }),
+      )
     })
     // biome-ignore lint/suspicious/useAwait: act's own scheduling, not an await in this body, is what flushes the effect each render triggers
     await act(async () => {
-      root.render(createElement(Probe, { workspace: 'b' }))
+      root.render(
+        createElement(Probe, { workspace: 'b', onThemes: ignoreThemes }),
+      )
     })
 
     // then

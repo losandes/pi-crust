@@ -125,16 +125,14 @@ export const observationsIn = (run: TRun): readonly TObservedPaths[] =>
  * still that Activity's work, and leaving it out would leave it uncommitted
  * for the next Activity to sweep up under the wrong message.
  */
-export const touchedBy = (
-  run: TRun,
-  activity: string,
-): readonly string[] => [
-  ...new Set(
-    observationsIn(run)
-      .filter((observed) => observed.activity === activity)
-      .flatMap((observed) => observed.touched),
-  ),
-].toSorted()
+export const touchedBy = (run: TRun, activity: string): readonly string[] =>
+  [
+    ...new Set(
+      observationsIn(run)
+        .filter((observed) => observed.activity === activity)
+        .flatMap((observed) => observed.touched),
+    ),
+  ].toSorted()
 
 /**
  * The one interesting set: changed, during this Activity Run, not already
@@ -150,9 +148,7 @@ export const touchedBy = (
 export const unexpectedIn = (observed: TObservedPaths): readonly string[] =>
   observed.touched.filter(
     (path) =>
-      !(
-        observed.claimed.includes(path) || observed.dirtyBefore.includes(path)
-      ),
+      !(observed.claimed.includes(path) || observed.dirtyBefore.includes(path)),
   )
 
 /**
@@ -165,8 +161,7 @@ export const latestPerActivity = (
   observations.filter(
     (observed, index) =>
       !observations.some(
-        (other, later) =>
-          later > index && other.activity === observed.activity,
+        (other, later) => later > index && other.activity === observed.activity,
       ),
   )
 
@@ -215,8 +210,9 @@ export const unexpectedWarnings = (
       activityRunIds: seen.map((one) => one.observed.activityRunId),
       stage: params.stage,
       paths: [...new Set(raised.flatMap((one) => one.unexpected))].toSorted(),
-      note: 'these Activities ran at the same time, so which of them changed '
-        + 'a path is not a question the tree can answer',
+      note:
+        'these Activities ran at the same time, so which of them changed ' +
+        'a path is not a question the tree can answer',
     },
   ]
 }

@@ -55,7 +55,7 @@ import { recordRequest, runActivities, runUnits } from './run-activities'
 import { counts, finish, finishWaiting } from './run-activity-run'
 import { runTerminal } from './run-terminal'
 import { startSession } from './start-session'
-import { validateAgents } from './validate-agents'
+import { type TResolveModel, validateAgents } from './validate-agents'
 
 export const NOT_ACCEPTED =
   'a activity did not meet its own criterion — a check failed, or a review was ' +
@@ -111,14 +111,20 @@ export const runPlannedChain = async (
   ledger: TAttemptLedger,
   /** see `runWorkflow`'s own parameter of the same name */
   agentPorts?: TAgentPorts,
+  /** see `runWorkflow`'s own parameter of the same name */
+  resolveModel?: TResolveModel,
 ): Promise<TActivityContext | undefined> => {
   const activities = runnableActivities(planned, run.cfg, options, agentPorts)
-  validateAgents(run.cfg, [
-    ...new Set([
-      ...requiredAgents(activities),
-      ...loopAgents(run.cfg, planned),
-    ]),
-  ])
+  validateAgents(
+    run.cfg,
+    [
+      ...new Set([
+        ...requiredAgents(activities),
+        ...loopAgents(run.cfg, planned),
+      ]),
+    ],
+    resolveModel,
+  )
   run.console.note(chainNote(planned))
 
   /*
@@ -192,6 +198,13 @@ export const runWorkflow = async (
    * would go on to consume.
    */
   agentPorts?: TAgentPorts,
+  /**
+   * Defaults to the pi catalogue on this machine. Same reason as
+   * `agentPorts`: validating a model pattern shells out to
+   * `pi --list-models`, and a test that drives a whole workflow should not
+   * need a pi install to be told its own fixture's model exists.
+   */
+  resolveModel?: TResolveModel,
 ): Promise<number> => {
   /*
    * A terminal Activity never enters the fold — it is wired to run once the
@@ -219,13 +232,17 @@ export const runWorkflow = async (
       : terminalActivityFor(terminalName, cfg, terminalOptions)
   // The loop can spawn the reviser even when the named chain never does, so
   // its agent is validated here rather than discovered halfway through.
-  validateAgents(cfg, [
-    ...new Set([
-      ...requiredAgents(activities),
-      ...loopAgents(cfg, names),
-      ...(terminal === undefined ? [] : [terminal.name]),
-    ]),
-  ])
+  validateAgents(
+    cfg,
+    [
+      ...new Set([
+        ...requiredAgents(activities),
+        ...loopAgents(cfg, names),
+        ...(terminal === undefined ? [] : [terminal.name]),
+      ]),
+    ],
+    resolveModel,
+  )
   /*
    * One budget for the whole run, seeded from what this session already
    * spent. A resume must not refill it — the work it is resuming is the
@@ -390,6 +407,7 @@ export const runWorkflow = async (
             trust,
             ledger,
             agentPorts,
+            resolveModel,
           )
     if (after === undefined) {
       return finishWaiting(run, run.contextHandoffDir)

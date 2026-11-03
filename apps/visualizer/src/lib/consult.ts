@@ -5,8 +5,9 @@
  * waterfall. It hangs off the activityRun it asked about, so the answer is found
  * where the question made sense rather than at the end of the run.
  */
+import { safeParseSettlement } from '@typedefs/settlement'
 import { startedAfter } from './order'
-import type { EventRow, ActivityRun } from './types'
+import type { ActivityRun, EventRow } from './types'
 
 export type TConsultMode = 'ask' | 'amend'
 
@@ -27,43 +28,44 @@ export type TConsult = Readonly<{
 const strings = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+const text = (value: unknown): string =>
+  typeof value === 'string' ? value : ''
 
 /** Every consult in the trace, oldest first — a thread reads downwards. */
 export const consultsOf = (events: readonly EventRow[]): readonly TConsult[] =>
   events
-    .filter((event) => event.type === 'consult' && event.activity_run_id !== null)
+    .filter(
+      (event) => event.type === 'consult' && event.activity_run_id !== null,
+    )
     .flatMap((event) => {
-      try {
-        const payload = JSON.parse(event.payload_json ?? '{}') as Record<
-          string,
-          unknown
-        >
-        const mode = payload.mode === 'amend' ? 'amend' : 'ask'
-        return [
-          {
-            activityRunId: event.activity_run_id ?? '',
-            mode: mode as TConsultMode,
-            agent: text(payload.agent),
-            question: text(payload.question),
-            answer: text(payload.answer),
-            answered: payload.answered === true,
-            amended: strings(payload.amended),
-            restored: strings(payload.restored),
-            at: text(payload.at) || (event.started_at ?? ''),
-          },
-        ]
-      } catch (cause) {
-        void cause
-        return []
-      }
+      const settled = safeParseSettlement(
+        () => JSON.parse(event.payload_json ?? '{}') as Record<string, unknown>,
+      )
+      // An unreadable consult is one missing message, never a broken thread.
+      if (settled.status === 'error') return []
+      const payload = settled.data
+      const mode = payload.mode === 'amend' ? 'amend' : 'ask'
+      return [
+        {
+          activityRunId: event.activity_run_id ?? '',
+          mode: mode as TConsultMode,
+          agent: text(payload.agent),
+          question: text(payload.question),
+          answer: text(payload.answer),
+          answered: payload.answered === true,
+          amended: strings(payload.amended),
+          restored: strings(payload.restored),
+          at: text(payload.at) || (event.started_at ?? ''),
+        },
+      ]
     })
 
 /** The thread belonging to one activity. */
 export const consultsFor = (
   all: readonly TConsult[],
   activityRunId: string,
-): readonly TConsult[] => all.filter((entry) => entry.activityRunId === activityRunId)
+): readonly TConsult[] =>
+  all.filter((entry) => entry.activityRunId === activityRunId)
 
 /** A consult that has been accepted and has not answered yet. */
 export type TPendingConsult = Readonly<{
@@ -117,7 +119,10 @@ export const staleAfterAmend = (
   activityRuns: readonly ActivityRun[],
 ): ReadonlySet<string> => {
   const byId = new Map(
-    activityRuns.map((activityRun) => [activityRun.activity_run_id, activityRun]),
+    activityRuns.map((activityRun) => [
+      activityRun.activity_run_id,
+      activityRun,
+    ]),
   )
   const stale = new Set<string>()
   for (const consult of consults) {
@@ -132,7 +137,8 @@ export const staleAfterAmend = (
       if (activityRun.activity_run_id === amended.activity_run_id) continue
       if (!startedAfter(activityRun, amended)) continue
       // Ran before the amendment, so it saw the older text.
-      if (ended !== '' && ended < consult.at) stale.add(activityRun.activity_run_id)
+      if (ended !== '' && ended < consult.at)
+        stale.add(activityRun.activity_run_id)
     }
   }
   return stale

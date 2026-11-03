@@ -16,22 +16,25 @@
  *      instead, from the session's own status.
  */
 
+import {
+  safeParseSettlement,
+  settledOr,
+} from '../../../lib/typedefs/src/settlement'
 import type {
+  TTraceActivityRunRow,
   TTraceEventRow,
   TTraceGateRow,
-  TTraceActivityRunRow,
   TTraceRows,
 } from '../data/trace-reader'
 import { readTrace } from '../data/trace-reader'
 import type { TGateCheck } from '../typedefs/gate'
 import type {
-  TEnvelopeRecord,
-  TGateOutcome,
   TActivityRunLog,
   TActivityRunState,
+  TEnvelopeRecord,
+  TGateOutcome,
   TRunState,
 } from '../typedefs/run-state'
-import { safeParseSettlement, settledOr } from '../typedefs/settlement'
 import type { TEventPayload } from '../typedefs/trace'
 import type { TTreeWarning } from '../typedefs/warning'
 import { WARNING_EVENT, warningFromPayload } from '../typedefs/warning'
@@ -52,7 +55,10 @@ const asArray = <TItem>(json: string | null): readonly TItem[] => {
   return Array.isArray(parsed) ? (parsed as TItem[]) : []
 }
 
-const gateOutcome = (row: TTraceGateRow, activityRunName: string): TGateOutcome => ({
+const gateOutcome = (
+  row: TTraceGateRow,
+  activityRunName: string,
+): TGateOutcome => ({
   gate: row.gate,
   activityRun: activityRunName,
   passed: row.passed === 1,
@@ -65,13 +71,19 @@ const logsFor = (
   activityRunId: string,
 ): readonly TActivityRunLog[] =>
   events
-    .filter((event) => event.activity_run_id === activityRunId && event.type === 'log')
+    .filter(
+      (event) =>
+        event.activity_run_id === activityRunId && event.type === 'log',
+    )
     .map((event) => ({
       name: event.name,
       payload: asObject(event.payload_json),
     }))
 
-const activityRunState = (row: TTraceActivityRunRow, rows: TTraceRows): TActivityRunState => ({
+const activityRunState = (
+  row: TTraceActivityRunRow,
+  rows: TTraceRows,
+): TActivityRunState => ({
   seq: row.seq,
   activity_run_id: row.activity_run_id,
   name: row.name,
@@ -95,7 +107,8 @@ export const latestByName = (
   activityRuns.filter(
     (activityRun) =>
       !activityRuns.some(
-        (other) => other.name === activityRun.name && other.seq > activityRun.seq,
+        (other) =>
+          other.name === activityRun.name && other.seq > activityRun.seq,
       ),
   )
 
@@ -136,12 +149,16 @@ export const readRunState = (
   if (rows === undefined) {
     return undefined
   }
-  const activityRuns = rows.activityRuns.map((row) => activityRunState(row, rows))
+  const activityRuns = rows.activityRuns.map((row) =>
+    activityRunState(row, rows),
+  )
   const latest = latestByName(activityRuns)
   const completed = latest
     .filter((activityRun) => activityRun.status === 'success')
     .map((activityRun) => activityRun.name)
-  const unfinished = latest.filter((activityRun) => activityRun.status !== 'success')
+  const unfinished = latest.filter(
+    (activityRun) => activityRun.status !== 'success',
+  )
   const names = new Map(
     rows.activityRuns.map((row) => [row.activity_run_id, row.name] as const),
   )
@@ -161,7 +178,9 @@ export const readRunState = (
     // A activityRun that is RUNNING is not an activity run to resume from: acting on that
     // line would start a second agent against a live session, both writing
     // the same trace. Only a stopped run has somewhere to be picked up.
-    resume_from: unfinished.find((activityRun) => activityRun.status !== 'running')?.name,
+    resume_from: unfinished.find(
+      (activityRun) => activityRun.status !== 'running',
+    )?.name,
     resumable: rows.session.status !== 'success',
     failed_gates: activityRuns
       .flatMap((activityRun) => activityRun.gates)

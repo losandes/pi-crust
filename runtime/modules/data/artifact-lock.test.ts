@@ -2,18 +2,17 @@ import { afterAll, expect, mock, test } from 'bun:test'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { safeParseSettlement } from '../../../lib/typedefs/src/settlement'
 import { isStepDocument, lockArtifacts, unlockArtifacts } from './artifact-lock'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-lock-'))
 
 /** Whether a write actually lands, which is the only thing a lock promises. */
 const tryWrite = (path: string): string => {
-  try {
-    writeFileSync(path, 'clobbered')
-    return 'written'
-  } catch (cause) {
-    return (cause as NodeJS.ErrnoException).code ?? 'refused'
-  }
+  const settled = safeParseSettlement(() => writeFileSync(path, 'clobbered'))
+  return settled.status === 'ok'
+    ? 'written'
+    : ((settled.error as NodeJS.ErrnoException).code ?? 'refused')
 }
 
 test(

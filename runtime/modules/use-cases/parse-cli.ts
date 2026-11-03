@@ -5,9 +5,12 @@
  * every repository this tree is stamped into, to parse four flags.
  */
 
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../../../lib/typedefs/src/settlement'
 import { configPathFromEnv } from '../data/env-overrides'
 import { DEFAULT_CONFIG_PATH } from '../typedefs/config'
-import { errorMessage, safeParseSettlement } from '../typedefs/settlement'
 import { RUN_RECIPE } from './recipe-line'
 import { runName } from './run-label'
 
@@ -144,12 +147,16 @@ export const FLAG_TABLE: readonly TFlagSpec[] = [
   { long: '--stream', takesValue: false },
 ]
 
-const FLAGS = FLAG_TABLE.filter((flag) => flag.takesValue).map((flag) => flag.long)
+const FLAGS = FLAG_TABLE.filter((flag) => flag.takesValue).map(
+  (flag) => flag.long,
+)
 
 // Flags that take NO value. The parser assumes every flag is followed by its
 // value, so a boolean one listed above would swallow the prompt — and the
 // failure reads as "a prompt is required" rather than as a parsing bug.
-const BOOLEAN_FLAGS = FLAG_TABLE.filter((flag) => !flag.takesValue).map((flag) => flag.long)
+const BOOLEAN_FLAGS = FLAG_TABLE.filter((flag) => !flag.takesValue).map(
+  (flag) => flag.long,
+)
 
 /**
  * `-id` is a two-letter single-dash token, not a cluster — it is unambiguous
@@ -158,7 +165,9 @@ const BOOLEAN_FLAGS = FLAG_TABLE.filter((flag) => !flag.takesValue).map((flag) =
  * `read`, both assume clustering stays out of scope.
  */
 const LONG_OF: ReadonlyMap<string, string> = new Map(
-  FLAG_TABLE.flatMap((flag) => (flag.short === undefined ? [] : [[flag.short, flag.long] as const])),
+  FLAG_TABLE.flatMap((flag) =>
+    flag.short === undefined ? [] : [[flag.short, flag.long] as const],
+  ),
 )
 
 const usage = (recipe: string): string =>
@@ -185,7 +194,9 @@ const usage = (recipe: string): string =>
  */
 export const longFlagArgv = (argv: readonly string[]): readonly string[] => {
   const rewrite = (token: string): string => {
-    const name = token.includes('=') ? token.slice(0, token.indexOf('=')) : token
+    const name = token.includes('=')
+      ? token.slice(0, token.indexOf('='))
+      : token
     const long = LONG_OF.get(name)
     return long === undefined ? token : long + token.slice(name.length)
   }

@@ -23,9 +23,9 @@
  * mechanism here would mean two controls for one intention.
  */
 
-import { plannedNames } from './gates'
 import { narrowEnvelope, operatorPlanOutput } from '../typedefs/envelope'
 import type { TActivityContext } from '../typedefs/runnable-activity'
+import { plannedNames } from './gates'
 
 /**
  * The chain an operator activityRun chose, or nothing when this run had no operator.

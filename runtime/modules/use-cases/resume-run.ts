@@ -60,7 +60,9 @@ export const resumeArgv = (
     .slice(2)
     .filter(
       (arg, index, all) =>
-        arg !== '--run-id' && all[index - 1] !== '--run-id' && arg !== '--resume',
+        arg !== '--run-id' &&
+        all[index - 1] !== '--run-id' &&
+        arg !== '--resume',
     )
   return [script, ...carried, '--run-id', runId, '--resume']
 }
@@ -78,7 +80,10 @@ export const recordedInvocation = (
     ? record.argv.filter((part): part is string => typeof part === 'string')
     : []
   if (argv.length < 2) return undefined
-  return { argv, cwd: typeof record.cwd === 'string' ? record.cwd : process.cwd() }
+  return {
+    argv,
+    cwd: typeof record.cwd === 'string' ? record.cwd : process.cwd(),
+  }
 }
 
 /**

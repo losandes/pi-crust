@@ -30,9 +30,10 @@ export const timeRange = (
   running: boolean,
   nowMs: number,
 ): TRange => {
-  const starts = [ts(sessionStart), ...activityRuns.map((p) => ts(p.started_at))].filter(
-    Number.isFinite,
-  )
+  const starts = [
+    ts(sessionStart),
+    ...activityRuns.map((p) => ts(p.started_at)),
+  ].filter(Number.isFinite)
   const ends = [
     ts(sessionEnd),
     ...activityRuns.map((p) => ts(p.started_at)),
@@ -144,8 +145,9 @@ export const blockLayout = (
 
   /** Where the next block in the same lane begins, for every block. */
   const nextInLane = (block: (typeof timed)[number]): number | undefined =>
-    timed.find((other) => other.lane === block.lane && other.start > block.start)
-      ?.left
+    timed.find(
+      (other) => other.lane === block.lane && other.start > block.start,
+    )?.left
 
   const rows = timed.map((block) => {
     const next = nextInLane(block)
@@ -154,7 +156,8 @@ export const blockLayout = (
      * block always keeps its TRUE width — a clamp that cut one short would
      * be the same lie in the other direction.
      */
-    const room = next === undefined ? MIN_BLOCK_PCT : Math.max(next - block.left, 0)
+    const room =
+      next === undefined ? MIN_BLOCK_PCT : Math.max(next - block.left, 0)
 
     return {
       id: block.id,
@@ -162,7 +165,10 @@ export const blockLayout = (
       width: Math.max(block.width, Math.min(MIN_BLOCK_PCT, room)),
     }
   })
-  const edge = rows.reduce((furthest, row) => Math.max(furthest, row.left + row.width), 0)
+  const edge = rows.reduce(
+    (furthest, row) => Math.max(furthest, row.left + row.width),
+    0,
+  )
 
   const scale = available / Math.max(edge, available)
   return Object.fromEntries(

@@ -133,16 +133,20 @@ test(
 
     // when
     const actual = inRepo(dir, () =>
-      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+      commitActivity(
+        run,
+        'build',
+        'id',
+        envelopeWith('feat: the thing'),
+        'implement',
+      ),
     )
 
     // then
     expect(actual).not.toEqual('')
     expect(git(dir, 'log', '-1', '--pretty=%s')).toEqual('feat: the thing')
     expect(
-      eventsOf(run).find(
-        (event) => event.name === 'committed',
-      )?.payload,
+      eventsOf(run).find((event) => event.name === 'committed')?.payload,
     ).toMatchObject({ paths: ['README.md'] })
   },
 )
@@ -197,9 +201,14 @@ test(
 
     // when
     const actual = inRepo(dir, () =>
-      commitActivity(runIn({}, dir), 'review', 'id', envelopeWith('chore: nothing'), 'review'),
+      commitActivity(
+        runIn({}, dir),
+        'review',
+        'id',
+        envelopeWith('chore: nothing'),
+        'review',
+      ),
     )
-
 
     // then
     expect(actual).toEqual('')
@@ -229,7 +238,7 @@ test(
   [
     'given use-cases/deliver::commitActivity',
     'when git refuses the commit — a hook exiting non-zero, standing in for an unlocked signing agent',
-    'it should return \'\' and never throw out of the Activity Run',
+    "it should return '' and never throw out of the Activity Run",
   ].join(', '),
   () => {
     // given — the work is done; only the commit itself fails
@@ -240,7 +249,13 @@ test(
 
     // when
     const actual = inRepo(dir, () =>
-      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+      commitActivity(
+        run,
+        'build',
+        'id',
+        envelopeWith('feat: the thing'),
+        'implement',
+      ),
     )
 
     // then — no throw reached the caller, and HEAD never moved
@@ -264,7 +279,13 @@ test(
 
     // when
     inRepo(dir, () =>
-      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+      commitActivity(
+        run,
+        'build',
+        'id',
+        envelopeWith('feat: the thing'),
+        'implement',
+      ),
     )
 
     // then
@@ -292,7 +313,13 @@ test(
 
     // when
     inRepo(dir, () =>
-      commitActivity(run, 'build', 'id', envelopeWith('feat: the thing'), 'implement'),
+      commitActivity(
+        run,
+        'build',
+        'id',
+        envelopeWith('feat: the thing'),
+        'implement',
+      ),
     )
 
     // then — `git add` already staged it before the hook refused

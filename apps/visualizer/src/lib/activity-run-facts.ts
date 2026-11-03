@@ -7,14 +7,15 @@
  * which is the part worth testing.
  */
 
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import { parseToolCall } from './events'
 import { ts } from './format'
 import type {
+  ActivityRun,
   AgentEndPayload,
   EventRow,
   GateCheck,
   GateResult,
-  ActivityRun,
 } from './types'
 
 export type TUsageRow = Readonly<{
@@ -47,12 +48,13 @@ export const activityRunUsage = (
   const end = events.find((event) => event.type === 'agent_end')
   if (end === undefined) return undefined
 
-  let payload: AgentEndPayload = {}
-  try {
-    payload = JSON.parse(end.payload_json ?? '{}') as AgentEndPayload
-  } catch {
-    // A malformed payload is a missing panel, never a broken detail view.
-  }
+  // A malformed payload is a missing panel, never a broken detail view.
+  const payload = settledOr<AgentEndPayload>(
+    safeParseSettlement(
+      () => JSON.parse(end.payload_json ?? '{}') as AgentEndPayload,
+    ),
+    {},
+  )
 
   const usage = payload.usage
   if (!usage) {
@@ -133,29 +135,30 @@ export const requestText = (
   if (activityRun.kind !== 'engineer') return undefined
   for (const event of events) {
     if (event.type !== 'log' || !event.payload_json) continue
-    try {
-      const parsed: unknown = JSON.parse(event.payload_json)
-      if (parsed && typeof parsed === 'object' && 'input' in parsed) {
-        const input = (parsed as { input?: unknown }).input
-        if (typeof input === 'string' && input.trim()) return input
-      }
-    } catch {
-      /* not JSON — skip */
+    const raw = event.payload_json
+    // Not JSON: skip the row, keep reading the ones that are.
+    const parsed = settledOr<unknown>(
+      safeParseSettlement(() => JSON.parse(raw) as unknown),
+      undefined,
+    )
+    if (parsed && typeof parsed === 'object' && 'input' in parsed) {
+      const input = (parsed as { input?: unknown }).input
+      if (typeof input === 'string' && input.trim()) return input
     }
   }
   return undefined
 }
 
 export const violations = (gate: GateResult): readonly string[] => {
-  try {
-    const parsed: unknown = JSON.parse(gate.violations_json ?? '[]')
-    if (Array.isArray(parsed)) {
-      return parsed.map((item) =>
-        typeof item === 'string' ? item : JSON.stringify(item),
-      )
-    }
-  } catch {
-    /* keep the raw text below */
+  // Unparseable violations are kept as the raw text they were written as.
+  const parsed = settledOr<unknown>(
+    safeParseSettlement(() => JSON.parse(gate.violations_json ?? '[]')),
+    undefined,
+  )
+  if (Array.isArray(parsed)) {
+    return parsed.map((item) =>
+      typeof item === 'string' ? item : JSON.stringify(item),
+    )
   }
   return gate.violations_json ? [gate.violations_json] : []
 }
@@ -167,28 +170,34 @@ export const violations = (gate: GateResult): readonly string[] => {
  * line. An empty array means the gate ran and inspected nothing, which is a
  * real and different answer, and the UI says so in words.
  */
-export const gateChecks = (gate: GateResult): readonly GateCheck[] | undefined => {
+export const gateChecks = (
+  gate: GateResult,
+): readonly GateCheck[] | undefined => {
   const raw = gate.checks_json
   if (raw === null || raw === undefined) return undefined
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return undefined
-    return parsed
-      .filter((c): c is Record<string, unknown> => c !== null && typeof c === 'object')
-      .map((c) => ({
-        item: typeof c.item === 'string' ? c.item : '',
-        ok: c.ok === true,
-        note: typeof c.note === 'string' ? c.note : '',
-      }))
-  } catch {
-    return undefined
-  }
+  // Unreadable evidence reads as none recorded, which is the legacy row.
+  const parsed = settledOr<unknown>(
+    safeParseSettlement(() => JSON.parse(raw) as unknown),
+    undefined,
+  )
+  if (!Array.isArray(parsed)) return undefined
+  return parsed
+    .filter(
+      (c): c is Record<string, unknown> => c !== null && typeof c === 'object',
+    )
+    .map((c) => ({
+      item: typeof c.item === 'string' ? c.item : '',
+      ok: c.ok === true,
+      note: typeof c.note === 'string' ? c.note : '',
+    }))
 }
 
 /** Collapsed-row count label: mixed gates surface how many items failed. */
 export const checksLabel = (checks: readonly GateCheck[]): string => {
   const failed = checks.filter((check) => !check.ok).length
-  return failed > 0 ? `${failed} of ${checks.length} failed` : String(checks.length)
+  return failed > 0
+    ? `${failed} of ${checks.length} failed`
+    : String(checks.length)
 }
 
 export const eventDurationMs = (event: EventRow): number => {

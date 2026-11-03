@@ -16,7 +16,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const PROMPT_DIR = join(__dirname)
-const systemMd = (): string => readFileSync(join(PROMPT_DIR, 'system.md'), 'utf8')
+const systemMd = (): string =>
+  readFileSync(join(PROMPT_DIR, 'system.md'), 'utf8')
 const userMd = (): string => readFileSync(join(PROMPT_DIR, 'user.md'), 'utf8')
 
 test(
@@ -82,7 +83,9 @@ test(
     const actual = userMd()
 
     // then
-    expect(actual).toMatch(/not.*issue number.*title|title.*not.*issue number/is)
+    expect(actual).toMatch(
+      /not.*issue number.*title|title.*not.*issue number/is,
+    )
   },
 )
 

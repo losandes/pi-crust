@@ -1,10 +1,5 @@
 import { expect, test } from 'bun:test'
-import {
-  DEFAULT_FILTERS,
-  matchesFilters,
-  optionsFor,
-  toggled,
-} from './filters'
+import { DEFAULT_FILTERS, matchesFilters, optionsFor, toggled } from './filters'
 import type { SessionSummary } from './types'
 
 /**

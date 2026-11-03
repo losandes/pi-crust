@@ -34,7 +34,8 @@ const strings = (value: unknown): readonly string[] =>
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : []
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+const text = (value: unknown): string =>
+  typeof value === 'string' ? value : ''
 
 const parse = (event: EventRow): TTreeWarning | undefined => {
   if (event.name !== WARNING_EVENT) return undefined

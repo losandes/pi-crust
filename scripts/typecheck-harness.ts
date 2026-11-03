@@ -20,7 +20,18 @@
  * against whatever that machine has. No pin to bump, nothing to install, and
  * a rename shows up as a resolution error the moment it lands.
  *
- * Exit codes: 0 checked clean OR no host found (and said so), 1 type errors.
+ * A missing host is a SKIPPED check, not a passed one, and `CRUST_STRICT`
+ * turns that skip into a failure for somewhere that wants it to be one.
+ *
+ * It is deliberately NOT keyed on `CI`. Every GitHub Actions step sets
+ * `CI=true` whether or not the workflow asks for it, so keying on it makes
+ * strictness ambient rather than chosen: a runner with no pi — which is
+ * every runner, since installing one is not worth it for this — fails the
+ * build with no way to say "that gap is accepted" short of setting `CI` to
+ * false and lying about where it is running. Opt in instead.
+ *
+ * Exit codes: 0 checked clean, or no host found and `CRUST_STRICT` unset
+ * (and said so), 1 type errors or a missing host under `CRUST_STRICT`.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -47,6 +58,12 @@ const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
 }
 
+/** Is a skipped check allowed to pass here? Only where nobody asked. */
+const strict = (): boolean => {
+  const flag = process.env.CRUST_STRICT ?? ''
+  return flag !== '' && flag !== '0' && flag.toLowerCase() !== 'false'
+}
+
 const main = (): number => {
   const release = piReleaseDir()
   if (release === undefined) {
@@ -54,6 +71,14 @@ const main = (): number => {
       'typecheck-harness: no managed pi install found, so harness-engineering ' +
         'was NOT checked. Set PI_PATH, or put pi on PATH, to check it.',
     )
+    if (strict()) {
+      say(
+        'typecheck-harness: CRUST_STRICT is set, and a check that did not ' +
+          'run does not pass. Install pi here, or unset CRUST_STRICT to ' +
+          'accept the gap deliberately.',
+      )
+      return 1
+    }
     return 0
   }
 

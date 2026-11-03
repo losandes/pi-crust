@@ -11,8 +11,18 @@ import type { EventRow } from './types'
 
 export type TRunNotice =
   | Readonly<{ kind: 'note'; text: string; from: string; at: string }>
-  | Readonly<{ kind: 'branched_from'; runId: string; activity: string; at: string }>
-  | Readonly<{ kind: 'branched_to'; runId: string; activity: string; at: string }>
+  | Readonly<{
+      kind: 'branched_from'
+      runId: string
+      activity: string
+      at: string
+    }>
+  | Readonly<{
+      kind: 'branched_to'
+      runId: string
+      activity: string
+      at: string
+    }>
 
 const payloadOf = (event: EventRow): Readonly<Record<string, unknown>> => {
   if (!event.payload_json) return {}
@@ -37,14 +47,23 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
  * trace a run wrote, and a reader is owed everything that parses rather than
  * nothing because one event did not.
  */
-export const runNoticesOf = (events: readonly EventRow[]): readonly TRunNotice[] =>
+export const runNoticesOf = (
+  events: readonly EventRow[],
+): readonly TRunNotice[] =>
   events
     .flatMap((event): readonly TRunNotice[] => {
       const payload = payloadOf(event)
       if (event.type === 'log' && event.name === 'developer_note') {
         const text = str(payload.note)
         if (text === '') return []
-        return [{ kind: 'note', text, from: str(payload.from) || 'a developer', at: str(payload.at) }]
+        return [
+          {
+            kind: 'note',
+            text,
+            from: str(payload.from) || 'a developer',
+            at: str(payload.at),
+          },
+        ]
       }
       if (event.type === 'log' && event.name === 'branched_from') {
         const runId = str(payload.from_run_id)

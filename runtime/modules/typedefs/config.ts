@@ -16,12 +16,12 @@ import {
 } from './activity'
 import { QUALITY_AREAS, QUALITY_OPERATIONS } from './quality'
 
+export type { TCodingAgent, TPromptEngineering } from './activity'
 export {
   CODING_AGENTS,
   DEFAULT_MODEL,
   promptEngineeringSchema,
 } from './activity'
-export type { TCodingAgent, TPromptEngineering } from './activity'
 
 export const DEFAULT_DATA_DIR = '.pi-crust/data'
 export const DEFAULT_DB = '.pi-crust/data/crust.db'
@@ -110,9 +110,7 @@ const policyVerb = (fallback: TPathPolicyVerb) =>
 const pathPolicySchema = (read: TPathPolicyVerb, write: TPathPolicyVerb) =>
   z.object({ read: policyVerb(read), write: policyVerb(write) })
 
-export type TPathPolicy = Readonly<
-  z.infer<ReturnType<typeof pathPolicySchema>>
->
+export type TPathPolicy = Readonly<z.infer<ReturnType<typeof pathPolicySchema>>>
 
 export const configDefaultsSchema = z.object({
   coding_agent: z.enum(CODING_AGENTS).default('pi'),

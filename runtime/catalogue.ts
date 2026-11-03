@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * pi-crust List — what this repository offers, read from its configuration.
  *
@@ -20,12 +21,12 @@
  *     2  the configuration could not be read
  */
 
+import { errorMessage } from '../lib/typedefs/src/settlement'
 import { configPathFromEnv } from './modules/data/env-overrides'
 import { paint, writeLine } from './modules/data/terminal'
 import { PLANNER_NAMES } from './modules/typedefs/activity'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
-import { errorMessage } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 import {
   lifecyclesBeside,

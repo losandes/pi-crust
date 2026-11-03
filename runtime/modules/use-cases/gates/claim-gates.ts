@@ -8,13 +8,13 @@
  */
 
 import { isAbsolute, join } from 'node:path'
+import { safeParseSettlement } from '../../../../lib/typedefs/src/settlement'
 import { fileExists, humanSize, isFile, readText } from '../../data/files'
 import { resolveClaim } from '../../data/roots'
 import type { TEnvelopeBase } from '../../typedefs/envelope'
 import type { TGate, TGateReport } from '../../typedefs/gate'
 import { addCheck, emptyReport } from '../../typedefs/gate'
 import type { TRun } from '../../typedefs/run'
-import { safeParseSettlement } from '../../typedefs/settlement'
 import { WARNING_EVENT, warningPayload } from '../../typedefs/warning'
 
 const claimedChangedFiles = (envelope: TEnvelopeBase): readonly string[] => {

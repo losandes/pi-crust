@@ -33,8 +33,7 @@
 import { z } from 'zod'
 import { isTerminalName } from './activity'
 
-export const DEFAULT_LIFECYCLES_PATH =
-  '.pi-crust/config/crust.lifecycles.yaml'
+export const DEFAULT_LIFECYCLES_PATH = '.pi-crust/config/crust.lifecycles.yaml'
 
 export const STAGE_STRATEGIES = ['serial', 'concurrent'] as const
 export type TStageStrategy = (typeof STAGE_STRATEGIES)[number]
@@ -178,9 +177,8 @@ export const lifecycleFaults = (
  * `.stages`, which is where the answer would have to change if branching ever
  * arrives.
  */
-export const stagePlan = (
-  lifecycle: TLifecycleConfig,
-): readonly TStage[] => lifecycle.stages
+export const stagePlan = (lifecycle: TLifecycleConfig): readonly TStage[] =>
+  lifecycle.stages
 
 /**
  * The Activities a Lifecycle runs, flattened.
@@ -190,21 +188,15 @@ export const stagePlan = (
  * shows a person and what `--activities` expands to; the engine takes
  * `stagePlan()` instead, because flattening is the thing it must stop doing.
  */
-export const activityOrder = (
-  lifecycle: TLifecycleConfig,
-): readonly string[] =>
+export const activityOrder = (lifecycle: TLifecycleConfig): readonly string[] =>
   lifecycle.stages.flatMap((stage) => stage.activities)
 
 /** The terminal Activity a Lifecycle names, if any — there is at most one legal position. */
-export const terminalIn = (
-  stages: readonly TStage[],
-): string | undefined =>
+export const terminalIn = (stages: readonly TStage[]): string | undefined =>
   stages.flatMap((stage) => stage.activities).find(isTerminalName)
 
 /** The Stages with any terminal Activity removed, dropping a Stage left empty. */
-export const withoutTerminal = (
-  stages: readonly TStage[],
-): readonly TStage[] =>
+export const withoutTerminal = (stages: readonly TStage[]): readonly TStage[] =>
   stages
     .map((stage) => ({
       ...stage,
@@ -223,5 +215,4 @@ export const stageOf = (
 export const lifecycleNamed = (
   lifecycles: readonly TLifecycleConfig[],
   name: string,
-): TLifecycleConfig | undefined =>
-  lifecycles.find((one) => one.name === name)
+): TLifecycleConfig | undefined => lifecycles.find((one) => one.name === name)

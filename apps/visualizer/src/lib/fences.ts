@@ -16,6 +16,8 @@
  * plainly is. An open fence is a code block, flagged so the view can say so.
  */
 
+import { safeParseSettlement } from '@typedefs/settlement'
+
 export type TSegment = Readonly<{
   kind: 'prose' | 'code'
   text: string
@@ -59,36 +61,31 @@ const segment = (
  */
 export const splitFences = (source: string): readonly TSegment[] => {
   const lines = source.replaceAll('\r\n', '\n').split('\n')
-  const out: TSegment[] = []
-  let buffer: string[] = []
-  let language: string | undefined
 
-  for (const line of lines) {
+  /*
+   * Every fence line, in order. They alternate: the first opens, the second
+   * closes, and the one after that opens again — which is what the old
+   * `language === undefined` flag was tracking one line at a time.
+   */
+  const fences = lines.flatMap((line, index) => {
     const fence = FENCE.exec(line)
-    if (fence === undefined || fence === null) {
-      buffer.push(line)
-      continue
-    }
-    if (language === undefined) {
-      // Opening fence: flush the prose before it.
-      out.push(...segment('prose', buffer, '', false))
-      buffer = []
-      language = (fence[1] ?? '').toLowerCase()
-      continue
-    }
-    // Closing fence.
-    out.push(...segment('code', buffer, language, false))
-    buffer = []
-    language = undefined
-  }
+    return fence === null
+      ? []
+      : [{ index, language: (fence[1] ?? '').toLowerCase() }]
+  })
 
-  // Whatever is left: an unterminated code block, or the trailing prose.
-  out.push(
-    ...(language === undefined
-      ? segment('prose', buffer, '', false)
-      : segment('code', buffer, language, true)),
-  )
-  return out
+  // The regions between them, including the one before the first fence and
+  // the one after the last — either of which may be empty.
+  const starts = [0, ...fences.map((fence) => fence.index + 1)]
+  const ends = [...fences.map((fence) => fence.index), lines.length]
+
+  return starts.flatMap((start, region) => {
+    const body = lines.slice(start, ends[region] ?? lines.length)
+    if (region % 2 === 0) return segment('prose', body, '', false)
+    // An unterminated block is the last region, and says so.
+    const open = region === starts.length - 1
+    return segment('code', body, fences[region - 1]?.language ?? '', open)
+  })
 }
 
 /** True when any part of this text is fenced — lets a caller skip the work. */
@@ -176,12 +173,11 @@ const findJson = (
       : undefined
   }
   const candidate = source.slice(start, end + 1)
-  try {
-    const value: unknown = JSON.parse(candidate)
-    // A bare string or number is not a block of code, whatever it parsed as.
-    if (typeof value !== 'object' || value === null) return undefined
-  } catch (error) {
-    void error
+  const settled = safeParseSettlement(() => JSON.parse(candidate) as unknown)
+  // Text that does not parse is prose, whatever its braces suggested.
+  if (settled.status === 'error') return undefined
+  // A bare string or number is not a block of code, whatever it parsed as.
+  if (typeof settled.data !== 'object' || settled.data === null) {
     return undefined
   }
   return { start, end: end + 1, open: false }

@@ -8,13 +8,17 @@ import {
 type TElement = { id: string; textContent: string }
 
 const fakeDocument = (existing?: TElement) => {
-  const appended: TElement[] = []
+  let appended: readonly TElement[] = []
   return {
-    appended,
+    appended: () => appended,
     getElementById: (id: string) =>
       existing !== undefined && existing.id === id ? existing : null,
     createElement: () => ({ id: '', textContent: '' }) as TElement,
-    head: { appendChild: (node: TElement) => appended.push(node) },
+    head: {
+      appendChild: (node: TElement) => {
+        appended = [...appended, node]
+      },
+    },
   }
 }
 
@@ -34,8 +38,8 @@ test(
     ])
 
     // then
-    expect(given.appended[0]?.id).toBe(CUSTOM_STYLE_ID)
-    expect(given.appended[0]?.textContent).toBe('.x{}')
+    expect(given.appended()[0]?.id).toBe(CUSTOM_STYLE_ID)
+    expect(given.appended()[0]?.textContent).toBe('.x{}')
   },
 )
 
@@ -76,6 +80,6 @@ test(
 
     // then
     expect(existing.textContent).toBe('.new{}')
-    expect(given.appended).toHaveLength(0)
+    expect(given.appended()).toHaveLength(0)
   },
 )

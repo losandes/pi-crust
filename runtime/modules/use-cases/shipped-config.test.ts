@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import { isFile } from '../data/files'
 import { resolvePromptPath } from '../data/prompt-files'
 import { activitiesFileSchema } from '../typedefs/activity'
-import { crustConfigSchema } from '../typedefs/config'
 import type { TPiCrustConfig } from '../typedefs/config'
+import { crustConfigSchema } from '../typedefs/config'
 import { activityOrder, lifecyclesFileSchema } from '../typedefs/lifecycle'
 import { registryFaults } from './activity-registry'
 import { loadLifecycles } from './load-lifecycles'
@@ -56,7 +56,11 @@ const shippedConfig = (): TPiCrustConfig => {
     activities: registry.activities,
     planners: registry.planners,
     terminal: registry.terminal,
-    agents: [...registry.activities, ...registry.planners, ...registry.terminal],
+    agents: [
+      ...registry.activities,
+      ...registry.planners,
+      ...registry.terminal,
+    ],
   })
 }
 
@@ -198,9 +202,9 @@ test(
     const survey = actual.find((one) => one.name === 'survey')
 
     // then
-    expect(survey?.stages.find((one) => one.name === 'research')?.strategy).toBe(
-      'concurrent',
-    )
+    expect(
+      survey?.stages.find((one) => one.name === 'research')?.strategy,
+    ).toBe('concurrent')
   },
 )
 
@@ -220,8 +224,13 @@ test(
       actual.find((one) => one.name === name)?.stages.map((s) => s.name)
 
     // then
-    expect(stagesOf('sdlc')).toEqual(['discover', 'deliver', 'accept', 'push'])
-    expect(stagesOf('bugfix')).toEqual(['diagnose', 'deliver', 'accept', 'push'])
+    expect(stagesOf('ship')).toEqual(['discover', 'deliver', 'accept', 'push'])
+    expect(stagesOf('bugfix')).toEqual([
+      'diagnose',
+      'deliver',
+      'accept',
+      'push',
+    ])
     expect(stagesOf('de-risk')).toEqual(['discover', 'prove'])
   },
 )
@@ -229,8 +238,8 @@ test(
 test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
-    'when the shipped sdlc is flattened',
-    'it should run the same activities in the same order it always has',
+    'when ship is flattened',
+    'it should run these activities',
   ].join(', '),
   () => {
     // given
@@ -238,14 +247,14 @@ test(
 
     // when
     const actual = loadLifecycles(given, shippedConfig())
-    const sdlc = actual.find((one) => one.name === 'sdlc')
+    const ship = actual.find((one) => one.name === 'ship')
 
     // then
-    expect(activityOrder(sdlc ?? { name: '', description: '', stages: [] })).toEqual([
+    expect(
+      activityOrder(ship ?? { name: '', description: '', stages: [] }),
+    ).toEqual([
       'identify',
-      'conceptualize',
       'plan',
-      'design',
       'build',
       'test',
       'outcome-review',
@@ -267,12 +276,12 @@ test(
 
     // when
     const actual = loadLifecycles(given, shippedConfig())
-    const sdlc = actual.find((one) => one.name === 'sdlc')
-    const deliver = sdlc?.stages.find((one) => one.name === 'deliver')
+    const ship = actual.find((one) => one.name === 'ship')
+    const deliver = ship?.stages.find((one) => one.name === 'deliver')
 
     // then
     expect(deliver?.strategy).toBe('serial')
-    expect(deliver?.activities).toEqual(['plan', 'design', 'build', 'test'])
+    expect(deliver?.activities).toEqual(['build', 'test'])
   },
 )
 
@@ -297,7 +306,7 @@ test(
 test(
   [
     'given use-cases/activity-registry::registryFaults',
-    'when the shipped activities are checked against this package\'s own catalogues',
+    "when the shipped activities are checked against this package's own catalogues",
     'it should name no fault, because output and gates are names this package actually publishes',
   ].join(', '),
   () => {

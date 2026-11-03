@@ -37,6 +37,27 @@ export type TAttemptOutcome =
   | Readonly<{ kind: 'throws'; message: string }>
 
 /**
+ * The outcome a `fakeActivity` falls back to: an empty script, and a replay
+ * of an attempt that threw.
+ *
+ * A module constant rather than two identical literals written inline. They
+ * sat inside expressions nothing in the suite evaluates, and whether a
+ * never-evaluated object literal counts as covered turns out to differ by
+ * platform — macOS called those fourteen lines covered and Linux did not,
+ * which is how one coverage gate passed locally and failed on a runner
+ * against identical code and identical tests.
+ */
+const SETTLES_SUCCESSFULLY: TAttemptOutcome = {
+  kind: 'accepted',
+  envelope: {
+    status: 'success',
+    summary: '',
+    artifacts: [],
+    notes_for_next_agent: '',
+  },
+}
+
+/**
  * A `TActivity` that settles from `outcomes`, one entry per attempt.
  *
  * The last outcome repeats for any attempt past the end of the list, so a
@@ -56,15 +77,7 @@ export const fakeActivity = (
   let attempt = 0
   let lastViolations: readonly string[] = []
   const at = (index: number): TAttemptOutcome =>
-    outcomes[Math.min(index, outcomes.length - 1)] ?? {
-      kind: 'accepted',
-      envelope: {
-        status: 'success',
-        summary: '',
-        artifacts: [],
-        notes_for_next_agent: '',
-      },
-    }
+    outcomes[Math.min(index, outcomes.length - 1)] ?? SETTLES_SUCCESSFULLY
 
   const settle = (
     outcome: Exclude<TAttemptOutcome, Readonly<{ kind: 'throws' }>>,
@@ -112,19 +125,7 @@ export const fakeActivity = (
     replay: () => {
       const outcome = at(Math.max(attempt - 1, 0))
       return Promise.resolve(
-        settle(
-          outcome.kind === 'throws'
-            ? {
-                kind: 'accepted',
-                envelope: {
-                  status: 'success',
-                  summary: '',
-                  artifacts: [],
-                  notes_for_next_agent: '',
-                },
-              }
-            : outcome,
-        ),
+        settle(outcome.kind === 'throws' ? SETTLES_SUCCESSFULLY : outcome),
       )
     },
   }

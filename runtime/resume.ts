@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Pick a stopped run back up, exactly as it was launched.
  *
@@ -19,19 +20,22 @@
  * env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.
  */
 
+import { Database } from 'bun:sqlite'
 import { resolve } from 'node:path'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../lib/typedefs/src/settlement'
 import { nowIso } from './modules/data/clock'
 import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { appendSteering } from './modules/data/steering'
 import { handoffDirFor } from './modules/data/handoff-pointer'
-import { RESUME_CLI, positionalArgs } from './modules/use-cases/cli-positionals'
+import { appendSteering } from './modules/data/steering'
+import { DEFAULT_DB } from './modules/typedefs/config'
+import { positionalArgs, RESUME_CLI } from './modules/use-cases/cli-positionals'
+import { loadConfig } from './modules/use-cases/load-config'
 import { readRunState } from './modules/use-cases/read-run-state'
 import { resumeRecordedRun } from './modules/use-cases/resume-run'
 import { developerNote, flagValue } from './modules/use-cases/steer'
-import { loadConfig } from './modules/use-cases/load-config'
-import { DEFAULT_DB } from './modules/typedefs/config'
-import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
-import { Database } from 'bun:sqlite'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
@@ -49,7 +53,9 @@ const USAGE = [
 
 const main = async (): Promise<number> => {
   const argv = process.argv.slice(2)
-  const positionals = safeParseSettlement(() => positionalArgs(argv, RESUME_CLI))
+  const positionals = safeParseSettlement(() =>
+    positionalArgs(argv, RESUME_CLI),
+  )
   if (positionals.status === 'error') {
     say(errorMessage(positionals.error))
     say(USAGE)
@@ -95,7 +101,12 @@ const main = async (): Promise<number> => {
         runId,
         'log',
         'developer_note',
-        JSON.stringify({ note, from: process.env.USER ?? 'a developer', at, recorded: path }),
+        JSON.stringify({
+          note,
+          from: process.env.USER ?? 'a developer',
+          at,
+          recorded: path,
+        }),
         at,
       ],
     )

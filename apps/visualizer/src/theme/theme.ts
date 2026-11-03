@@ -10,6 +10,8 @@
  * distinctly from "I picked dark and my system happens to agree".
  */
 
+import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+
 /**
  * The themes that ship. A repository may register others, and may remove
  * these — so this is what the app knows, never what it offers. The offered
@@ -76,14 +78,14 @@ export const resolveTheme = (
  * preference we can no longer honour, and following the system is the right
  * answer to that.
  */
-export const storedTheme = (storage: Pick<Storage, 'getItem'>): TTheme => {
-  try {
-    const raw = storage.getItem(THEME_STORAGE_KEY)
-    return isTheme(raw) ? raw : 'auto'
-  } catch {
-    return 'auto'
-  }
-}
+export const storedTheme = (storage: Pick<Storage, 'getItem'>): TTheme =>
+  settledOr<TTheme>(
+    safeParseSettlement(() => {
+      const raw = storage.getItem(THEME_STORAGE_KEY)
+      return isTheme(raw) ? raw : 'auto'
+    }),
+    'auto',
+  )
 
 /**
  * Put the theme on the document.
@@ -108,13 +110,10 @@ export const saveTheme = (
   storage: Pick<Storage, 'setItem'>,
   theme: TTheme,
 ): void => {
-  try {
-    storage.setItem(THEME_STORAGE_KEY, theme)
-  } catch {
-    // A private window with storage denied still gets a working theme for the
-    // session. Refusing to apply it because it cannot be remembered would be
-    // the worse failure.
-  }
+  // A private window with storage denied still gets a working theme for the
+  // session. Refusing to apply it because it cannot be remembered would be
+  // the worse failure.
+  void safeParseSettlement(() => storage.setItem(THEME_STORAGE_KEY, theme))
 }
 
 /**

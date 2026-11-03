@@ -1,6 +1,7 @@
 /** Every reusable gate, in one import for the workflow scripts. */
 
 import type { TGate } from '../../typedefs/gate'
+import { checks } from './checks-gate'
 import {
   artifactsExist,
   diffMatchesClaims,
@@ -8,12 +9,12 @@ import {
   jsonParses,
   reproductionSupported,
 } from './claim-gates'
-import { checks } from './checks-gate'
 import { disputesSupported } from './dispute-gates'
 import { issueCreated } from './issue-gates'
 import { stepsValid } from './plan-gates'
 import { verdictConsistent } from './verdict-gates'
 
+export { checkedPaths, checks, checksReport } from './checks-gate'
 export {
   artifactsExist,
   diffMatchesClaims,
@@ -21,7 +22,6 @@ export {
   jsonParses,
   reproductionSupported,
 } from './claim-gates'
-export { checks, checkedPaths, checksReport } from './checks-gate'
 export { disputesSupported } from './dispute-gates'
 export { issueCreated } from './issue-gates'
 export { plannedNames, stepsValid } from './plan-gates'

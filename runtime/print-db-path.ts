@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Print the resolved trace database path for the config in force.
  *
@@ -11,14 +12,20 @@
  * Usage: bun print-db-path.ts [--config <path>]
  */
 
-import { configPathFromEnv } from './modules/data/env-overrides'
+import {
+  errorMessage,
+  safeParseSettlement,
+} from '../lib/typedefs/src/settlement'
 import { resolveDataPaths } from './modules/data/data-paths'
+import { configPathFromEnv } from './modules/data/env-overrides'
 import { repoRoot } from './modules/data/git'
 import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { errorMessage, safeParseSettlement } from './modules/typedefs/settlement'
 import { loadConfig } from './modules/use-cases/load-config'
 
-const flagValue = (argv: readonly string[], flag: string): string | undefined => {
+const flagValue = (
+  argv: readonly string[],
+  flag: string,
+): string | undefined => {
   const at = argv.indexOf(flag)
   return at === -1 ? undefined : argv[at + 1]
 }

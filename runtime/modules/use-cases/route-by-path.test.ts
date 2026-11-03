@@ -206,7 +206,12 @@ test(
 
     // when
     const onRevise = matchingSkills(cfg, 'builder', ['src/a.ts'], 'revise')
-    const onSecondRevise = matchingSkills(cfg, 'builder', ['src/a.ts'], 'revise_2')
+    const onSecondRevise = matchingSkills(
+      cfg,
+      'builder',
+      ['src/a.ts'],
+      'revise_2',
+    )
     const onBuild = matchingSkills(cfg, 'builder', ['src/a.ts'], 'build')
 
     // then

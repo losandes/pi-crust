@@ -151,9 +151,9 @@ export const preamble = (mode: TConsultMode): string =>
  */
 export const runConsult = async (
   request: TConsultRequest,
-  invoke: (argv: readonly string[]) => Promise<
-    Readonly<{ ok: boolean; output: string }>
-  >,
+  invoke: (
+    argv: readonly string[],
+  ) => Promise<Readonly<{ ok: boolean; output: string }>>,
   argv: readonly string[],
 ): Promise<TConsultOutcome> => {
   if (sessionMissing(request.sessionDir)) {

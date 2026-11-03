@@ -98,9 +98,15 @@ test(
     const env = { HOME: '/home/someone' }
 
     // when
-    const actual = [registryPath(env), registryPath({ ...env, CRUST_REGISTRY: '/tmp/x.jsonl' })]
+    const actual = [
+      registryPath(env),
+      registryPath({ ...env, CRUST_REGISTRY: '/tmp/x.jsonl' }),
+    ]
 
     // then
-    expect(actual).toEqual(['/home/someone/.pi-crust/workspaces.jsonl', '/tmp/x.jsonl'])
+    expect(actual).toEqual([
+      '/home/someone/.pi-crust/workspaces.jsonl',
+      '/tmp/x.jsonl',
+    ])
   },
 )

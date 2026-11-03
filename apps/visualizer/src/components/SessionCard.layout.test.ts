@@ -35,7 +35,9 @@ const HARNESS_HTML = `<!doctype html>
  * command AGENTS.md tells people to run on a fresh clone. A skip is a check
  * not run, not a check that passed.
  */
-const browser: Browser | undefined = await chromium.launch().catch(() => undefined)
+const browser: Browser | undefined = await chromium
+  .launch()
+  .catch(() => undefined)
 if (browser === undefined) {
   console.warn(
     'SessionCard.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
@@ -46,10 +48,18 @@ afterAll(async () => {
   await browser?.close()
 })
 
-const statsClipped = async (variant: 'single' | 'multi', activeBrowser: Browser) => {
+const statsClipped = async (
+  variant: 'single' | 'multi',
+  activeBrowser: Browser,
+) => {
   const server = await createServer({
     root: new URL('../../', import.meta.url).pathname,
-    server: { host: '127.0.0.1', port: HARNESS_PORT, strictPort: true, hmr: false },
+    server: {
+      host: '127.0.0.1',
+      port: HARNESS_PORT,
+      strictPort: true,
+      hmr: false,
+    },
     logLevel: 'silent',
   })
   await server.listen()

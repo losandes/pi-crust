@@ -14,54 +14,54 @@
  * missing here, so every component that switched on this type had no case
  * for the one state that needs the reader.
  */
-export type SessionStatus = "running" | "waiting" | "success" | "fail";
+export type SessionStatus = 'running' | 'waiting' | 'success' | 'fail'
 
 /** activityRuns.status — queued only for manifest-declared activityRuns not yet entered. */
 export type ActivityRunStatus =
-  | "queued"
-  | "running"
-  | "success"
-  | "fail"
+  | 'queued'
+  | 'running'
+  | 'success'
+  | 'fail'
   /** Succeeded once, then replaced by a later run of the same Activity. */
-  | "superseded";
+  | 'superseded'
 
 /** activityRuns.kind — decides which lane a block renders in. */
-export type ActivityRunKind = "engineer" | "code" | "agent";
+export type ActivityRunKind = 'engineer' | 'code' | 'agent'
 
 /** events.type — the ten types the tracer emits. */
 export type EventType =
-  | "activity_run_start"
-  | "activity_run_end"
-  | "agent_start"
-  | "agent_end"
-  | "tool_call"
+  | 'activity_run_start'
+  | 'activity_run_end'
+  | 'agent_start'
+  | 'agent_end'
+  | 'tool_call'
   /** A passage of an agent's thinking or prose, keyed to the turn that produced it. */
-  | "narration"
-  | "handoff"
+  | 'narration'
+  | 'handoff'
   /** What a activityRun was OBSERVED to write, as opposed to what it reported. */
-  | "artifacts"
+  | 'artifacts'
   /** A question put to a finished Activity Run, and its answer. */
-  | "consult"
-  | "gate_pass"
-  | "gate_fail"
-  | "log"
+  | 'consult'
+  | 'gate_pass'
+  | 'gate_fail'
+  | 'log'
   /** A run sent back to an activity, by overwrite or by branch. */
-  | "steer"
-  | "error";
+  | 'steer'
+  | 'error'
 
 export interface Session {
-  run_id: string;
+  run_id: string
   /** Stage(s) or lifecycle(s) that ran this session, e.g. "plan + build". */
-  lifecycle: string | null;
-  request: string | null;
-  status: SessionStatus | null;
-  engineer: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-  total_tokens: number | null;
-  total_cost: number | null;
+  lifecycle: string | null
+  request: string | null
+  status: SessionStatus | null
+  engineer: string | null
+  started_at: string | null
+  ended_at: string | null
+  total_tokens: number | null
+  total_cost: number | null
   /** 1 once archived out of the review list. Review state, not run state. */
-  archived: number | null;
+  archived: number | null
   /**
    * The working tree the run executed in, and the branch it started on.
    *
@@ -69,10 +69,10 @@ export interface Session {
    * read as UNKNOWN rather than as the observer's own tree — the wrong answer
    * that looks right whenever there is only one tree.
    */
-  workspace_root: string | null;
-  branch: string | null;
+  workspace_root: string | null
+  branch: string | null
   /** --name, verbatim. Rendered instead of `lifecycle` when a session has one. */
-  name: string | null;
+  name: string | null
   /**
    * Which watched workspace this row came from — the label, not the path.
    *
@@ -80,7 +80,7 @@ export interface Session {
    * which database answered) rather than a column that can disagree with
    * where the run actually is.
    */
-  workspace: string;
+  workspace: string
 }
 
 /**
@@ -89,107 +89,107 @@ export interface Session {
  */
 export interface SessionSummary extends Session {
   /** Full activityRun rows, ordered by seq — one dot each. */
-  activityRuns: ActivityRun[];
-  activity_run_count: number;
+  activityRuns: ActivityRun[]
+  activity_run_count: number
   /**
    * The session's agents, same shape and merge rules as SessionDetail.agents —
    * so an L1 card can color its per-agent dots without a request per card.
    */
-  agents: AgentSession[];
+  agents: AgentSession[]
 }
 
 export interface ActivityRun {
-  activity_run_id: string;
-  run_id: string;
-  seq: number | null;
-  name: string | null;
-  kind: ActivityRunKind | null;
-  owner: string | null;
-  description: string | null;
-  status: ActivityRunStatus | null;
-  error: string | null;
-  started_at: string | null;
-  ended_at: string | null;
+  activity_run_id: string
+  run_id: string
+  seq: number | null
+  name: string | null
+  kind: ActivityRunKind | null
+  owner: string | null
+  description: string | null
+  status: ActivityRunStatus | null
+  error: string | null
+  started_at: string | null
+  ended_at: string | null
 }
 
 export interface Event {
   /** SQLite rowid — the polling cursor. Monotonic, insertion-ordered. */
-  rowid: number;
-  event_id: string;
-  run_id: string;
-  activity_run_id: string | null;
+  rowid: number
+  event_id: string
+  run_id: string
+  activity_run_id: string | null
   /** Span nesting: an agent activityRun expands into its tool-call children. */
-  parent_id: string | null;
-  type: EventType | null;
-  name: string | null;
+  parent_id: string | null
+  type: EventType | null
+  name: string | null
   /** Raw JSON string as written by the tracer; parse at the point of display. */
-  payload_json: string | null;
-  tokens: number | null;
-  started_at: string | null;
-  ended_at: string | null;
+  payload_json: string | null
+  tokens: number | null
+  started_at: string | null
+  ended_at: string | null
 }
 
 export interface Envelope {
-  envelope_id: string;
-  run_id: string;
-  activity_run_id: string | null;
-  agent: string | null;
+  envelope_id: string
+  run_id: string
+  activity_run_id: string | null
+  agent: string | null
   /** Name of the data_types model the response was parsed against. */
-  output_type: string | null;
-  payload_json: string | null;
+  output_type: string | null
+  payload_json: string | null
   /** SQLite integer boolean. */
-  valid: number | null;
-  created_at: string | null;
+  valid: number | null
+  created_at: string | null
 }
 
 export interface GateResult {
-  id: number;
-  run_id: string;
-  activity_run_id: string | null;
-  gate: string | null;
+  id: number
+  run_id: string
+  activity_run_id: string | null
+  gate: string | null
   /** SQLite integer boolean. */
-  passed: number | null;
+  passed: number | null
   /** JSON array of violation strings; "[]" on a pass. */
-  violations_json: string | null;
+  violations_json: string | null
   /**
    * JSON array of GateCheck — the per-item evidence behind the verdict, so a
    * green gate can say WHAT it verified rather than only that it passed.
    * Null on rows written before the tracer recorded checks; those are not
    * backfilled, so fall back to the verdict alone.
    */
-  checks_json: string | null;
-  created_at: string | null;
+  checks_json: string | null
+  created_at: string | null
 }
 
 /** One item a gate inspected — the parsed element of `checks_json`. */
 export interface GateCheck {
-  item: string;
-  ok: boolean;
-  note: string;
+  item: string
+  ok: boolean
+  note: string
 }
 
 /** agent_sessions — the queryable mirror of agent_map.json. Supplies lane labels (`name · model`). */
 export interface AgentSession {
-  run_id: string;
-  agent: string;
-  coding_agent: string | null;
-  model: string | null;
-  session_id: string | null;
+  run_id: string
+  agent: string
+  coding_agent: string | null
+  model: string | null
+  session_id: string | null
   /**
    * The agent's lane color from crust.config.yaml, e.g. "#a78bfa". Null on dbs
    * written by a tracer predating the column, and on agents with no configured
    * color — fall back to the UI's own palette.
    */
-  color: string | null;
+  color: string | null
   /**
    * How full the agent's context window was after its last turn, and the
    * model's ceiling. Null on dbs predating the columns and on an agent still
    * running — the lane draws no bar rather than a misleading empty one.
    */
-  context_tokens: number | null;
-  context_window: number | null;
-  created_at: string | null;
-  last_used_at: string | null;
+  context_tokens: number | null
+  context_window: number | null
+  created_at: string | null
+  last_used_at: string | null
 }
 
 // ── payload_json shapes ──────────────────────────────────────────────────────
@@ -199,15 +199,15 @@ export interface AgentSession {
 
 /** Parsed `agent_start` payload — the live source of a lane's label and color. */
 export interface AgentStartPayload {
-  model?: string;
-  thinking?: string;
-  session_id?: string;
-  color?: string;
-  coding_agent?: string;
-  purpose?: string;
+  model?: string
+  thinking?: string
+  session_id?: string
+  color?: string
+  coding_agent?: string
+  purpose?: string
   /** Tool allowlist; null means all tools. Absent on pre-config-payload rows. */
-  tools?: string[] | null;
-  harness_engineering?: string[];
+  tools?: string[] | null
+  harness_engineering?: string[]
 }
 
 /**
@@ -216,32 +216,32 @@ export interface AgentStartPayload {
  * `input_tokens` EXCLUDES cache reads, which bill at their own rate.
  */
 export interface UsageBreakdown {
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_tokens: number;
-  cache_write_tokens: number;
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  cache_write_tokens: number
   /**
    * Thinking tokens — the reasoning SHARE of `output_tokens`, not a fifth
    * component. Billed at the output rate; adding it to the others would
    * double-count. Absent (undefined) on runs predating the field.
    */
-  reasoning_tokens?: number;
-  total_tokens: number;
-  input_cost: number;
-  output_cost: number;
-  cache_read_cost: number;
-  cache_write_cost: number;
-  total_cost: number;
+  reasoning_tokens?: number
+  total_tokens: number
+  input_cost: number
+  output_cost: number
+  cache_read_cost: number
+  cache_write_cost: number
+  total_cost: number
 }
 
 /** Parsed `agent_end` payload — closes out a call with its cost and context use. */
 export interface AgentEndPayload {
-  cost?: number;
+  cost?: number
   /** Absent on runs predating the breakdown; `cost` alone survives there. */
-  usage?: UsageBreakdown;
+  usage?: UsageBreakdown
   /** Window occupancy after the final turn, and the model's ceiling. */
-  context_tokens?: number;
-  context_window?: number;
+  context_tokens?: number
+  context_window?: number
 }
 
 /**
@@ -250,19 +250,19 @@ export interface AgentEndPayload {
  * agent never reported a result.
  */
 export interface ToolCallPayload {
-  tool?: string;
-  tool_call_id?: string;
-  args?: Record<string, unknown>;
-  result_snippet?: string;
-  ok?: boolean;
-  duration_ms?: number;
-  agent?: string;
+  tool?: string
+  tool_call_id?: string
+  args?: Record<string, unknown>
+  result_snippet?: string
+  ok?: boolean
+  duration_ms?: number
+  agent?: string
 }
 
 // ── API responses ────────────────────────────────────────────────────────────
 
 /** GET /api/sessions */
-export type SessionsResponse = SessionSummary[];
+export type SessionsResponse = SessionSummary[]
 
 /** GET /api/sessions/:run_id */
 /**
@@ -273,30 +273,30 @@ export type SessionsResponse = SessionSummary[];
  */
 export interface SessionUsage {
   /** Raw prompt tokens read for the first time: new input + cache writes. */
-  read: number;
+  read: number
   /** Tokens generated. Each produced exactly once, so this needs no adjusting. */
-  written: number;
+  written: number
 }
 
 export interface SessionDetail {
-  session: Session;
+  session: Session
   /**
    * This run's handoff directory, resolved absolute. Server-computed from
    * the pointer `--handoff` may have written, never a database column —
    * `session` never carries it.
    */
-  handoff_dir: string;
+  handoff_dir: string
   /** Derived from agent_end payloads, so historical runs have it too. */
-  usage: SessionUsage;
+  usage: SessionUsage
   /** Ordered by seq. */
-  activityRuns: ActivityRun[];
+  activityRuns: ActivityRun[]
   /**
    * One entry per agent that has run OR is running under this run_id — lane
    * labels come from here. Finished agents come from the agent_sessions table;
    * an agent still in flight has no row there yet, so its entry is built from
    * its agent_start event (coding_agent is null until it finishes).
    */
-  agents: AgentSession[];
+  agents: AgentSession[]
 }
 
 /**
@@ -307,9 +307,9 @@ export interface SessionDetail {
  * so it can be fed straight back in. `has_more` means the page hit the limit.
  */
 export interface EventsPage {
-  events: Event[];
-  cursor: number;
-  has_more: boolean;
+  events: Event[]
+  cursor: number
+  has_more: boolean
 }
 
 /**
@@ -322,12 +322,12 @@ export interface EventsPage {
  * with two nulls is a valid answer rather than an error.
  */
 export interface AgentPrompts {
-  system: string | null;
-  user: string | null;
+  system: string | null
+  user: string | null
 }
 
 /** Alias matching the naming of the other endpoint payloads. */
-export type PromptsResponse = AgentPrompts;
+export type PromptsResponse = AgentPrompts
 
 /**
  * GET /api/sessions/:run_id/decision-request
@@ -339,53 +339,53 @@ export type PromptsResponse = AgentPrompts;
  */
 export type DecisionRequest =
   | { present: true; markdown: string }
-  | { present: false };
+  | { present: false }
 
 /** GET /api/sessions/:run_id/envelopes */
-export type EnvelopesResponse = Envelope[];
+export type EnvelopesResponse = Envelope[]
 
 /** GET /api/sessions/:run_id/gates */
-export type GatesResponse = GateResult[];
+export type GatesResponse = GateResult[]
 
 /** GET /api/health */
 export interface HealthResponse {
-  ok: boolean;
-  db: string;
-  journal_mode: string;
-  sessions: number;
+  ok: boolean
+  db: string
+  journal_mode: string
+  sessions: number
   /** Every watched tree, including any that could not be opened. */
-  workspaces: WorkspaceInfo[];
+  workspaces: WorkspaceInfo[]
 }
 
 /** One watched working tree, as the UI sees it. */
 export interface WorkspaceInfo {
   /** URL-safe, unique within one server. Addresses the workspace in the API. */
-  label: string;
+  label: string
   /** The working tree itself, which is what a developer recognises. */
-  root: string;
-  db: string;
+  root: string
+  db: string
   /** False when the database is missing or unreadable; `error` says why. */
-  available: boolean;
-  error?: string;
-  sessions: number;
+  available: boolean
+  error?: string
+  sessions: number
 }
 
 /** GET /api/workspaces */
-export type WorkspacesResponse = WorkspaceInfo[];
+export type WorkspacesResponse = WorkspaceInfo[]
 
 /** One document in a run's handoff directory, as the listing sees it. */
 export interface HandoffFile {
   /** Relative to the session directory: `context_handoff/design.md`. */
-  path: string;
-  bytes: number;
-  modified_at: string;
+  path: string
+  bytes: number
+  modified_at: string
   /** The document's own first heading, or empty when it has none. */
-  title: string;
+  title: string
 }
 
 /** GET /api/sessions/:run_id/handoff */
-export type HandoffResponse = HandoffFile[];
+export type HandoffResponse = HandoffFile[]
 
 export interface ApiError {
-  error: string;
+  error: string
 }

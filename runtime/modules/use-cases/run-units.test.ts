@@ -1,22 +1,28 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from '../data/trace-db'
 import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
-import { crustConfigSchema } from '../typedefs/config'
 import { activityRunParams } from '../typedefs/activity-run'
-import { EXIT } from '../typedefs/run-state'
+import { crustConfigSchema } from '../typedefs/config'
 import type { TRun } from '../typedefs/run'
+import { EXIT } from '../typedefs/run-state'
 import type { TActivity, TActivityContext } from '../typedefs/runnable-activity'
 import type { TEventInput, TTracer } from '../typedefs/trace'
 import type { TUnit } from '../typedefs/unit'
 import { WARNING_EVENT } from '../typedefs/warning'
 import { createRun } from './create-run'
 import { observedPayload, PATHS_TOUCHED } from './observed-paths'
-import { finish } from './run-activity-run'
 import { runUnits } from './run-activities'
+import { finish } from './run-activity-run'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)
@@ -183,12 +189,7 @@ test(
     await runUnits({ run, units: given, start: contextFor(run) })
 
     // then
-    expect(log).toEqual([
-      'test:start',
-      'test:end',
-      'build:start',
-      'build:end',
-    ])
+    expect(log).toEqual(['test:start', 'test:end', 'build:start', 'build:end'])
   },
 )
 
@@ -241,7 +242,12 @@ test(
     ]
 
     // when
-    await runUnits({ run, units: given, start: contextFor(run), approveAfter: ['plan'] })
+    await runUnits({
+      run,
+      units: given,
+      start: contextFor(run),
+      approveAfter: ['plan'],
+    })
 
     // then
     expect(log).toEqual(['plan:start', 'plan:end'])
@@ -274,7 +280,12 @@ test(
     ]
 
     // when
-    await runUnits({ run, units: given, start: contextFor(run), approveAfter: ['code-review'] })
+    await runUnits({
+      run,
+      units: given,
+      start: contextFor(run),
+      approveAfter: ['code-review'],
+    })
 
     // then
     expect(log).toEqual([
@@ -313,7 +324,12 @@ test(
     ]
 
     // when
-    await runUnits({ run, units: given, start: contextFor(run), approveAfter: ['stage:design'] })
+    await runUnits({
+      run,
+      units: given,
+      start: contextFor(run),
+      approveAfter: ['stage:design'],
+    })
 
     // then
     expect(log).toEqual([
@@ -435,9 +451,10 @@ test(
     expect(
       run.activityRuns().filter((one) => one.params.name === 'build'),
     ).toHaveLength(2)
-    expect(
-      run.activityRuns().map((one) => one.status),
-    ).toEqual(['superseded', 'success'])
+    expect(run.activityRuns().map((one) => one.status)).toEqual([
+      'superseded',
+      'success',
+    ])
   },
 )
 
@@ -496,8 +513,7 @@ test(
       (event) => event.name === 'checks' && event.type === 'gate_pass',
     )
     const siblingEnded = eventsOf(run).findIndex(
-      (event) =>
-        event.type === 'activity_run_end' && event.name === 'review',
+      (event) => event.type === 'activity_run_end' && event.name === 'review',
     )
     expect(names).toEqual(['build', 'review'])
     expect(gatePassed).toBeGreaterThan(siblingEnded)
@@ -542,7 +558,7 @@ const withFailingPreCommit = (dir: string): void => {
 test(
   [
     'given use-cases/run-activities::runUnits',
-    'when the first Activity\'s commit fails and a second Activity follows',
+    "when the first Activity's commit fails and a second Activity follows",
     'it should keep running the chain, with both Activity Runs successful',
   ].join(', '),
   async () => {
@@ -597,13 +613,12 @@ test(
       eventsOf(run).filter(
         (event) =>
           event.name === 'tree_warning' &&
-          (event.payload as Readonly<{ kind?: string }>)?.kind === 'uncommitted',
+          (event.payload as Readonly<{ kind?: string }>)?.kind ===
+            'uncommitted',
       ),
     ).toHaveLength(1)
     const activityRuns = run.activityRuns()
-    expect(
-      activityRuns.every((one) => one.status === 'success'),
-    ).toBe(true)
+    expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
 
     // then — the developer's actual complaint: `just crust run` exits 0
     expect(
@@ -679,9 +694,7 @@ test(
     expect(firstRuns).toEqual(['build'])
     expect(secondRuns).toEqual(['review'])
     const activityRuns = run.activityRuns()
-    expect(
-      activityRuns.every((one) => one.status === 'success'),
-    ).toBe(true)
+    expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
     expect(finish(run)).toBe(EXIT.SUCCESS)
   },
 )
@@ -840,9 +853,8 @@ test(
     }
 
     // then
-    const committed = eventsOf(run).find(
-      (event) => event.name === 'committed',
-    )?.payload as Readonly<{ paths: readonly string[] }> | undefined
+    const committed = eventsOf(run).find((event) => event.name === 'committed')
+      ?.payload as Readonly<{ paths: readonly string[] }> | undefined
     expect(
       execFileSync('git', ['status', '--porcelain'], {
         cwd: dir,
@@ -884,9 +896,8 @@ test(
     await runUnits({ run, units: given, start: contextFor(run) })
 
     // then
-    const warning = eventsOf(run).find(
-      (event) => event.name === 'tree_warning',
-    )?.payload as Readonly<{ paths: readonly string[]; kind: string }>
+    const warning = eventsOf(run).find((event) => event.name === 'tree_warning')
+      ?.payload as Readonly<{ paths: readonly string[]; kind: string }>
     expect(warning).toMatchObject({ kind: 'unexpected', paths: ['src/add.ts'] })
     expect(runs).toEqual(['build'])
     expect(run.activityRuns().map((one) => one.status)).toEqual(['success'])
@@ -976,7 +987,9 @@ test(
     // then
     const printed = eventsOf(run)
       .map((event) =>
-        String((event.payload as Readonly<{ message?: string }>)?.message ?? ''),
+        String(
+          (event.payload as Readonly<{ message?: string }>)?.message ?? '',
+        ),
       )
       .join('\n')
     expect(printed).toContain('1 unexplained change(s) during this run')

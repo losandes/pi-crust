@@ -84,7 +84,10 @@ const removeOrphans = (root: string): TTally => {
     return true
   })
   return gone.length > 0
-    ? tallyOf('stamped', `removed ${gone.length} path(s) the runtime no longer owns`)
+    ? tallyOf(
+        'stamped',
+        `removed ${gone.length} path(s) the runtime no longer owns`,
+      )
     : EMPTY_TALLY
 }
 
@@ -121,7 +124,10 @@ const JUST_SETTING = 'set positional-arguments'
 const HOME_RESOLUTION_BODY = [
   '    #!/usr/bin/env bash',
   '    set -euo pipefail',
-  '    home="${CRUST_HOME:-}"',
+  // A template literal with the dollar escaped, so what reaches the file is
+  // the bash parameter expansion `${CRUST_HOME:-}` and nothing here reads as
+  // a JavaScript placeholder written in the wrong quotes.
+  `    home="\${CRUST_HOME:-}"`,
   '    if [[ -z "$home" && -f .pi-crust/data/pi-crust-home ]]; then',
   '      home="$(cat .pi-crust/data/pi-crust-home)"',
   '    fi',
@@ -160,7 +166,7 @@ const JUST_RECIPE_ONLY = [
   '# pi-crust: every recipe lives in the package, not in this repository.',
   '# `just crust <recipe>` reaches them; `just crust default` lists them.',
   '#',
-  '# Relies on this file\'s `set positional-arguments`: without it, {{ARGS}}',
+  "# Relies on this file's `set positional-arguments`: without it, {{ARGS}}",
   '# interpolation re-splits a quoted prompt on whitespace.',
   'crust *ARGS:',
   HOME_RESOLUTION_BODY,
@@ -195,13 +201,18 @@ const recordHome = (root: string): TTally => {
 const isSkipped = (name: string): boolean =>
   name === 'node_modules' || name.endsWith('.test.ts')
 
-type TTally = Readonly<{ stamped: readonly string[]; skipped: readonly string[] }>
+type TTally = Readonly<{
+  stamped: readonly string[]
+  skipped: readonly string[]
+}>
 
 const EMPTY_TALLY: TTally = { stamped: [], skipped: [] }
 
 /** One entry, as a `TTally` ready to merge \u2014 the unit every helper below returns. */
 const tallyOf = (kind: 'stamped' | 'skipped', entry: string): TTally =>
-  kind === 'stamped' ? { stamped: [entry], skipped: [] } : { stamped: [], skipped: [entry] }
+  kind === 'stamped'
+    ? { stamped: [entry], skipped: [] }
+    : { stamped: [], skipped: [entry] }
 
 /** Combine tallies in the order they happened, which is the order they are reported in. */
 const mergeTally = (tallies: readonly TTally[]): TTally =>
@@ -213,11 +224,7 @@ const mergeTally = (tallies: readonly TTally[]): TTally =>
     EMPTY_TALLY,
   )
 
-const stamp = (
-  source: string,
-  destination: string,
-  force: boolean,
-): TTally => {
+const stamp = (source: string, destination: string, force: boolean): TTally => {
   if (isSkipped(source.split('/').at(-1) ?? '')) {
     return EMPTY_TALLY
   }
@@ -225,7 +232,9 @@ const stamp = (
     return mergeTally(
       readdirSync(source)
         .toSorted()
-        .map((child) => stamp(join(source, child), join(destination, child), force)),
+        .map((child) =>
+          stamp(join(source, child), join(destination, child), force),
+        ),
     )
   }
   /*
@@ -310,9 +319,7 @@ const repairInterpolation = (justfile: string, existing: string): TTally => {
   const settled = existing
     .split('\n')
     .map((line) => line.trim())
-    .some(
-      (line) => line === JUST_SETTING || line === `${JUST_SETTING} := true`,
-    )
+    .some((line) => line === JUST_SETTING || line === `${JUST_SETTING} := true`)
   const repaired = existing.replace(OLD_PASSTHROUGH, NEW_PASSTHROUGH)
   writeFileSync(
     justfile,
@@ -363,7 +370,10 @@ const ensureJustRecipe = (root: string): TTally => {
     const current = existsSync(justfile)
       ? readFileSync(justfile, 'utf8')
       : existing
-    return mergeTally([afterInterpolation, repairHomeResolution(justfile, current)])
+    return mergeTally([
+      afterInterpolation,
+      repairHomeResolution(justfile, current),
+    ])
   }
   if (existing === '') {
     writeFileSync(justfile, `${JUST_RECIPE}\n`, 'utf8')
@@ -399,7 +409,11 @@ const main = (): number => {
     // Namespaced rather than `.env.example`: the root of somebody else's
     // repository is not ours to claim, and a project with its own example
     // would otherwise have it overwritten by an install.
-    stamp(join(TEMPLATES, 'env.example'), join(root, '.env.pi-crust.example'), force),
+    stamp(
+      join(TEMPLATES, 'env.example'),
+      join(root, '.env.pi-crust.example'),
+      force,
+    ),
     removeOrphans(root),
     ensureGitignore(root),
     ensureJustRecipe(root),

@@ -1,3 +1,5 @@
+import { isOk, safeParseSettlement } from '@typedefs/settlement'
+
 /**
  * Dependency-free JSON syntax highlighting.
  *
@@ -28,14 +30,14 @@ export function highlightJsonText(text: string): string {
     out += escapeHtml(text.slice(last, m.index))
     const [full, str, colon, bool, nil, num] = m
     if (str !== undefined) {
-      const cls = colon !== undefined ? 'j-key' : 'j-str'
+      const cls = colon === undefined ? 'j-str' : 'j-key'
       out += `<span class="${cls}">${escapeHtml(str)}</span>${escapeHtml(colon ?? '')}`
     } else if (bool !== undefined) {
       out += `<span class="j-bool">${bool}</span>`
-    } else if (nil !== undefined) {
-      out += `<span class="j-null">null</span>`
-    } else {
+    } else if (nil === undefined) {
       out += `<span class="j-num">${escapeHtml(num ?? full)}</span>`
+    } else {
+      out += `<span class="j-null">null</span>`
     }
     last = (m.index ?? 0) + full.length
   }
@@ -46,9 +48,9 @@ export function highlightJsonText(text: string): string {
 /** Pretty-print raw JSON and highlight it; non-JSON falls back to escaped raw. */
 export function highlightJson(raw: string | null | undefined): string {
   if (!raw) return ''
-  try {
-    return highlightJsonText(JSON.stringify(JSON.parse(raw), null, 2))
-  } catch {
-    return escapeHtml(raw)
-  }
+  const pretty = safeParseSettlement(() =>
+    JSON.stringify(JSON.parse(raw), null, 2),
+  )
+  // Non-JSON falls back to the escaped raw text, highlighted as nothing.
+  return isOk(pretty) ? highlightJsonText(pretty.data) : escapeHtml(raw)
 }

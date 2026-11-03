@@ -16,9 +16,9 @@
  * of a team being able to add one.
  */
 
+import type { TActivityRunParams } from './activity-run'
 import type { TEnvelopeBase } from './envelope'
 import type { TGate } from './gate'
-import type { TActivityRunParams } from './activity-run'
 import type { TActivityRunHandle, TRun } from './run'
 
 /** What a activity is handed. Folded forward by `runActivities`, never mutated. */
@@ -145,7 +145,10 @@ export type TActivity = Readonly<{
   attempts: number
   /** commit this Activity's own change once its gates have passed */
   commit: boolean
-  execute: (ctx: TActivityContext, handle: TActivityRunHandle) => Promise<TActivityResult>
+  execute: (
+    ctx: TActivityContext,
+    handle: TActivityRunHandle,
+  ) => Promise<TActivityResult>
   replay: (ctx: TActivityContext) => Promise<TActivityResult>
 }>
 

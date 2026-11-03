@@ -20,7 +20,8 @@ export const liveAgent: TAgentPorts = {
   changed: () => changedFiles(),
   untracked: () => untrackedFiles(),
   render: (templatePath, variables) => render(templatePath, variables),
-  savePrompt: (directory, name, content) => savePrompt(directory, name, content),
+  savePrompt: (directory, name, content) =>
+    savePrompt(directory, name, content),
   snapshot: (roots) => snapshotTree(roots),
   rev: (ref) => (isRepo() ? rev(ref) : ''),
 }

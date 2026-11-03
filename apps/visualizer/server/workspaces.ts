@@ -11,18 +11,18 @@
  * It also means a run's workspace is not a column that can be wrong or
  * missing: it is which database the row came from.
  */
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { DEFAULT_DB_RELATIVE, resolveDbPath } from "./db.ts";
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { DEFAULT_DB_RELATIVE, resolveDbPath } from './db.ts'
 
 /** One watched working tree: a label the UI shows, and the db to read. */
 export type TWorkspace = Readonly<{
   /** URL-safe, unique within one server. Addresses the workspace in the API. */
-  label: string;
+  label: string
   /** Absolute path to that tree's crust.db. */
-  dbPath: string;
+  dbPath: string
   /**
    * Absolute path to the working tree the database belongs to \u2014 the
    * directory holding `.pi-crust/config/`.
@@ -33,8 +33,8 @@ export type TWorkspace = Readonly<{
    * stamp in it. The registry already records the true root; this is where
    * it survives to the reader.
    */
-  root: string;
-}>;
+  root: string
+}>
 
 /**
  * A label that can survive a URL path segment.
@@ -46,8 +46,8 @@ export type TWorkspace = Readonly<{
 export const slugify = (value: string): string =>
   value
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "workspace";
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'workspace'
 
 /**
  * The working tree a database belongs to, when nothing recorded a better
@@ -61,34 +61,36 @@ export const slugify = (value: string): string =>
  * carries its own root instead of calling this.
  */
 export const workspaceRootOf = (dbPath: string): string =>
-  resolve(dirname(dbPath), "..", "..");
+  resolve(dirname(dbPath), '..', '..')
 
 /** A db file, whether given the file itself or the tree that contains it. */
 const asDbPath = (raw: string): string => {
-  const absolute = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
-  const isDirectory = existsSync(absolute) && statSync(absolute).isDirectory();
-  return isDirectory ? join(absolute, DEFAULT_DB_RELATIVE) : absolute;
-};
+  const absolute = isAbsolute(raw) ? raw : resolve(process.cwd(), raw)
+  const isDirectory = existsSync(absolute) && statSync(absolute).isDirectory()
+  return isDirectory ? join(absolute, DEFAULT_DB_RELATIVE) : absolute
+}
 
 /** `label=path`, or just `path` with the tree's own directory name as label. */
 const parseSpec = (spec: string): TWorkspace | undefined => {
-  const trimmed = spec.trim();
-  if (trimmed === "") return undefined;
-  const split = trimmed.indexOf("=");
-  const named = split > 0;
-  const raw = named ? trimmed.slice(split + 1) : trimmed;
-  const dbPath = asDbPath(raw);
+  const trimmed = spec.trim()
+  if (trimmed === '') return undefined
+  const split = trimmed.indexOf('=')
+  const named = split > 0
+  const raw = named ? trimmed.slice(split + 1) : trimmed
+  const dbPath = asDbPath(raw)
   // The spec's own path IS the root when it names a directory \u2014 no need to
   // fall back to the database's two-levels-up arithmetic, which is wrong for
   // a relocated or pooled `data_dir`.
-  const absoluteRaw = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+  const absoluteRaw = isAbsolute(raw) ? raw : resolve(process.cwd(), raw)
   const root =
     existsSync(absoluteRaw) && statSync(absoluteRaw).isDirectory()
       ? absoluteRaw
-      : workspaceRootOf(dbPath);
-  const label = named ? slugify(trimmed.slice(0, split)) : slugify(root.split(sep).at(-1) ?? "");
-  return { label, dbPath, root };
-};
+      : workspaceRootOf(dbPath)
+  const label = named
+    ? slugify(trimmed.slice(0, split))
+    : slugify(root.split(sep).at(-1) ?? '')
+  return { label, dbPath, root }
+}
 
 /**
  * A database's real path, resolving any symlink in the way — or its raw
@@ -98,11 +100,11 @@ const parseSpec = (spec: string): TWorkspace | undefined => {
 const realOrRaw = (path: string): string => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: a path that cannot be resolved is reported as itself, not an error — a vanished tree's db has no real path to find
   try {
-    return realpathSync(path);
+    return realpathSync(path)
   } catch {
-    return path;
+    return path
   }
-};
+}
 
 /**
  * Collapse duplicates: same database twice is one workspace, same label twice
@@ -117,48 +119,47 @@ const realOrRaw = (path: string): string => {
  * Order is preserved because the first entry is the one the developer named
  * first, and a stable list means a stable UI.
  */
-export const dedupe = (
-  found: readonly TWorkspace[],
-): readonly TWorkspace[] => {
-  const byPath = new Map<string, TWorkspace>();
-  const taken = new Set<string>();
+export const dedupe = (found: readonly TWorkspace[]): readonly TWorkspace[] => {
+  const byPath = new Map<string, TWorkspace>()
+  const taken = new Set<string>()
   for (const workspace of found) {
-    const real = realOrRaw(workspace.dbPath);
-    if (byPath.has(real)) continue;
+    const real = realOrRaw(workspace.dbPath)
+    if (byPath.has(real)) continue
     const label = taken.has(workspace.label)
       ? uniqueLabel(workspace.label, taken)
-      : workspace.label;
-    taken.add(label);
-    byPath.set(real, { label, dbPath: workspace.dbPath, root: workspace.root });
+      : workspace.label
+    taken.add(label)
+    byPath.set(real, { label, dbPath: workspace.dbPath, root: workspace.root })
   }
-  return [...byPath.values()];
-};
+  return [...byPath.values()]
+}
 
 const uniqueLabel = (base: string, taken: ReadonlySet<string>): string => {
-  const next = (n: number): string => (taken.has(`${base}-${n}`) ? next(n + 1) : `${base}-${n}`);
-  return next(2);
-};
+  const next = (n: number): string =>
+    taken.has(`${base}-${n}`) ? next(n + 1) : `${base}-${n}`
+  return next(2)
+}
 
 /** Every path `git worktree list` reports, including the main one. */
 export const worktreePaths = (root: string): readonly string[] => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: not a repository, or git is not installed \u2014 discovery finding nothing is a legitimate answer and this IS the boundary that reports it that way
   try {
-    const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
+    const output = execFileSync('git', ['worktree', 'list', '--porcelain'], {
       cwd: root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
     return output
-      .split("\n")
-      .filter((line) => line.startsWith("worktree "))
-      .map((line) => line.slice("worktree ".length).trim())
-      .filter((line) => line !== "");
+      .split('\n')
+      .filter((line) => line.startsWith('worktree '))
+      .map((line) => line.slice('worktree '.length).trim())
+      .filter((line) => line !== '')
   } catch {
     // Not a repository, or git is not installed. Discovery finding nothing is
     // a legitimate answer; it must not take the server down with it.
-    return [];
+    return []
   }
-};
+}
 
 /**
  * The other trees that hold a database in the same place this one does.
@@ -170,33 +171,33 @@ export const worktreePaths = (root: string): readonly string[] => {
  * instead of finding nothing and reporting that as "no other worktrees".
  */
 export const discover = (dbPath: string): readonly TWorkspace[] => {
-  const root = gitRoot(workspaceRootOf(dbPath));
-  if (root === undefined) return [];
-  const offset = relative(root, dbPath);
+  const root = gitRoot(workspaceRootOf(dbPath))
+  if (root === undefined) return []
+  const offset = relative(root, dbPath)
   // A db outside its own repository has no offset to apply elsewhere.
-  if (offset.startsWith("..")) return [];
+  if (offset.startsWith('..')) return []
   return worktreePaths(root)
     .map((tree) => ({ tree, dbPath: join(tree, offset) }))
     .filter(({ dbPath }) => existsSync(dbPath))
     .map(({ tree, dbPath }) => ({
-      label: slugify(tree.split(sep).at(-1) ?? ""),
+      label: slugify(tree.split(sep).at(-1) ?? ''),
       dbPath,
       root: tree,
-    }));
-};
+    }))
+}
 
 const gitRoot = (from: string): string | undefined => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: not a git repository, or git is not installed \u2014 this IS the boundary that converts that into "no root to discover from"
   try {
-    return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
       cwd: from,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
   } catch {
-    return undefined;
+    return undefined
   }
-};
+}
 
 /**
  * Where the factory records the trees that have run on this machine.
@@ -209,38 +210,38 @@ const gitRoot = (from: string): string | undefined => {
 export const registryPath = (
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string => {
-  const override = (env.CRUST_REGISTRY ?? "").trim();
-  return override === ""
-    ? join(env.HOME ?? homedir(), ".pi-crust", "workspaces.jsonl")
-    : resolve(override);
-};
+  const override = (env.CRUST_REGISTRY ?? '').trim()
+  return override === ''
+    ? join(env.HOME ?? homedir(), '.pi-crust', 'workspaces.jsonl')
+    : resolve(override)
+}
 
 /** The registered trees, newest record per database, tolerating a torn line. */
 export const readRegistry = (path: string): readonly TWorkspace[] => {
-  if (!existsSync(path)) return [];
-  const byDb = new Map<string, TWorkspace>();
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    if (line.trim() === "") continue;
+  if (!existsSync(path)) return []
+  const byDb = new Map<string, TWorkspace>()
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    if (line.trim() === '') continue
     // biome-ignore lint/plugin/no-intermediate-try-catch: a half-written or newer-than-this-reader line is tolerated, not reported \u2014 this IS the boundary that decides a torn line does not refuse the rest
     try {
-      const parsed = JSON.parse(line) as { db?: unknown; root?: unknown };
-      if (typeof parsed.db !== "string" || parsed.db === "") continue;
+      const parsed = JSON.parse(line) as { db?: unknown; root?: unknown }
+      if (typeof parsed.db !== 'string' || parsed.db === '') continue
       const root =
-        typeof parsed.root === "string" && parsed.root !== ""
+        typeof parsed.root === 'string' && parsed.root !== ''
           ? parsed.root
-          : workspaceRootOf(parsed.db);
+          : workspaceRootOf(parsed.db)
       byDb.set(parsed.db, {
-        label: slugify(root.split(sep).at(-1) ?? ""),
+        label: slugify(root.split(sep).at(-1) ?? ''),
         dbPath: parsed.db,
         root,
-      });
+      })
     } catch {
       // Half written, or written by a version that knows more than this one.
       // Neither is a reason to refuse to serve the trees that did parse.
     }
   }
-  return [...byDb.values()];
-};
+  return [...byDb.values()]
+}
 
 /**
  * When the registry last changed, as a cheap gate on re-reading it.
@@ -251,11 +252,11 @@ export const readRegistry = (path: string): readonly TWorkspace[] => {
 export const registryStamp = (path: string): number => {
   // biome-ignore lint/plugin/no-intermediate-try-catch: no file and "nothing has registered yet" are the same state \u2014 this IS the boundary that collapses a missing file into that zero
   try {
-    return statSync(path).mtimeMs;
+    return statSync(path).mtimeMs
   } catch {
-    return 0;
+    return 0
   }
-};
+}
 
 /**
  * What this server watches, in precedence order:
@@ -278,32 +279,36 @@ export const resolveWorkspaces = (
   argv: readonly string[] = Bun.argv,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): readonly TWorkspace[] => {
-  const fallback = resolveDbPath([...argv], env);
-  const explicit = [...flagValues(argv, "--workspace"), ...commaSpecs(env.CRUST_WORKSPACES)]
+  const fallback = resolveDbPath([...argv], env)
+  const explicit = [
+    ...flagValues(argv, '--workspace'),
+    ...commaSpecs(env.CRUST_WORKSPACES),
+  ]
     .map(parseSpec)
-    .filter((workspace): workspace is TWorkspace => workspace !== undefined);
-  if (explicit.length > 0) return dedupe(explicit);
+    .filter((workspace): workspace is TWorkspace => workspace !== undefined)
+  if (explicit.length > 0) return dedupe(explicit)
 
   const everywhere =
-    argv.includes("--all-worktrees") || (env.CRUST_ALL_WORKTREES ?? "").trim() !== "";
-  const swept = everywhere ? discover(fallback) : [];
-  const registered = readRegistry(registryPath(env));
-  const parsedHere = parseSpec(fallback);
+    argv.includes('--all-worktrees') ||
+    (env.CRUST_ALL_WORKTREES ?? '').trim() !== ''
+  const swept = everywhere ? discover(fallback) : []
+  const registered = readRegistry(registryPath(env))
+  const parsedHere = parseSpec(fallback)
   // CRUST_WORKSPACE_ROOT, when set, names the tree the caller was actually
   // run in more reliably than anything derivable from the database path \u2014
   // the whole reason this variable exists is a pooled `data_dir` that sits
   // nowhere near the tree it belongs to.
-  const workspaceRootEnv = (env.CRUST_WORKSPACE_ROOT ?? "").trim();
+  const workspaceRootEnv = (env.CRUST_WORKSPACE_ROOT ?? '').trim()
   const here =
     parsedHere === undefined
       ? undefined
-      : workspaceRootEnv === ""
+      : workspaceRootEnv === ''
         ? parsedHere
         : {
             ...parsedHere,
             root: resolve(workspaceRootEnv),
-            label: slugify(resolve(workspaceRootEnv).split(sep).at(-1) ?? ""),
-          };
+            label: slugify(resolve(workspaceRootEnv).split(sep).at(-1) ?? ''),
+          }
   // The local database is listed FIRST and unconditionally, so an empty
   // registry never means an empty UI and the tree you are standing in is
   // never the one missing from the page.
@@ -311,11 +316,11 @@ export const resolveWorkspaces = (
     ...(here === undefined ? [] : [here]),
     ...registered,
     ...swept,
-  ]);
-};
+  ])
+}
 
 const commaSpecs = (value: string | undefined): readonly string[] =>
-  (value ?? "").split(",").filter((part) => part.trim() !== "");
+  (value ?? '').split(',').filter((part) => part.trim() !== '')
 
 /** Every `--flag value` and `--flag=value` occurrence, in order. */
 const flagValues = (argv: readonly string[], flag: string): readonly string[] =>
@@ -325,4 +330,4 @@ const flagValues = (argv: readonly string[], flag: string): readonly string[] =>
       : arg.startsWith(`${flag}=`)
         ? [arg.slice(flag.length + 1)]
         : [],
-  );
+  )
