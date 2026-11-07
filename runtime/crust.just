@@ -68,7 +68,7 @@ config := env_var_or_default("CRUST_CONFIG", ".pi-crust/config/crust.config.yaml
 # everything else that does not touch the trace database at all.
 db := shell('bun "$1/print-db-path.ts" --config "$2" 2>/dev/null || echo ".pi-crust/data/crust.db"', crust, config)
 
-# list every crust recipe
+# list every crust recipe (just crust help for the full reference)
 default:
     @just --justfile "{{justfile()}}" --list
 
@@ -97,9 +97,13 @@ demo:
 #
 # Args pass straight through: "<prompt or path/to/prompt.md>" [--run-id X]
 
-# what this repository offers, read from its own configuration: just crust list
+# the catalogue alone — just crust help adds every recipe: just crust list
 list *ARGS:
     @bun "{{crust}}/catalogue.ts" --config {{config}} "$@"
+
+# every recipe, every flag, and what this repo can run: just crust help [<recipe>]
+help *ARGS:
+    @bun "{{crust}}/help.ts" --config {{config}} "$@"
 
 # Every effective defaults.* and observability.* value, and the file that set
 # it \u2014 a repository's own crust.config.yaml, its gitignored .local layer, or
