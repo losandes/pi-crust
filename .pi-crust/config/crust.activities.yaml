@@ -41,7 +41,7 @@ activities:
   - name: code-review
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-5.6-terra # anthropic/claude-sonnet-5
+    # model: openai/gpt-5.6-terra # anthropic/claude-sonnet-5
     thinking: high
     color: indigo
     purpose: Judge the change against this repository's ratified conventions, through its own review skill.
@@ -114,7 +114,7 @@ activities:
     gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
-    model: openai/gpt-5.6-luna # anthropic/claude-sonnet-5
+    # model: openai/gpt-5.6-luna # anthropic/claude-sonnet-5
     color: blue
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:
@@ -176,7 +176,7 @@ activities:
   - name: outcome-review
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-5.6-terra  # anthropic/claude-sonnet-5
+    # model: openai/gpt-5.6-terra  # anthropic/claude-sonnet-5
     thinking: high
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
