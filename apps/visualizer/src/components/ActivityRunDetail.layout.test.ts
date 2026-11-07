@@ -1,12 +1,7 @@
 import { afterAll, expect, test } from 'bun:test'
 import type { Browser } from 'playwright'
 import { chromium } from 'playwright'
-import { createServer } from 'vite'
-
-// Fixed and off the dev-server/preview ports this app otherwise uses
-// (4600/4601 — see vite.config.ts) and off SessionCard.layout.test.ts's
-// 59_743, so this never races either.
-const HARNESS_PORT = 59_744
+import { startHarnessServer } from './__fixtures__/harness-server'
 
 /*
  * The context tab's panel used to be a `2fr / 3fr` grid with only one
@@ -43,18 +38,7 @@ afterAll(async () => {
 })
 
 const panelWidths = async (activeBrowser: Browser) => {
-  const server = await createServer({
-    root: new URL('../../', import.meta.url).pathname,
-    server: {
-      host: '127.0.0.1',
-      port: HARNESS_PORT,
-      strictPort: true,
-      hmr: false,
-    },
-    logLevel: 'silent',
-  })
-  await server.listen()
-  const base = `http://127.0.0.1:${HARNESS_PORT}`
+  const { server, base } = await startHarnessServer()
 
   const page = await activeBrowser.newPage()
   try {

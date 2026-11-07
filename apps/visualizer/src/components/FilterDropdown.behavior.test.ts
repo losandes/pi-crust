@@ -1,15 +1,8 @@
 import { afterAll, expect, test } from 'bun:test'
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { chromium } from 'playwright'
-import { createServer } from 'vite'
 import type { SessionSummary } from '../lib/types'
-
-// Fixed and off the dev-server/preview/layout-harness ports this app
-// otherwise uses (4600/4601, 59_743, 59_744 — see vite.config.ts,
-// SessionCard.layout.test.ts, ActivityRunDetail.layout.test.ts and
-// ThemePicker.interaction.test.ts), so this never races a running `dev:all`
-// or another suite's harness.
-const HARNESS_PORT = 59_750
+import { startHarnessServer } from './__fixtures__/harness-server'
 
 const HARNESS_HTML = `<!doctype html>
 <html><body>
@@ -118,25 +111,14 @@ afterAll(async () => {
  * One Vite dev server for the whole file, not one per test. Each test used
  * to pay for its own listen/close cycle, which left this file (and the
  * Chromium instances the other three harness files launch at the same time,
- * in the same `bun test` process) competing for ports and process teardown
- * for several seconds longer than the assertions themselves take — long
+ * in the same `bun test` process) competing for process teardown for
+ * several seconds longer than the assertions themselves take — long
  * enough, under load, to blow the 5s default hook timeout on `afterAll` in
  * one of these files, or to tear a browser down mid-test. A fresh browser
  * context per test gives each one a clean `sessionStorage` without a new
  * server.
  */
-const server = await createServer({
-  root: new URL('../../', import.meta.url).pathname,
-  server: {
-    host: '127.0.0.1',
-    port: HARNESS_PORT,
-    strictPort: true,
-    hmr: false,
-  },
-  logLevel: 'silent',
-})
-await server.listen()
-const BASE = `http://127.0.0.1:${HARNESS_PORT}`
+const { server, base: BASE } = await startHarnessServer()
 
 /** Relaunches when the previous Chromium instance is no longer connected. */
 const ensureBrowser = async (): Promise<Browser | undefined> => {
