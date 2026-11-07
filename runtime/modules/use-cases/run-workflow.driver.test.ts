@@ -46,6 +46,7 @@ import { emptyUsage } from '../typedefs/pi'
 import { EXIT } from '../typedefs/run-state'
 import type { TAgentPorts } from './execute-agent'
 import {
+  ledgerSeed,
   pinBaseline,
   runPlannedChain,
   runWorkflow,
@@ -151,7 +152,7 @@ test(
   [
     'given use-cases/run-workflow::spentAlready',
     'when this session already spent an attempt on an agent Activity',
-    "it should carry that instance's name forward, so a resume cannot refill its budget",
+    "it should carry that instance's name forward, for a run JOINED by this session's own trace",
   ].join(', '),
   () => {
     // given
@@ -187,6 +188,46 @@ test(
     // then
     expect(withRun).toEqual(['build'])
     expect(withNoRun).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/run-workflow::ledgerSeed',
+    'when the same session is joined with --run-id, with and without --resume',
+    'it should carry what the trace spent only when the process is not an explicit resume',
+  ].join(', '),
+  () => {
+    // given — the same fixture trace spentAlready's own test reads
+    const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-ledger-seed-'))
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('aaaa1111', 'tester', 'compose')
+    tracer.activityRunUpsert({
+      activity_run_id: 'aaaa1111_01_build',
+      run_id: 'aaaa1111',
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'build',
+        description: 'exercise ledgerSeed',
+      }),
+      status: 'success',
+      error: undefined,
+      started_at: undefined,
+      ended_at: undefined,
+    })
+    tracer.close()
+    const cfg = crustConfigSchema.parse({
+      observability: { db: dbPath },
+      agents: [],
+    })
+
+    // when, then — an explicit resume starts the budget empty; a plain
+    // --run-id join carries what the trace already spent
+    expect(ledgerSeed(cfg, 'aaaa1111', true)).toEqual([])
+    expect(ledgerSeed(cfg, 'aaaa1111', false)).toEqual(['build'])
   },
 )
 
@@ -1167,16 +1208,31 @@ test(
         notes_for_next_agent: '',
       })}\n`,
     )
-    // biome-ignore lint/plugin/no-object-mutation: this fixture declares 'build' already done, which is what a real `--resume` would have read off the trace
-    ;(run as unknown as { resume: Set<string> }).resume = new Set(['build'])
+    /*
+     * A real `--resume` reads 'build' as already done off the trace before
+     * `createRun` ever runs, so `claimResume`'s credit is there to spend.
+     * Mutating `run.resume` after the fact would not: `claimResume` closes
+     * over the `resume` THIS `createRun` call was given, not the field a
+     * later assignment replaces. Rebuilding the run with the resume set
+     * already in place is what a real resumed process does.
+     */
+    const { createRun } = await import('./create-run')
+    const resumedRun = createRun({
+      cfg,
+      runId: run.runId,
+      tracer: run.tracer,
+      engineer: run.engineer,
+      resume: new Set(['build']),
+      handoffDir: run.contextHandoffDir,
+    })
 
     // when
     const actual = await runPlannedChain(
-      run,
+      resumedRun,
       ['build'],
       {},
       {
-        run,
+        run: resumedRun,
         prompt: 'x',
         previous: undefined,
         previousStep: undefined,

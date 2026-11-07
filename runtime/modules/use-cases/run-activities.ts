@@ -18,7 +18,7 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../../../lib/typedefs/src/settlement'
-import type { TActivityRun } from '../typedefs/activity-run'
+import type { TActivityRun, TActivityRunStatus } from '../typedefs/activity-run'
 import { activityRunParams } from '../typedefs/activity-run'
 import type { TEnvelopeBase } from '../typedefs/envelope'
 import { regressionOf } from '../typedefs/envelope'
@@ -52,7 +52,27 @@ import {
 import { observationsIn, touchedBy, unexpectedWarnings } from './observed-paths'
 import type { TRegressionRecord } from './regression'
 import { regressionNote, regressionVerdict } from './regression'
-import { skipIfDone } from './resume'
+import { isReplayedActivityRunId, skipIfDone } from './resume'
+
+/**
+ * Record a status change, and persist it unless the row is a replay.
+ *
+ * A replayed row exists only in memory: it has no seq, no timestamps, and
+ * the trace already holds the real row it stands for. Inserting it writes a
+ * second row for one Activity — which is what put a phantom `build` in the
+ * visualizer's queued lane (no `started_at`) while the run appeared to do
+ * nothing — and corrupts the completed set the next resume reads.
+ */
+const settleStatus = (
+  run: TRun,
+  activityRunId: string,
+  status: TActivityRunStatus,
+): void => {
+  const updated = run.updateActivityRun(activityRunId, { status })
+  if (!isReplayedActivityRunId(run.runId, activityRunId)) {
+    run.tracer.activityRunUpsert(updated)
+  }
+}
 
 /** The activityRun row a gate event should hang off, best effort. */
 const activityRunFor = (
@@ -302,9 +322,7 @@ const settleGates = (
       // not hold, and a trace that leaves it green is a trace that disagrees
       // with the reason the run stopped.
       if (standing !== undefined) {
-        run.tracer.activityRunUpsert(
-          run.updateActivityRun(standing.activity_run_id, { status: 'fail' }),
-        )
+        settleStatus(run, standing.activity_run_id, 'fail')
       }
       throw new Error(
         `${entry.activity.instance} failed its gates and has no attempts left:\n- ` +
@@ -313,11 +331,7 @@ const settleGates = (
       )
     }
     if (standing !== undefined) {
-      run.tracer.activityRunUpsert(
-        run.updateActivityRun(standing.activity_run_id, {
-          status: 'superseded',
-        }),
-      )
+      settleStatus(run, standing.activity_run_id, 'superseded')
     }
     run.console.note(
       `${entry.activity.instance}: ${violations.length} gate violation(s) — ` +

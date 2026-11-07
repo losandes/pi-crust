@@ -27,6 +27,16 @@ import { runActivityRun } from './run-activity-run'
 /** Event name a code activityRun files its verdict under, for replay. */
 export const STEP_RESULT_EVENT = 'step_result'
 
+/** The id a replayed Activity Run carries. It is never written to the trace. */
+export const replayedActivityRunId = (runId: string, name: string): string =>
+  `${runId}_replayed_${name}`
+
+/** Is this id one `skipIfDone` minted for a replay, rather than a real row? */
+export const isReplayedActivityRunId = (
+  runId: string,
+  activityRunId: string,
+): boolean => activityRunId.startsWith(`${runId}_replayed_`)
+
 /**
  * Record what a code activityRun decided, in a form replay can read back.
  *
@@ -65,22 +75,7 @@ export const skipIfDone = <TResult>(
   body: (handle: TActivityRunHandle) => TResult | Promise<TResult>,
   replay: () => Promise<TResult>,
 ): Promise<TResult> => {
-  /*
-   * `run.resume` names what the TRACE already holds successful — it says
-   * nothing about THIS process, and never changes after `createRun`. A gate
-   * failure that asks for the same `params.name` again, in the same run, is
-   * not a second resume: it is the run's own decision to retry, and has to
-   * execute the body or it replays the same pre-resume result forever,
-   * never spending an attempt and never converging (observed as a hang in
-   * session 4b957b3a: `build` replayed on every gate-failure retry).
-   * `run.activityRuns()` already answers "has this process served this name
-   * before", so a second ask within it is told apart without a new field on
-   * `TRun` or a mutation of the resume set other call sites read.
-   */
-  const alreadyServedThisRun = run
-    .activityRuns()
-    .some((activityRun) => activityRun.params.name === params.name)
-  if (!run.resume.has(params.name) || alreadyServedThisRun) {
+  if (!run.claimResume(params.name)) {
     return runActivityRun(run)(params, body)
   }
   run.tracer.event({
@@ -103,7 +98,7 @@ export const skipIfDone = <TResult>(
    * about which process happened to do it.
    */
   run.recordActivityRun({
-    activity_run_id: `${run.runId}_replayed_${params.name}`,
+    activity_run_id: replayedActivityRunId(run.runId, params.name),
     run_id: run.runId,
     seq: 0,
     params,

@@ -140,7 +140,11 @@ export const fakeActivity = (
  * `createRun`, which is where `repoRoot()`/`vcsRoot()` are resolved from the
  * process's current working directory, exactly as a real run would.
  */
-export const runWithTracer = (dir: string, cfg: TPiCrustConfig): TRun => {
+export const runWithTracer = (
+  dir: string,
+  cfg: TPiCrustConfig,
+  resume?: ReadonlySet<string>,
+): TRun => {
   const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
 
   return createRun({
@@ -148,5 +152,6 @@ export const runWithTracer = (dir: string, cfg: TPiCrustConfig): TRun => {
     runId: 'fake0001',
     tracer,
     engineer: 'tester',
+    ...(resume === undefined ? {} : { resume }),
   })
 }

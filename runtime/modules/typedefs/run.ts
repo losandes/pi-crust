@@ -119,6 +119,18 @@ export type TRun = Readonly<{
    * can never disagree about what is already done.
    */
   resume: ReadonlySet<string>
+  /**
+   * Spend this instance's single resume replay, if it still has one.
+   *
+   * True exactly once per name: the first touch after `--resume` is the one
+   * a person already paid for, and replaying it costs nothing. Every later
+   * touch of the same name in this process is the RUN deciding to go again
+   * — a gate-triggered retry, a revise round — and must execute for real
+   * and spend an attempt. Replaying those too is a loop with no exit: the
+   * body never runs, the ledger never advances, and `settleGates` waits
+   * forever for a budget nothing is spending.
+   */
+  claimResume: (name: string) => boolean
   /** the activity runs this run has opened, in order */
   activityRuns: () => readonly TActivityRun[]
   recordActivityRun: (activityRun: TActivityRun) => void

@@ -166,3 +166,31 @@ test(
     expect(actual).toEqual('ran')
   },
 )
+
+test(
+  [
+    'given use-cases/resume::skipIfDone',
+    'when the same name is touched a second time in this process',
+    'it should execute the body for real, per requirement 1.1.2',
+  ].join(', '),
+  async () => {
+    // given — the credit a resumed session grants 'build' is spent on the
+    // first call; the second call stands for a gate-triggered retry the
+    // run itself decides to make
+    const given = runWith(['build'])
+    let bodyRuns = 0
+    const ranAgain = () => {
+      bodyRuns += 1
+      return Promise.resolve('ran-again')
+    }
+
+    // when
+    const first = await skipIfDone(given, params, run, replay)
+    const second = await skipIfDone(given, params, ranAgain, replay)
+
+    // then
+    expect(first).toEqual('replayed')
+    expect(second).toEqual('ran-again')
+    expect(bodyRuns).toEqual(1)
+  },
+)

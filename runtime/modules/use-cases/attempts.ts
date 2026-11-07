@@ -41,10 +41,14 @@ export const attemptLedger = (
   /**
    * Attempts already on the record, by instance name.
    *
-   * A resumed run reads its own trace, so a budget cannot be refilled by
-   * starting the same run again. Steered Activity Runs are left out by the
-   * caller, because a person asking for the work again is not the run
-   * deciding to.
+   * A run joined with `--run-id` and no `--resume` re-runs the same trace,
+   * so it is handed what that trace already spent (`spentAlready`). An
+   * explicit `--resume` is handed none of it (`ledgerSeed`): it is a
+   * person deciding to go again, which this file already treats as not an
+   * attempt, and a budget pre-spent by the process that already failed
+   * would leave the first gate failure with nowhere to go. Steered
+   * Activity Runs are left out by the caller either way, because a person
+   * asking for the work again is not the run deciding to.
    */
   seed: readonly string[] = [],
 ): TAttemptLedger => {

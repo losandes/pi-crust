@@ -36,7 +36,10 @@ const EVENTS = new WeakMap<object, string>()
  * fixture. Every test that calls `aRun()` with no argument gets exactly the
  * behaviour it always has.
  */
-const aRun = (tracerOverride?: (tracer: TTracer) => TTracer): TRun => {
+const aRun = (
+  tracerOverride?: (tracer: TTracer) => TTracer,
+  resume: ReadonlySet<string> = new Set<string>(),
+): TRun => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-units-'))
   const tracer = createTracer(join(dir, 'crust.db'), join(dir, 'events.jsonl'))
   const run = createRun({
@@ -48,7 +51,7 @@ const aRun = (tracerOverride?: (tracer: TTracer) => TTracer): TRun => {
     runId: 'aaaa1111',
     tracer: tracerOverride === undefined ? tracer : tracerOverride(tracer),
     engineer: 'tester',
-    resume: new Set<string>(),
+    resume,
   })
   EVENTS.set(run, join(dir, 'events.jsonl'))
 
@@ -364,6 +367,8 @@ const gatedStep = (
     touches?: readonly string[]
     /** what it CLAIMS it changed — a report, never the evidence */
     claims?: readonly string[]
+    /** overrides the default no-op replay, for a resumed-instance test */
+    replay?: TActivity['replay']
   }>,
 ): TActivity =>
   ({
@@ -418,7 +423,9 @@ const gatedStep = (
         accepted: true,
       })
     },
-    replay: () => Promise.resolve({ previous: undefined, accepted: true }),
+    replay:
+      params.replay ??
+      (() => Promise.resolve({ previous: undefined, accepted: true })),
   }) as unknown as TActivity
 
 test(
@@ -995,5 +1002,121 @@ test(
     expect(printed).toContain('1 unexplained change(s) during this run')
     expect(printed).toContain('src/add.ts')
     expect(printed).toContain('pi-crust cannot tell')
+  },
+)
+
+/**
+ * What a real resumed agent Activity's `replay` returns: the FAILING
+ * envelope the previous process stored, not `{ previous: undefined }` —
+ * that shape makes `settleGates` return early and judges nothing, which
+ * would prove nothing about the retry this fixture exists to exercise.
+ *
+ * Counts its own calls and throws on the third, naming requirement 1.1.2:
+ * with the fix, `replay` runs at most ONCE per instance for the life of the
+ * run (`claimResume` spends the credit on the first call), so a regression
+ * that lets a gate-triggered retry replay again fails fast with a readable
+ * message instead of recursing until bun's test timeout kills the suite.
+ */
+const resumedReplay = (): Readonly<{
+  fn: TActivity['replay']
+  calls: () => number
+}> => {
+  let calls = 0
+  const fn: TActivity['replay'] = () => {
+    calls += 1
+    if (calls >= 3) {
+      throw new Error(
+        'requirement 1.1.2: a gate-triggered retry must execute for real, ' +
+          'not replay again',
+      )
+    }
+
+    return Promise.resolve({
+      previous: {
+        status: 'success' as const,
+        summary: 'red',
+        artifacts: [],
+        notes_for_next_agent: '',
+      },
+      accepted: true,
+    })
+  }
+
+  return { fn, calls: () => calls }
+}
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    "when a resumed Activity's replayed gate fails",
+    'it should retry it for real, spending an attempt, until it passes (requirement 1.1.2)',
+  ].join(', '),
+  async () => {
+    // given — 'build' already succeeded in an earlier process, but the
+    // resumed envelope it replays back in fails the gate this time
+    const replay = resumedReplay()
+    const run = aRun(undefined, new Set(['build']))
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          replay: replay.fn,
+        }),
+      ]),
+    ]
+
+    // when
+    await runUnits({ run, units: given, start: contextFor(run) })
+
+    // then — the replay fires once, the retry executes for real exactly
+    // once, and the fold completes with both rows on the record
+    expect(replay.calls()).toEqual(1)
+    expect(runs).toEqual(['build'])
+    expect(run.activityRuns().map((one) => one.params.name)).toEqual([
+      'build',
+      'build',
+    ])
+    expect(run.activityRuns()[0]?.activity_run_id).toContain('replayed')
+    expect(run.activityRuns()[1]?.status).toEqual('success')
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when a resumed Activity keeps failing its gate on every real execution',
+    'it should exhaust its attempts and stop the run (requirement 1.4.1)',
+  ].join(', '),
+  async () => {
+    // given — the replayed envelope fails, and so does every real retry
+    const replay = resumedReplay()
+    const run = aRun(undefined, new Set(['build']))
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 99,
+          attempts: 2,
+          replay: replay.fn,
+        }),
+      ]),
+    ]
+
+    // when
+    const actual = runUnits({ run, units: given, start: contextFor(run) })
+
+    // then — the loop ends on the attempt ceiling rather than recursing
+    // forever on an unspent, never-advancing budget
+    await expect(actual).rejects.toThrow(/has no attempts left/)
+    await actual.catch(() => undefined)
+    expect(replay.calls()).toEqual(1)
+    expect(runs).toHaveLength(2)
   },
 )
