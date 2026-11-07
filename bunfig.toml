@@ -5,6 +5,12 @@ target = "node"
 # directory to run tests in by default
 # root = "./src" # default "./src"
 
+# Takes the real trace database away from every test before the first one
+# runs: DEFAULT_DB is relative, so a test that falls through the db-path
+# chain would otherwise resolve it against the repository root and operate on
+# the developer's own runs. See the file for the rest.
+preload = ["./runtime/modules/testing/scratch-db-preload.ts"]
+
 coverageThreshold = 0.9 # { line = 0.7, function = 0.8, statement = 0.9 }
 
 pathIgnorePatterns = [
