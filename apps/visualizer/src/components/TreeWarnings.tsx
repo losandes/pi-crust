@@ -57,18 +57,17 @@ export const TreeWarnings = ({
               />
               {warningTitle(kind)}
             </h5>
-            {group.map((warning) => (
-              <div
-                key={`${warning.stage}-${warning.activityRunIds.join('+')}-${warning.paths.join('+')}`}
-                className={styles.entry}
-              >
+            {group.map((warning, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: two warnings in one group can be identical in stage, Activity Runs and paths and differ only in their note, so position is the only identity they have; the list is rebuilt whole and never reorders
+              <div key={index} className={styles.entry}>
                 <span className={styles.who}>
                   {warning.activities.join(', ')}
                   <span className="dim"> ({warning.stage})</span>
                 </span>
                 <ul className={styles.paths}>
-                  {warning.paths.map((path) => (
-                    <li key={path} className={styles.path}>
+                  {warning.paths.map((path, pathIndex) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: a warning records one entry per match, so the same path legitimately appears twice; position is the only identity these lines have, and the list never reorders
+                    <li key={pathIndex} className={styles.path}>
                       {path}
                     </li>
                   ))}
