@@ -9,6 +9,7 @@ import {
   silenceTerminal,
   terminalOutput,
 } from './modules/testing/terminal-capture'
+import { DEFAULT_DB } from './modules/typedefs/config'
 import { EXIT } from './modules/typedefs/run-state'
 import { main, USAGE } from './prune'
 
@@ -300,6 +301,14 @@ test(
   },
 )
 
+/*
+ * DEFAULT_DB is RELATIVE, so the fallback resolves against the process's
+ * working directory. Left at the repository root, this test prunes the
+ * developer's own trace database and asserts against whatever that machine
+ * happens to hold — it passed on an empty store and failed the moment a real
+ * run was in it. The working directory is the thing under test here, so the
+ * test moves to an empty one and the assertion names the path prune chose.
+ */
 test(
   [
     'given prune::main',
@@ -310,9 +319,11 @@ test(
     // given
     const originalDb = process.env.CRUST_DB
     const originalConfig = process.env.CRUST_CONFIG
+    const originalCwd = process.cwd()
     delete process.env.CRUST_DB
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API defaultDbPath reads through configPathFromEnv
     process.env.CRUST_CONFIG = '/no/such/crust.config.yaml'
+    process.chdir(scratch())
 
     try {
       // when
@@ -320,8 +331,11 @@ test(
 
       // then
       expect(actual).toEqual(EXIT.SUCCESS)
-      expect(terminalOutput()).toContain('nothing to prune')
+      expect(terminalOutput()).toContain(
+        `no trace database at ${DEFAULT_DB} — nothing to prune`,
+      )
     } finally {
+      process.chdir(originalCwd)
       if (originalDb === undefined) {
         delete process.env.CRUST_DB
       } else {
