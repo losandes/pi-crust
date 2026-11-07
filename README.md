@@ -82,6 +82,7 @@ These run in a repository pi-crust has been stamped into: `bun <pi-crust>/script
 just crust please                          # answer questions, get the command
 # your own models/colours: cp <pi-crust>/cookbooks/examples/crust.config.local.example.yaml \
 #                             .pi-crust/config/crust.config.local.yaml
+just crust help                            # every recipe and flag, plus the above
 just crust list                            # every Lifecycle and Activity this repo offers
 just crust run "<...>" --lifecycle sdlc    # the whole lifecycle, nine agent calls
 just crust run "<...>" --lifecycle bugfix  # a reported bug, from symptom to fix

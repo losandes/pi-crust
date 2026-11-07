@@ -1,13 +1,8 @@
 import { afterAll, expect, test } from 'bun:test'
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { chromium } from 'playwright'
-import { createServer } from 'vite'
 import { THEME_STORAGE_KEY } from '../theme/theme'
-
-// Fixed and off the dev-server/preview/other-harness ports this app
-// otherwise uses (4600/4601 — vite.config.ts; 59_743 — SessionCard.layout.test.ts),
-// so this never races a running `dev:all` or the other browser test.
-const HARNESS_PORT = 59_744
+import { startHarnessServer } from './__fixtures__/harness-server'
 
 const HARNESS_HTML = `<!doctype html>
 <html><body>
@@ -53,23 +48,12 @@ if (browser === undefined) {
 // Eleven calls across these tests each used to pay for their own
 // listen/close cycle, which left this file (and the Chromium instance
 // `SessionCard.layout.test.ts` launches at the same time, in the same
-// `bun test` process) competing for ports and process teardown for
-// several seconds longer than the assertions themselves take — long
-// enough, under load, to blow the 5s default hook timeout on
-// `afterAll(() => browser.close())` in either file. A page reload sees
-// the same server, so nothing about what each test exercises changes.
-const server = await createServer({
-  root: new URL('../../', import.meta.url).pathname,
-  server: {
-    host: '127.0.0.1',
-    port: HARNESS_PORT,
-    strictPort: true,
-    hmr: false,
-  },
-  logLevel: 'silent',
-})
-await server.listen()
-const BASE = `http://127.0.0.1:${HARNESS_PORT}`
+// `bun test` process) competing for process teardown for several seconds
+// longer than the assertions themselves take — long enough, under load, to
+// blow the 5s default hook timeout on `afterAll(() => browser.close())` in
+// either file. A page reload sees the same server, so nothing about what
+// each test exercises changes.
+const { server, base: BASE } = await startHarnessServer()
 
 afterAll(async () => {
   await browser?.close()
