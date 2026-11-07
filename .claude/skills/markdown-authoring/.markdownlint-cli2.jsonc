@@ -1,0 +1,64 @@
+// Configuration for the markdown convention in
+// `adr/conventions/format-markdown.md`.
+//
+// This file lives inside the skill, not at the repository root, so that an
+// editor's markdownlint extension does not pick it up and start reporting on
+// every keystroke. The check is for the skill to run, deliberately.
+//
+// Every entry below is the record expressed as configuration. If a rule and
+// the record disagree, the record is right and this file is a bug.
+{
+  "customRules": ["./rules/no-hard-wrap.ts", "./rules/table-alignment.ts"],
+  "config": {
+    // Start from nothing so that enabling a rule is a decision with a reason,
+    // and so markdownlint's future additions cannot silently become house
+    // style.
+    "default": false,
+
+    // The rule this convention exists for.
+    "no-hard-wrap": true,
+
+    // Padding is width-dependent and markdownlint has no built-in rule for
+    // it; MD055 and MD056 below govern pipes and column count only.
+    "table-alignment": true,
+
+    // MD013 stays off deliberately. It is the rule that produces the habit the
+    // record undoes, and no-hard-wrap is its inverse.
+    "line-length": false,
+
+    // Headings.
+    "heading-increment": true, // MD001
+    "no-missing-space-atx": true, // MD018
+    "no-multiple-space-atx": true, // MD019
+    "blanks-around-headings": true, // MD022
+
+    // Lists.
+    "ul-style": { "style": "dash" }, // MD004
+    "ul-indent": { "indent": 2 }, // MD007
+    "list-marker-space": {
+      // MD030
+      "ul_single": 1,
+      "ul_multi": 1,
+      "ol_single": 1,
+      "ol_multi": 1
+    },
+    "blanks-around-lists": true, // MD032
+
+    // Whitespace. `no-trailing-spaces` would otherwise permit a two-space hard
+    // break, which no-hard-wrap reports; br_spaces: 0 bans it here as well so
+    // the two rules agree.
+    "no-trailing-spaces": { "br_spaces": 0 }, // MD009
+    "no-hard-tabs": true, // MD010
+    "no-multiple-blanks": true, // MD012
+    "single-trailing-newline": true, // MD047
+
+    // Blocks and links.
+    "blanks-around-fences": true, // MD031
+    "fenced-code-language": true, // MD040
+    "no-bare-urls": true, // MD034
+    "no-empty-links": true, // MD042
+    "strong-style": { "style": "asterisk" }, // MD050
+    "table-pipe-style": { "style": "leading_and_trailing" }, // MD055
+    "table-column-count": true // MD056
+  }
+}

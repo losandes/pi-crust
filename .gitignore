@@ -2,9 +2,6 @@
 .pi-crust/data/
 
 # out-of-scope
-.claude/*
-CLAUDE.md
-.pi/*
 AGENTS.local.md
 
 # OS directories and files
