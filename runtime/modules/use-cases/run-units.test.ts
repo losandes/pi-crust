@@ -1120,3 +1120,95 @@ test(
     expect(runs).toHaveLength(2)
   },
 )
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    "when a resumed Activity's replayed gate fails and the real retry passes",
+    'it should never upsert the replayed row to the trace (requirement 1.3.2)',
+  ].join(', '),
+  async () => {
+    // given — a tracer that records every id `activityRunUpsert` is asked
+    // to persist, so a phantom row for the replayed instance is visible
+    // the moment it is written rather than only inferred from a missing one
+    const upserted: string[] = []
+    const run = aRun(
+      (tracer) => ({
+        ...tracer,
+        activityRunUpsert: (activityRun) => {
+          // biome-ignore lint/plugin/no-array-mutation: recording every id is the test
+          upserted.push(activityRun.activity_run_id)
+          tracer.activityRunUpsert(activityRun)
+        },
+      }),
+      new Set(['build']),
+    )
+    const replay = resumedReplay()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 1,
+          replay: replay.fn,
+        }),
+      ]),
+    ]
+
+    // when
+    await runUnits({ run, units: given, start: contextFor(run) })
+
+    // then — the superseded write for the replayed row's own retry never
+    // reaches the trace; only the real row that replaced it does
+    expect(upserted.some((id) => id.includes('replayed'))).toBe(false)
+    expect(upserted.length).toBeGreaterThan(0)
+  },
+)
+
+test(
+  [
+    'given use-cases/run-activities::runUnits',
+    'when a resumed Activity exhausts its attempts after a replayed gate failure',
+    'it should never upsert the replayed row to the trace, even on the failing write (requirement 1.3.2)',
+  ].join(', '),
+  async () => {
+    // given — every real retry also fails, so the exhausted-attempts branch
+    // is the one that settles the replayed row's standing status this time
+    const upserted: string[] = []
+    const run = aRun(
+      (tracer) => ({
+        ...tracer,
+        activityRunUpsert: (activityRun) => {
+          // biome-ignore lint/plugin/no-array-mutation: recording every id is the test
+          upserted.push(activityRun.activity_run_id)
+          tracer.activityRunUpsert(activityRun)
+        },
+      }),
+      new Set(['build']),
+    )
+    const replay = resumedReplay()
+    const runs: string[] = []
+    const feedbackSeen: string[][] = []
+    const given = [
+      unit('implement', 'serial', [
+        gatedStep('build', {
+          runs,
+          feedbackSeen,
+          passOn: 99,
+          attempts: 2,
+          replay: replay.fn,
+        }),
+      ]),
+    ]
+
+    // when
+    const actual = runUnits({ run, units: given, start: contextFor(run) })
+
+    // then
+    await expect(actual).rejects.toThrow(/has no attempts left/)
+    await actual.catch(() => undefined)
+    expect(upserted.some((id) => id.includes('replayed'))).toBe(false)
+  },
+)
