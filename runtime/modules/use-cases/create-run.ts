@@ -48,6 +48,10 @@ export const createRun = (params: TCreateRunParams): TRun => {
   let activityRuns: readonly TActivityRun[] = []
   let tokens = 0
   let cost = 0
+  // Names whose one resume replay has been used. Reassigned, never mutated,
+  // like every other number this closure keeps.
+  let replayed: ReadonlySet<string> = new Set<string>()
+  const resume: ReadonlySet<string> = params.resume ?? new Set<string>()
   // A joined run continues the sequence rather than restarting at 1.
   let seq = tracer.maxActivityRunSeq(runId)
   let agentMap: Record<string, TAgentMapEntry> = fileExists(agentMapPath)
@@ -66,7 +70,16 @@ export const createRun = (params: TCreateRunParams): TRun => {
     vcsRoot: vcsRoot(workspaceRoot),
     sessionDir,
     contextHandoffDir,
-    resume: params.resume ?? new Set<string>(),
+    resume,
+
+    claimResume: (name) => {
+      if (!resume.has(name) || replayed.has(name)) {
+        return false
+      }
+      replayed = new Set([...replayed, name])
+
+      return true
+    },
 
     activityRuns: () => activityRuns,
 

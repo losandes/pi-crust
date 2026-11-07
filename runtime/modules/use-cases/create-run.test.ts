@@ -254,3 +254,47 @@ test(
     expect(run.resume.has('build')).toBe(true)
   },
 )
+
+test(
+  [
+    'given use-cases/create-run::createRun',
+    'when claimResume is called for a name already in the resume set',
+    'it should answer true once, false after, and never mutate run.resume',
+  ].join(', '),
+  () => {
+    // given
+    const workspace = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-create-run-')),
+    )
+    const tracer = createTracer(
+      join(workspace, 'crust.db'),
+      join(workspace, 'events.jsonl'),
+    )
+    mkdirSync(join(workspace, '.pi-crust'), { recursive: true })
+    const run = inDir(workspace, () =>
+      createRun({
+        cfg: crustConfigSchema.parse({
+          defaults: { data_dir: join(workspace, '.pi-crust', 'data') },
+          observability: { db: join(workspace, 'crust.db') },
+          agents: [],
+        }),
+        runId: 'cccc3333',
+        tracer,
+        engineer: 'tester',
+        resume: new Set(['build']),
+      }),
+    )
+
+    // when, then — the one credit this name has is spent on its first claim
+    expect(run.claimResume('build')).toBe(true)
+    expect(run.claimResume('build')).toBe(false)
+    expect(run.claimResume('build')).toBe(false)
+
+    // a name never in the resume set has no credit to spend
+    expect(run.claimResume('test')).toBe(false)
+
+    // `run.resume` still answers the static question every other reader asks
+    expect(run.resume.has('build')).toBe(true)
+    expect(run.resume).toEqual(new Set(['build']))
+  },
+)

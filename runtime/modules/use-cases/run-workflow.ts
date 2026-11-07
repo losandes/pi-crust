@@ -64,10 +64,11 @@ export const NOT_ACCEPTED =
 /**
  * What this session has already spent, by instance name.
  *
- * A budget that reset on resume would be no budget at all: a run that
- * exhausted an Activity could be restarted into the same wall forever.
  * Superseded rows are excluded, because they are the ones a person steered
- * — human-directed re-execution is not an attempt.
+ * — human-directed re-execution is not an attempt. A run joined with
+ * `--run-id` and no `--resume` carries this: it re-runs the chain in the
+ * same trace, so it starts with what that trace already spent. A run
+ * started with `--resume` does not — see `ledgerSeed`.
  */
 export const spentAlready = (
   cfg: TPiCrustConfig,
@@ -84,6 +85,26 @@ export const spentAlready = (
     )
     .map((activityRun) => activityRun.name)
 }
+
+/**
+ * What the attempt ledger starts with.
+ *
+ * `--resume` starts it EMPTY. A resume is a person deciding to go again,
+ * and a person's decision is not an attempt — the same rule `attempts.ts`
+ * already states for a steer. The ceiling still binds everything the RUN
+ * decides for itself inside this process; what it no longer does is hand a
+ * picked-up run a budget that was spent before the developer fixed what
+ * broke, which left the first gate failure with nowhere to go.
+ *
+ * Joining a session with `--run-id` and no `--resume` is not that decision:
+ * it re-runs the chain in the same trace, so it carries what that trace
+ * already spent.
+ */
+export const ledgerSeed = (
+  cfg: TPiCrustConfig,
+  runId: string | undefined,
+  resuming: boolean,
+): readonly string[] => (resuming ? [] : spentAlready(cfg, runId))
 
 /**
  * HEAD before this run commits anything, for the documenter's diff.
@@ -254,13 +275,9 @@ export const runWorkflow = async (
     ],
     resolveModel,
   )
-  /*
-   * One budget for the whole run, seeded from what this session already
-   * spent. A resume must not refill it — the work it is resuming is the
-   * work that spent it — while the replays a resume performs cost nothing,
-   * because they execute nothing.
-   */
-  const ledger = attemptLedger(spentAlready(cfg, args.runId))
+  const ledger = attemptLedger(
+    ledgerSeed(cfg, args.runId, args.resume === true),
+  )
   const trust = trustLevel(args.trustLevel)
   const run = startSession(cfg, args.runId, {
     resume: args.resume,

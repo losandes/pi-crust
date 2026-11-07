@@ -36,7 +36,7 @@ const cfgWith = (
   activities: readonly Record<string, unknown>[],
 ): TPiCrustConfig => crustConfigSchema.parse({ agents: [], activities })
 
-const aRun = (cfg: TPiCrustConfig): TRun => {
+const aRun = (cfg: TPiCrustConfig, resume?: ReadonlySet<string>): TRun => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-revise-loop-driver-'))
 
   return runWithTracer(
@@ -46,6 +46,7 @@ const aRun = (cfg: TPiCrustConfig): TRun => {
       defaults: { data_dir: join(dir, 'runtime') },
       observability: { db: join(dir, 'crust.db') },
     }),
+    resume,
   )
 }
 
@@ -288,10 +289,7 @@ test(
      * 'review_2'. The resume set below names what `skipIfDone` actually
      * checks (`activity.params.name`), not what `reAskedInstances` intended.
      */
-    const run = {
-      ...aRun(cfg),
-      resume: new Set(['revise', 'review']),
-    }
+    const run = aRun(cfg, new Set(['revise', 'review']))
     planted(run, 'build', buildEnvelope({ summary: 'revised' }))
     planted(
       run,
