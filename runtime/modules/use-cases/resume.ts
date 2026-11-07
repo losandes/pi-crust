@@ -65,7 +65,22 @@ export const skipIfDone = <TResult>(
   body: (handle: TActivityRunHandle) => TResult | Promise<TResult>,
   replay: () => Promise<TResult>,
 ): Promise<TResult> => {
-  if (!run.resume.has(params.name)) {
+  /*
+   * `run.resume` names what the TRACE already holds successful — it says
+   * nothing about THIS process, and never changes after `createRun`. A gate
+   * failure that asks for the same `params.name` again, in the same run, is
+   * not a second resume: it is the run's own decision to retry, and has to
+   * execute the body or it replays the same pre-resume result forever,
+   * never spending an attempt and never converging (observed as a hang in
+   * session 4b957b3a: `build` replayed on every gate-failure retry).
+   * `run.activityRuns()` already answers "has this process served this name
+   * before", so a second ask within it is told apart without a new field on
+   * `TRun` or a mutation of the resume set other call sites read.
+   */
+  const alreadyServedThisRun = run
+    .activityRuns()
+    .some((activityRun) => activityRun.params.name === params.name)
+  if (!run.resume.has(params.name) || alreadyServedThisRun) {
     return runActivityRun(run)(params, body)
   }
   run.tracer.event({

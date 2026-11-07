@@ -24,6 +24,18 @@ Accepting a context makes its assumptions yours. Carry forward the ones you stil
 
 Do not reject over style, completeness you do not need, or work you would have done differently. The test is narrow: can you proceed without inventing something that was somebody else's to decide?
 
+## Carry the request forward
+
+`{{output_document}}` opens with a `## Request` section, written before anything else, carrying what was asked in full rather than a summary of it. Downstream Activities copy this document verbatim into places an operator reads — a GitHub issue, a pull request body — so a request that was not written down here is one nobody downstream can recover.
+
+Write it on every run, including one you cannot otherwise complete:
+
+- Reproduce `prompt` verbatim in a fenced block: no rewording, no tidying, nothing dropped.
+- When `prompt` points at a file in this repository instead of stating the request itself — `Implement specs/<name>.md` is the usual shape — read that file and reproduce its WHOLE contents in a second fenced block under a `### <path>` heading. A path is not a request.
+- Append a pointed-at file with a shell concatenation (`printf` for the heading and the fences, `cat` for the file) rather than retyping it: retyping costs the whole file again in output tokens and is where wording drifts.
+- Fence with more backticks than the longest run inside what you are quoting — four when the quoted text contains three — so a fenced block inside a quoted file cannot close the quote early.
+- When a file you were pointed at cannot be read, write its path and the reason the tool gave, and record it in `assumptions`. Never reconstruct a file you did not read.
+
 ## Task
 
 Reproduce the reported behaviour, find what causes it, and write what you found to `{{output_document}}`. Then emit your `Report` JSON.
