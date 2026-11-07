@@ -1,0 +1,27 @@
+# Tool versions for this repository. `mise install` fetches them; shell
+# activation, `mise exec --`, and the shims put them on PATH.
+#
+# A version is named in exactly one place. node and just are named here
+# because nothing else in the repository pins them. bun is NOT named here —
+# see [settings] below.
+
+[tools]
+node = "26.13.0"
+just = "1.59.0"
+
+[settings]
+# bun's version is declared once, in package.json's `packageManager`, which
+# is also what CI reads (`oven-sh/setup-bun` with `bun-version-file:
+# package.json`). This setting is what lets mise read that same field rather
+# than carry a second pin that can drift from it. mise reads
+# `devEngines.runtime`, then `devEngines.packageManager`, then the top-level
+# `packageManager` field; it does not read `engines`.
+idiomatic_version_file_enable_tools = ["bun"]
+experimental = true
+
+[deps.bun]
+auto = true
+run = "bun install --frozen-lockfile"
+
+[hooks]
+enter = "mise install --quiet"

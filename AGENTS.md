@@ -62,7 +62,7 @@ Two of those parts are checks this document used to describe as commands to type
 
 A runner also needs `bunx playwright install --with-deps chromium`, or the browser-driven visualizer tests skip and the suite is green having not run them.
 
-The test scripts run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, and `bun run` puts `node_modules/.bin` on `PATH`, which is why they resolve without a global install. Outside `bun run` they do not: a shell that reaches `bunt` through an asdf shim is reaching a different installation, or none.
+The test scripts run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, and `bun run` puts `node_modules/.bin` on `PATH`, which is why they resolve without a global install. Outside `bun run` they do not: a shell that reaches `bunt` through a version manager's shim — mise's, or asdf's before it — is reaching a different installation, or none.
 
 **Never run `bun test` without `CLAUDECODE=1`.** It is the difference between a readable result and a flood: `bun test runtime` prints 1344 lines, `CLAUDECODE=1 bun test runtime` prints 14, and the 1330 it dropped were per-test `(pass)` lines nobody reads. An agent that spends its context window on them has less left for the work.
 

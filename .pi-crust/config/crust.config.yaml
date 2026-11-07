@@ -78,7 +78,7 @@ routing:
     - name: test
       when: ["**/*.ts", "**/*.tsx"]
       operation: test                  # lint | typecheck | build | test
-      argv: [bun, run, test]           # argument list; bare binary names
+      argv: [bun, run, test:agent]     # argument list; bare binary names
       timeout_seconds: 600
 
     - name: lint
