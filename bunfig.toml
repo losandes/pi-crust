@@ -28,9 +28,9 @@ pathIgnorePatterns = [
 # Exclude specific files or file patterns from coverage reports using glob
 # patterns. Can be a single string pattern or an array of patterns.
 coveragePathIgnorePatterns = [
-  "apps/visualizer/src/components/SessionCard.layout.test.ts",
-  "apps/visualizer/src/components/ActivityRunDetail.layout.test.ts",
-  "apps/visualizer/src/components/ThemePicker.interaction.test.ts",
+  "apps/visualizer/src/domains/sessions/src/_components/SessionCard.layout.test.ts",
+  "apps/visualizer/src/domains/activity-runs/src/_components/ActivityRunDetail.layout.test.ts",
+  "apps/visualizer/src/domains/themes/src/_components/ThemePicker.interaction.test.ts",
   # Spawns the pi binary and folds its stream; no bun test process can run it.
   "runtime/modules/data/pi-agent-run.ts",
   # Raw-mode stdin listener and stream writes; no bun test process can drive a

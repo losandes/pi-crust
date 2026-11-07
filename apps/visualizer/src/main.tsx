@@ -2,9 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource/play/400.css'
 import '@fontsource/play/700.css'
+import { applyTheme, storedTheme } from '@/domains/themes'
 import { App } from './App'
 import './style.css'
-import { applyTheme, storedTheme } from './theme/theme'
 
 /**
  * The theme goes on before React does.

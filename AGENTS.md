@@ -70,7 +70,7 @@ Scope a run to what you are changing. That is the normal case while iterating, a
 
 ```sh
 CLAUDECODE=1 bun test runtime
-CLAUDECODE=1 bun test apps/visualizer/src/lib/markdown.test.ts
+CLAUDECODE=1 bun test apps/visualizer/src/lib/markdown/src/markdown.test.ts
 ```
 
 For two lines instead of fourteen, pipe the same scope through the reporter — identical meaning, less of it:
