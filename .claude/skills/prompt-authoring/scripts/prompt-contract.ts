@@ -15,7 +15,7 @@
  * Exit codes: 0 = clean, 1 = violations found, 2 = usage/environment error
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 type Finding = {
@@ -84,8 +84,10 @@ const SKIPPED_DIRECTORIES = new Set([
 const lineOf = (text: string, index: number): number =>
   text.slice(0, index).split('\n').length
 
-const matchAll = (text: string, pattern: RegExp): readonly RegExpExecArray[] =>
-  [...text.matchAll(pattern)]
+const matchAll = (
+  text: string,
+  pattern: RegExp,
+): readonly RegExpExecArray[] => [...text.matchAll(pattern)]
 
 /** Every `{{...}}` in the file, including malformed ones. */
 const placeholders = (text: string): readonly Token[] =>
@@ -144,9 +146,13 @@ const literals = (text: string): readonly Token[] =>
 
 const unique = (tokens: readonly Token[]): readonly Token[] => {
   const seen = new Set<string>()
-  return tokens.filter((token) =>
-    seen.has(token.text) ? false : (seen.add(token.text), true),
-  )
+  return tokens.filter((token) => {
+    if (seen.has(token.text)) {
+      return false
+    }
+    seen.add(token.text)
+    return true
+  })
 }
 
 const collectTestFiles = (root: string): readonly string[] => {
@@ -328,7 +334,12 @@ const comparativeFindings = (
         'prompt tests, and change the test only when the contract itself changed',
     }))
 
-  return [...droppedVariables, ...droppedKeys, ...droppedLiterals, ...droppedSections]
+  return [
+    ...droppedVariables,
+    ...droppedKeys,
+    ...droppedLiterals,
+    ...droppedSections,
+  ]
 }
 
 const parseArguments = (
