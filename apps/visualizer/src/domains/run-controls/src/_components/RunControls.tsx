@@ -1,6 +1,5 @@
 import { Check, KeyRound, Play, Send, X } from 'lucide-react'
 import { useState } from 'react'
-import { sendDecision } from '@/domains/decisions'
 import { ConfirmDialog } from '@/lib/_components'
 import type { TWriteResult } from '@/lib/api-client'
 import { readToken, writeToken } from '@/lib/api-client'
@@ -34,6 +33,7 @@ export const RunControls = ({
   status,
   workspace,
   consultStep,
+  sendDecision,
   onConsultSent,
   onMessageSent,
   replaying = [],
@@ -51,6 +51,18 @@ export const RunControls = ({
    * field that was otherwise disabled with an apology in it.
    */
   consultStep?: string
+  /**
+   * Answers a gate. `run-controls` has no edge to `decisions` in the
+   * declared domain graph (gh-72 §2.2), so the caller — always a domain
+   * allowed to reach `decisions` — injects this rather than RunControls
+   * importing `@/domains/decisions` itself.
+   */
+  sendDecision: (
+    runId: string,
+    action: 'approve' | 'reject' | 'answer',
+    text: string,
+    workspace?: string,
+  ) => Promise<TWriteResult>
   /**
    * What was just sent to that activity, for the caller to show immediately.
    *

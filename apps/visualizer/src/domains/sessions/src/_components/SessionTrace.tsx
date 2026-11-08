@@ -8,7 +8,7 @@ import {
   TreeWarnings,
   warningsIn,
 } from '@/domains/activity-runs'
-import { DecisionRequest } from '@/domains/decisions'
+import { DecisionRequest, sendDecision } from '@/domains/decisions'
 import type { AgentStartPayload, EventRow } from '@/domains/events'
 import { agentColor, hexAlpha, parseAgentStart } from '@/domains/events'
 import { SessionContext } from '@/domains/handoff'
@@ -580,6 +580,7 @@ export const SessionTrace = ({
               runId={runId}
               status={session.status ?? ''}
               workspace={workspace}
+              sendDecision={sendDecision}
               standalone
             />
           )}

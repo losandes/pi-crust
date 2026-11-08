@@ -19,6 +19,7 @@ import {
   DecisionLedger,
   type Envelope,
   needsYou,
+  sendDecision,
 } from '@/domains/decisions'
 import type { EventRow } from '@/domains/events'
 import { eventLabel, parseAgentStart, parseToolCall } from '@/domains/events'
@@ -430,6 +431,7 @@ export const ActivityRunDetail = ({
             runId={runId}
             status={runStatus}
             workspace={workspace}
+            sendDecision={sendDecision}
             consultStep={
               activityRun.kind === 'agent'
                 ? (activityRun.name ?? '')
