@@ -144,7 +144,17 @@ OUTPUT="$(printf '%s\n' "$OUTPUT" | reanchor)"
 
 # markdownlint-cli2 reports a summary line and its own banner on stderr; the
 # findings are the lines carrying a rule name.
-FINDINGS="$(printf '%s\n' "$OUTPUT" | grep -E '^[^ ].*:[0-9]+' | grep -vE '^(markdownlint-cli2|Finding|Linting|Summary)' || true)"
+#
+# Node's own runtime warnings arrive on that same stderr, and `(node:74031)`
+# satisfies the `:<digits>` shape a finding has, so an unfiltered warning is
+# counted as a violation. Loading the custom rules from `.ts` emits
+# MODULE_TYPELESS_PACKAGE_JSON on every run, which inflated every count by one
+# and reported `violations=1` for a file with nothing wrong with it.
+FINDINGS="$(printf '%s\n' "$OUTPUT" \
+  | grep -E '^[^ ].*:[0-9]+' \
+  | grep -vE '^(markdownlint-cli2|Finding|Linting|Summary)' \
+  | grep -vE '^\(node:[0-9]+\)' \
+  || true)"
 COUNT="$(printf '%s' "$FINDINGS" | grep -c . || true)"
 
 [[ -n "$FINDINGS" ]] && printf '%s\n' "$FINDINGS" | sed 's/^/  /'
@@ -156,6 +166,18 @@ if [[ $STATUS -ne 0 ]]; then
   echo
   echo "Rules: $SKILL_DIR/../adr/conventions/format-markdown.md"
   exit 1
+fi
+
+# The count is parsed out of the linter's output, the verdict comes from its
+# exit code, and the two are only ever reported together. When they disagree
+# the parser has stopped matching what the linter prints, which previously
+# surfaced as a clean exit printed directly beneath a non-zero count. Fail
+# loudly here rather than let the report contradict itself again.
+if [[ $COUNT -gt 0 ]]; then
+  echo
+  echo "error: the linter exited 0 while $COUNT finding(s) were parsed from its output;" >&2
+  echo "       the finding filter in this script no longer matches what it prints" >&2
+  exit 2
 fi
 
 echo "All checked markdown conforms."

@@ -21,8 +21,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # and check nothing a developer meant.
 GLOBAL_SKILLS_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="${MY_WORKSPACE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-if [[ -d "$REPO_ROOT/.claude/skills" ]]; then
-  SKILLS_DIR="$REPO_ROOT/.claude/skills"
+# `.agents/skills/` is the Agent Skills specification's location and is what a
+# non-Claude harness reads; `.claude/skills/` is Claude Code's own convention.
+# Probe the specified location first and fall back to the vendor one, so a
+# repository that has migrated is not reported as having no skills at all.
+# First match wins rather than merging the two, so which tree was checked is
+# never ambiguous.
+PROJECT_SKILLS_DIR=""
+for candidate in .agents/skills .claude/skills; do
+  [[ -d "$REPO_ROOT/$candidate" ]] && { PROJECT_SKILLS_DIR="$REPO_ROOT/$candidate"; break; }
+done
+if [[ -n "$PROJECT_SKILLS_DIR" ]]; then
+  SKILLS_DIR="$PROJECT_SKILLS_DIR"
 else
   SKILLS_DIR="$GLOBAL_SKILLS_DIR"
   REPO_ROOT="$GLOBAL_SKILLS_DIR"
@@ -44,13 +54,39 @@ report() {
 # directory that is not true: shared records live there too, beside the skills
 # that cite them, so a directory with no SKILL.md is simply not a skill and
 # reporting it would train the reader to ignore this checker's output.
-collect_all() {
+collect_candidates() {
   if [[ "$SKILLS_DIR" == "$GLOBAL_SKILLS_DIR" ]]; then
     (cd "$SKILLS_DIR" && find . -maxdepth 2 -mindepth 2 -name SKILL.md \
       | sed 's|^\./||; s|/SKILL.md$||' | sort)
   else
     (cd "$SKILLS_DIR" && find . -maxdepth 1 -mindepth 1 -type d | sed 's|^\./||' | sort)
   fi
+}
+
+# A directory carrying its own `.git` is a different repository that happens to
+# sit inside this tree: a nested clone, or a submodule, whose `.git` is a file
+# rather than a directory. Either way its contents belong to that repository,
+# are governed by its conventions, and are proven by its own gate. Checking
+# them here reports findings against code this repository does not own — and a
+# submodule may ship skills whose conventions differ from these deliberately.
+#
+# One run, one repository.
+is_foreign_repo() { [[ -e "$SKILLS_DIR/$1/.git" ]]; }
+
+foreign_repos() {
+  local name
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && is_foreign_repo "$name" && printf '%s\n' "$name"
+  done < <(collect_candidates)
+}
+
+collect_all() {
+  local name
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    is_foreign_repo "$name" && continue
+    printf '%s\n' "$name"
+  done < <(collect_candidates)
 }
 
 # An argument naming nothing is a usage error, not a finding. Reporting it as
@@ -70,6 +106,12 @@ elif [[ $# -gt 0 ]]; then
     name="${name##*/}"
     if [[ ! -d "$SKILLS_DIR/$name" ]]; then
       echo "error: no skill named '$name' in $SKILLS_DIR" >&2
+      exit 2
+    fi
+    # Naming one explicitly does not make it this repository's to check.
+    if is_foreign_repo "$name"; then
+      echo "error: '$name' is a separate repository nested in $SKILLS_DIR;" >&2
+      echo "       check it from its own working copy, where its gate applies" >&2
       exit 2
     fi
     # A name given twice must not be counted twice: `checked=` is the number
@@ -195,8 +237,25 @@ for name in "${SKILLS[@]}"; do
   fi
 done
 
+# Named rather than dropped silently: a tree that was never checked must not
+# read like a tree that passed. Only a sweep can skip anything — naming a
+# foreign repository explicitly is refused earlier — so reporting a skip count
+# for a given-skills run would describe an omission that did not happen.
+FOREIGN=()
+[[ "$SCOPE" == "all skills" ]] && mapfile -t FOREIGN < <(foreign_repos)
+if [[ ${#FOREIGN[@]} -gt 0 ]]; then
+  echo
+  for name in "${FOREIGN[@]}"; do
+    echo "  note  skipped '$name' — a separate repository, checked by its own gate"
+  done
+fi
+
 echo
-echo "check-skill: scope=$SCOPE checked=$CHECKED violations=$VIOLATIONS"
+if [[ "$SCOPE" == "all skills" ]]; then
+  echo "check-skill: scope=$SCOPE checked=$CHECKED skipped_foreign=${#FOREIGN[@]} violations=$VIOLATIONS"
+else
+  echo "check-skill: scope=$SCOPE checked=$CHECKED violations=$VIOLATIONS"
+fi
 
 if [[ $VIOLATIONS -gt 0 ]]; then
   echo
