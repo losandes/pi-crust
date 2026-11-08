@@ -37,11 +37,51 @@ source "$SHARED/workspace.sh"
 source "$SHARED/changed-files.sh"
 REPO_ROOT="$(workspace_root)"
 # The project's skills when it has any, otherwise the user's own.
-if [[ -d "$REPO_ROOT/.claude/skills" ]]; then
-  SKILLS="$REPO_ROOT/.claude/skills"
+#
+# `.agents/skills/` is the Agent Skills specification's location and is what a
+# non-Claude harness reads; `.claude/skills/` is Claude Code's own convention.
+# Probing the specified location first and falling back to the vendor one means
+# a repository that has migrated is not reported as having no skills at all.
+# First match wins rather than merging the two, so which tree a check ran
+# against is never ambiguous.
+USER_SKILLS="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+SKILLS_REL=""
+for candidate in .agents/skills .claude/skills; do
+  [[ -d "$REPO_ROOT/$candidate" ]] && { SKILLS_REL="$candidate"; break; }
+done
+if [[ -n "$SKILLS_REL" ]]; then
+  SKILLS="$REPO_ROOT/$SKILLS_REL"
 else
-  SKILLS="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+  SKILLS="$USER_SKILLS"
 fi
+
+# A sibling skill's directory, under whichever name the tree it lives in uses.
+# A project's `.claude/skills/` names a skill plainly; this machine-level tree
+# prefixes the same skill `my-` to keep it distinct from a project's own copy.
+# Resolving both means one script serves both layouts, and a name that matches
+# neither is reported by the caller rather than silently resolving to a path
+# that does not exist.
+# Each checker is resolved on its own rather than the whole tree being chosen
+# once. A repository having a skills directory does not mean it carries these
+# checkers: a non-Claude project keeps its own skills in `.agents/skills/` and
+# still expects the user's checkers to run. Picking the tree once would make
+# having any skill of your own a hard failure, which would punish exactly the
+# layout the probe above was added to support.
+skill_dir() {
+  local name="$1" root
+  for root in "$SKILLS" "$USER_SKILLS"; do
+    [[ -d "$root/$name" ]] && { printf '%s\n' "$root/$name"; return 0; }
+    [[ -d "$root/my-$name" ]] && { printf '%s\n' "$root/my-$name"; return 0; }
+  done
+  printf '%s\n' "$SKILLS/$name"
+}
+
+MARKDOWN_SKILL="$(skill_dir markdown-authoring)"
+ADR_SKILL="$(skill_dir adr-authoring)"
+SKILL_SKILL="$(skill_dir skill-authoring)"
+STATE_SKILL="$(skill_dir project-state)"
+TEST_SKILL="$(skill_dir ts-test-conventions)"
+FP_SKILL="$(skill_dir ts-functional-conventions)"
 
 # The branch a PR would target, from the remote's own declaration. Repositories
 # here use `main` and `latest`; asking git covers both, and whatever comes next.
@@ -124,7 +164,10 @@ matching() {
 
 mapfile -t MD_FILES      < <(matching '*.md')
 mapfile -t ADR_FILES     < <(matching 'adr/*')
-mapfile -t SKILL_FILES   < <(matching '.claude/skills/*')
+# Both locations are matched regardless of which one resolved above: the
+# trigger only has to notice that a skill changed, and a branch that is adding
+# a repository's first skill has the directory on disk but nothing committed.
+mapfile -t SKILL_FILES   < <(matching '.agents/skills/*' ; matching '.claude/skills/*')
 mapfile -t STATE_FILES   < <(matching '.context/project-state/*')
 mapfile -t TS_FILES      < <(matching '*.ts' ; matching '*.tsx')
 mapfile -t TEST_FILES    < <(matching '*.test.ts' ; matching '*.test.tsx')
@@ -224,25 +267,25 @@ add_skill_check() {
 }
 
 [[ $(count MD_FILES) -gt 0 ]] && add_skill_check "markdown" \
-  "$SKILLS/markdown-authoring/scripts/check-markdown.sh" \
-  "$SKILLS/markdown-authoring/scripts/check-markdown.sh ${MD_FILES[*]}"
+  "$MARKDOWN_SKILL/scripts/check-markdown.sh" \
+  "$MARKDOWN_SKILL/scripts/check-markdown.sh ${MD_FILES[*]}"
 [[ $(count ADR_FILES) -gt 0 ]] && add_skill_check "records" \
-  "$SKILLS/adr-authoring/scripts/check-adr.sh" \
-  "$SKILLS/adr-authoring/scripts/check-adr.sh ${ADR_FILES[*]}"
+  "$ADR_SKILL/scripts/check-adr.sh" \
+  "$ADR_SKILL/scripts/check-adr.sh ${ADR_FILES[*]}"
 [[ $(count SKILL_FILES) -gt 0 ]] && add_skill_check "skills" \
-  "$SKILLS/skill-authoring/scripts/check-skill.sh" \
-  "$SKILLS/skill-authoring/scripts/check-skill.sh"
+  "$SKILL_SKILL/scripts/check-skill.sh" \
+  "$SKILL_SKILL/scripts/check-skill.sh"
 [[ $(count STATE_FILES) -gt 0 ]] && add_skill_check "project-state" \
-  "$SKILLS/project-state/scripts/check-project-state.sh" \
-  "$SKILLS/project-state/scripts/check-project-state.sh ${STATE_FILES[*]}"
+  "$STATE_SKILL/scripts/check-project-state.sh" \
+  "$STATE_SKILL/scripts/check-project-state.sh ${STATE_FILES[*]}"
 [[ $(count TEST_FILES) -gt 0 ]] && add_skill_check "test-conventions" \
-  "$SKILLS/ts-test-conventions/scripts/check-test-conventions.sh" \
-  "$SKILLS/ts-test-conventions/scripts/check-test-conventions.sh ${TEST_FILES[*]}"
+  "$TEST_SKILL/scripts/check-test-conventions.sh" \
+  "$TEST_SKILL/scripts/check-test-conventions.sh ${TEST_FILES[*]}"
 if [[ $(count TS_FILES) -gt 0 ]]; then
   add "lint" "$REPO_ROOT/node_modules/.bin/biome lint ${TS_FILES[*]}"
   add_skill_check "immutable-params" \
-    "$SKILLS/ts-functional-conventions/scripts/check-immutable-params.ts" \
-    "bun $SKILLS/ts-functional-conventions/scripts/check-immutable-params.ts ${TS_FILES[*]}"
+    "$FP_SKILL/scripts/check-immutable-params.ts" \
+    "bun $FP_SKILL/scripts/check-immutable-params.ts ${TS_FILES[*]}"
 fi
 if [[ $RUN_TESTS -eq 1 ]]; then
   if [[ -n "$ROOT_SCRIPT" ]]; then
