@@ -48,6 +48,7 @@ A record says what is expected. A skill reads the record for you, names files th
 | Anything to do with tests, writing or reviewing                                                    | `.claude/skills/ts-test-conventions/`       |
 | Recording a decision, or editing anything under `adr/`                                             | `.claude/skills/adr-authoring/`             |
 | Writing or revising anything in `specs/`                                                           | `.claude/skills/spec-authoring/`            |
+| Writing or optimizing an Activity prompt in `runtime/prompt-engineering/`                          | `.claude/skills/prompt-authoring/`          |
 | Planning or scoping work that spans more than one file or commit                                   | `.claude/skills/planning-work/`             |
 | A failing test, a bug, or a result that surprised you                                              | `.claude/skills/systematic-debugging/`      |
 | Evaluating a dependency, tool, or external project                                                 | `.claude/skills/technical-research/`        |

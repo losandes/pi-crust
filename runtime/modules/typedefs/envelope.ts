@@ -516,9 +516,21 @@ export const documentOutput = envelopeSpec(
  * 1.2 Identify — what outcome is wanted, and how success will be recognised.
  *
  * `success_criteria` is the field the whole lifecycle hinges on. It is set
- * here, carried forward unchanged, ruled against by `review`, and checked
- * again by the human at launch. Without it, "did we build the right thing"
- * has no answer but opinion.
+ * here, numbered `SC<n>` in the handoff document in the same order, covered
+ * by the plan, and ruled against one entry at a time by `outcome-review`.
+ * Without it, "did we build the right thing" has no answer but opinion.
+ *
+ * Downstream Activities reach the criteria through the handoff DOCUMENT
+ * rather than through this envelope: `previous_envelope` carries only the
+ * immediately preceding Activity, so a reviewer three stages later never
+ * sees this report. `{handoff}/identify.md` is the carrier, and the prompts
+ * for `plan` and `outcome-review` name that path for exactly this reason.
+ *
+ * There is deliberately no `requirements` field. What must be observably
+ * true is `success_criteria`; what already limits the solution space is
+ * `constraints`; what a builder MUST do is the plan's numbered requirements,
+ * decided a stage later. A third list here only ever held rephrasings of the
+ * other two, and whichever list the plan failed to notice went unenforced.
  */
 export const identifyOutputSchema = contextEnvelopeSchema.extend({
   /** the outcome wanted, without prescribing how */
@@ -527,7 +539,7 @@ export const identifyOutputSchema = contextEnvelopeSchema.extend({
   success_criteria: z.array(z.string()),
   /** what this does NOT cover — scope is a boundary, not a wish */
   out_of_scope: z.array(z.string()),
-  requirements: z.array(z.string()),
+  /** what already limits the solution space, each traceable to its source */
   constraints: z.array(z.string()),
 })
 export type TIdentifyOutput = Readonly<z.infer<typeof identifyOutputSchema>>

@@ -40,6 +40,18 @@ Write it on every run, including one you cannot otherwise complete:
 
 Turn the request into an outcome with criteria anyone could check, and write it to `{{output_document}}`. Then emit your `Report` JSON.
 
+### The document
+
+After `## Request`, write these sections, in this order. Later Activities read them by heading, so a section that was renamed is a section nobody finds.
+
+- `## Outcome` — what becomes true, in a few sentences, without prescribing how.
+- `## Success criteria` — a numbered list, `SC1`, `SC2`, …, in the same order as `success_criteria` in your report, so the document and the envelope cannot be read apart. These numbers are what the plan, the tests and the review cite.
+- `## Scenarios` — Gherkin for the criteria that describe behaviour, each `Scenario` tagged `@SC<n>` with the criterion it refines, in fenced `gherkin` blocks. Follow the scenario rules in your system prompt. Omit the heading entirely when no criterion is behavioural, rather than leaving it empty.
+- `## Out of scope` — what this deliberately does not cover.
+- `## Constraints` — what already limits the solution space, each with where it came from.
+
+The document and the report carry the same content; neither is a summary of the other.
+
 ## Report
 
 Respond with ONLY valid JSON matching `IdentifyOutput` — no prose before or after:
@@ -73,7 +85,6 @@ Respond with ONLY valid JSON matching `IdentifyOutput` — no prose before or af
   "outcome": "<what should become true, without prescribing how>",
   "success_criteria": ["<observable by someone who did not build it>"],
   "out_of_scope": ["<what this deliberately does not cover>"],
-  "requirements": ["<supported by evidence, not by convenience>"],
   "constraints": ["<what already limits the solution space>"],
   "artifacts": ["{{output_document}}"],
   "notes_for_next_agent": "<what the architect must know>"
