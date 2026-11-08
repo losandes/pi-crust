@@ -19,10 +19,10 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { configPathFromEnv } from './modules/data/env-overrides'
-import { paint, writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { configProvenance } from './modules/use-cases/load-config'
+import { configProvenance } from './domains/config'
+import { DEFAULT_CONFIG_PATH } from './lib/contracts'
+import { configPathFromEnv } from './lib/system'
+import { paint, writeLine } from './lib/terminal'
 
 const flagValue = (
   argv: readonly string[],

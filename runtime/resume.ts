@@ -26,16 +26,13 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { nowIso } from './modules/data/clock'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { handoffDirFor } from './modules/data/handoff-pointer'
-import { appendSteering } from './modules/data/steering'
-import { DEFAULT_DB } from './modules/typedefs/config'
-import { positionalArgs, RESUME_CLI } from './modules/use-cases/cli-positionals'
-import { loadConfig } from './modules/use-cases/load-config'
-import { readRunState } from './modules/use-cases/read-run-state'
-import { resumeRecordedRun } from './modules/use-cases/resume-run'
-import { developerNote, flagValue } from './modules/use-cases/steer'
+import { appendSteering } from './domains/agents'
+import { positionalArgs, RESUME_CLI, resumeRecordedRun } from './domains/cli'
+import { loadConfig } from './domains/config'
+import { developerNote, flagValue, handoffDirFor } from './domains/handoff'
+import { readRunState } from './domains/trace'
+import { DEFAULT_DB } from './lib/contracts'
+import { configPathFromEnv, dbPathFromEnv, nowIso } from './lib/system'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)

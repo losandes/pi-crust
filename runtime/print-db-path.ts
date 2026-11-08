@@ -16,11 +16,10 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { resolveDataPaths } from './modules/data/data-paths'
-import { configPathFromEnv } from './modules/data/env-overrides'
-import { repoRoot } from './modules/data/git'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { loadConfig } from './modules/use-cases/load-config'
+import { loadConfig } from './domains/config'
+import { repoRoot, resolveDataPaths } from './domains/workspace'
+import { DEFAULT_CONFIG_PATH } from './lib/contracts'
+import { configPathFromEnv } from './lib/system'
 
 const flagValue = (
   argv: readonly string[],

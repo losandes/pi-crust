@@ -37,8 +37,8 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { piReleaseDir } from '../runtime/modules/data/pi-host'
-import { harnessProject } from '../runtime/modules/use-cases/harness-project'
+import { piReleaseDir } from '../runtime/domains/agents/src/data/pi-host'
+import { harnessProject } from '../runtime/domains/agents/src/use-cases/harness-project'
 
 const runtimeDir = resolve(
   dirname(new URL(import.meta.url).pathname),

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * pi-crust Operator — choose the chain, then run it.
  *
@@ -14,13 +15,11 @@
  * everything else the run decided for itself.
  */
 
-import { EXIT } from '../modules/typedefs/run-state'
-import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
-import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
-import { asSingleStage } from '../modules/use-cases/plan-units'
-import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
-import { runWorkflow } from '../modules/use-cases/run-workflow'
-
+import type { TWorkflowArgs } from '../domains/cli'
+import { resolvePrompt, runCli, workflowArgs } from '../domains/cli'
+import { asSingleStage } from '../domains/planning'
+import { runWorkflow } from '../domains/runs'
+import { EXIT } from '../lib/contracts'
 export const ACTIVITIES = ['operator'] as const
 
 export const CONFLICTING_ACTIVITIES =

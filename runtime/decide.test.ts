@@ -12,14 +12,14 @@ import {
   USAGE,
   VERBS,
 } from './decide'
-import { createTracer } from './modules/data/trace-db'
+import { INVOCATION_FILENAME } from './domains/cli'
+import { createTracer } from './domains/trace'
+import { EXIT } from './lib/contracts'
 import {
   restoreTerminal,
   silenceTerminal,
   terminalOutput,
-} from './modules/testing/terminal-capture'
-import { EXIT } from './modules/typedefs/run-state'
-import { INVOCATION_FILENAME } from './modules/use-cases/resume-run'
+} from './testing/terminal-capture'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)

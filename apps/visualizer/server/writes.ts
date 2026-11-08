@@ -360,7 +360,7 @@ export const startConsult = (
 
 /**
  * The standing instruction a developer leaves when picking a run back up, in
- * the exact shape `runtime/modules/use-cases/steer.ts::developerNote` writes
+ * the exact shape `runtime/domains/handoff/src/use-cases/steer.ts::developerNote` writes
  * it — see `writes.test.ts` for the test pinning both sides to the same
  * literal, since there is no import that would be correct here: this server
  * resolves whatever workspace it is pointed at, and `runtime/` ships with

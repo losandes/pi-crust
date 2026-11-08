@@ -125,11 +125,11 @@ A second closed set, beside the Planners: `gh-pull-request` is the only member. 
 
 Each entry also carries `delivery`, the deterministic half's own settings — where it pushes and what it opens against:
 
-| Field             | Required | Meaning                                                                                                   |
-| ----------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `delivery.remote` | no       | The git remote it pushes to. Default `origin`.                                                                |
+| Field             | Required | Meaning                                                                                                                                 |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `delivery.remote` | no       | The git remote it pushes to. Default `origin`.                                                                                          |
 | `delivery.base`   | no       | The branch it opens the pull request against. Default `main`. pi-crust refuses to push FROM this branch — it never creates one for you. |
-| `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                            |
+| `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                                                      |
 
 The agent half gets `read` only and no `write` or `bash`: every git and `gh` operation — pushing the branch, finding, creating or updating the pull request — is the harness's, the way `commitActivity` already performs every commit for a `commit: true` Activity. The agent composes a title and body from the draft the harness writes to `{context_handoff_dir}/pull_request.md` before it runs; the harness owns the issue link, the `## Activities` section and the `## Checks` section, and replaces whatever the agent wrote under those with its own, computed from `TRunState`'s recorded gate outcomes, before delivering either the agent's body or, when the agent call fails or answers an empty title or body, that trace-generated draft instead.
 
@@ -291,7 +291,7 @@ The prefix exists because Activities and Stages share a namespace. A bare `accep
 
 ## `routing:` — what agents load, what the `checks` gate runs
 
-The one section that may name a skill path or a checker command. Nothing in `<pi-crust>/runtime/modules/`, `<pi-crust>/runtime/stages/` and `<pi-crust>/runtime/lifecycles/`, or `<pi-crust>/runtime/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
+The one section that may name a skill path or a checker command. Nothing in `<pi-crust>/runtime/domains/`, `<pi-crust>/runtime/lib/`, `<pi-crust>/runtime/stages/` and `<pi-crust>/runtime/lifecycles/`, or `<pi-crust>/runtime/prompt-engineering/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
 
 Both lists are selected by **the paths the change actually touched**.
 
@@ -432,15 +432,15 @@ A name the machine layer sets that the repository's roster does not have is a **
 
 Strongest first:
 
-| # | Layer | Where |
-| --- | --- | --- |
-| 1 | Command-line flag | `--config`, `--handoff` |
-| 2 | Environment | `CRUST_CONFIG`, `CRUST_DB`, `CRUST_DATA_DIR` |
-| 3 | Repository, private | `.pi-crust/config/crust.config.local.yaml` |
-| 4 | Machine, forced | `~/.pi-crust/config/crust.config.yaml`, under `override:` |
-| 5 | Repository, committed | `.pi-crust/config/crust.config.yaml` and the files merged into it |
-| 6 | Machine, ordinary | `~/.pi-crust/config/crust.config.yaml`, top level |
-| 7 | Built-in | `runtime/modules/typedefs/config.ts` |
+| #   | Layer                 | Where                                                             |
+| --- | --------------------- | ----------------------------------------------------------------- |
+| 1   | Command-line flag     | `--config`, `--handoff`                                           |
+| 2   | Environment           | `CRUST_CONFIG`, `CRUST_DB`, `CRUST_DATA_DIR`                      |
+| 3   | Repository, private   | `.pi-crust/config/crust.config.local.yaml`                        |
+| 4   | Machine, forced       | `~/.pi-crust/config/crust.config.yaml`, under `override:`         |
+| 5   | Repository, committed | `.pi-crust/config/crust.config.yaml` and the files merged into it |
+| 6   | Machine, ordinary     | `~/.pi-crust/config/crust.config.yaml`, top level                 |
+| 7   | Built-in              | `runtime/lib/contracts/src/config.ts`                             |
 
 Repository-wins over the ordinary machine layer, rather than the other way round, because a committed roster is the team's answer and a home directory is not a place to overrule it from silently. `override:` exists because the developer running the code can edit the repository's config anyway — the question is only whether forcing a value is *visible*, and a named section is visible where an unseen precedence rule is not.
 

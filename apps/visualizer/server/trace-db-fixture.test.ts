@@ -7,7 +7,7 @@
  * `db.test.ts` and `writes.test.ts` both import, not a unit with its own
  * decision logic to cover.
  *
- * `SCHEMA` and `MIGRATIONS` come from `runtime/modules/data/trace-db.ts`
+ * `SCHEMA` and `MIGRATIONS` come from `runtime/domains/trace/src/data/trace-db.ts`
  * (1.1.2) rather than being restated here, and both are applied (1.1.3) so a
  * fixture database has every column a tracer's own `migrate()` would add —
  * `sessions.archived`, in particular, which `setArchived` requires and which
@@ -18,7 +18,10 @@ import { Database } from 'bun:sqlite'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MIGRATIONS, SCHEMA } from '../../../runtime/modules/data/trace-db.ts'
+import {
+  MIGRATIONS,
+  SCHEMA,
+} from '../../../runtime/domains/trace/src/data/trace-db'
 
 export interface TSessionRow {
   run_id: string

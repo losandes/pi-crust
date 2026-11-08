@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from './checks'
-import { EXIT } from './modules/typedefs/run-state'
+import { EXIT } from './lib/contracts'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()

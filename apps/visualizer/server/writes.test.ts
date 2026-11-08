@@ -115,7 +115,7 @@ const dbOf = (root: string): string =>
   join(root, '.pi-crust', 'data', 'crust.db')
 
 /**
- * Parses `inbox.jsonl` exactly as `runtime/modules/data/inbox.ts::readInbox`
+ * Parses `inbox.jsonl` exactly as `runtime/domains/agents/src/data/inbox.ts::readInbox`
  * does: skip a blank line, drop anything whose `kind` is not one this
  * run understands. There is no import across this boundary (see the
  * `resumeRun`/`developerNote` pin below for why), so this side pins the
@@ -468,7 +468,7 @@ test(
   [
     'given server/writes::resumeRun',
     'the steering-entry heading it writes',
-    'must match runtime/modules/use-cases/steer.ts::developerNote exactly',
+    'must match runtime/domains/handoff/src/use-cases/steer.ts::developerNote exactly',
   ].join(', '),
   () => {
     // given — there is no import across this boundary: this server resolves

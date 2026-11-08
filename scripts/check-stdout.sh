@@ -8,7 +8,7 @@
 # so anything else on stdout came from the code under test. A suite that
 # prints CLI banners hides the one failure a reader opened the log for, and a
 # test that drives the real reporter is supposed to capture those bytes with
-# `runtime/modules/testing/terminal-capture.ts` rather than let them out.
+# `runtime/testing/terminal-capture.ts` rather than let them out.
 #
 # This is the one check that must NOT go through `bunt | buntap`: the pipe
 # folds stderr into stdout, which is exactly the distinction being measured.

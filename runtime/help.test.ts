@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { main, topicOf } from './help'
+import { EXIT } from './lib/contracts'
 import {
   restoreTerminal,
   silenceTerminal,
   terminalOutput,
-} from './modules/testing/terminal-capture'
-import { EXIT } from './modules/typedefs/run-state'
+} from './testing/terminal-capture'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)

@@ -6,19 +6,19 @@ Everything here is observable in the runtime, with the file that settles it name
 
 An Activity's prompts are `runtime/prompt-engineering/<activity>/system.md` and `.../user.md`, named by `prompt_engineering.system` and `prompt_engineering.user` in the Activity's configuration.
 
-`resolveReference` in `runtime/modules/data/prompt-files.ts` resolves a relative reference against `<cwd>/.pi-crust/` first and the package second. A repository that writes `.pi-crust/prompt-engineering/plan/system.md` overrides that one file; every key it does not name keeps the shipped prompt. An absolute path is taken as given.
+`resolveReference` in `runtime/domains/agents/src/data/prompt-files.ts` resolves a relative reference against `<cwd>/.pi-crust/` first and the package second. A repository that writes `.pi-crust/prompt-engineering/plan/system.md` overrides that one file; every key it does not name keeps the shipped prompt. An absolute path is taken as given.
 
 The consequence for editing: a shipped prompt is used by every stamped repository that has not overridden it, on its next run. There is no release step between the edit and that.
 
 ## Variable substitution is literal, and unknown names are silent
 
-`render` in `runtime/modules/data/prompt-files.ts` replaces `{{name}}` with a string for each key it is given, by `split`/`join`. It does no parsing, so:
+`render` in `runtime/domains/agents/src/data/prompt-files.ts` replaces `{{name}}` with a string for each key it is given, by `split`/`join`. It does no parsing, so:
 
 - `{{ name }}` with spaces is not a key and is left in the text
 - A name the harness does not supply is left in the text, and the agent reads the braces
 - A variable a prompt never uses costs nothing
 
-`runtime/modules/use-cases/execute-agent.ts` builds the whole set:
+`runtime/domains/activities/src/use-cases/execute-agent.ts` builds the whole set:
 
 | Variable              | Carries                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -40,7 +40,7 @@ Two absences are deliberate and worth knowing before inventing a placeholder:
 
 ## The Report example is the envelope's interface
 
-`execute-agent.ts` parses the agent's output with the Activity's zod schema from `runtime/modules/typedefs/envelope.ts`. The ```json block under `## Report` is how the agent learns the field names, so the example and the schema are one contract in two files:
+`execute-agent.ts` parses the agent's output with the Activity's zod schema from `runtime/lib/contracts/src/envelope.ts`. The ```json block under `## Report` is how the agent learns the field names, so the example and the schema are one contract in two files:
 
 - A field removed from the example is a field the agent stops emitting, and a required one failing to parse fails the call
 - A field removed from the schema must be removed from the example too, or the agent emits something nothing reads

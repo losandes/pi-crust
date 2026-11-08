@@ -4,7 +4,7 @@ This file governs how work is done in this repository. Machine-specific facts �
 
 ## Engineering stance
 
-Code is organized by **Screaming Architecture (DDD)**: directory and file names say what the code is about, not which technical layer it belongs to. `runtime/modules/` splits into `data/`, `use-cases/` and `typedefs/`; `apps/visualizer/src/` splits into `domains/`, `pages/` and `lib/`. The frontend additionally uses **Atomic Design**.
+Code is organized by **Screaming Architecture (DDD)**: directory and file names say what the code is about, not which technical layer it belongs to. `runtime/domains/` groups code by business capability, each one split into `data/`, `use-cases/` and `typedefs/`, with `runtime/lib/` for the handful of packages used across domains; `apps/visualizer/src/` splits into `domains/`, `pages/` and `lib/`. The frontend additionally uses **Atomic Design**.
 
 TypeScript here is functional: purity, immutability, composition, settlements rather than thrown errors, and dependency-first currying. SOLID still applies — Single Responsibility and Open/Closed most of all.
 
@@ -181,7 +181,7 @@ Test output is the runner's and nothing else. bun writes its own lines to stderr
 bash scripts/check-stdout.sh apps/visualizer
 ```
 
-A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/modules/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
+A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
 
 `bun run typecheck` is three checks in sequence: `typecheck:runtime`, `typecheck:harness`, and `typecheck:visualizer`. `runtime/tsconfig.json` excludes `harness-engineering/`, so the first does not check it. The second does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one — and under `CRUST_STRICT` it exits 1 instead, for anywhere that would rather fail than carry the gap.
 

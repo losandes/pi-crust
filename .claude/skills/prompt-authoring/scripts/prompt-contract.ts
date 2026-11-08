@@ -57,10 +57,10 @@ const SUPPORTED_VARIABLES = [
 ] as const
 
 /** Where that list is defined, and where this script verifies it. */
-const VARIABLE_SOURCE = 'runtime/modules/use-cases/execute-agent.ts'
+const VARIABLE_SOURCE = 'runtime/domains/activities/src/use-cases/execute-agent.ts'
 
 /** Where the envelope a Report example illustrates is actually declared. */
-const ENVELOPE_SOURCE = 'runtime/modules/typedefs/envelope.ts'
+const ENVELOPE_SOURCE = 'runtime/lib/contracts/src/envelope.ts'
 
 /** Sections every shipped Activity prompt has, by filename. */
 const REQUIRED_SECTIONS: Readonly<Record<string, readonly string[]>> = {

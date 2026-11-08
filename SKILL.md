@@ -73,16 +73,16 @@ You run the system, observe the system, and help the user interact with it. **Yo
 
 ## Request routing (lazy-load the cookbook, then follow it)
 
-| Request                                                       | Cookbook                                                                                                                                                  |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/skill:pi-crust install`, set up the factory in this repo    | [cookbooks/install.md](cookbooks/install.md)                                                                                                              |
-| add a lifecycle                                               | [cookbooks/create_lifecycle.md](cookbooks/create_lifecycle.md)                                                                                            |
-| change a lifecycle's stages or concurrency                    | [cookbooks/update_lifecycle.md](cookbooks/update_lifecycle.md)                                                                                            |
-| create the config / agent roster                              | [cookbooks/create_config.md](cookbooks/create_config.md)                                                                                                  |
-| add or retune an agent (model, thinking, tools, prompts)      | [cookbooks/update_config.md](cookbooks/update_config.md)                                                                                                  |
-| extend `<pi-crust>/runtime/modules/` with new low-level logic | [cookbooks/update_modules.md](cookbooks/update_modules.md)                                                                                                |
-| run / monitor a workflow                                      | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) **first**, then [cookbooks/run_lifecycle.md](cookbooks/run_lifecycle.md) |
-| turn a request into a workflow prompt                         | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md)                                                                          |
+| Request                                                                                    | Cookbook                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/skill:pi-crust install`, set up the factory in this repo                                 | [cookbooks/install.md](cookbooks/install.md)                                                                                                              |
+| add a lifecycle                                                                            | [cookbooks/create_lifecycle.md](cookbooks/create_lifecycle.md)                                                                                            |
+| change a lifecycle's stages or concurrency                                                 | [cookbooks/update_lifecycle.md](cookbooks/update_lifecycle.md)                                                                                            |
+| create the config / agent roster                                                           | [cookbooks/create_config.md](cookbooks/create_config.md)                                                                                                  |
+| add or retune an agent (model, thinking, tools, prompts)                                   | [cookbooks/update_config.md](cookbooks/update_config.md)                                                                                                  |
+| extend `<pi-crust>/runtime/domains/` or `<pi-crust>/runtime/lib/` with new low-level logic | [cookbooks/update_modules.md](cookbooks/update_modules.md)                                                                                                |
+| run / monitor a workflow                                                                   | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md) **first**, then [cookbooks/run_lifecycle.md](cookbooks/run_lifecycle.md) |
+| turn a request into a workflow prompt                                                      | [cookbooks/how_to_prompt_for_the_eng.md](cookbooks/how_to_prompt_for_the_eng.md)                                                                          |
 
 Deep specs, when needed: [references/config.md](references/config.md) · [references/handoff.md](references/handoff.md) · [references/observability.md](references/observability.md)
 
@@ -90,16 +90,16 @@ Deep specs, when needed: [references/config.md](references/config.md) · [refere
 
 The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are that record's; the Activity names are what you type. They differ in one place, and the mapping is kept rather than renamed so a human running the same lifecycle recognises both.
 
-| Stage             | Activity                  | Reduces                                                   |
-| ----------------- | ------------------------- | --------------------------------------------------------- |
-| 1.1 Evaluate      | `scout`                   | what is happening, what is known versus believed          |
-| 1.2 Identify      | `identify`                | what outcome is wanted, how success is recognised         |
-| 1.3 Conceptualize | `conceptualize`           | what the solution must mean and do                        |
-| 2.1 Plan          | `plan`                    | what to build, in what order, proven how                  |
-| 2.2 Design        | `design`                  | how it physically exists here, observability included     |
-| 2.3 Build         | `test-tdd` or `test`, `build` | what would prove it, and the work; the `checks` gate rules on it |
-| 3.1 Verify        | `outcome-review`, `code-review` | is it what was asked for; does it conform                 |
-| 3.2 Launch        | `document` + a human      | handing a reviewable change to the person who launches it |
+| Stage             | Activity                        | Reduces                                                          |
+| ----------------- | ------------------------------- | ---------------------------------------------------------------- |
+| 1.1 Evaluate      | `scout`                         | what is happening, what is known versus believed                 |
+| 1.2 Identify      | `identify`                      | what outcome is wanted, how success is recognised                |
+| 1.3 Conceptualize | `conceptualize`                 | what the solution must mean and do                               |
+| 2.1 Plan          | `plan`                          | what to build, in what order, proven how                         |
+| 2.2 Design        | `design`                        | how it physically exists here, observability included            |
+| 2.3 Build         | `test-tdd` or `test`, `build`   | what would prove it, and the work; the `checks` gate rules on it |
+| 3.1 Verify        | `outcome-review`, `code-review` | is it what was asked for; does it conform                        |
+| 3.2 Launch        | `document` + a human            | handing a reviewable change to the person who launches it        |
 
 An Activity is named for the WORK, and IS its agent: `crust.activities.yaml` holds both halves of it — the model, tools, writes and prompts that say who performs it, and the `output`, `gates`, `attempts` and `commit` that say what the work is. There is no second registry and no performer to bridge to.
 
@@ -111,13 +111,13 @@ Stages may send the run BACKWARDS. Any stage can set `regress_to` when evidence 
 
 Each does one thing, and each is invoked by path. `<pi-crust>` below is this skill's own directory, whose absolute path is in the skill listing — pi-crust is a package and may be installed anywhere, so there is no fixed path to quote:
 
-| Task                                                                       | Command                                                                              |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Stamp the factory into the current repo (idempotent; `--force` overwrites) | `bun <pi-crust>/scripts/install.ts`                                                  |
-| Prove the installed `.pi-crust/` is the tree this skill ships              | `<pi-crust>/scripts/verify-install.sh`                                               |
-| Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                              |
-| Add a Lifecycle or an Activity                                             | edit `.pi-crust/config/crust.lifecycles.yaml` / `crust.activities.yaml`              |
-| Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                                  |
+| Task                                                                       | Command                                                                 |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Stamp the factory into the current repo (idempotent; `--force` overwrites) | `bun <pi-crust>/scripts/install.ts`                                     |
+| Prove the installed `.pi-crust/` is the tree this skill ships              | `<pi-crust>/scripts/verify-install.sh`                                  |
+| Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                 |
+| Add a Lifecycle or an Activity                                             | edit `.pi-crust/config/crust.lifecycles.yaml` / `crust.activities.yaml` |
+| Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                     |
 
 Run `verify-install.sh` after installing and after any change to the template. The skill is the source and `.pi-crust/` is a copy, so an edit made to one and not the other ships a factory that differs from the one it was tested in, and nothing says so until a run behaves strangely. It exempts `config/` (the repository's own roster and routing), `data/` (runtime), and tests, which `install.ts` never stamps.
 
@@ -126,14 +126,14 @@ Run `verify-install.sh` after installing and after any change to the template. T
 ## Hard rules (enforced across everything the factory generates)
 
 1. **Validate before running** — every workflow declares `REQUIRED_AGENTS` and calls `validateAgents()` first; a missing or misnamed agent fails before anything spawns.
-2. **Typed outputs only** — every agent call pairs with a concrete envelope spec in `<pi-crust>/runtime/modules/typedefs/envelope.ts`; parse failures re-prompt the same session (context intact), never restart. **The output contract is a synced triad**: (a) the schema in `typedefs/envelope.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `outputType:` at every call site. These are ONE contract — change any one, update all three in the same edit (grep the spec name to find every call site).
+2. **Typed outputs only** — every agent call pairs with a concrete envelope spec in `<pi-crust>/runtime/lib/contracts/src/envelope.ts`; parse failures re-prompt the same session (context intact), never restart. **The output contract is a synced triad**: (a) the schema in `typedefs/envelope.ts`, (b) the JSON example in the agent's `user.md` `## Report` section, (c) `outputType:` at every call site. These are ONE contract — change any one, update all three in the same edit (grep the spec name to find every call site).
 3. **Gates validate claims, not guesses** — `gate.check(envelope, run, changedPaths) -> TGateReport`. An Activity names its gates in `crust.activities.yaml`; the driver judges them at the Unit boundary, and a failure re-runs the Activity with the violations in its prompt, which spends one of its `attempts`. `checks` is the gate that runs this repository's own commands, and it waits for the Stage boundary because a concurrent sibling may still be writing.
 4. **Four-param rule** — any function with more than 4 parameters takes one concrete type instead (`TAgentCall`, `TActivityRunParams` are the pattern).
 5. **One agent, one prompt, one purpose** — identity lives in `system.md`; task shape (user prompt + output type) lives at the call site.
-6. **Workflow scripts stay thin** — all low-level logic lives in `<pi-crust>/runtime/modules/`, split `typedefs/` (shapes), `data/` (the outside world), `use-cases/` (policy).
+6. **Workflow scripts stay thin** — all low-level logic lives in `<pi-crust>/runtime/domains/` and `<pi-crust>/runtime/lib/`, split `typedefs/` (shapes), `data/` (the outside world), `use-cases/` (policy).
 7. **Every activity run earns a description** — one sentence on what it does and why, never a restatement of its name. It is the only intent the trace, the console, and the UI ever show; `commit_plan: "Commit the plan"` is rejected at construction, blank is too.
 8. **A known command is a gate, not an agent** — if you can write the invocation down (`bun test`, `pnpm lint`), it belongs in `routing.checks` and reaches a run as the `checks` gate, declared per Activity. Agents are for the parts that need reading and deciding; the failures come back to the Activity that produced the work either way. Gating is opt-in because automatic gating is wrong twice: after `test` the suite is red on purpose, and after `plan` the only change is markdown.
-9. **`tools:` is a capability list, `writes:` is the boundary, and the working tree is the developer's** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. Two mechanisms, and the difference between them is attribution. `defaults.protected_files` and gitignored paths are governed by `defaults.protected` and `defaults.ignored` and enforced BEFORE the call, in `<pi-crust>/runtime/harness-engineering/path-policy.ts`, because a tool call belongs to the agent that made it and a secret that has been read cannot be unread; the shipped default is `block` both ways for a protected path, and `warn`/`block` for a gitignored one. `writes:` per agent is observed AFTER the call in `<pi-crust>/runtime/modules/use-cases/enforce-permissions.ts`, and an overstep is reported, never reverted: a developer editing the same branch is indistinguishable from an agent in a diff, and `git checkout --` has no undo. The session runtime under `data_dir` is always writable and never governed — a read-only agent is read-only with respect to the REPO, never mute. `bash` is best-effort only; if a path must not leak, do not give that Activity `bash`.
+9. **`tools:` is a capability list, `writes:` is the boundary, and the working tree is the developer's** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. Two mechanisms, and the difference between them is attribution. `defaults.protected_files` and gitignored paths are governed by `defaults.protected` and `defaults.ignored` and enforced BEFORE the call, in `<pi-crust>/runtime/harness-engineering/path-policy.ts`, because a tool call belongs to the agent that made it and a secret that has been read cannot be unread; the shipped default is `block` both ways for a protected path, and `warn`/`block` for a gitignored one. `writes:` per agent is observed AFTER the call in `<pi-crust>/runtime/domains/policy/src/use-cases/enforce-permissions.ts`, and an overstep is reported, never reverted: a developer editing the same branch is indistinguishable from an agent in a diff, and `git checkout --` has no undo. The session runtime under `data_dir` is always writable and never governed — a read-only agent is read-only with respect to the REPO, never mute. `bash` is best-effort only; if a path must not leak, do not give that Activity `bash`.
 10. **Every workflow ends in `finish(run)`** — activity runs passing is not the same as the run being accepted. A test activity run that ran a red suite succeeded at its job. Pass `accepted:` so the exit code, the session status, and the banner are decided together and cannot disagree.
 11. **Skills and checks are config-routed, never hardcoded** — a skill path or a checker command may appear in `routing:` in `crust.config.yaml` and nowhere else. No prompt and no module may name one: the factory is stamped into repositories whose conventions and toolchain it cannot know, and a hardcoded path there is a path that does not exist. Both are selected by the paths a change actually touched.
 12. **A verification nobody declared did not pass** — when paths changed and no `routing.checks` rule matched them, the `checks` gate FAILS and says so. Zero checks passing is not the same claim as zero checks failing.

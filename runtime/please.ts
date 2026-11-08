@@ -21,31 +21,27 @@
 
 import { Database } from 'bun:sqlite'
 import { existsSync } from 'node:fs'
-import { askMenuChoice, askOne, askOrder, askText } from './modules/data/ask'
-import { copyToClipboard } from './modules/data/clipboard'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { box, paint, writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { TRUST_DEFAULT } from './modules/typedefs/trust'
 import {
-  resumeArgvFor,
-  runArgv,
-  TRUST_CHOICES,
-} from './modules/use-cases/compose-request'
-import { loadConfig } from './modules/use-cases/load-config'
-import {
-  lifecyclesBeside,
-  loadLifecycles,
-} from './modules/use-cases/load-lifecycles'
-import {
+  askMenuChoice,
+  askOne,
+  askOrder,
+  askText,
   chosenLifecycle,
   chosenPlanner,
+  displayLabel,
   exclusiveCount,
   expandChoices,
   menuOptions,
-} from './modules/use-cases/menu-options'
-import { shellLine } from './modules/use-cases/recipe-line'
-import { displayLabel } from './modules/use-cases/run-label'
+  resumeArgvFor,
+  runArgv,
+  shellLine,
+  TRUST_CHOICES,
+} from './domains/cli'
+import { loadConfig } from './domains/config'
+import { lifecyclesBeside, loadLifecycles } from './domains/planning'
+import { DEFAULT_CONFIG_PATH, TRUST_DEFAULT } from './lib/contracts'
+import { configPathFromEnv, dbPathFromEnv } from './lib/system'
+import { box, copyToClipboard, paint, writeLine } from './lib/terminal'
 
 const DEFAULT_DB = '.pi-crust/data/crust.db'
 
