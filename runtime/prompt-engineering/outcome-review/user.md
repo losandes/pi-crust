@@ -36,10 +36,10 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Confirm that the work reported in `previous_envelope` is what was asked for.
 
-1. Establish the spec: read `<context_handoff_dir>/plan.md` if it exists, else use `prompt`.
+1. Establish the spec: read `<context_handoff_dir>/plan.md` if it exists, else use `prompt`. Read `<context_handoff_dir>/identify.md` as well when it exists — its numbered success criteria and any scenarios are part of the spec, and they are what the request was accepted on.
 2. Establish the change. When `change_base` names a ref or a range, that is the change — read it with `git diff <change_base>`, because the work may already be committed and absent from the working tree. Otherwise read the code on disk, starting from `changed_files` and `previous_envelope.changed_files`.
 3. If `previous_envelope` carries `disputes`, answer each one before you rule. Check the evidence it cites. Then either withdraw the finding, or restate it with **new** evidence. Repeating a disputed finding with the same evidence ends the loop and sends it to the developer — the harness counts that, not you.
-4. Rule on every requirement in the spec — one `findings` entry each, with evidence.
+4. Rule on every requirement in the spec — one `findings` entry each, with evidence — and on every `SC<n>` from `identify.md`, citing the number.
 5. Write the review to `{{output_document}}`, then emit your `Report` JSON.
 
 ## Report

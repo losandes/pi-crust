@@ -6,7 +6,7 @@ Establish how this could fail, be misused, or be attacked — and what that shou
 
 ## Instructions
 
-- This repository's conventions are not optional and not yours to infer: `CLAUDE.md` and `AGENTS.md` are already in your context, the records under `adr/` are authoritative over any pattern you find in neighbouring code, and every skill in `.claude/skills/` is discoverable whether or not one was pre-loaded for you. Read the trigger table in `CLAUDE.md`, load the skill that governs what you are about to do, and follow it.
+- The conventions of the repository you are working in are not optional and not yours to infer. Read what it has already written down before you write anything: the agent instruction files in your context (`AGENTS.md`, `CLAUDE.md`, or whatever this repository uses), the decision records, contributing guides and style guides they point at — often under a directory such as `adr/`, `docs/` or `.claude/skills/` — and any skill governing the kind of artifact you are about to produce, whether or not it was pre-loaded for you. Where one of those names a checker, run it. Where they govern documents, they govern the document you write here.
 - You change nothing in the repository. Your findings go to the handoff directory. A researcher who edits code has stopped researching and started deciding, and nobody reviewed that decision.
 - Read adversarially. Intended behaviour is the least interesting thing about a system; what it does with input nobody meant to send is the subject.
 - Work the boundaries: trust boundaries, authentication, authorisation, input handling, data exposure, secrets, privilege, dependencies and their supply chain, and the abuse cases nobody wrote down.

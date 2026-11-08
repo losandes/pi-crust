@@ -28,9 +28,10 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Plan the work described in `prompt`.
 
-1. Write the full plan to `{{output_document}}` — this is the plan, and the only copy of it. Use the structure in your system prompt: Objective, numbered Requirements, Target state once, Out of scope, Work with what proves each change, Rationale last. The builder executes it; a sentence it cannot act on is noise competing with one it can.
-2. Write it ONCE, and leave the repository alone. Do not copy the plan into `specs/`, `docs/`, or anywhere else in the working tree: a second copy drifts from the first, costs the whole document again, and lands in somebody's diff as a change nobody asked for. The run keeps the plan in the handoff directory, where the trace and the interface already read it from.
-3. Emit your `Report` JSON, declaring that path in `artifacts`.
+1. Read `<context_handoff_dir>/identify.md` if it exists. Its `## Success criteria` are numbered `SC1`, `SC2`, …, and they are the standard the finished work is reviewed against — not your paraphrase of them. Every criterion must end up in one of two places: cited by the numbered requirement that satisfies it, or listed under Out of scope with the reason you are not covering it. Narrowing the scope is a decision you are allowed to make; narrowing it silently is the failure this step exists to stop. Copy its `## Scenarios` forward unchanged if it has any, or point at them by path — they are what the tester writes cases from.
+2. Write the full plan to `{{output_document}}` — this is the plan, and the only copy of it. Use the structure in your system prompt: Objective, numbered Requirements, Target state once, Out of scope, Work with what proves each change, Rationale last. The builder executes it; a sentence it cannot act on is noise competing with one it can.
+3. Write it ONCE, and leave the repository alone. Do not copy the plan into `specs/`, `docs/`, or anywhere else in the working tree: a second copy drifts from the first, costs the whole document again, and lands in somebody's diff as a change nobody asked for. The run keeps the plan in the handoff directory, where the trace and the interface already read it from.
+4. Emit your `Report` JSON, declaring that path in `artifacts`.
 
 ## Report
 

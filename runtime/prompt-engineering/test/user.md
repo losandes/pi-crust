@@ -28,10 +28,11 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Write the tests that would prove the work described in `prompt` was done correctly, guided by `previous_envelope` if it carries a plan.
 
-1. Read enough of the code to know where the behaviour belongs and how its neighbours are tested.
-2. Write the tests. Test files only — you may not modify implementation code.
-3. Run them, and read which case you are in rather than assuming one. If the implementation is not there yet they will fail: that red is the work product, so report it and do not weaken them to make it go away. If the change has already been built they will pass, and a test that has passed from the moment it was written has not yet been shown to test anything — so for each test covering a reported defect, or guarding against its return, prove the red: revert or mutate the behaviour under test, confirm the test fails and that the failure names the cause rather than an import error, then restore it and re-run to confirm green before you report. Record what you reverted and what failed in `facts`. Leaving the implementation reverted fails the activity run, so restore it even if you abandon the attempt.
-4. Emit your `Report` JSON.
+1. Read `<context_handoff_dir>/identify.md` if it exists. A `## Scenarios` section holds Gherkin written before anything was built, each `Scenario` tagged `@SC<n>` with the success criterion it refines. Those scenarios are the cases you owe: write one test per scenario, in this repository's own test style rather than in Gherkin, and name the criterion in the test name or a comment so a reviewer can trace it. They are stated in the vocabulary of whoever is affected, so translating a step into a call at the boundary is your job — changing what the step claims is not. Cover what the scenarios do not reach as well; they are a floor, not the whole suite.
+2. Read enough of the code to know where the behaviour belongs and how its neighbours are tested.
+3. Write the tests. Test files only — you may not modify implementation code.
+4. Run them, and read which case you are in rather than assuming one. If the implementation is not there yet they will fail: that red is the work product, so report it and do not weaken them to make it go away. If the change has already been built they will pass, and a test that has passed from the moment it was written has not yet been shown to test anything — so for each test covering a reported defect, or guarding against its return, prove the red: revert or mutate the behaviour under test, confirm the test fails and that the failure names the cause rather than an import error, then restore it and re-run to confirm green before you report. Record what you reverted and what failed in `facts`. Leaving the implementation reverted fails the activity run, so restore it even if you abandon the attempt.
+5. Emit your `Report` JSON.
 
 ### When a diagnosis came first
 
