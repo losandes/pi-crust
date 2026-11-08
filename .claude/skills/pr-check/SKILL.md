@@ -16,7 +16,7 @@ This skill owns no rules. It decides, from the paths a branch touched, which exi
 
 ## Do not use this skill for
 
-- Reviewing the substance of a change — use `code-review`. This skill proves the mechanical things are clean so a review can spend its attention on what tools cannot see
+- Reviewing the substance of a change — use `ts-code-review`. This skill proves the mechanical things are clean so a review can spend its attention on what tools cannot see
 - Fixing a failure it reports. Each one routes to the skill that owns the rule, listed in Step 2
 - Deciding what the work should be — use `planning-work`
 - Writing the commits. Conventional Commits and present-tense imperative phrasing are decided in the `adr/git/` records
@@ -43,11 +43,11 @@ Exit 1 means a blocking failure, or a dirty working tree. Both stop a pull reque
 
 The repository always has failures that are nobody's fault today. Making the author fix them to ship their change is how a branch grows until nobody can review it. So the wide pass sorts what fails into three buckets, and only two of them block.
 
-| Bucket | Meaning | Blocks |
-|---|---|---|
-| introduced | The failure is in a file this branch changed | Yes |
-| downstream | The package depends on one this branch changed | Yes |
-| unrelated | Nothing links the failure to this branch | No |
+| Bucket     | Meaning                                        | Blocks |
+| ---------- | ---------------------------------------------- | ------ |
+| introduced | The failure is in a file this branch changed   | Yes    |
+| downstream | The package depends on one this branch changed | Yes    |
+| unrelated  | Nothing links the failure to this branch       | No     |
 
 **Downstream is the bucket this pass exists for.** A package the branch never opened, failing because something it depends on changed, is exactly what an unintended consequence looks like. Treat it as caused by the branch until the base ref is shown to fail the same way.
 
@@ -65,15 +65,15 @@ Unrelated failures are not fixed in this branch. They are named in the pull requ
 
 ## Step 2 — Route each failure to its owner
 
-| Failing check | Fix it with |
-|---|---|
-| `markdown` | `markdown-authoring` |
-| `records` | `adr-authoring` |
-| `skills` | `skill-authoring` |
-| `project-state` | `project-state` |
-| `test-conventions` | `test-conventions` |
-| `lint`, `immutable-params` | `functional-conventions` for code being written, `code-review` when reading a diff |
-| `tests: <package>` | `systematic-debugging` — a failing test is a bug until proven otherwise |
+| Failing check              | Fix it with                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| `markdown`                 | `markdown-authoring`                                                                     |
+| `records`                  | `adr-authoring`                                                                          |
+| `skills`                   | `skill-authoring`                                                                        |
+| `project-state`            | `project-state`                                                                          |
+| `test-conventions`         | `ts-test-conventions`                                                                    |
+| `lint`, `immutable-params` | `ts-functional-conventions` for code being written, `ts-code-review` when reading a diff |
+| `tests: <package>`         | `systematic-debugging` — a failing test is a bug until proven otherwise                  |
 
 Do not suppress, exclude, or narrow a check to make it pass. A rule that reports nothing because it was disabled looks exactly like a clean branch, which is the failure these checks exist to prevent.
 
@@ -106,7 +106,7 @@ If the only failure is a dirty working tree, forcing is almost always the wrong 
 ## What the check cannot see
 
 - **Whether the change is right.** Every check here is mechanical. A branch can be perfectly clean and still solve the wrong problem
-- **Whether the tests mean anything.** A suite can pass because it asserts nothing. `test-conventions` governs their shape; only reading them tells you if they bite
+- **Whether the tests mean anything.** A suite can pass because it asserts nothing. `ts-test-conventions` governs their shape; only reading them tells you if they bite
 - **Pre-existing versus introduced.** The wide pass sorts by provenance — which files changed, which packages depend on them — not by history. A failure can land in `unrelated` and still have been caused by this branch through a path the package graph does not express: a shared fixture, a generated artefact, an environment variable
 - **A dependency edge that is not in `package.json`.** Blast radius is computed from declared dependencies. Code reaching across packages by relative path, or coupling through a database or a file on disk, is invisible to it
 - **Scope creep.** Nothing measures whether the branch did more than it was asked to
