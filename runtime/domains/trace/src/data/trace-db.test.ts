@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { activityRunParams } from '../typedefs/activity-run'
+import { activityRunParams } from '../../../../lib/contracts'
 import { createTracer, MIGRATIONS } from './trace-db'
 
 const scratch = (): string =>
