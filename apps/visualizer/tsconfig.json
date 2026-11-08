@@ -20,7 +20,7 @@
     "noEmit": true,
     // NOT composite (see runtime/tsconfig.json's own comment for what that
     // setting is for): server/trace-db-fixture.test.ts imports SCHEMA and
-    // MIGRATIONS from runtime/modules/data/trace-db.ts
+    // MIGRATIONS from runtime/domains/trace/src/data/trace-db.ts
     // (COVERAGE-VISUALIZER-SERVER.md, 1.1.2), and a composite project must
     // list every transitively-imported file in its own `include`, which a
     // cross-package import defeats. The root tsconfig.json's bare

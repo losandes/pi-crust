@@ -3,21 +3,20 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createTracer } from './modules/data/trace-db'
+import { createTracer } from './domains/trace'
+import { DEFAULT_DB, EXIT } from './lib/contracts'
+import { main, USAGE } from './prune'
 import {
   restoreTerminal,
   silenceTerminal,
   terminalOutput,
-} from './modules/testing/terminal-capture'
-import { DEFAULT_DB } from './modules/typedefs/config'
-import { EXIT } from './modules/typedefs/run-state'
-import { main, USAGE } from './prune'
+} from './testing/terminal-capture'
 
 /*
  * prune.ts's own pure decisions (`parseAge`, `pruneVerdict`, `workspacesIn`)
- * are covered in modules/use-cases/prune.test.ts. Nothing there proved the
- * entry point itself wires those decisions to a real database, a real
- * session directory, and the exit codes a caller branches on.
+ * are covered in domains/trace/src/use-cases/prune.test.ts. Nothing there
+ * proved the entry point itself wires those decisions to a real database, a
+ * real session directory, and the exit codes a caller branches on.
  */
 
 beforeEach(silenceTerminal)

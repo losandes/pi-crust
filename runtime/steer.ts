@@ -38,30 +38,31 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { seedBranch } from './modules/data/branch-seed'
-import { nowIso } from './modules/data/clock'
-import { resolveDataPaths } from './modules/data/data-paths'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { appendText, ensureDir } from './modules/data/files'
-import { repoRoot } from './modules/data/git'
-import { handoffDirFor } from './modules/data/handoff-pointer'
-import { newId } from './modules/data/ids'
-import { appendSteering } from './modules/data/steering'
-import { runHasLiveProcess } from './modules/data/trace-reader'
-import { DEFAULT_DB } from './modules/typedefs/config'
-import { positionalArgs, STEER_CLI } from './modules/use-cases/cli-positionals'
-import { loadConfig } from './modules/use-cases/load-config'
-import { readRunState } from './modules/use-cases/read-run-state'
-import { resumeRecordedRun } from './modules/use-cases/resume-run'
+import { appendSteering } from './domains/agents'
+import { positionalArgs, resumeRecordedRun, STEER_CLI } from './domains/cli'
+import { loadConfig } from './domains/config'
 import {
   activitiesToReplay,
   activityRunsToCarry,
   activityRunsToSupersede,
   flagValue,
+  handoffDirFor,
   seedingOf,
   steeringEntry,
   steerTargetOf,
-} from './modules/use-cases/steer'
+} from './domains/handoff'
+import { seedBranch } from './domains/runs'
+import { readRunState, runHasLiveProcess } from './domains/trace'
+import { repoRoot, resolveDataPaths } from './domains/workspace'
+import { DEFAULT_DB } from './lib/contracts'
+import {
+  appendText,
+  configPathFromEnv,
+  dbPathFromEnv,
+  ensureDir,
+  newId,
+  nowIso,
+} from './lib/system'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)

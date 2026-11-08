@@ -27,14 +27,10 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { catalogueOf } from './catalogue'
-import { configPathFromEnv } from './modules/data/env-overrides'
-import { writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { EXIT } from './modules/typedefs/run-state'
-import { RECIPE_DOCS, recipeDoc } from './modules/use-cases/recipe-docs'
-import { renderHelp } from './modules/use-cases/render-help'
-
+import { catalogueOf, RECIPE_DOCS, recipeDoc, renderHelp } from './domains/cli'
+import { DEFAULT_CONFIG_PATH, EXIT } from './lib/contracts'
+import { configPathFromEnv } from './lib/system'
+import { writeLine } from './lib/terminal'
 export const USAGE =
   'usage: just crust help [<recipe>] [--config <path>]\n' +
   'env: CRUST_CONFIG overrides the config path; the flag still wins.'

@@ -35,10 +35,22 @@ The skill carries cookbooks for each of those and will load only the one your re
 │   └── crust.config.yaml    the agent roster — one agent, one prompt, one purpose
 ├── stages/           the Planners: operator and triage
 ├── lifecycles/       compositions of stages: sdlc, bugfix, compose
-├── modules/
-│   ├── typedefs/     types and zod schemas only
-│   ├── data/         everything that touches the outside world — git, sqlite, pi, disk
-│   └── use-cases/    orchestration and policy — activity runs, gates, permissions, quality
+├── domains/          business capabilities, each index.ts + src/{data,typedefs,use-cases}
+│   ├── activities/   what an Activity is, which ones exist, running one
+│   ├── agents/       coding-agent hosts and their I/O
+│   ├── cli/          the developer-facing command surface
+│   ├── config/       reading and merging crust.config.yaml and its layers
+│   ├── gates/        acceptance — gates, disputes, regressions
+│   ├── handoff/      the session directory and inter-activity artifacts
+│   ├── planning/     activities and lifecycles turned into an ordered plan
+│   ├── policy/       what an agent may touch and which checks it routes to
+│   ├── runs/         the engine that executes a run and reports it
+│   ├── trace/        the SQLite trace, its reader, and what observes a run
+│   └── workspace/    git, worktrees, roots, the machine-local workspace registry
+├── lib/              packages used across domains, each index.ts + flat src/
+│   ├── contracts/    the shared domain model — types and zod schemas
+│   ├── system/       process, filesystem, clock and id primitives
+│   └── terminal/     writing to a terminal and to the clipboard
 ├── prompt-engineering/   what each agent is told              (tracked — edit here)
 ├── harness-engineering/  pi extensions each agent can load    (tracked)
 └── data/                 runtime only; nothing here is authored
@@ -91,13 +103,13 @@ bun <pi-crust>/runtime/lifecycles/compose.ts "<the original request>" --lifecycl
 
 ## Where to edit what
 
-| Change                                                      | File                                             |
-| ----------------------------------------------------------- | ------------------------------------------------ |
-| What an Activity is told                                        | `prompt-engineering/<activity>/{system.md,user.md}` |
-| Which model an Activity runs, what it may write                 | `config/crust.activities.yaml`                      |
-| What an Activity answers with, what gates it, how often it may run again, whether it commits | `config/crust.activities.yaml`     |
-| Which commands the `checks` gate runs, and which skills an Activity loads | `config/crust.config.yaml`, under `routing:` |
-| A Lifecycle's Stages and Activities                             | `config/crust.lifecycles.yaml`                      |
+| Change                                                                                       | File                                                |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| What an Activity is told                                                                     | `prompt-engineering/<activity>/{system.md,user.md}` |
+| Which model an Activity runs, what it may write                                              | `config/crust.activities.yaml`                      |
+| What an Activity answers with, what gates it, how often it may run again, whether it commits | `config/crust.activities.yaml`                      |
+| Which commands the `checks` gate runs, and which skills an Activity loads                    | `config/crust.config.yaml`, under `routing:`        |
+| A Lifecycle's Stages and Activities                                                          | `config/crust.lifecycles.yaml`                      |
 
 **Edit prompts here, never inside the skill.** `prompt-engineering/` is the user-owned home for them; the copies in the skill are templates for the next repository, and changing those does nothing for this one.
 

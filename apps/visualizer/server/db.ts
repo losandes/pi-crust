@@ -36,7 +36,7 @@ const DEFAULT_LIMIT = 500
 
 /**
  * Expand a leading `~` to the user's home directory (issue #24, 1.1.1,
- * 1.1.2). Duplicated rather than imported from `runtime/modules/data/data-paths.ts`:
+ * 1.1.2). Duplicated rather than imported from `runtime/domains/workspace/src/data/data-paths.ts`:
  * the server and the factory are separate packages that ship independently
  * (see `workspaces.ts`'s own `realOrRaw` and registry-reading duplication for
  * the same reason), and this is the one rule of that resolver which applies

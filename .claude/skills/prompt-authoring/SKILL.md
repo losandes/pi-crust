@@ -37,7 +37,7 @@ Read, before editing anything:
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Both files of the Activity — `system.md`, `user.md`              | What is stated once and what is split across the pair                    |
 | [references/harness-contract.md](references/harness-contract.md) | The variables, sections, envelope fields and literals that are interface |
-| The Activity's schema in `runtime/modules/typedefs/envelope.ts`  | The exact field names the Report example must show                       |
+| The Activity's schema in `runtime/lib/contracts/src/envelope.ts` | The exact field names the Report example must show                       |
 | Any `*.test.ts` that reads this prompt                           | Sentences another test asserts verbatim                                  |
 
 Find the tests before you start, not after the rewrite fails them:

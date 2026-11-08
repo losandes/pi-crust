@@ -22,19 +22,19 @@ import { Database } from 'bun:sqlite'
 import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { safeParseSettlement } from '../lib/typedefs/src/settlement'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { handoffDirFor } from './modules/data/handoff-pointer'
-import { createTracer } from './modules/data/trace-db'
-import { DEFAULT_DB } from './modules/typedefs/config'
+import { loadConfig } from './domains/config'
 import {
   consultArgv,
   consultEvent,
+  handoffDirFor,
   runConsult,
   sessionDirFor,
   type TConsultMode,
   type TConsultRequest,
-} from './modules/use-cases/consult'
-import { loadConfig } from './modules/use-cases/load-config'
+} from './domains/handoff'
+import { createTracer } from './domains/trace'
+import { DEFAULT_DB } from './lib/contracts'
+import { configPathFromEnv, dbPathFromEnv } from './lib/system'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)

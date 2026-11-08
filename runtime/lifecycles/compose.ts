@@ -46,18 +46,13 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../../lib/typedefs/src/settlement'
-import type { TPiCrustConfig } from '../modules/typedefs/config'
-import type { TStage } from '../modules/typedefs/lifecycle'
-import { lifecycleNamed, stagePlan } from '../modules/typedefs/lifecycle'
-import { loadConfigWithNotes } from '../modules/use-cases/load-config'
-import { loadLifecycles } from '../modules/use-cases/load-lifecycles'
-import { parseActivities } from '../modules/use-cases/parse-activities'
-import type { TCliArgs, TWorkflowArgs } from '../modules/use-cases/parse-cli'
-import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
-import { RUN_RECIPE } from '../modules/use-cases/recipe-line'
-import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
-import { runWorkflow } from '../modules/use-cases/run-workflow'
-
+import type { TCliArgs, TWorkflowArgs } from '../domains/cli'
+import { RUN_RECIPE, resolvePrompt, runCli, workflowArgs } from '../domains/cli'
+import { loadConfigWithNotes } from '../domains/config'
+import { loadLifecycles, parseActivities } from '../domains/planning'
+import { runWorkflow } from '../domains/runs'
+import type { TPiCrustConfig, TStage } from '../lib/contracts'
+import { lifecycleNamed, stagePlan } from '../lib/contracts'
 /**
  * A bad chain is a USAGE error (exit 2), not a failed run (exit 1).
  *

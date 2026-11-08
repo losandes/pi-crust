@@ -2,14 +2,9 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createTracer } from './modules/data/trace-db'
-import {
-  restoreTerminal,
-  silenceTerminal,
-  terminalOutput,
-} from './modules/testing/terminal-capture'
-import type { TRunState } from './modules/typedefs/run-state'
-import { EXIT } from './modules/typedefs/run-state'
+import { createTracer } from './domains/trace'
+import type { TRunState } from './lib/contracts'
+import { EXIT } from './lib/contracts'
 import {
   main,
   parseReportArgs,
@@ -20,6 +15,11 @@ import {
   sessionDirOf,
   USAGE,
 } from './report'
+import {
+  restoreTerminal,
+  silenceTerminal,
+  terminalOutput,
+} from './testing/terminal-capture'
 
 beforeEach(silenceTerminal)
 afterEach(restoreTerminal)

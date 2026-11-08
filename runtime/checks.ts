@@ -21,24 +21,25 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { resolveDataPaths } from './modules/data/data-paths'
-import { configPathFromEnv } from './modules/data/env-overrides'
-import { ensureDir } from './modules/data/files'
-import { changedFiles, repoRoot, untrackedFiles } from './modules/data/git'
-import { paint, writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH } from './modules/typedefs/config'
-import { EXIT } from './modules/typedefs/run-state'
-import { loadConfig } from './modules/use-cases/load-config'
+import { loadConfig } from './domains/config'
 import {
   matchingChecks,
-  unmatchedPaths,
-} from './modules/use-cases/route-by-path'
-import {
   NOTHING_DECLARED,
   NOTHING_MATCHED,
   runCommand,
-} from './modules/use-cases/run-checks'
-import { requireSelected, selectRange } from './modules/use-cases/select-range'
+  unmatchedPaths,
+} from './domains/policy'
+import {
+  changedFiles,
+  repoRoot,
+  requireSelected,
+  resolveDataPaths,
+  selectRange,
+  untrackedFiles,
+} from './domains/workspace'
+import { DEFAULT_CONFIG_PATH, EXIT } from './lib/contracts'
+import { configPathFromEnv, ensureDir } from './lib/system'
+import { paint, writeLine } from './lib/terminal'
 
 const flagValue = (
   argv: readonly string[],

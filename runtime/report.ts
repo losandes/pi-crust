@@ -32,22 +32,25 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../lib/typedefs/src/settlement'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { box, paint, writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
-import type { TGateOutcome, TRunState } from './modules/typedefs/run-state'
-import { EXIT } from './modules/typedefs/run-state'
-import { renderWarnings } from './modules/typedefs/warning'
-import { loadConfig } from './modules/use-cases/load-config'
-import { readRunState } from './modules/use-cases/read-run-state'
 import {
+  displayLabel,
   RUN_RECIPE,
   recipeArgv,
+  recordedInvocation,
+  resumeArgv,
   shellLine,
-} from './modules/use-cases/recipe-line'
-import { recordedInvocation, resumeArgv } from './modules/use-cases/resume-run'
-import { displayLabel } from './modules/use-cases/run-label'
-
+} from './domains/cli'
+import { loadConfig } from './domains/config'
+import { readRunState } from './domains/trace'
+import type { TGateOutcome, TRunState } from './lib/contracts'
+import {
+  DEFAULT_CONFIG_PATH,
+  DEFAULT_DB,
+  EXIT,
+  renderWarnings,
+} from './lib/contracts'
+import { configPathFromEnv, dbPathFromEnv } from './lib/system'
+import { box, paint, writeLine } from './lib/terminal'
 export type TReportArgs = Readonly<{
   runId: string | undefined
   json: boolean

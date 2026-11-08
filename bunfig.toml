@@ -9,7 +9,7 @@ target = "node"
 # runs: DEFAULT_DB is relative, so a test that falls through the db-path
 # chain would otherwise resolve it against the repository root and operate on
 # the developer's own runs. See the file for the rest.
-preload = ["./runtime/modules/testing/scratch-db-preload.ts"]
+preload = ["./runtime/testing/scratch-db-preload.ts"]
 
 coverageThreshold = 0.9 # { line = 0.7, function = 0.8, statement = 0.9 }
 
@@ -32,13 +32,26 @@ coveragePathIgnorePatterns = [
   "apps/visualizer/src/domains/activity-runs/src/_components/ActivityRunDetail.layout.test.ts",
   "apps/visualizer/src/domains/themes/src/_components/ThemePicker.interaction.test.ts",
   # Spawns the pi binary and folds its stream; no bun test process can run it.
-  "runtime/modules/data/pi-agent-run.ts",
+  "runtime/domains/agents/src/data/pi-agent-run.ts",
   # Raw-mode stdin listener and stream writes; no bun test process can drive a
   # TTY. The frame arithmetic it used to hold lives in menu-frame.ts instead.
-  "runtime/modules/data/ask.ts",
+  "runtime/domains/cli/src/data/ask.ts",
   # Live TAgentPorts adapters: a real agent spawn, real git, a real write.
   # No bun test process can exercise a real coding-agent spawn.
-  "runtime/modules/use-cases/execute-agent-live.ts"
+  "runtime/domains/activities/src/use-cases/execute-agent-live.ts",
+  # Spawns pbcopy/wl-copy/xclip/xsel directly; no bun test process can drive a
+  # real system clipboard, and which tool (if any) is on PATH differs by
+  # machine. `copyToClipboard`'s own fallback-ordering logic has no branch
+  # that does not end in one of these spawns.
+  "runtime/lib/terminal/src/clipboard.ts",
+  # The process-exit guard around `domains/cli`'s catalogue renderer (issue
+  # #82, 4.11): `main` and `reportUsageError` are exercised directly by
+  # catalogue.test.ts, but `if (import.meta.main)` itself is false under
+  # every bun test process, the same as the identical guard in every other
+  # runtime/*.ts entry point — those stay above the coverage gate only
+  # because more of their own logic sits beside the guard than this file's
+  # does now that 4.11 moved catalogueOf/renderCatalogue out of it.
+  "runtime/catalogue.ts"
 ]
 
 # Outputs for coverage reports.

@@ -21,21 +21,17 @@ import { Database } from 'bun:sqlite'
 import { rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { safeParseSettlement } from '../lib/typedefs/src/settlement'
-import { resolveDataPaths } from './modules/data/data-paths'
-import { configPathFromEnv, dbPathFromEnv } from './modules/data/env-overrides'
-import { fileExists } from './modules/data/files'
-import { repoRoot } from './modules/data/git'
-import { box, paint, writeLine } from './modules/data/terminal'
-import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from './modules/typedefs/config'
-import { EXIT } from './modules/typedefs/run-state'
-import { loadConfig } from './modules/use-cases/load-config'
+import { loadConfig } from './domains/config'
 import {
   parseAge,
   pruneVerdict,
   type TPrunable,
   workspacesIn,
-} from './modules/use-cases/prune'
-
+} from './domains/trace'
+import { repoRoot, resolveDataPaths } from './domains/workspace'
+import { DEFAULT_CONFIG_PATH, DEFAULT_DB, EXIT } from './lib/contracts'
+import { configPathFromEnv, dbPathFromEnv, fileExists } from './lib/system'
+import { box, paint, writeLine } from './lib/terminal'
 export const USAGE =
   'usage: just crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]\n' +
   'env: CRUST_DB overrides the db path; --db still wins.\n' +

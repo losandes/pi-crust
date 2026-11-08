@@ -19,18 +19,19 @@
  */
 
 import { resolve } from 'node:path'
-import { dbPathFromEnv } from '../modules/data/env-overrides'
-import { newId } from '../modules/data/ids'
-import { DEFAULT_DB } from '../modules/typedefs/config'
-import { adviceCommand } from '../modules/use-cases/advice'
-import { loadConfig } from '../modules/use-cases/load-config'
-import type { TWorkflowArgs } from '../modules/use-cases/parse-cli'
-import { runCli, workflowArgs } from '../modules/use-cases/parse-cli'
-import { asSingleStage } from '../modules/use-cases/plan-units'
-import { readRunState } from '../modules/use-cases/read-run-state'
-import { resolvePrompt } from '../modules/use-cases/resolve-prompt'
-import { runWorkflow } from '../modules/use-cases/run-workflow'
-
+import type { TWorkflowArgs } from '../domains/cli'
+import {
+  adviceCommand,
+  resolvePrompt,
+  runCli,
+  workflowArgs,
+} from '../domains/cli'
+import { loadConfig } from '../domains/config'
+import { asSingleStage } from '../domains/planning'
+import { runWorkflow } from '../domains/runs'
+import { readRunState } from '../domains/trace'
+import { DEFAULT_DB } from '../lib/contracts'
+import { dbPathFromEnv, newId } from '../lib/system'
 export const ACTIVITIES = ['triage'] as const
 
 export const main = async (args: TWorkflowArgs): Promise<number> => {

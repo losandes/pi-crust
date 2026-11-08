@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { crustConfigSchema } from '../modules/typedefs/config'
-import type { TCliArgs, TWorkflowArgs } from '../modules/use-cases/parse-cli'
-import { plannedNames } from '../modules/use-cases/plan-units'
+import type { TCliArgs, TWorkflowArgs } from '../domains/cli'
+import { plannedNames } from '../domains/planning'
+import { crustConfigSchema } from '../lib/contracts'
 import { main, plannedActivities, runFromCli } from './compose'
 
 const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * The working trees this machine has run the factory in.
  *
@@ -15,12 +16,12 @@
  * than disappearing on its own.
  */
 
-import { fileExists } from './modules/data/files'
 import {
   forgetWorkspaces,
   readRegistry,
   registryPath,
-} from './modules/data/workspace-registry'
+} from './domains/workspace'
+import { fileExists } from './lib/system'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
