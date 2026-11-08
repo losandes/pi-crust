@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { activityRunParams } from '../typedefs/activity-run'
 import { createTracer, MIGRATIONS } from './trace-db'
 
 const scratch = (): string =>
@@ -17,6 +18,22 @@ const tableNames = (dbPath: string): readonly string[] => {
     .all()
   db.close()
   return rows.map((row) => row.name)
+}
+
+/** Every column covered by any index on `table`, including the primary key's autoindex. */
+const indexedColumns = (dbPath: string, table: string): readonly string[] => {
+  const db = new Database(dbPath, { readonly: true })
+  const indexes = db
+    .query<{ name: string }, []>(`PRAGMA index_list(${table})`)
+    .all()
+  const columns = indexes.flatMap((index) =>
+    db
+      .query<{ name: string | null }, []>(`PRAGMA index_info(${index.name})`)
+      .all()
+      .map((column) => column.name),
+  )
+  db.close()
+  return columns.filter((name): name is string => name !== null)
 }
 
 test(
@@ -292,5 +309,189 @@ test(
       .get()
     db.close()
     expect(row).toEqual({ name: 'payments rewrite' })
+  },
+)
+
+test(
+  [
+    'given data/trace-db::SCHEMA',
+    'when a database is opened',
+    'it should index events.run_id',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+
+    // when
+    tracer.close()
+
+    // then
+    expect(indexedColumns(dbPath, 'events')).toContain('run_id')
+  },
+)
+
+test(
+  [
+    'given apps/visualizer/server/db.ts::agentsFor',
+    'when its events+activity_runs lookup runs against an indexed database',
+    'it should search idx_events_run_id instead of scanning events',
+  ].join(', '),
+  () => {
+    // given — the same shape agentsFor() queries on every 500ms poll
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('a1b2c3d4', 'tester', 'quality')
+    const activityRun = {
+      activity_run_id: 'a1b2c3d4_01_identify',
+      run_id: 'a1b2c3d4',
+      seq: 1,
+      params: activityRunParams({
+        name: 'identify',
+        kind: 'agent',
+        owner: 'quality',
+        description: 'Identify the request',
+      }),
+      status: 'running' as const,
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: undefined,
+    }
+    tracer.activityRunUpsert(activityRun)
+    tracer.event({
+      run_id: 'a1b2c3d4',
+      activity_run_id: activityRun.activity_run_id,
+      type: 'agent_start',
+      name: 'agent_start',
+    })
+    tracer.close()
+
+    // when
+    const db = new Database(dbPath, { readonly: true })
+    const plan = db
+      .query<{ detail: string }, [string, string, string]>(
+        `EXPLAIN QUERY PLAN
+         SELECT e.run_id, p.owner AS agent, e.payload_json, e.started_at
+           FROM events e JOIN activity_runs p ON p.activity_run_id = e.activity_run_id
+          WHERE e.run_id IN (?, ?, ?) AND e.type = 'agent_start'
+          ORDER BY e.rowid`,
+      )
+      .all('a1b2c3d4', 'b2c3d4e5', 'c3d4e5f6')
+      .map((row) => row.detail)
+    db.close()
+
+    // then
+    expect(plan.some((step) => step.includes('idx_events_run_id'))).toEqual(
+      true,
+    )
+    expect(plan.some((step) => /SCAN\s+(e|events)\b/.test(step))).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given apps/visualizer/server/db.ts::agentsFor',
+    'when its events+activity_runs lookup runs against an indexed database, covering SC4',
+    'it should return exactly the agent_start rows for the requested runs, and none for a run that was not asked for',
+  ].join(', '),
+  () => {
+    // given — one requested run, one unrequested run whose event must not leak in
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('a1b2c3d4', 'tester', 'quality')
+    tracer.sessionStart('deadbeef', 'tester', 'quality')
+    const requestedRun = {
+      activity_run_id: 'a1b2c3d4_01_identify',
+      run_id: 'a1b2c3d4',
+      seq: 1,
+      params: activityRunParams({
+        name: 'identify',
+        kind: 'agent',
+        owner: 'quality',
+        description: 'Identify the request',
+      }),
+      status: 'running' as const,
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: undefined,
+    }
+    const otherRun = {
+      activity_run_id: 'deadbeef_01_identify',
+      run_id: 'deadbeef',
+      seq: 1,
+      params: activityRunParams({
+        name: 'identify',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Identify the request',
+      }),
+      status: 'running' as const,
+      error: undefined,
+      started_at: '2024-01-01T00:00:00.000Z',
+      ended_at: undefined,
+    }
+    tracer.activityRunUpsert(requestedRun)
+    tracer.activityRunUpsert(otherRun)
+    tracer.event({
+      run_id: 'a1b2c3d4',
+      activity_run_id: requestedRun.activity_run_id,
+      type: 'agent_start',
+      name: 'agent_start',
+    })
+    tracer.event({
+      run_id: 'deadbeef',
+      activity_run_id: otherRun.activity_run_id,
+      type: 'agent_start',
+      name: 'agent_start',
+    })
+    tracer.close()
+
+    // when — the same shape agentsFor() runs, asking only for the first run
+    const db = new Database(dbPath, { readonly: true })
+    const rows = db
+      .query<{ run_id: string; agent: string }, [string]>(
+        `SELECT e.run_id, p.owner AS agent
+           FROM events e JOIN activity_runs p ON p.activity_run_id = e.activity_run_id
+          WHERE e.run_id IN (?) AND e.type = 'agent_start'
+          ORDER BY e.rowid`,
+      )
+      .all('a1b2c3d4')
+    db.close()
+
+    // then — indexing the lookup must not change what it finds
+    expect(rows).toEqual([{ run_id: 'a1b2c3d4', agent: 'quality' }])
+  },
+)
+
+test(
+  [
+    'given data/trace-db::createTracer',
+    'when it reopens a database that already existed and already held events',
+    'it should still index events.run_id, and keep the rows that were already there',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const first = createTracer(dbPath, join(dir, 'events.jsonl'))
+    first.sessionStart('a1b2c3d4', 'tester', 'quality')
+    first.event({ run_id: 'a1b2c3d4', type: 'log', name: 'request' })
+    first.close()
+
+    // when
+    const second = createTracer(dbPath, join(dir, 'events.jsonl'))
+    second.close()
+
+    // then
+    expect(indexedColumns(dbPath, 'events')).toContain('run_id')
+    const db = new Database(dbPath, { readonly: true })
+    const count = db
+      .query<{ total: number }, []>('SELECT COUNT(*) AS total FROM events')
+      .get()
+    db.close()
+    expect(count?.total).toEqual(1)
   },
 )

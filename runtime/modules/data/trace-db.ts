@@ -90,6 +90,10 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   created_at    TEXT, last_used_at TEXT,
   PRIMARY KEY (run_id, agent)
 );
+
+-- agentsFor() in the visualizer looks events up by run_id on every 500ms poll;
+-- unindexed, that scans every event the tracer has ever written.
+CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id);
 `
 
 /**
