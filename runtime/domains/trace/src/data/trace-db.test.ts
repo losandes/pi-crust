@@ -20,21 +20,75 @@ const tableNames = (dbPath: string): readonly string[] => {
   return rows.map((row) => row.name)
 }
 
-/** Every column covered by any index on `table`, including the primary key's autoindex. */
-const indexedColumns = (dbPath: string, table: string): readonly string[] => {
+/**
+ * The columns of one named index, in index order.
+ *
+ * Order is the assertion, not a detail: a composite index only serves a
+ * prefix lookup when the prefix comes first, so `[run_id, type]` and
+ * `[type, run_id]` are different decisions with different query plans.
+ */
+const columnsOfIndex = (dbPath: string, index: string): readonly string[] => {
   const db = new Database(dbPath, { readonly: true })
-  const indexes = db
-    .query<{ name: string }, []>(`PRAGMA index_list(${table})`)
+  const columns = db
+    .query<{ name: string | null; seqno: number }, []>(
+      `PRAGMA index_info(${index})`,
+    )
     .all()
-  const columns = indexes.flatMap((index) =>
-    db
-      .query<{ name: string | null }, []>(`PRAGMA index_info(${index.name})`)
-      .all()
-      .map((column) => column.name),
-  )
+    .toSorted((left, right) => left.seqno - right.seqno)
+    .map((column) => column.name)
   db.close()
   return columns.filter((name): name is string => name !== null)
 }
+
+/**
+ * SQLite's plan for `sql`, one string per step.
+ *
+ * The steps are asserted on rather than the timings: a test database holds a
+ * handful of rows, so every plan is fast and only the plan says which one
+ * stays fast at two million events.
+ */
+const queryPlan = (
+  dbPath: string,
+  sql: string,
+  args: readonly (string | number)[],
+): readonly string[] => {
+  const db = new Database(dbPath, { readonly: true })
+  const steps = db
+    .query<{ detail: string }, (string | number)[]>(`EXPLAIN QUERY PLAN ${sql}`)
+    .all(...args)
+    .map((row) => row.detail)
+  db.close()
+  return steps
+}
+
+/** Every index on `table`, by name. */
+const indexNames = (dbPath: string, table: string): readonly string[] => {
+  const db = new Database(dbPath, { readonly: true })
+  const names = db
+    .query<{ name: string }, []>(`PRAGMA index_list(${table})`)
+    .all()
+    .map((row) => row.name)
+  db.close()
+  return names
+}
+
+/** The shape agentsFor() runs for the sessions list, with one run id per placeholder. */
+const AGENTS_FOR_SQL = `SELECT e.run_id, p.owner AS agent, e.payload_json, e.started_at
+           FROM events e JOIN activity_runs p ON p.activity_run_id = e.activity_run_id
+          WHERE e.run_id IN (?, ?, ?) AND e.type = 'agent_start'
+          ORDER BY e.rowid`
+
+/** The shape events() polls with: a run id and a rowid cursor, no type. */
+const EVENTS_PAGE_SQL = `SELECT rowid, event_id, run_id, activity_run_id, parent_id, type, name,
+                payload_json, tokens, started_at, ended_at
+           FROM events
+          WHERE run_id = ? AND rowid > ?
+          ORDER BY rowid
+          LIMIT ?`
+
+/** The shape usage() runs for every session detail. */
+const USAGE_SQL =
+  "SELECT payload_json FROM events WHERE run_id = ? AND type = 'agent_end'"
 
 test(
   [
@@ -316,7 +370,7 @@ test(
   [
     'given data/trace-db::SCHEMA',
     'when a database is opened',
-    'it should index events.run_id',
+    'it should index events on run_id then type',
   ].join(', '),
   () => {
     // given
@@ -327,8 +381,11 @@ test(
     // when
     tracer.close()
 
-    // then
-    expect(indexedColumns(dbPath, 'events')).toContain('run_id')
+    // then — run_id first, so the cursor poll that has no type still uses it
+    expect(columnsOfIndex(dbPath, 'idx_events_run_id_type')).toEqual([
+      'run_id',
+      'type',
+    ])
   },
 )
 
@@ -336,7 +393,7 @@ test(
   [
     'given apps/visualizer/server/db.ts::agentsFor',
     'when its events+activity_runs lookup runs against an indexed database',
-    'it should search idx_events_run_id instead of scanning events',
+    'it should narrow on type as well as run_id, because the list asks for every run',
   ].join(', '),
   () => {
     // given — the same shape agentsFor() queries on every 500ms poll
@@ -369,24 +426,84 @@ test(
     tracer.close()
 
     // when
-    const db = new Database(dbPath, { readonly: true })
-    const plan = db
-      .query<{ detail: string }, [string, string, string]>(
-        `EXPLAIN QUERY PLAN
-         SELECT e.run_id, p.owner AS agent, e.payload_json, e.started_at
-           FROM events e JOIN activity_runs p ON p.activity_run_id = e.activity_run_id
-          WHERE e.run_id IN (?, ?, ?) AND e.type = 'agent_start'
-          ORDER BY e.rowid`,
-      )
-      .all('a1b2c3d4', 'b2c3d4e5', 'c3d4e5f6')
-      .map((row) => row.detail)
-    db.close()
+    const plan = queryPlan(dbPath, AGENTS_FOR_SQL, [
+      'a1b2c3d4',
+      'b2c3d4e5',
+      'c3d4e5f6',
+    ])
+
+    // then — the index must constrain BOTH columns. An index on run_id alone
+    // also removes the SCAN and is still ~3.4s on a real database, because
+    // every run id in the database is in the IN list; only type is selective.
+    expect(
+      plan.some(
+        (step) =>
+          step.includes('idx_events_run_id_type') &&
+          step.includes('run_id=?') &&
+          step.includes('type=?'),
+      ),
+    ).toEqual(true)
+    expect(plan.some((step) => /SCAN\s+(e|events)\b/.test(step))).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given apps/visualizer/server/db.ts::events',
+    'when the trace view polls a run with a rowid cursor and no type',
+    'it should still search the index on its run_id prefix',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('a1b2c3d4', 'tester', 'quality')
+    tracer.event({ run_id: 'a1b2c3d4', type: 'log', name: 'request' })
+    tracer.close()
+
+    // when
+    const plan = queryPlan(dbPath, EVENTS_PAGE_SQL, ['a1b2c3d4', 0, 500])
+
+    // then — this query names no type, so it is the prefix that saves it
+    expect(
+      plan.some(
+        (step) =>
+          step.includes('idx_events_run_id_type') && step.includes('run_id=?'),
+      ),
+    ).toEqual(true)
+    expect(plan.some((step) => /SCAN\s+events\b/.test(step))).toEqual(false)
+  },
+)
+
+test(
+  [
+    'given apps/visualizer/server/db.ts::usage',
+    'when a session detail totals its agent_end payloads',
+    'it should search the index rather than scanning events',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    tracer.sessionStart('a1b2c3d4', 'tester', 'quality')
+    tracer.event({ run_id: 'a1b2c3d4', type: 'agent_end', name: 'agent_end' })
+    tracer.close()
+
+    // when
+    const plan = queryPlan(dbPath, USAGE_SQL, ['a1b2c3d4'])
 
     // then
-    expect(plan.some((step) => step.includes('idx_events_run_id'))).toEqual(
-      true,
-    )
-    expect(plan.some((step) => /SCAN\s+(e|events)\b/.test(step))).toEqual(false)
+    expect(
+      plan.some(
+        (step) =>
+          step.includes('idx_events_run_id_type') &&
+          step.includes('run_id=?') &&
+          step.includes('type=?'),
+      ),
+    ).toEqual(true)
+    expect(plan.some((step) => /SCAN\s+events\b/.test(step))).toEqual(false)
   },
 )
 
@@ -468,9 +585,44 @@ test(
 
 test(
   [
+    'given data/trace-db::SCHEMA',
+    'when a database carries the superseded run_id-only index from an earlier release',
+    'it should drop it, and keep the events it indexed',
+  ].join(', '),
+  () => {
+    // given — a database as the previous release left it
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const first = createTracer(dbPath, join(dir, 'events.jsonl'))
+    first.sessionStart('a1b2c3d4', 'tester', 'quality')
+    first.event({ run_id: 'a1b2c3d4', type: 'log', name: 'request' })
+    first.close()
+    const seeded = new Database(dbPath)
+    seeded.run('CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id)')
+    seeded.close()
+    expect(indexNames(dbPath, 'events')).toContain('idx_events_run_id')
+
+    // when
+    const second = createTracer(dbPath, join(dir, 'events.jsonl'))
+    second.close()
+
+    // then — the subset index is gone, the composite remains, the rows are untouched
+    expect(indexNames(dbPath, 'events')).not.toContain('idx_events_run_id')
+    expect(indexNames(dbPath, 'events')).toContain('idx_events_run_id_type')
+    const db = new Database(dbPath, { readonly: true })
+    const count = db
+      .query<{ total: number }, []>('SELECT COUNT(*) AS total FROM events')
+      .get()
+    db.close()
+    expect(count?.total).toEqual(1)
+  },
+)
+
+test(
+  [
     'given data/trace-db::createTracer',
     'when it reopens a database that already existed and already held events',
-    'it should still index events.run_id, and keep the rows that were already there',
+    'it should still index events on run_id and type, and keep the rows that were already there',
   ].join(', '),
   () => {
     // given
@@ -486,7 +638,10 @@ test(
     second.close()
 
     // then
-    expect(indexedColumns(dbPath, 'events')).toContain('run_id')
+    expect(columnsOfIndex(dbPath, 'idx_events_run_id_type')).toEqual([
+      'run_id',
+      'type',
+    ])
     const db = new Database(dbPath, { readonly: true })
     const count = db
       .query<{ total: number }, []>('SELECT COUNT(*) AS total FROM events')

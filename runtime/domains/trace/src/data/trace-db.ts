@@ -91,9 +91,22 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   PRIMARY KEY (run_id, agent)
 );
 
--- agentsFor() in the visualizer looks events up by run_id on every 500ms poll;
--- unindexed, that scans every event the tracer has ever written.
-CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id);
+-- Every events lookup the visualizer makes is keyed on run_id, and the two hot
+-- ones add a type: agentsFor() wants 'agent_start', usage() wants 'agent_end'.
+-- Unindexed, each one scans every event the tracer has ever written.
+--
+-- The second column is load-bearing rather than incidental. The sessions list
+-- asks agentsFor() for EVERY run id it just listed, so run_id alone narrows
+-- nothing on that query — measured on a 2M-event database it picked the index
+-- and stayed at ~3.4s. With type in the index the same query is ~0.7ms, and
+-- run_id remains a usable prefix for the cursor poll that has no type.
+CREATE INDEX IF NOT EXISTS idx_events_run_id_type ON events(run_id, type);
+
+-- 1.5.x briefly shipped the run_id-only index this one supersedes. It is a
+-- strict subset of the composite, so a database that already has it is paying
+-- for a second copy of the same prefix and gaining nothing. Dropping an index
+-- removes no rows and the statement is a no-op where it never existed.
+DROP INDEX IF EXISTS idx_events_run_id;
 `
 
 /**
