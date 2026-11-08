@@ -1,4 +1,4 @@
-@import './theme/tokens.css';
+@import './domains/themes/src/tokens.css';
 
 * {
   box-sizing: border-box;
