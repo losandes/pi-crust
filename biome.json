@@ -227,6 +227,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["**/.claude/skills/**/scripts/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": { "level": "off", "options": { "allow": ["log"] } }
+          }
+        }
+      }
     }
   ]
 }

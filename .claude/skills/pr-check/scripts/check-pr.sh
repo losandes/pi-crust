@@ -161,34 +161,110 @@ count() {
   echo "$n"
 }
 
+# The manager the repository actually uses, from its lockfile. `pnpm` was
+# hardcoded, and a bun repository with pnpm on PATH fails every suite with no
+# indication that the command was wrong rather than the code.
+detect_manager() {
+  [[ -n "${PKG_MANAGER:-}" ]] && { printf '%s\n' "$PKG_MANAGER"; return 0; }
+  [[ -f "$REPO_ROOT/bun.lock" || -f "$REPO_ROOT/bun.lockb" ]] && { echo bun; return 0; }
+  [[ -f "$REPO_ROOT/pnpm-lock.yaml" ]] && { echo pnpm; return 0; }
+  [[ -f "$REPO_ROOT/yarn.lock" ]] && { echo yarn; return 0; }
+  [[ -f "$REPO_ROOT/package-lock.json" ]] && { echo npm; return 0; }
+  return 0   # empty: every test step is reported as skipped
+}
+
+# Running a suite without entering its directory. A `cd` into a package picks
+# up that directory's own tool configuration instead of the repository's.
+dir_flag() {
+  case "$1" in
+    bun | yarn) echo "--cwd" ;;
+    pnpm) echo "--dir" ;;
+    npm) echo "--prefix" ;;
+  esac
+}
+
+# The script name a package's own manifest declares, preferring the quieter
+# named variants over a bare "test" wherever one exists. Never falls back to
+# a literal "test" the manifest does not declare.
+package_script() {
+  local manifest="$1/package.json" candidate
+  [[ -f "$manifest" ]] || return 0
+  for candidate in test:claude test:ci test; do
+    grep -q "\"$candidate\"" "$manifest" && { printf '%s\n' "$candidate"; return 0; }
+  done
+}
+
+PKG_MANAGER="$(detect_manager)"
+ROOT_SCRIPT="$(package_script "$REPO_ROOT")"
+
 echo "changed: $(count CHANGED) file(s)  uncommitted: $DIRTY"
 echo
 
 # --- Plan ---------------------------------------------------------------------
 PLAN_NAMES=()
 PLAN_CMDS=()
+PLAN_SKIP=()
 
-add() { PLAN_NAMES+=("$1"); PLAN_CMDS+=("$2"); }
+add() { PLAN_NAMES+=("$1"); PLAN_CMDS+=("$2"); PLAN_SKIP+=(""); }
+# A planned step with no command to run. Reported distinctly from a pass or a
+# failure, and never counted as either.
+add_skip() { PLAN_NAMES+=("$1"); PLAN_CMDS+=(""); PLAN_SKIP+=("$2"); }
 
-[[ $(count MD_FILES) -gt 0 ]] && add "markdown" \
+# Adds a check that invokes a script this skill tree owns. A path that does not
+# exist is an environment error, not a finding: the gate cannot tell a repaired
+# path from a silently skipped one, so it stops here rather than reporting a
+# check that never ran as though it had.
+add_skill_check() {
+  local name="$1" script_path="$2" cmd="$3"
+  if [[ ! -e "$script_path" ]]; then
+    echo "error: planned check '$name' names a missing script: $script_path" >&2
+    exit 2
+  fi
+  add "$name" "$cmd"
+}
+
+[[ $(count MD_FILES) -gt 0 ]] && add_skill_check "markdown" \
+  "$SKILLS/markdown-authoring/scripts/check-markdown.sh" \
   "$SKILLS/markdown-authoring/scripts/check-markdown.sh ${MD_FILES[*]}"
-[[ $(count ADR_FILES) -gt 0 ]] && add "records" \
+[[ $(count ADR_FILES) -gt 0 ]] && add_skill_check "records" \
+  "$SKILLS/adr-authoring/scripts/check-adr.sh" \
   "$SKILLS/adr-authoring/scripts/check-adr.sh ${ADR_FILES[*]}"
-[[ $(count SKILL_FILES) -gt 0 ]] && add "skills" \
+[[ $(count SKILL_FILES) -gt 0 ]] && add_skill_check "skills" \
+  "$SKILLS/skill-authoring/scripts/check-skill.sh" \
   "$SKILLS/skill-authoring/scripts/check-skill.sh"
-[[ $(count STATE_FILES) -gt 0 ]] && add "project-state" \
+[[ $(count STATE_FILES) -gt 0 ]] && add_skill_check "project-state" \
+  "$SKILLS/project-state/scripts/check-project-state.sh" \
   "$SKILLS/project-state/scripts/check-project-state.sh ${STATE_FILES[*]}"
-[[ $(count TEST_FILES) -gt 0 ]] && add "test-conventions" \
-  "$SKILLS/test-conventions/scripts/check-test-conventions.sh ${TEST_FILES[*]}"
+[[ $(count TEST_FILES) -gt 0 ]] && add_skill_check "test-conventions" \
+  "$SKILLS/ts-test-conventions/scripts/check-test-conventions.sh" \
+  "$SKILLS/ts-test-conventions/scripts/check-test-conventions.sh ${TEST_FILES[*]}"
 if [[ $(count TS_FILES) -gt 0 ]]; then
   add "lint" "$REPO_ROOT/node_modules/.bin/biome lint ${TS_FILES[*]}"
-  add "immutable-params" \
-    "bun $SKILLS/functional-conventions/scripts/check-immutable-params.ts ${TS_FILES[*]}"
+  add_skill_check "immutable-params" \
+    "$SKILLS/ts-functional-conventions/scripts/check-immutable-params.ts" \
+    "bun $SKILLS/ts-functional-conventions/scripts/check-immutable-params.ts ${TS_FILES[*]}"
 fi
 if [[ $RUN_TESTS -eq 1 ]]; then
-  for pkg in "${PACKAGES[@]}"; do
-    [[ -n "$pkg" ]] && add "tests: $pkg" "cd $REPO_ROOT/$pkg && ${PKG_MANAGER:-pnpm} ${script:-test}"
-  done
+  if [[ -n "$ROOT_SCRIPT" ]]; then
+    if [[ -n "$PKG_MANAGER" ]]; then
+      add "tests: <root> ($ROOT_SCRIPT)" "$PKG_MANAGER run $ROOT_SCRIPT"
+    else
+      add_skip "tests: <root> ($ROOT_SCRIPT)" \
+        "no package manager detected from a lockfile in $REPO_ROOT; set PKG_MANAGER to override"
+    fi
+  else
+    for pkg in "${PACKAGES[@]}"; do
+      [[ -n "$pkg" ]] || continue
+      script="$(package_script "$REPO_ROOT/$pkg")"
+      [[ -n "$script" ]] || continue
+      if [[ -n "$PKG_MANAGER" ]]; then
+        add "tests: $pkg" "$PKG_MANAGER $(dir_flag "$PKG_MANAGER") $REPO_ROOT/$pkg run $script"
+      else
+        add_skip "tests: $pkg" \
+          "no package manager detected from a lockfile in $REPO_ROOT; set PKG_MANAGER to override"
+      fi
+    done
+  fi
 fi
 
 if [[ ${#PLAN_NAMES[@]} -eq 0 ]]; then
@@ -230,17 +306,15 @@ fi
 WIDE_NAMES=()
 if [[ $RUN_WIDE -eq 1 ]]; then
   WIDE_NAMES+=("repo-lint")
-  if [[ $RUN_TESTS -eq 1 ]]; then
+  # When the workspace root declares its own suite, that suite already covers
+  # every package, so a per-package repo-tests pass is redundant rather than
+  # additional coverage — it is the same suite's packages reported twice,
+  # once correctly and once under the wrong command.
+  if [[ $RUN_TESTS -eq 1 && -z "$ROOT_SCRIPT" ]]; then
     for pkg in "${ALL_PACKAGES[@]}"; do
-      [[ -f "$pkg/package.json" ]] || continue
-      # A project's quiet test script if it has one, else its plain test script.
-    # `test:claude` was this checker's home-repository name for "tests without
-    # the log noise"; elsewhere the same idea is spelled differently or not at all.
-    script=""
-    for candidate in test:claude test:ci test; do
-      grep -q "\"$candidate\"" "$pkg/package.json" && { script="$candidate"; break; }
-    done
-    [[ -n "$script" ]] || continue
+      [[ -f "$REPO_ROOT/$pkg/package.json" ]] || continue
+      script="$(package_script "$REPO_ROOT/$pkg")"
+      [[ -n "$script" ]] || continue
       printf '%s\n' "${PACKAGES[@]}" | grep -qx "$pkg" && continue
       WIDE_NAMES+=("repo-tests: $pkg")
     done
@@ -272,16 +346,44 @@ fi
 # --- Run ----------------------------------------------------------------------
 RESULTS=()
 FAILED=0
+SKIPPED=0
 
 for i in "${!PLAN_NAMES[@]}"; do
   name="${PLAN_NAMES[$i]}"
   echo "──────── $name"
-  if eval "${PLAN_CMDS[$i]}"; then
-    RESULTS+=("pass  $name")
-  else
-    RESULTS+=("FAIL  $name")
-    FAILED=$((FAILED + 1))
+  if [[ -z "${PLAN_CMDS[$i]}" ]]; then
+    echo "  skip — ${PLAN_SKIP[$i]}"
+    RESULTS+=("skip  $name — ${PLAN_SKIP[$i]}")
+    SKIPPED=$((SKIPPED + 1))
+    echo
+    continue
   fi
+  case "$name" in
+    "tests: "*)
+      # A test step's output is kept rather than discarded, so a failure is
+      # read from evidence instead of taken on faith.
+      OUT="$(eval "${PLAN_CMDS[$i]}" 2>&1)"
+      STATUS=$?
+      printf '%s\n' "$OUT"
+      if [[ $STATUS -eq 0 ]]; then
+        RESULTS+=("pass  $name")
+      else
+        RESULTS+=("FAIL  $name")
+        FAILED=$((FAILED + 1))
+        echo "  command: ${PLAN_CMDS[$i]}"
+        echo "  last 20 lines of output:"
+        printf '%s\n' "$OUT" | tail -n 20 | sed 's/^/    /'
+      fi
+      ;;
+    *)
+      if eval "${PLAN_CMDS[$i]}"; then
+        RESULTS+=("pass  $name")
+      else
+        RESULTS+=("FAIL  $name")
+        FAILED=$((FAILED + 1))
+      fi
+      ;;
+  esac
   echo
 done
 
@@ -335,15 +437,32 @@ if [[ $RUN_WIDE -eq 1 ]]; then
       case "$name" in "repo-tests: "*) ;; *) continue ;; esac
       pkg="${name#repo-tests: }"
       echo "──────── $name"
-      if (cd "$REPO_ROOT/$pkg" && ${PKG_MANAGER:-pnpm} "${script:-test}" >/dev/null 2>&1); then
+      if [[ -z "$PKG_MANAGER" ]]; then
+        echo "  skip — no package manager detected from a lockfile in $REPO_ROOT; set PKG_MANAGER to override"
+        SKIPPED=$((SKIPPED + 1))
+        echo
+        continue
+      fi
+      script="$(package_script "$REPO_ROOT/$pkg")"
+      CMD="$PKG_MANAGER $(dir_flag "$PKG_MANAGER") $REPO_ROOT/$pkg run $script"
+      OUT="$(eval "$CMD" 2>&1)"
+      STATUS=$?
+      if [[ $STATUS -eq 0 ]]; then
         echo "  pass"
       elif printf '%s\n' "${DOWNSTREAM[@]}" | grep -qx "$pkg"; then
         echo "  FAIL — depends on a package this branch changed"
+        echo "  command: $CMD"
+        echo "  last 20 lines of output:"
+        printf '%s\n' "$OUT" | tail -n 20 | sed 's/^/    /'
         DOWNSTREAM_FAILED+=("$pkg")
       else
         echo "  fail — no path back to this branch"
+        echo "  command: $CMD"
+        echo "  last 20 lines of output:"
+        printf '%s\n' "$OUT" | tail -n 20 | sed 's/^/    /'
         UNRELATED_FAILED+=("$pkg")
       fi
+      echo
     done
     echo
   fi
@@ -371,7 +490,7 @@ fi
   echo "  note  $DIRTY uncommitted change(s) — commit them or they will not be in the pull request"
 
 echo
-echo "check-pr: scoped=${#PLAN_NAMES[@]} failed=$FAILED downstream_failed=${#DOWNSTREAM_FAILED[@]} unrelated_failed=${#UNRELATED_FAILED[@]} uncommitted=$DIRTY"
+echo "check-pr: scoped=${#PLAN_NAMES[@]} failed=$FAILED skipped=$SKIPPED downstream_failed=${#DOWNSTREAM_FAILED[@]} unrelated_failed=${#UNRELATED_FAILED[@]} uncommitted=$DIRTY"
 
 if [[ $BLOCKING -gt 0 ]]; then
   echo
