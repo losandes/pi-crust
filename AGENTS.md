@@ -1,6 +1,79 @@
 # Working on pi-crust
 
-This file governs how work is done in this repository. Machine-specific facts — where this clone lives, how it is wired into an agent harness — belong in `AGENTS.local.md`, which is gitignored.
+This file governs how work is done in this repository. Machine-specific facts — where this clone lives, how it is wired into an agent harness — belong in `AGENTS.local.md`, which is gitignored. `CLAUDE.md` is a one-line pointer at this file, so Claude Code and pi read the same source.
+
+## Engineering stance
+
+Code is organized by **Screaming Architecture (DDD)**: directory and file names say what the code is about, not which technical layer it belongs to. `runtime/modules/` splits into `data/`, `use-cases/` and `typedefs/`; `apps/visualizer/src/` splits into `domains/`, `pages/` and `lib/`. The frontend additionally uses **Atomic Design**.
+
+TypeScript here is functional: purity, immutability, composition, settlements rather than thrown errors, and dependency-first currying. SOLID still applies — Single Responsibility and Open/Closed most of all.
+
+None of that is restated here, because it is written down in records that are read before the code is written.
+
+## Read before you write
+
+These records are authoritative. Do not infer a convention this repository has already decided, and do not derive one from the file you happen to be editing.
+
+Two trees hold records, and they are not interchangeable:
+
+- `.claude/skills/adr/` — portable conventions that would hold in any repository doing this kind of work. They name technologies, never projects, paths, counts or line numbers, so another repository can copy the tree and delete the nests it does not use.
+- `adr/` — decisions about pi-crust itself, which may name its own files.
+
+Read the listed record **before** producing code, prose or a plan for the matching task:
+
+| When the task involves                                                                                                          | Read first                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Authoring or changing any `.ts` / `.tsx`                                                                                        | `.claude/skills/adr/typescript/README.md`, then its trigger table          |
+| Backend layering — `data/`, `use-cases/`, `typedefs/`                                                                           | `.claude/skills/adr/project-organization/backend-domains-design-brief.md`  |
+| Frontend layering — components, pages, domain boundaries                                                                        | `.claude/skills/adr/project-organization/frontend-domains-design-brief.md` |
+| Deciding *where* code belongs, splitting a module, or naming a new domain                                                       | `.claude/skills/adr/project-organization/1-domains-and-atomic-design.md`   |
+| Repository-wide principles — KISS, single responsibility, avoiding redundancy                                                   | `.claude/skills/adr/conventions/conventions.md`                            |
+| Formatting a markdown document — wrapping, headings, lists, fences, tables                                                      | `.claude/skills/adr/conventions/format-markdown.md`                        |
+| Prose carrying a finding, decision or recommendation — records, PR and issue text, review replies, commit bodies, code comments | `.claude/skills/adr/conventions/write-from-evidence.md`                    |
+| SQL, schema, or query documentation                                                                                             | `.claude/skills/adr/sql/README.md`                                         |
+| Writing a commit message                                                                                                        | `.claude/skills/adr/git/use-conventional-commits.md`                       |
+| Why verification and skills are selected by changed path rather than by position                                                | `adr/route-verification-by-changed-paths.md`                               |
+
+The briefs are scope-specific rather than abridged — read the one for the side of the stack you are on. `1-domains-and-atomic-design.md` is the shared rationale behind both; reach for it when deciding structure, not when following it.
+
+## Skills carry the verification
+
+A record says what is expected. A skill reads the record for you, names files that are verified to conform, and runs a **blocking** check that proves you met it. Load the skill rather than working from memory of the record.
+
+| When the task involves                                                                             | Load                                        |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Writing or editing **any** `.md` — records, specs, READMEs, skills, handoff documents, this file   | `.claude/skills/markdown-authoring/`        |
+| Authoring `.ts` / `.tsx` that is not a test                                                        | `.claude/skills/ts-functional-conventions/` |
+| Reviewing a change, a diff, or a pull request — any layer                                          | `.claude/skills/ts-code-review/`            |
+| Anything to do with tests, writing or reviewing                                                    | `.claude/skills/ts-test-conventions/`       |
+| Recording a decision, or editing anything under `adr/`                                             | `.claude/skills/adr-authoring/`             |
+| Writing or revising anything in `specs/`                                                           | `.claude/skills/spec-authoring/`            |
+| Planning or scoping work that spans more than one file or commit                                   | `.claude/skills/planning-work/`             |
+| A failing test, a bug, or a result that surprised you                                              | `.claude/skills/systematic-debugging/`      |
+| Evaluating a dependency, tool, or external project                                                 | `.claude/skills/technical-research/`        |
+| Creating or repairing a skill                                                                      | `.claude/skills/skill-authoring/`           |
+| Drawing a tree, decision tree, workflow, walkthrough, swimlane, relationship diagram or data model | `.claude/skills/ascii-diagrams/`            |
+| Capturing, updating, handing off, or discovering context in `.context/project-state/`              | `.claude/skills/project-state/`             |
+| Readying a branch for a pull request, or asking whether it is ready                                | `.claude/skills/pr-check/`                  |
+| Addressing comments or review feedback on a pull request                                           | `.claude/skills/respond-to-pr-comments/`    |
+| Announcing a long task's outcome aloud                                                             | `.claude/skills/spoken-summary/`            |
+
+The first row is the one most often skipped, and it is the one with the widest reach. Every Activity of a run writes markdown — a handoff document, a plan, a diagnosis, an issue body — and markdown an agent improvised is markdown somebody re-formats later. A `.md` file is in scope whether it lands in the repository, in `{handoff}`, or in a GitHub text box.
+
+There is one review skill rather than one per layer, because which records apply is decided by the paths a change touches, which is mechanical. "fp review", "be review" and "fe review" all resolve to `ts-code-review`.
+
+An Activity in a run may be *primed* with a skill: `routing.skills` in `.pi-crust/config/crust.config.yaml` selects skills by agent and by changed path, and the engine passes each one to the coding agent as `--skill <path>`. Priming is a convenience and nothing more. Every skill in `.claude/skills/` stays discoverable whether or not it was pre-loaded, and an agent is expected to reach for the one that governs what it is about to do. A rule that matched nothing is not permission to skip the skill.
+
+Do not report work complete without running the check the relevant skill names. A convention that is only ever read is a convention that is only sometimes followed, which is the failure these skills exist to close.
+
+## Existing code is not precedent
+
+Records and skills outrank the code around them. Matching the file you are editing is not a defence.
+
+- Do not infer a convention by imitating a neighbouring file. Read the record.
+- Where a file conflicts with a record, the record governs the code you are adding.
+- Do not bulk-rewrite working code to comply. Migrate what you are already touching for another reason.
+- If you notice a conflict you are not fixing, say so rather than propagating it silently.
 
 ## One clone, one truth
 
@@ -138,6 +211,37 @@ It is green, and it stays green: a change that reports a diagnostic is not finis
 Do not report lint as passing on a narrowed path: the claim is only ever settled by `bun run lint` with no path argument, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`. Read the exit code rather than counting lines — Biome prints a diagnostic header in several shapes, including `path format` with no line or column and `path:line:column <rule>  FIXABLE` with doubled spaces, and every pattern written to count them has missed one of those at least once.
 
 A file in `bunfig.toml`'s `coveragePathIgnorePatterns` is not a gap in the test suite; it is a claim about what the module IS, not about the state of its tests. Each entry names a module that performs process-boundary I/O — a spawn, a raw-mode TTY, a real network call — and holds no decision logic of its own, with a comment on the line above stating what no `bun test` process can execute, and a matching comment at the top of the excluded file naming what was moved out of it so the remainder could be covered. A module is never excluded merely because covering it is difficult, slow, or unfinished — difficulty is a reason to write the test, not to exclude the file — and the threshold itself never moves to make a gate pass, because that would trade nine named problems for one invisible one.
+
+### What `bun run check` does not settle
+
+The gate covers source. It runs no markdown, record, skill, spec or project-state check, so those claims are settled by the skills' own blocking scripts and by nothing else:
+
+| Claim                             | What proves it                                                               |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| Markdown conforms                 | `.claude/skills/markdown-authoring/scripts/check-markdown.sh`                |
+| A record conforms                 | `.claude/skills/adr-authoring/scripts/check-adr.sh`                          |
+| A spec conforms                   | `.claude/skills/spec-authoring/scripts/check-spec.sh`                        |
+| A skill conforms                  | `.claude/skills/skill-authoring/scripts/check-skill.sh`                      |
+| Tests conform                     | `.claude/skills/ts-test-conventions/scripts/check-test-conventions.sh`       |
+| Parameters are immutable          | `.claude/skills/ts-functional-conventions/scripts/check-immutable-params.ts` |
+| An exported diagram conforms      | `.claude/skills/ascii-diagrams/scripts/check-ascii-diagram.ts`               |
+| A project-state artifact conforms | `.claude/skills/project-state/scripts/check-project-state.sh`                |
+| A branch is ready for review      | `.claude/skills/pr-check/scripts/check-pr.sh`                                |
+
+A rule that reports nothing may be disabled rather than satisfied. Zero means nothing until a deliberate violation has been seen to fire.
+
+## Where a correction belongs
+
+A correction that lands only in the conversation is a correction that expires with it. Route it:
+
+| The correction is                                                  | It goes                                                    |
+| ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| A rule that should hold in any repository doing this kind of work  | A record under `.claude/skills/adr/`, via `adr-authoring`  |
+| A decision about pi-crust itself — its engine, its stamp, its data | A record under `adr/`                                      |
+| A fact about how work is done in this repository                   | This file                                                  |
+| A routing problem — the right document existed and was not read    | The trigger tables above                                   |
+| A rule a checker should have caught                                | The skill that owns the checker                            |
+| Personal style or workflow preference                              | The developer's own agent configuration, outside this repo |
 
 ## Contributing
 
