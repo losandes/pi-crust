@@ -52,9 +52,9 @@ export const agentConfigSchema = z.object({
   /** allowlist; undefined = all tools usable */
   tools: z.array(z.string()).optional(),
   // What this agent may MODIFY in the repo, enforced in code after every call
-  // (see modules/use-cases/enforce-permissions.ts). `tools` cannot express
-  // this: `bash` runs anything and `write` reaches any path, so an agent's
-  // capability list is a statement of intent that nothing checks.
+  // (see domains/policy/src/use-cases/enforce-permissions.ts). `tools` cannot
+  // express this: `bash` runs anything and `write` reaches any path, so an
+  // agent's capability list is a statement of intent that nothing checks.
   // What this agent may change, and where its own documents go.
   //
   //   ['*']            -> anywhere, except the roster-wide `protected_files`

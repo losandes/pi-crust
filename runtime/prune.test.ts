@@ -14,9 +14,9 @@ import {
 
 /*
  * prune.ts's own pure decisions (`parseAge`, `pruneVerdict`, `workspacesIn`)
- * are covered in modules/use-cases/prune.test.ts. Nothing there proved the
- * entry point itself wires those decisions to a real database, a real
- * session directory, and the exit codes a caller branches on.
+ * are covered in domains/trace/src/use-cases/prune.test.ts. Nothing there
+ * proved the entry point itself wires those decisions to a real database, a
+ * real session directory, and the exit codes a caller branches on.
  */
 
 beforeEach(silenceTerminal)

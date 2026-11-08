@@ -18,8 +18,8 @@
  *
  * This file is the adapter and nothing else: environment in, git in, one
  * JSONL line per governed call out. What is governed, and what each verb
- * means, is in `modules/use-cases/path-policy.ts`, which is pure and tested
- * — including the decision this handler returns.
+ * means, is in `domains/policy/src/use-cases/path-policy.ts`, which is pure
+ * and tested — including the decision this handler returns.
  */
 
 import { spawnSync } from 'node:child_process'

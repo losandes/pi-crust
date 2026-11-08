@@ -26,7 +26,7 @@ export const envelopeBaseSchema = z.object({
 
 `status` is load-bearing: an envelope that parses but reports `status: 'fail'` throws, failing the activity run. An agent declaring its own failure is not a successful activity run.
 
-The starter types in `modules/typedefs/envelope.ts`, each paired with a spec the call site passes as `outputType:`:
+The starter types in `lib/contracts/src/envelope.ts`, each paired with a spec the call site passes as `outputType:`:
 
 ```ts
 // genericOutput  — the base, unchanged: a fallback for an agent with no sharper

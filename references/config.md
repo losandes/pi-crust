@@ -193,7 +193,7 @@ Two mechanisms keep what can be kept, and the difference between them is **attri
 
 `bash` is covered best-effort only, and that limit is stated in the shipped config beside the policy: `read`, `write` and `edit` carry a structured path and are matched exactly, while a shell command is a string and `cat .env`, `grep -r KEY .` and `env > dump` are not reliably distinguishable from legitimate work. If a path must not leak, do not give that Activity `bash`.
 
-**After the call, for `writes`.** `modules/use-cases/enforce-permissions.ts` fingerprints the working tree's change-set before an agent's first prompt and again after its last send, including JSON corrections. Any path that appeared, vanished, or changed is attributed to that agent — and comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
+**After the call, for `writes`.** `domains/policy/src/use-cases/enforce-permissions.ts` fingerprints the working tree's change-set before an agent's first prompt and again after its last send, including JSON corrections. Any path that appeared, vanished, or changed is attributed to that agent — and comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
 
 What it does with that is report it. A breach is not a gate violation — gates are for work an agent can be asked to redo, and a write has already happened — and it is no longer a rollback either:
 

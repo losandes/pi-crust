@@ -116,9 +116,10 @@ export const activityConfigSchema = z.object({
    */
   aliases: z.array(z.string()).default([]),
   // What this Activity may MODIFY in the repo, enforced in code after every
-  // call (see modules/use-cases/enforce-permissions.ts). `tools` cannot
-  // express this: `bash` runs anything and `write` reaches any path, so an
-  // Activity's capability list is a statement of intent that nothing checks.
+  // call (see domains/policy/src/use-cases/enforce-permissions.ts). `tools`
+  // cannot express this: `bash` runs anything and `write` reaches any path,
+  // so an Activity's capability list is a statement of intent that nothing
+  // checks.
   //   undefined -> unrestricted, except the roster-wide `protected_files`
   //   []        -> read-only: may modify nothing tracked
   //   [...]     -> only these. A trailing "/" means a directory prefix; a "*"

@@ -67,7 +67,7 @@ test(
 
     // Inherited as true from runtime/tsconfig.json, where it exists so the
     // repository root can reference that project. Here it only produces
-    // TS6307 for every `modules/` file the extensions import.
+    // TS6307 for every `domains/` and `lib/` file the extensions import.
     expect(project.compilerOptions.composite).toEqual(false)
   },
 )

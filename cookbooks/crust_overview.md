@@ -109,7 +109,7 @@ A chain that ENDS in reviewing Activities — any declaring `output: reviewOutpu
 
 Agents have exactly two output channels: reference files written into `context_handoff/`, and a **final valid-JSON response** parsed against the output type the call declared. Code persists it as `envelope.json` and injects it into the next agent's `user.md` via `{{previous_envelope}}`. Bad JSON is never a restart — the harness re-prompts the *same session, context intact*, until it parses (bounded). See `references/handoff.md`.
 
-**The output contract is a synced triad**: the schema in `modules/typedefs/envelope.ts` ↔ the `## Report` JSON example in the agent's `user.md` ↔ `outputType:` at the call site. Editing any one of the three means editing all three in the same change — drift between them taxes every call with correction retries.
+**The output contract is a synced triad**: the schema in `lib/contracts/src/envelope.ts` ↔ the `## Report` JSON example in the agent's `user.md` ↔ `outputType:` at the call site. Editing any one of the three means editing all three in the same change — drift between them taxes every call with correction retries.
 
 ## Running a workflow
 

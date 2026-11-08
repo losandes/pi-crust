@@ -35,9 +35,9 @@ export const harnessProject = (
      * `composite` exists so the repository root can REFERENCE `runtime/`, and
      * it requires a project to list every file it pulls in. This project
      * includes `harness-engineering` alone, while those extensions import
-     * into `modules/` — so each reached file is reported as `TS6307: not
-     * listed within the file list of project`, fifteen of them the day a
-     * `modules/data/roots.ts` joined the graph.
+     * into `domains/` and `lib/` — so each reached file is reported as
+     * `TS6307: not listed within the file list of project`, fifteen of them
+     * the day a `domains/workspace/src/data/roots.ts` joined the graph.
      *
      * Listing the reachable set would be an inventory of the import graph,
      * maintained by hand, that goes stale on the next import. Nothing

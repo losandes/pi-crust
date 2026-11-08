@@ -118,7 +118,7 @@ test(
 
 test(
   [
-    'given modules/use-cases/parse-cli::FLAG_TABLE',
+    'given use-cases/parse-cli::FLAG_TABLE',
     'when every flag it names is read',
     'it should be documented on the run entry or in the global flags',
   ].join(', '),
