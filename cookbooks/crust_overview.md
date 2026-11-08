@@ -1,6 +1,6 @@
 # pi-crust Overview
 
-The system map the orchestrator reads on startup — what pi-crust is, how a stamped repo is laid out, and which cookbook to load next.
+The system map the orchestrator reads on startup — what pi-crust is, how the package and a stamped repo are laid out, and which cookbook to load next.
 
 ## What pi-crust is
 
@@ -10,65 +10,82 @@ Your job as orchestrator: **run the system, observe the system, help the enginee
 
 A run is identified by its `run_id` — the vocabulary the trace, the directory names, and the visualizer all share.
 
-## Layout of a stamped repo
+## Layout
+
+A stamped repository holds almost nothing. The installer copies in `config/` and `prompt-engineering/`, then writes `.pi-crust/data/pi-crust-home` — a pointer at the pi-crust package, not a copy of it. Every line of runtime code stays in the package, which is why an edit there is live for the next Activity any stamped repository starts. The two trees are not the same tree, and an orchestrator needs both.
+
+The package, where the code lives:
+
+```text
+runtime/                      the package a stamp points at, never a copy
+├── cli.ts                    the one entry point a stamped repo reaches
+├── crust.just                the recipes `just crust <recipe>` dispatches to
+├── report.ts                 where did a run stop, and what resumes it
+├── checks.ts                 routing.checks on their own, with no Lifecycle
+├── please.ts · consult.ts · steer.ts · resume.ts · prune.ts · workspaces.ts
+├── stages/                   the two Planners with an agent: operator, triage
+├── lifecycles/
+│   └── compose.ts            --lifecycle <name>, or --activities a,b+c
+├── domains/                  ALL low-level logic — entry points stay thin
+│   ├── activities/           what an Activity is, which ones exist, running one
+│   │   └── use-cases/        execute-agent · activity-registry · agent-activity
+│   ├── agents/               coding-agent hosts and their I/O
+│   │   ├── data/             pi-agent · claude-code-agent · prompt-files
+│   │   └── use-cases/        harness-project · validate-agents
+│   ├── cli/                  the developer-facing command surface
+│   │   └── use-cases/        parse-cli · menu · render-help · resolve-prompt
+│   ├── config/               reading crust.config.yaml and merging its layers
+│   │   └── use-cases/        load-config · merge-config · machine-config
+│   ├── gates/                acceptance — gates, disputes, regressions
+│   │   └── use-cases/        gate-registry · claim-gates · dispute-ledger
+│   ├── handoff/              the session directory and inter-activity artifacts
+│   │   ├── data/             handoff-snapshot · handoff-pointer · artifact-lock
+│   │   └── use-cases/        consult · steer · handoff-location
+│   ├── planning/             activities and lifecycles become an ordered plan
+│   │   └── use-cases/        load-lifecycles · parse-activities · plan-units
+│   ├── policy/               what an agent may touch and which checks run
+│   │   └── use-cases/        enforce-permissions · path-policy · route-by-path
+│   ├── runs/                 the engine that executes a run and reports it
+│   │   └── use-cases/        run-activity-run · run-activities · revise-loop
+│   ├── trace/                the SQLite trace, its reader, and what observes it
+│   │   ├── data/             trace-db · trace-reader · visualizer
+│   │   └── use-cases/        read-run-state · prune
+│   └── workspace/            git, worktrees, roots, the workspace registry
+│       ├── data/             git · roots · working-tree · workspace-registry
+│       └── use-cases/        capture-changes · select-range
+├── lib/                      used across domains, each index.ts + a flat src/
+│   ├── contracts/            activity-run · envelope · config · gate
+│   ├── system/               clock · files · ids · env-overrides
+│   └── terminal/             terminal · clipboard
+├── prompt-engineering/{activity}/{system.md,user.md}
+│                             what each agent is told, one directory each
+├── harness-engineering/      pi extensions an agent's harness can load
+└── testing/                  the fakes and capture helpers the suites share
+```
+
+Each domain is an `index.ts` over `src/{data,typedefs,use-cases}`, and only the layers it uses appear above. Nothing imports another domain's `src/` directly; the `index.ts` is the seam.
+
+The stamp, which is all a target repository carries:
 
 ```text
 .pi-crust/
-├── README.md                    what this folder is, for whoever finds it next
-├── package.json                 one dependency: zod
-├── crust.just                    recipes, reached as `just crust <recipe>`
-├── config/
-│   ├── crust.activities.yaml     the Activity registry — what a Lifecycle may name
-│   ├── crust.lifecycles.yaml     the Lifecycles, their Stages, and each Stage's strategy
-│   ├── crust.config.yaml         defaults and routing
-│   └── crust.observe.yaml        the trace db, the ports, the themes
-├── report.ts                    where did a run stop, and what resumes it
-├── checks.ts                    routing.checks on their own, with no Lifecycle
-├── stages/                      the two Planners with an agent: operator, triage
-├── lifecycles/
-│   └── compose.ts               --lifecycle <name>, or --activities a,b+c
-├── modules/                     ALL low-level logic — workflow scripts stay thin
-│   ├── typedefs/                types and zod schemas only
-│   │   ├── activity run.ts             TActivityRunParams, TActivityRun
-│   │   ├── envelope.ts          one output type per agent call, plus TEnvelopeSpec
-│   │   ├── config.ts            TAgentConfig, TPiCrustConfig
-│   │   └── gate.ts · pi.ts · quality.ts · changes.ts · trace.ts · run.ts
-│   ├── data/                    everything that touches the outside world
-│   │   ├── pi-agent.ts          Pi interface (v1), JSONL stream tailed live
-│   │   ├── claude-code-agent.ts Claude Code (v2, a loud stub today)
-│   │   ├── trace-db.ts          JSONL + SQLite, written as it happens
-│   │   └── git.ts · files.ts · clock.ts · ids.ts · terminal.ts · prompt-files.ts
-│   └── use-cases/               orchestration and policy
-│       ├── run-activity-run.ts         runActivityRun(run)(params, body) and finish(run)
-│       ├── execute-agent.ts     prompt → pi → typed parse → gates → envelope
-│       ├── activity-registry.ts  configuration → something runnable, by name
-│       ├── attempts.ts          the one ceiling: Activity Runs per instance, per run
-│       ├── deliver.ts           an Activity commits its own change, in its own words
-│       ├── activities/          one Activity made runnable, and the Planners
-│       ├── run-activities.ts    fold a context through an ordered chain
-│       ├── revise-loop.ts       the bounded loop a chain ending in reviews gets
-│       ├── dispute-ledger.ts    counts repeated findings, so neither agent does
-│       ├── select-range.ts      --scope: which change the reviews judge
-│       ├── run-workflow.ts      the body every workflow shares
-│       ├── resume.ts            skipIfDone: run the activity run, or replay it
-│       ├── replay.ts            how a hand-written workflow's activity runs replay
-│       ├── read-run-state.ts    the ONE answer to "what is already done"
-│       ├── route-by-path.ts     which skills load, which checks run, by changed path
-│       ├── gates/               gate.check(envelope, run, changedPaths) -> TGateReport
-│       ├── enforce-permissions.ts   what an agent may change, checked after the fact
-│       ├── run-checks.ts       the deterministic lint/typecheck/build/test blocks
-│       └── capture-changes.ts   git diff vs a resolved base → envelope
-├── prompt-engineering/{agent}/{system.md,user.md}   tracked — edit prompts HERE
-│                                plan · build · scout · test
-│                                reviewer · code-reviewer · documenter
-├── harness-engineering/         pi extensions an agent's harness can load
-└── data/                        runtime only; nothing under here is authored
-    ├── sessions/{run_id}/       gitignored runtime
-    │   ├── agent_map.json       agent → coding-agent session_id + model
-    │   ├── context_handoff/     the one place agents write files for those that follow
+├── config/                   yours once stamped; --force skips it
+│   ├── crust.activities.yaml the Activity registry — what a Lifecycle may name
+│   ├── crust.lifecycles.yaml the Lifecycles, their Stages, and each strategy
+│   ├── crust.config.yaml     defaults and routing
+│   ├── crust.observe.yaml    the trace db, the ports, the themes
+│   └── dracula.css · high-contrast.css        visualizer themes
+├── prompt-engineering/       overrides only; defaults ship with the package
+└── data/                     runtime only; nothing under here is authored
+    ├── pi-crust-home         the path to the package above, read on every run
+    ├── sessions/{run_id}/    gitignored runtime
+    │   ├── agent_map.json    agent → coding-agent session_id + model
+    │   ├── context_handoff/  where agents write files for those that follow
     │   └── {agent}/{prompts/, raw_output.jsonl, envelope.json}
-    └── crust.db                  gitignored SQLite trace db the visualizer polls
+    └── crust.db              gitignored SQLite trace db the visualizer polls
 ```
+
+`data/` is worth more than the rest put together: it cannot be regenerated. An install copies and appends, and deletes nothing here.
 
 **v1 runs Pi only.** `coding_agent: pi`, default model `gemini-3.6-flash`, thinking `medium`. `claude_code` is specced in the config and stubbed in the interface — it lands in v2.
 
@@ -86,14 +103,14 @@ Every run is a sequence of **activity runs**, each one `await activity run(activ
 
 An **Activity** is a discrete unit of work and the agent that performs it — one entry in `config/crust.activities.yaml`, carrying both halves:
 
-| Key                  | Says                                                               |
-| -------------------- | ------------------------------------------------------------------ |
-| `model`, `thinking`, `tools`, `writes`, `prompt_engineering` | who performs it, and what it may reach |
-| `output`             | the envelope contract it answers, by published name                |
-| `gates`              | what its envelope must survive, by published name                  |
-| `input`              | `upstream` (the default), or `changes` for the run's own diff      |
-| `attempts`           | Activity Runs of one instance this run may spend, the first included |
-| `commit`             | land its own change, in its envelope's words, once its gates pass  |
+| Key                                                          | Says                                                                 |
+| ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `model`, `thinking`, `tools`, `writes`, `prompt_engineering` | who performs it, and what it may reach                               |
+| `output`                                                     | the envelope contract it answers, by published name                  |
+| `gates`                                                      | what its envelope must survive, by published name                    |
+| `input`                                                      | `upstream` (the default), or `changes` for the run's own diff        |
+| `attempts`                                                   | Activity Runs of one instance this run may spend, the first included |
+| `commit`                                                     | land its own change, in its envelope's words, once its gates pass    |
 
 There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` or a gate nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names.
 
