@@ -1,5 +1,6 @@
 # a stamped factory's runtime, if pi-crust is ever installed into itself
 .pi-crust/data/
+specs
 
 # out-of-scope
 AGENTS.local.md
