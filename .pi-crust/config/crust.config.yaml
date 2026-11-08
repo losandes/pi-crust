@@ -65,7 +65,7 @@ routing:
       path: .claude/skills/ts-code-review
 
     - name: markdown-authoring
-      when: ["**/*.md"]
+      when: []
       path: .claude/skills/markdown-authoring
 
   #   - name: respond-to-pr-comments
