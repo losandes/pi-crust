@@ -195,3 +195,89 @@ test(
     expect(actual).toEqual([])
   },
 )
+
+test(
+  [
+    'given use-cases/intake::intakeViolations',
+    'when the summary is the unrendered diagnose-template placeholder',
+    'it should refuse, because the shape is an unfilled Report field',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = context({
+      summary:
+        '<one sentence: what is happening and why — or that it could not be reproduced>',
+    })
+
+    // when
+    const actual = intakeViolations(envelope, 'plan')
+
+    // then
+    expect(actual).toHaveLength(1)
+    expect(actual[0]).toContain('left placeholder text in its summary')
+  },
+)
+
+test(
+  [
+    'given use-cases/intake::intakeViolations',
+    'when the summary uses "todo" as subject matter rather than as boilerplate',
+    'it should report nothing, because the word is the diagnosis, not the residue of a template',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = context({
+      summary:
+        "bun test's own console reporter reprints every skip/todo test a second time in " +
+        "a trailing roll-up section, and buntap's parser (classify-line.ts/parse-run.ts) " +
+        'treats that restatement as a new test event with no deduplication, inflating ' +
+        "any tally-based reporter's live total (e.g. nyan's scoreboard) by one per " +
+        'skipped/todo test while the authoritative run-end summary stays correct.',
+    })
+
+    // when
+    const actual = intakeViolations(envelope, 'plan')
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/intake::intakeViolations',
+    'when the summary quotes a generic type with no internal whitespace',
+    'it should report nothing, because Promise<void> is not a placeholder span',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = context({
+      summary: 'returns a Promise<void> that resolves once the write settles',
+    })
+
+    // when
+    const actual = intakeViolations(envelope, 'build')
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/intake::intakeViolations',
+    'when the summary is literally TODO',
+    'it should refuse, because the bare word opens the summary with nothing else said',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = context({ summary: 'TODO' })
+
+    // when
+    const actual = intakeViolations(envelope, 'build')
+
+    // then
+    expect(actual).toHaveLength(1)
+    expect(actual[0]).toContain('left placeholder text in its summary')
+  },
+)
