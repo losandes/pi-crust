@@ -26,8 +26,24 @@
 import type { TEnvelopeBase } from '../../../../lib/contracts'
 import { contextEnvelopeSchema } from '../../../../lib/contracts'
 
-/** Text that says an agent left the template in place. */
-const PLACEHOLDER = /\b(TODO|TBD|FIXME|PLACEHOLDER|<[a-z_ ]+>)\b/i
+/**
+ * Text that says an agent left the template in place.
+ *
+ * Every Activity's `## Report` block spells an unfilled value one way: angle
+ * brackets around prose — `<one sentence: what is happening and why>`.
+ * Matching that SHAPE covers every Activity, including ones whose prompts a
+ * repository has overridden under `.pi-crust/prompt-engineering`, which a
+ * list of literal template strings cannot.
+ *
+ * Whitespace inside the brackets is what separates a placeholder from code a
+ * summary legitimately quotes: `Promise<void>` and `Array<string>` have none.
+ *
+ * The bare words are anchored to the start, because they are evidence of
+ * boilerplate only when they ARE the summary. Unanchored, `\bTODO\b` rejected
+ * a correct diagnosis of bun's `test.todo` handling: the subject matter of a
+ * run read as the residue of one.
+ */
+const PLACEHOLDER = /<[^<>]*\s[^<>]*>|^\s*(TODO|TBD|FIXME)\b/i
 
 const blank = (text: string): boolean => text.trim() === ''
 
