@@ -227,9 +227,17 @@ test(
       actual.find((one) => one.name === name)?.stages.map((s) => s.name)
 
     // then
-    expect(stagesOf('ship')).toEqual(['discover', 'deliver', 'accept', 'push'])
+    expect(stagesOf('ship')).toEqual([
+      'discover',
+      'review-plan',
+      'deliver',
+      'accept',
+      'push',
+    ])
     expect(stagesOf('bugfix')).toEqual([
       'diagnose',
+      'plan',
+      'review-plan',
       'deliver',
       'accept',
       'push',
@@ -258,6 +266,8 @@ test(
     ).toEqual([
       'identify',
       'plan',
+      'plan-comprehension',
+      'plan-readiness',
       'build',
       'test',
       'outcome-review',
@@ -285,6 +295,75 @@ test(
     // then
     expect(deliver?.strategy).toBe('serial')
     expect(deliver?.activities).toEqual(['build', 'test'])
+  },
+)
+
+for (const name of ['ship', 'bugfix', 'discover', 'gh-issue']) {
+  test(
+    [
+      'given the shipped lifecycle and Activity registries',
+      `when ${name} reaches its completed plan`,
+      'it should judge the plan concurrently before any following work',
+    ].join(', '),
+    () => {
+      // given
+      const cfg = shippedConfig()
+      const path = join(STAMP, 'crust.lifecycles.yaml')
+
+      // when
+      const lifecycle = loadLifecycles(path, cfg).find(
+        (one) => one.name === name,
+      )
+      const stages = lifecycle?.stages ?? []
+      const at = stages.findIndex((one) => one.activities.includes('plan'))
+      const review = stages[at + 1]
+
+      // then
+      expect(at).toBeGreaterThanOrEqual(0)
+      expect(stages[at]?.activities.at(-1)).toBe('plan')
+      expect(review).toEqual({
+        name: 'review-plan',
+        strategy: 'concurrent',
+        activities: ['plan-comprehension', 'plan-readiness'],
+      })
+    },
+  )
+}
+
+test(
+  [
+    'given the shipped plan reviewers',
+    'when their tool and write grants are loaded',
+    'it should isolate comprehension from the repository and keep their findings disjoint',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = shippedConfig()
+
+    // when
+    const comprehension = cfg.activities.find(
+      (one) => one.name === 'plan-comprehension',
+    )
+    const readiness = cfg.activities.find(
+      (one) => one.name === 'plan-readiness',
+    )
+
+    // then
+    expect(comprehension?.tools).toEqual(['read', 'write'])
+    expect(readiness?.tools).toEqual(['bash', 'read', 'write'])
+    expect(comprehension?.writes).toEqual(['{handoff}/plan_comprehension.md'])
+    expect(readiness?.writes).toEqual(['{handoff}/plan_readiness.md'])
+    expect([comprehension?.output, readiness?.output]).toEqual([
+      'reviewOutput',
+      'reviewOutput',
+    ])
+    expect(comprehension?.gates).toEqual([
+      'artifactsExist',
+      'verdictConsistent',
+    ])
+    expect(readiness?.gates).toEqual(['artifactsExist', 'verdictConsistent'])
+    expect(cfg.activities.find((one) => one.name === 'plan')?.attempts).toBe(3)
+    expect(cfg.activities.some((one) => one.name === 'plan-review')).toBe(false)
   },
 )
 

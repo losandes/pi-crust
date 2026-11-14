@@ -22,6 +22,7 @@ import {
 } from '../../../../../lib/typedefs/src/settlement'
 import type {
   TBuildOutput,
+  TPlanOutput,
   TReviewOutput,
   TRun,
 } from '../../../../lib/contracts'
@@ -42,6 +43,8 @@ export const roundRecordSchema = z.object({
   evidence: z.record(z.string(), z.string()),
   disputes: z.record(z.string(), z.string()),
   changed: z.number().int().nonnegative(),
+  /** absent in ledgers written before reviewer attribution was recorded */
+  reviewers: z.record(z.string(), z.array(z.string())).optional(),
 })
 
 export const ledgerSchema = z.array(roundRecordSchema)
@@ -57,6 +60,8 @@ export type TRoundRecord = Readonly<{
   disputes: Readonly<Record<string, string>>
   /** how many files that revise claimed to change */
   changed: number
+  /** each reviewer and its own blocking items; absent in older ledgers */
+  reviewers?: Readonly<Record<string, readonly string[]>> | undefined
 }>
 
 const evidenceFor = (review: TReviewOutput, blocking: string): string => {
@@ -82,7 +87,7 @@ const evidenceIn = (
 /**
  * One review round, reduced to the text the repeat count turns on.
  *
- * A round re-asks every review the chain ended in, so a record folds all of
+ * A round re-asks every review in its group, so a record folds all of
  * their verdicts: one record per round, whether one reviewer ruled or three.
  * Counting a round per reviewer would make two reviewers look like a
  * disagreement progressing when neither had moved.
@@ -91,7 +96,9 @@ export const roundRecord = (
   params: Readonly<{
     round: number
     reviews: readonly TReviewOutput[]
-    revise: TBuildOutput | undefined
+    /** producing Activity names, in the same order as `reviews` */
+    reviewers?: readonly string[]
+    revise: TBuildOutput | TPlanOutput | undefined
   }>,
 ): TRoundRecord => {
   // `blocking` is the authority on what is blocking; `findings` only supplies
@@ -116,6 +123,16 @@ export const roundRecord = (
       ]),
     ),
     changed: params.revise?.changed_files.length ?? 0,
+    ...(params.reviewers === undefined
+      ? {}
+      : {
+          reviewers: Object.fromEntries(
+            params.reviewers.map((name, at) => [
+              name,
+              params.reviews[at]?.blocking ?? [],
+            ]),
+          ),
+        }),
   }
 }
 
@@ -144,10 +161,15 @@ export const unmovedFindings = (
   )
 }
 
-export const LEDGER_FILENAME = 'disputes.json'
+export const disputeFilename = (
+  activityRun: string,
+  extension: 'json' | 'md',
+): string => `${activityRun.replace(/^revise(?=-|$)/, 'disputes')}.${extension}`
 
-export const ledgerPath = (run: TRun): string =>
-  join(run.contextHandoffDir, LEDGER_FILENAME)
+export const LEDGER_FILENAME = disputeFilename('revise', 'json')
+
+export const ledgerPath = (run: TRun, activityRun = 'revise'): string =>
+  join(run.contextHandoffDir, disputeFilename(activityRun, 'json'))
 
 /**
  * The persisted rounds, or none when the file cannot be trusted.
@@ -158,8 +180,11 @@ export const ledgerPath = (run: TRun): string =>
  * current. A ledger that will not parse is treated as absent and said out loud,
  * which costs at most one extra revise round and never a wrong verdict.
  */
-export const readLedger = (run: TRun): readonly TRoundRecord[] => {
-  const path = ledgerPath(run)
+export const readLedger = (
+  run: TRun,
+  activityRun = 'revise',
+): readonly TRoundRecord[] => {
+  const path = ledgerPath(run, activityRun)
   if (!isFile(path)) {
     return []
   }
@@ -178,6 +203,10 @@ export const readLedger = (run: TRun): readonly TRoundRecord[] => {
 export const writeLedger = (
   run: TRun,
   rounds: readonly TRoundRecord[],
+  activityRun = 'revise',
 ): void => {
-  writeText(ledgerPath(run), `${JSON.stringify(rounds, null, 2)}\n`)
+  writeText(
+    ledgerPath(run, activityRun),
+    `${JSON.stringify(rounds, null, 2)}\n`,
+  )
 }

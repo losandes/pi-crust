@@ -24,6 +24,7 @@ import type {
   TLifecycleConfig,
   TLifecycleFault,
 } from '../../../../lib/contracts'
+import { envelopeNamed, reviewOutput } from '../../../../lib/contracts'
 import { matchesPattern } from '../../../policy'
 
 /** A pattern reduced to the literal prefix it cannot match outside of. */
@@ -56,7 +57,11 @@ export const patternsOverlap = (left: string, right: string): boolean => {
   return a !== '' && b !== '' && (a.startsWith(b) || b.startsWith(a))
 }
 
-type TNamedWrites = Readonly<{ activity: string; writes: readonly string[] }>
+type TNamedWrites = Readonly<{
+  activity: string
+  writes: readonly string[]
+  judging: boolean
+}>
 
 const collisions = (
   lifecycle: string,
@@ -65,6 +70,17 @@ const collisions = (
 ): readonly TLifecycleFault[] =>
   members.flatMap((left, at) =>
     members.slice(at + 1).flatMap((right) => {
+      if (left.judging !== right.judging) {
+        return [
+          {
+            lifecycle,
+            message:
+              `stage '${stage}' runs '${left.activity}' and '${right.activity}' ` +
+              'concurrently, but one judges and the other does not — a review ' +
+              'group must settle before later work starts',
+          },
+        ]
+      }
       /*
        * One fault per pair, not per colliding pattern. An Activity that may
        * write anywhere collides with every line the other declared, and
@@ -122,7 +138,13 @@ export const concurrencyFaults = (
 
           return activity === undefined
             ? []
-            : [{ activity: name, writes: activity.writes ?? ['*'] }]
+            : [
+                {
+                  activity: name,
+                  writes: activity.writes ?? ['*'],
+                  judging: envelopeNamed(activity.output) === reviewOutput,
+                },
+              ]
         }),
       ),
     )

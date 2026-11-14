@@ -488,7 +488,7 @@ test(
     const revisions = buildOutputSchema.parse({
       ...CONTEXT,
       summary: 'revised work',
-      changed_files: [],
+      changed_files: ['src/fixed.ts'],
     })
     const rejected = (name: string) =>
       reviewOutputSchema.parse({

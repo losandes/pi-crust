@@ -111,8 +111,8 @@ for (const schema of [plannerConfigSchema, terminalConfigSchema]) {
 test(
   [
     'given the shipped Activity registry',
-    'when its raw declarations are read',
-    'it should declare succession on every ordinary Activity and no engine-controlled entry',
+    'when its declarations and output-derived defaults are resolved',
+    'it should preserve succession on every ordinary Activity and no engine-controlled entry',
   ].join(', '),
   () => {
     // given
@@ -135,7 +135,10 @@ test(
     expect(
       activities.map((entry) => ({
         name: entry.name,
-        succession: entry.succession,
+        succession: activitySuccession(
+          activities.map((one) => activityConfigSchema.parse(one)),
+          String(entry.name),
+        ),
       })),
     ).toEqual(
       activities.map((entry) => ({

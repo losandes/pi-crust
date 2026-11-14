@@ -266,18 +266,8 @@ export const genericOutputSchema = envelopeBaseSchema
 export type TGenericOutput = Readonly<z.infer<typeof genericOutputSchema>>
 export const genericOutput = envelopeSpec('GenericOutput', genericOutputSchema)
 
-export const planOutputSchema = contextEnvelopeSchema.extend({
-  // Subject for committing the PLAN — the spec file the planner wrote, not the
-  // implementation it describes. Each agent's commit_message covers its own
-  // work product, so a chain that commits per activity never reuses one agent's
-  // words for another agent's diff.
-  commit_message: z.string().default(''),
-})
-export type TPlanOutput = Readonly<z.infer<typeof planOutputSchema>>
-export const planOutput = envelopeSpec('PlanOutput', planOutputSchema)
-
 /**
- * One reviewer finding the builder is answering with evidence instead of a fix.
+ * One reviewer finding the writer is answering with evidence instead of a fix.
  *
  * `finding` quotes the blocking item it answers, so the harness can match the
  * two without guessing. `evidence` is the part that makes it a dispute rather
@@ -289,6 +279,20 @@ export const disputeSchema = z.object({
   reason: z.string().default(''),
 })
 export type TDispute = Readonly<z.infer<typeof disputeSchema>>
+
+export const planOutputSchema = contextEnvelopeSchema.extend({
+  // Subject for committing the PLAN — the spec file the planner wrote, not the
+  // implementation it describes. Each agent's commit_message covers its own
+  // work product, so a chain that commits per activity never reuses one agent's
+  // words for another agent's diff.
+  commit_message: z.string().default(''),
+  /** the plan files this revise rewrote; empty on a first-attempt plan */
+  changed_files: z.array(z.string()).default([]),
+  /** findings answered with evidence rather than a rewrite */
+  disputes: z.array(disputeSchema).default([]),
+})
+export type TPlanOutput = Readonly<z.infer<typeof planOutputSchema>>
+export const planOutput = envelopeSpec('PlanOutput', planOutputSchema)
 
 export const buildOutputSchema = contextEnvelopeSchema.extend({
   /**
@@ -465,6 +469,8 @@ export const reviewFindingSchema = z.object({
   /** the ask, in the requester's words */
   requirement: z.string(),
   met: z.boolean(),
+  /** the reviewer's grade; only `blocking` decides what blocks */
+  severity: z.enum(['blocker', 'major', 'nit']).default('nit'),
   /** where it lives, or what is missing */
   evidence: z.string().default(''),
 })

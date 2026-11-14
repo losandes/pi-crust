@@ -189,12 +189,12 @@ const runUnit = async (
   run: TRun,
   unit: TUnit,
   ctx: TActivityContext,
-  ledger: TAttemptLedger,
+  params: Readonly<{ ledger: TAttemptLedger; cause: string }>,
 ): Promise<readonly TRan[]> => {
   const one = (activity: TActivity): Promise<TRan> =>
-    runStep(run, unit, ctx, activity, ledger, {
-      cause: FIRST_ATTEMPT,
-      feedback: [],
+    runStep(run, unit, ctx, activity, params.ledger, {
+      cause: params.cause,
+      feedback: ctx.feedback,
     })
 
   if (unit.strategy !== 'concurrent') {
@@ -492,6 +492,13 @@ export type TRunUnitsParams = Readonly<{
   onWaiting?: (waiting: TWaiting) => void
   trust?: number
   ledger?: TAttemptLedger
+  /** why this execution runs; gate retries supply their own cause */
+  cause?: string
+  /** settle a segment before the next Unit, without losing regression history */
+  afterUnit?: (
+    ctx: TActivityContext,
+    at: number,
+  ) => Promise<Readonly<{ ctx: TActivityContext; stopReason?: string }>>
 }>
 
 export const runUnits = (
@@ -533,7 +540,10 @@ export const runUnits = (
       run,
       unit,
       ctx,
-      await runUnit(run, unit, ctx, ledger),
+      await runUnit(run, unit, ctx, {
+        ledger,
+        cause: params.cause ?? FIRST_ATTEMPT,
+      }),
       ledger,
     )
     noteDisagreement(run, unit, ran)
@@ -804,7 +814,18 @@ export const runUnits = (
       return fold(next, unitHolding(verdict.to), [...history, record])
     }
 
-    return fold(next, index + 1, history)
+    const boundary = await params.afterUnit?.(next, index)
+    const after = boundary?.ctx ?? next
+    if (boundary?.stopReason !== undefined) {
+      recordUnreached(
+        run,
+        units.slice(index + 1),
+        'cancelled',
+        boundary.stopReason,
+      )
+      return after
+    }
+    return fold(after, index + 1, history)
   }
   return fold(start, 0, [])
 }
@@ -825,6 +846,7 @@ export const runActivities = (
     onWaiting?: (waiting: TWaiting) => void
     trust?: number
     ledger?: TAttemptLedger
+    cause?: string
   }>,
 ): Promise<TActivityContext> => {
   const { activities, ...rest } = params

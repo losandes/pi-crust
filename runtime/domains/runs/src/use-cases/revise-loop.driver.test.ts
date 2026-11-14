@@ -304,7 +304,11 @@ test(
      * checks (`activity.params.name`), not what `reAskedInstances` intended.
      */
     const run = aRun(cfg, new Set(['revise', 'review']))
-    planted(run, 'build', buildEnvelope({ summary: 'revised' }))
+    planted(
+      run,
+      'build',
+      buildEnvelope({ summary: 'revised', changed_files: ['src/fixed.ts'] }),
+    )
     planted(
       run,
       'review',

@@ -110,3 +110,66 @@ test(
     ])
   },
 )
+
+for (const severity of ['blocker', 'major', 'nit']) {
+  for (const { name, approved, met, blocking, passes } of [
+    {
+      name: 'approves a met requirement',
+      approved: true,
+      met: true,
+      blocking: [],
+      passes: true,
+    },
+    {
+      name: 'rejects with a blocking requirement',
+      approved: false,
+      met: false,
+      blocking: ['name the files'],
+      passes: true,
+    },
+    {
+      name: 'approves despite a blocking requirement',
+      approved: true,
+      met: false,
+      blocking: ['name the files'],
+      passes: false,
+    },
+  ]) {
+    test(
+      [
+        `given issue #105 finding severity ${severity}`,
+        `when the review ${name}`,
+        'it should judge consistency from approved, blocking, and met alone',
+      ].join(', '),
+      () => {
+        // given — 1.9.2 forbids using severity to change a gate's verdict.
+        const envelope = review({
+          approved,
+          blocking,
+          findings: [
+            {
+              requirement: 'name the files',
+              met,
+              severity,
+              evidence: 'plan.md:10',
+            },
+          ],
+        })
+
+        // when
+        const actual = verdictConsistent.check(envelope, anyRun, [])
+
+        // then
+        expect(reportPassed(actual)).toBe(passes)
+        expect(violationsOf(actual)).toEqual(
+          passes
+            ? []
+            : [
+                'approved vs blocking: 1 blocking item(s) while approved=true',
+                'approved vs findings: 1 unmet requirement(s) while approved=true',
+              ],
+        )
+      },
+    )
+  }
+}

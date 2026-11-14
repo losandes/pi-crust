@@ -11,8 +11,8 @@
  * control flow that a list of names cannot express. Those keep their own `main`
  * and call `skipIfDone` per activityRun.
  *
- * One loop is no longer among them. A chain ending in Activities that declare
- * `output: reviewOutput` gets the bounded revise loop here, so the
+ * One loop is no longer among them. Every group of Activities that declare
+ * `output: reviewOutput` gets the bounded revise loop before later work, so the
  * generalisation is the activity library's rather than one workflow's.
  */
 
@@ -59,10 +59,12 @@ import {
   writeDecisionRequest,
 } from './human-gate'
 import { replayEnvelopeHistory } from './replay-envelope-history'
-import { loopAgents, runReviseLoop } from './revise-loop'
+import type { TReviseLoopResult } from './revise-loop'
+import { loopAgents } from './revise-loop'
 import type { TWaiting } from './run-activities'
-import { recordRequest, runActivities, runUnits } from './run-activities'
+import { recordRequest } from './run-activities'
 import { counts, finish, finishWaiting } from './run-activity-run'
+import { runReviewSegments } from './run-review-segments'
 import { runTerminal } from './run-terminal'
 import { startSession } from './start-session'
 export const NOT_ACCEPTED =
@@ -130,7 +132,7 @@ export const pinBaseline = (names: readonly string[]): string =>
  * settles the run as waiting, and a resume replays the operator activityRun from
  * the trace and picks the chain up where it stopped.
  */
-export const runPlannedChain = async (
+const settlePlannedChain = async (
   run: TRun,
   planned: readonly string[],
   options: Readonly<Partial<TActivityOptions>>,
@@ -142,7 +144,7 @@ export const runPlannedChain = async (
   agentPorts?: TAgentPorts,
   /** see `runWorkflow`'s own parameter of the same name */
   resolveModel?: TResolveModel,
-): Promise<TActivityContext | undefined> => {
+): Promise<TReviseLoopResult | undefined> => {
   const activities = runnableActivities(planned, run.cfg, options, agentPorts)
   validateAgents(
     run.cfg,
@@ -202,9 +204,18 @@ export const runPlannedChain = async (
   }
 
   let stopped: TWaiting | undefined
-  const after = await runActivities({
+  const after = await runReviewSegments({
     run,
-    activities,
+    names: planned,
+    options,
+    fallbackReason: NOT_ACCEPTED,
+    ...(agentPorts === undefined ? {} : { agentPorts }),
+    units: activities.map((activity) => ({
+      stage: activity.name,
+      strategy: 'serial' as const,
+      activities: [activity],
+      endsStage: true,
+    })),
     start: ctx,
     approveAfter: parseApproveAfter(args.approveAfter),
     onWaiting: (waiting) => {
@@ -215,6 +226,12 @@ export const runPlannedChain = async (
   })
   return stopped === undefined ? after : undefined
 }
+
+/** Preserve the context-only entry point used by callers running a planned chain. */
+export const runPlannedChain = async (
+  ...params: Readonly<Parameters<typeof settlePlannedChain>>
+): Promise<TActivityContext | undefined> =>
+  (await settlePlannedChain(...params))?.ctx
 
 export const runWorkflow = async (
   args: TWorkflowArgs,
@@ -250,7 +267,7 @@ export const runWorkflow = async (
    * A terminal Activity never enters the fold — it is wired to run once the
    * chain has settled, after runReviseLoop and before finish, outside the
    * Stages that get folded. Removed here, before anything downstream (the
-   * names list, the attempt ledger, trailingReviews) ever sees it.
+   * names list, the attempt ledger, reviewGroups) ever sees it.
    */
   const terminalName = terminalIn(plan)
   const foldPlan = withoutTerminal(plan)
@@ -404,9 +421,13 @@ export const runWorkflow = async (
     // and threading an out-parameter through every activity for one optional
     // outcome would be worse than a single assignment nothing else can see.
     let waiting: TWaiting | undefined
-    const ctx = await runUnits({
+    const initial = await runReviewSegments({
       run,
       units,
+      names,
+      options,
+      fallbackReason: NOT_ACCEPTED,
+      ...(agentPorts === undefined ? {} : { agentPorts }),
       start,
       approveAfter: parseApproveAfter(args.approveAfter),
       onWaiting: (stopped) => {
@@ -431,34 +452,26 @@ export const runWorkflow = async (
      * dies three stages in on a missing agent, and a chain chosen at runtime
      * would lose that guarantee if it were skipped here.
      */
-    const planned = plannedChain(ctx)
-    const executed = planned.length > 0 ? planned : names
-    const after =
-      planned.length === 0
-        ? ctx
-        : await runPlannedChain(
+    const planned = plannedChain(initial.ctx)
+    const settled =
+      planned.length === 0 ||
+      initial.outcome === 'deadlocked' ||
+      initial.outcome === 'exhausted'
+        ? initial
+        : await settlePlannedChain(
             run,
             planned,
             options,
-            ctx,
+            initial.ctx,
             args,
             trust,
             ledger,
             agentPorts,
             resolveModel,
           )
-    if (after === undefined) {
+    if (settled === undefined) {
       return finishWaiting(run, run.contextHandoffDir)
     }
-
-    const settled = await runReviseLoop(run, {
-      names: executed,
-      options,
-      ctx: after,
-      fallbackReason: NOT_ACCEPTED,
-      ledger,
-      ...(agentPorts === undefined ? {} : { agentPorts }),
-    })
 
     /*
      * The bargain of a raised dial, collected in one place.

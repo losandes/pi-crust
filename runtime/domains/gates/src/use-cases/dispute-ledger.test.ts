@@ -9,6 +9,7 @@ import type {
 } from '../../../../lib/contracts'
 import {
   buildOutputSchema,
+  planOutputSchema,
   reviewOutputSchema,
 } from '../../../../lib/contracts'
 import type { TRoundRecord } from './dispute-ledger'
@@ -88,6 +89,77 @@ test(
       'the handler is unguarded': 'src/server.ts:42',
     })
     expect(actual.changed).toEqual(0)
+  },
+)
+
+test(
+  [
+    'given use-cases/dispute-ledger::roundRecord',
+    'when a plan is rewritten and two reviewers rule on it',
+    'it should retain the plan answers and attribute every reviewer including a clean verdict',
+  ].join(', '),
+  () => {
+    // given
+    const plan = planOutputSchema.parse({
+      status: 'success',
+      ...context,
+      changed_files: ['handoff/plan.md'],
+      disputes: [
+        { finding: 'The handler is unguarded.', evidence: 'plan.md:12' },
+      ],
+    })
+
+    // when
+    const actual = roundRecord({
+      round: 2,
+      reviews: [
+        repeated,
+        review({ approved: true, blocking: [], findings: [] }),
+      ],
+      reviewers: ['plan-readiness', 'plan-comprehension'],
+      revise: plan,
+    })
+
+    // then
+    expect(actual.changed).toBe(1)
+    expect(actual.disputes).toEqual({
+      'the handler is unguarded': 'plan.md:12',
+    })
+    expect(actual.reviewers).toEqual({
+      'plan-readiness': ['The handler is unguarded.'],
+      'plan-comprehension': [],
+    })
+  },
+)
+
+test(
+  [
+    'given use-cases/dispute-ledger::readLedger',
+    'when a plan group and the trailing group persist different rounds',
+    'it should resume each conversation independently',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-dispute-ledger-groups-'))
+    const run = runWith(dir, [])
+    const plan = roundRecord({
+      round: 1,
+      reviews: [repeated],
+      reviewers: ['plan-readiness'],
+      revise: undefined,
+    })
+    const code = roundRecord({ round: 4, reviews: [], revise: undefined })
+
+    // when
+    writeLedger(run, [plan], 'revise-plan')
+    writeLedger(run, [code])
+    const resumedPlan = readLedger(run, 'revise-plan')
+    const resumedCode = readLedger(run)
+
+    // then
+    expect(resumedPlan).toEqual([plan])
+    expect(resumedCode).toEqual([code])
+    expect(ledgerPath(run, 'revise-plan')).toBe(join(dir, 'disputes-plan.json'))
   },
 )
 

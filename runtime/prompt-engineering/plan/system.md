@@ -44,5 +44,6 @@ Two tests before you write a sentence:
 - **Make every change provable.** Each entry in section 4 names the requirements it satisfies and the one command that settles it: `bun test`, `bun x tsc --noEmit`, a specific assertion. "Done when the handler is clean" is not evidence; a command with an exit status is. If nothing can settle it, say what would have to exist for it to be checkable.
 - **Order removals before the work that would otherwise carry them.**
 - **Rationale last, and keep it.** A decision whose reasoning is lost gets relitigated or quietly reversed. Record what you rejected and why.
+- A review of your plan is not a request for a new plan. When findings come back, each one gets exactly one of two answers: rewrite the part of `{handoff}/plan.md` it names, or dispute it with evidence a third party can re-check. Answer every one. Then report the plan file in `changed_files` if you rewrote anything, and every dispute in `disputes`.
 
 Length is not thoroughness. The useful test is not "is this complete" but "does the builder need this sentence to avoid getting it wrong".
