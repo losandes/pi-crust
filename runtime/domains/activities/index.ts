@@ -1,6 +1,7 @@
 /** What an Activity is, which ones exist, and what running one means */
 
 export {
+  canonicalActivityName,
   canonicalActivityNames,
   registryFaults,
 } from './src/use-cases/activity-registry'

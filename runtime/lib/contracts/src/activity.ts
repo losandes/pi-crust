@@ -35,6 +35,16 @@ export type TCodingAgent = (typeof CODING_AGENTS)[number]
 
 export const DEFAULT_MODEL = 'google/gemini-3.6-flash'
 
+export const THINKING_LEVELS = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
+
 export const promptEngineeringSchema = z.object({
   /** path to system.md */
   system: z.string(),
@@ -103,11 +113,11 @@ export const activityConfigSchema = z.object({
   /*
    * Other names this Activity answers to, where a human types one.
    *
-   * Resolved at exactly two boundaries — the `--activities` chain and a
-   * Lifecycle's `stages[].activities` — and nowhere after them: an
-   * activity-run row, a resume and the attempt budget all key on the
-   * Activity's name, and two names for one Activity inside one trace is
-   * corruption wearing the appearance of convenience.
+   * Resolved where a human names an Activity — the `--activities` chain,
+   * `--model` overrides and a Lifecycle's `stages[].activities` — and nowhere
+   * after them: an activity-run row, a resume and the attempt budget all key
+   * on the Activity's name. Two names for one Activity inside one trace would
+   * split its history and attempt budget.
    *
    * A preference rather than a permission, and on the entry rather than in a
    * list elsewhere, so a personal shorthand can live in the gitignored local

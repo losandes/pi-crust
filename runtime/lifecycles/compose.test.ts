@@ -15,6 +15,7 @@ const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
   resume: false,
   activities: undefined,
   lifecycle: undefined,
+  models: undefined,
   approveAfter: undefined,
   commit: undefined,
   stream: false,

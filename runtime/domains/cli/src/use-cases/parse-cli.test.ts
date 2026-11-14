@@ -43,6 +43,7 @@ test(
       resume: false,
       activities: undefined,
       lifecycle: undefined,
+      models: undefined,
       approveAfter: undefined,
       commit: undefined,
       stream: false,
@@ -82,6 +83,7 @@ test(
       resume: false,
       activities: undefined,
       lifecycle: undefined,
+      models: undefined,
       approveAfter: undefined,
       commit: 'false',
       stream: false,
@@ -388,6 +390,11 @@ const shortFormEquivalences: ReadonlyArray<{
     long: ['do the thing', '--lifecycle', 'sdlc'],
   },
   {
+    name: '-m',
+    short: ['do the thing', '-m', 'build=openai/gpt-5@high'],
+    long: ['do the thing', '--model', 'build=openai/gpt-5@high'],
+  },
+  {
     name: '-n',
     short: ['do the thing', '-n', 'payments rewrite'],
     long: ['do the thing', '--name', 'payments rewrite'],
@@ -412,7 +419,8 @@ for (const { name, short, long } of shortFormEquivalences) {
       'it should parse identically to the long form',
     ].join(', '),
     () => {
-      // given, when
+      // given — the table supplies both argv forms
+      // when
       const actual = parseCli(short)
       const expected = parseCli(long)
 
@@ -513,6 +521,7 @@ test(
     for (const pair of expectedPairs) {
       expect(message).toContain(pair)
     }
+    expect(message).toContain('[--model <activity>=<model>@<thinking>,...]')
   },
 )
 
@@ -697,5 +706,85 @@ test(
 
     // then
     expect(actual).toEqual(argv)
+  },
+)
+
+const MODEL_VALUE = 'build=openai/gpt-5@high,test=@high'
+const modelFlagForms = [
+  { form: '--model <value>', argv: ['--model', MODEL_VALUE] },
+  { form: '--model=<value>', argv: [`--model=${MODEL_VALUE}`] },
+  { form: '-m <value>', argv: ['-m', MODEL_VALUE] },
+  { form: '-m=<value>', argv: [`-m=${MODEL_VALUE}`] },
+] as const
+
+for (const { form, argv } of modelFlagForms) {
+  test(
+    [
+      'given use-cases/parse-cli::parseCli',
+      `when ${form} is given`,
+      'it should preserve the raw model override list',
+    ].join(', '),
+    () => {
+      // given
+      const input = ['build it', ...argv]
+
+      // when
+      const actual = parseCli(input)
+
+      // then
+      expect(actual.models).toBe(MODEL_VALUE)
+    },
+  )
+
+  for (const later of modelFlagForms) {
+    test(
+      [
+        'given use-cases/parse-cli::parseCli',
+        `when ${form} is followed by ${later.form}`,
+        'it should refuse repeated model flags rather than discard an earlier value',
+      ].join(', '),
+      () => {
+        // given
+        const input = ['build it', ...argv, ...later.argv]
+
+        // when, then
+        expect(() => parseCli(input)).toThrow(
+          '--model was given more than once — combine the entries into one comma-separated list, e.g. --model build=openai/gpt-5,test=@high',
+        )
+      },
+    )
+  }
+}
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when a model flag repeats after an empty value',
+    'it should still refuse the repeated flag',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['build it', '--model=', '-m', MODEL_VALUE]
+
+    // when, then
+    expect(() => parseCli(argv)).toThrow('--model was given more than once')
+  },
+)
+
+test(
+  [
+    'given use-cases/parse-cli::parseCli',
+    'when a different value flag repeats',
+    'it should keep its existing last-value-wins behaviour',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['build it', '--lifecycle', 'sdlc', '-l=deliver']
+
+    // when
+    const actual = parseCli(argv)
+
+    // then
+    expect(actual.lifecycle).toBe('deliver')
   },
 )

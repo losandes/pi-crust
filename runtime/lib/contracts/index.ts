@@ -18,6 +18,7 @@ export {
   PLANNER_NAMES,
   plannerFaults,
   TERMINAL_NAMES,
+  THINKING_LEVELS,
   terminalConfigSchema,
   terminalFaults,
 } from './src/activity'

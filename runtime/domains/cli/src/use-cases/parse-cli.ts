@@ -39,6 +39,8 @@ export type TCliArgs = Readonly<{
   activities: string | undefined
   /** `compose.ts` only: a Lifecycle by name, from crust.lifecycles.yaml */
   lifecycle: string | undefined
+  /** Per-activity model and thinking overrides, for this run only. */
+  models: string | undefined
   /**
    * Stages after which the run stops and waits for you, comma-separated.
    *
@@ -133,6 +135,7 @@ export const FLAG_TABLE: readonly TFlagSpec[] = [
   { long: '--scope', takesValue: true },
   { long: '--activities', short: '-a', takesValue: true },
   { long: '--lifecycle', short: '-l', takesValue: true },
+  { long: '--model', short: '-m', takesValue: true },
   { long: '--approve-after', takesValue: true },
   /*
    * `-c` is `--commit`'s letter, not `--config`'s: `--commit` takes exactly
@@ -176,6 +179,7 @@ const usage = (recipe: string): string =>
   '  `just crust list` prints the Lifecycles and Activities this repo offers.\n' +
   '  optional: [--config <path>] [--run-id <id>] [--commit false] ' +
   '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
+  '[--model <activity>=<model>@<thinking>,...] ' +
   '[--trust-level 50] [--stream] [--resume] ' +
   '[--handoff <path/{session_id}>] [--name <label>]\n' +
   '  short: ' +
@@ -337,6 +341,11 @@ export const parseCli = (
         positional: [...so_far.positional, token],
       })
     }
+    if (matched === '--model' && so_far.flags.has(matched)) {
+      throw new Error(
+        '--model was given more than once — combine the entries into one comma-separated list, e.g. --model build=openai/gpt-5,test=@high',
+      )
+    }
     const inline = token.includes('=')
       ? token.slice(token.indexOf('=') + 1)
       : undefined
@@ -368,6 +377,7 @@ export const parseCli = (
     resume: booleans.has('--resume'),
     activities: flags.get('--activities'),
     lifecycle: flags.get('--lifecycle'),
+    models: flags.get('--model'),
     approveAfter: flags.get('--approve-after'),
     commit: commitFlag(flags.get('--commit')),
     stream: booleans.has('--stream'),

@@ -169,6 +169,11 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
         detail: '`,` ends a Stage, `a+b` runs two Activities at once',
       },
       {
+        name: '--model <activity>=<model>@<thinking>,... (-m)',
+        detail:
+          "change an activity's model, thinking level, or both, for this run only; give the flag once",
+      },
+      {
         name: '--run-id <id> (-id)',
         detail: 'an existing run to add to, instead of minting one',
       },
@@ -222,6 +227,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       'just crust run "add a /health endpoint" --activities plan,build,review+code-review',
       'just crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume',
       'just crust run "..." --lifecycle sdlc --handoff specs/{session_id}',
+      'just crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
     ],
   },
   {

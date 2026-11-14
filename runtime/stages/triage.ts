@@ -30,7 +30,7 @@ import { loadConfig } from '../domains/config'
 import { asSingleStage } from '../domains/planning'
 import { runWorkflow } from '../domains/runs'
 import { readRunState } from '../domains/trace'
-import { DEFAULT_DB } from '../lib/contracts'
+import { DEFAULT_DB, EXIT } from '../lib/contracts'
 import { dbPathFromEnv, newId } from '../lib/system'
 export const ACTIVITIES = ['triage'] as const
 
@@ -61,7 +61,13 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
 }
 
 if (import.meta.main) {
-  await runCli('triage', (args) =>
-    main(workflowArgs(args, resolvePrompt(args.prompt))),
-  )
+  await runCli('triage', (args) => {
+    if (args.models !== undefined) {
+      process.stderr.write(
+        '--model applies to `just crust run` only — the triage chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n',
+      )
+      return Promise.resolve(EXIT.USAGE)
+    }
+    return main(workflowArgs(args, resolvePrompt(args.prompt)))
+  })
 }

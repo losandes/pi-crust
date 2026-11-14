@@ -39,7 +39,7 @@ import {
   terminalActivityFor,
 } from '../../../activities'
 import { type TResolveModel, validateAgents } from '../../../agents'
-import type { TWorkflowArgs } from '../../../cli'
+import { parseModelOverrides, type TWorkflowArgs } from '../../../cli'
 import { loadConfigWithNotes } from '../../../config'
 import {
   chainNote,
@@ -58,6 +58,7 @@ import {
   selfAnsweredIn,
   writeDecisionRequest,
 } from './human-gate'
+import { applyModelOverrides } from './model-overrides'
 import { replayEnvelopeHistory } from './replay-envelope-history'
 import type { TReviseLoopResult } from './revise-loop'
 import { loopAgents } from './revise-loop'
@@ -273,12 +274,33 @@ export const runWorkflow = async (
   const foldPlan = withoutTerminal(plan)
   const names = plannedNames(foldPlan)
   const loaded = loadConfigWithNotes(args.config)
-  const cfg = loaded.config
   const options: Readonly<Partial<TActivityOptions>> = {
     ...(args.base === undefined ? {} : { base: args.base }),
     committing: args.commit !== 'false',
   }
-  const activities = runnableActivities(names, cfg, options, agentPorts)
+  const configuredActivities = runnableActivities(
+    names,
+    loaded.config,
+    options,
+    agentPorts,
+  )
+  // The loop can spawn the reviser even when the named chain never does, so
+  // its agent is validated here rather than discovered halfway through.
+  const used = new Set([
+    ...requiredAgents(configuredActivities),
+    ...loopAgents(loaded.config, names),
+    ...(terminalName === undefined ? [] : [terminalName]),
+  ])
+  const parsed =
+    args.models === undefined
+      ? { overrides: [], warnings: [] }
+      : parseModelOverrides(args.models)
+  const overridden = applyModelOverrides(loaded.config, parsed.overrides, used)
+  const cfg = overridden.config
+  const activities =
+    cfg === loaded.config
+      ? configuredActivities
+      : runnableActivities(names, cfg, options, agentPorts)
   const terminalOptions: TActivityOptions = {
     ...DEFAULT_ACTIVITY_OPTIONS,
     ...options,
@@ -287,19 +309,7 @@ export const runWorkflow = async (
     terminalName === undefined
       ? undefined
       : terminalActivityFor(terminalName, cfg, terminalOptions)
-  // The loop can spawn the reviser even when the named chain never does, so
-  // its agent is validated here rather than discovered halfway through.
-  validateAgents(
-    cfg,
-    [
-      ...new Set([
-        ...requiredAgents(activities),
-        ...loopAgents(cfg, names),
-        ...(terminal === undefined ? [] : [terminal.name]),
-      ]),
-    ],
-    resolveModel,
-  )
+  validateAgents(cfg, [...used], resolveModel)
   const ledger = attemptLedger(
     ledgerSeed(cfg, args.runId, args.resume === true),
   )
@@ -362,6 +372,9 @@ export const runWorkflow = async (
       )
     }
     for (const warning of loaded.warnings) {
+      run.console.note(warning)
+    }
+    for (const warning of [...parsed.warnings, ...overridden.warnings]) {
       run.console.note(warning)
     }
     /*

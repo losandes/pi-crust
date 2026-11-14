@@ -23,6 +23,8 @@ export {
   menuOptions,
   PLANNERS,
 } from './src/use-cases/menu-options'
+export type { TModelOverride } from './src/use-cases/model-overrides'
+export { parseModelOverrides } from './src/use-cases/model-overrides'
 export type { TCliArgs, TWorkflowArgs } from './src/use-cases/parse-cli'
 export { runCli, workflowArgs } from './src/use-cases/parse-cli'
 export { RECIPE_DOCS, recipeDoc } from './src/use-cases/recipe-docs'

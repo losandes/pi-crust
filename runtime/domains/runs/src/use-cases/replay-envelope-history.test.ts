@@ -471,6 +471,7 @@ test(
           base: undefined,
           activities: undefined,
           lifecycle: undefined,
+          models: undefined,
           approveAfter: undefined,
           commit: undefined,
           stream: false,
