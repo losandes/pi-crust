@@ -31,7 +31,11 @@ export type TUpstream = Readonly<{
 export type TActivityContext = Readonly<{
   run: TRun
   prompt: string
-  /** the previous activity's envelope — what an agent reads as previous_envelope */
+  /**
+   * The most recent superseding envelope in the run, or undefined if none
+   * exists — what an agent reads as `previous_envelope`. Annotating Activities
+   * leave it in place. A reviser is explicitly handed the verdict it answers.
+   */
   previous: TEnvelopeBase | undefined
   /**
    * Which activity produced `previous`, and the ONLY reliable way to know what it
@@ -42,15 +46,13 @@ export type TActivityContext = Readonly<{
    */
   previousStep: string | undefined
   /**
-   * Every Activity the preceding Unit produced, with its name.
+   * The run's envelope history, labelled by the producing Activity Run name.
    *
-   * `previous` answers "the envelope before this one", which a concurrent
-   * Stage makes into a question with several right answers. This is all of
-   * them, in declaration order, and it is what an agent downstream of a
-   * concurrent Stage is actually shown — picking one and discarding the rest
-   * would silently drop the finding the second Activity existed to produce.
-   *
-   * One entry in the ordinary case, so nothing serial has to care.
+   * One latest envelope per Activity, in first-production order. Numbered
+   * instances and repeated revise rounds replace their participant's entry
+   * without moving it or growing the history. Concurrent results enter in
+   * declaration order. Prompts opt in by rendering `previous_envelopes`.
+   * Resume rebuilds this history from persisted envelopes in trace order.
    */
   upstream: readonly TUpstream[]
   /**
@@ -149,7 +151,11 @@ export type TActivity = Readonly<{
     ctx: TActivityContext,
     handle: TActivityRunHandle,
   ) => Promise<TActivityResult>
-  replay: (ctx: TActivityContext) => Promise<TActivityResult>
+  /** `participant` preserves provenance when the engine names an alias. */
+  replay: (
+    ctx: TActivityContext,
+    participant?: string,
+  ) => Promise<TActivityResult>
 }>
 
 /** Per-call-site knobs. `instance` disambiguates a repeated activity. */
@@ -179,3 +185,12 @@ export const DEFAULT_ACTIVITY_OPTIONS: TActivityOptions = {
 /** `build`, `build_2`, `build_3` … so a composed chain can repeat a activity. */
 export const activityRunName = (name: string, instance: number): string =>
   instance <= 1 ? name : `${name}_${instance}`
+
+/** Collapse numbered instances without losing an engine-assigned name. */
+export const activityNameFromRun = ({
+  name,
+  owner,
+}: Readonly<Pick<TActivityRunParams, 'name' | 'owner'>>): string =>
+  name.startsWith(`${owner}_`) && /^\d+$/.test(name.slice(owner.length + 1))
+    ? owner
+    : name

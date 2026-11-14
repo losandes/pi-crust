@@ -26,10 +26,10 @@
  *     and surfaces to the developer; this file counts the repeats
  *
  * The ledger is PERSISTED (`context_handoff/disputes.json`) rather than rebuilt
- * from envelopes. `agentStep`'s replay reads `{sessionDir}/{agent}/envelope.json`,
- * which holds only an agent's LATEST envelope — so on `--resume` a replayed
- * `code-review` and `code-review_2` hand back the same object, and a ledger
- * built from them would see a repeat that never happened.
+ * from envelopes. Replay keeps only a participant's LATEST envelope, not one
+ * per attempt — so on `--resume` a replayed `code-review` and `code-review_2`
+ * hand back the same object, and a ledger built from them would see a repeat
+ * that never happened.
  */
 
 import { join } from 'node:path'
@@ -53,6 +53,7 @@ import {
   reviewOutput,
 } from '../../../../lib/contracts'
 import { writeText } from '../../../../lib/system'
+import type { TAgentPorts } from '../../../activities'
 import { agentActivity, runnableActivities } from '../../../activities'
 import type { TRoundRecord } from '../../../gates'
 import {
@@ -182,6 +183,7 @@ export const loopAgents = (
 export const reviseActivity = (
   reviser: TActivityConfig,
   options: Readonly<Partial<TActivityOptions>>,
+  agentPorts?: TAgentPorts,
 ): TActivity => {
   const activity = agentActivity(
     {
@@ -196,6 +198,7 @@ export const reviseActivity = (
       gates: [disputesSupported],
     },
     { ...DEFAULT_ACTIVITY_OPTIONS, ...options, instance: 1 },
+    agentPorts,
   )
 
   return {
@@ -203,6 +206,7 @@ export const reviseActivity = (
     name: REVISE,
     instance: REVISE,
     params: { ...activity.params, name: REVISE },
+    replay: (ctx) => activity.replay(ctx, REVISE),
   }
 }
 
@@ -229,27 +233,19 @@ export const outcomeReason = (
 /**
  * Every verdict the trailing group handed back, for the round record.
  *
- * `upstream` carries one envelope per Activity of the Stage that just ran,
- * which is where a concurrent `accept` Stage leaves both reviews. A group
- * member that ran in an EARLIER Stage is not in it — a chain spelled out as
- * `build,outcome-review,code-review` is three Stages — so its findings reach
- * the loop in the round that re-asks it rather than in the opening record.
- * Its verdict is never missed, because acceptance reads the outcomes.
+ * `upstream` carries the run's latest envelope per participant, so every
+ * group member is available even when the reviews ran in separate Stages.
+ * Select by the producing Activity's name, not by an envelope's shape: a
+ * writer's envelope can also parse as a review because of schema defaults.
  */
 const reviewsIn = (
   ctx: TActivityContext,
   group: readonly string[],
 ): readonly TReviewOutput[] => {
   const carried = ctx.upstream.filter((one) => group.includes(one.activity))
-  const envelopes =
-    carried.length > 0
-      ? carried.map((one) => one.envelope)
-      : group.includes(ctx.previousStep ?? '') && ctx.previous !== undefined
-        ? [ctx.previous]
-        : []
 
-  return envelopes.flatMap((envelope) => {
-    const review = narrowEnvelope(reviewOutput, envelope)
+  return carried.flatMap((one) => {
+    const review = narrowEnvelope(reviewOutput, one.envelope)
 
     return review === undefined ? [] : [review]
   })
@@ -340,6 +336,8 @@ export const runReviseLoop = (
     fallbackReason: string
     /** the run's one budget; the loop spends from it like everything else */
     ledger?: TAttemptLedger
+    /** In-process agent boundary for driver tests; omitted for live runs. */
+    agentPorts?: TAgentPorts
   }>,
 ): Promise<TReviseLoopResult> => {
   const ledger = params.ledger ?? attemptLedger()
@@ -395,10 +393,15 @@ export const runReviseLoop = (
   /** The group, re-asked: one Activity Run each, numbered past the chain's. */
   const reAsked = (attempt: number): readonly TActivity[] =>
     reAskedInstances(params.names, group, attempt).flatMap((one) =>
-      runnableActivities([one.name], run.cfg, {
-        ...params.options,
-        instance: one.instance,
-      }),
+      runnableActivities(
+        [one.name],
+        run.cfg,
+        {
+          ...params.options,
+          instance: one.instance,
+        },
+        params.agentPorts,
+      ),
     )
 
   // The chain's own review is round 1; it had no revise before it. A resumed
@@ -451,9 +454,28 @@ export const runReviseLoop = (
     // runs: it is the question the loop exists to re-ask, and leaving it in
     // would make a later approval unable to turn the run green. Everything
     // before it — a failed `verify`, say — stays, and stays decisive.
+    const answering = state.ctx.upstream.find((one) =>
+      group.includes(one.activity),
+    )
+    const revising = reviseActivity(reviser, params.options, params.agentPorts)
     const revised = await runActivities({
       run,
-      activities: [reviseActivity(reviser, params.options)],
+      activities: [
+        {
+          ...revising,
+          execute: (ctx, handle) =>
+            revising.execute(
+              {
+                ...ctx,
+                // Only the reviser's input is overridden. The fold still carries
+                // the superseding work, including when this is a cached replay.
+                previous: answering?.envelope,
+                previousStep: answering?.activity,
+              },
+              handle,
+            ),
+        },
+      ],
       start: {
         ...state.ctx,
         /*
@@ -465,7 +487,10 @@ export const runReviseLoop = (
       },
       ledger,
     })
-    const revise = narrowEnvelope(buildOutput, revised.previous)
+    const revise = narrowEnvelope(
+      buildOutput,
+      revised.upstream.find((one) => one.activity === REVISE)?.envelope,
+    )
     /*
      * One Unit, so every member of the group judges the SAME context — the
      * revise that just ran — rather than the member before it. Serial within

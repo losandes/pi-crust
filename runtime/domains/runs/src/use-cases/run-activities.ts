@@ -31,6 +31,7 @@ import type {
 import {
   activityGates,
   activityRunParams,
+  activitySuccession,
   regressionOf,
   TRUST_DEFAULT,
   violationsOf,
@@ -497,6 +498,7 @@ export const runUnits = (
   params: TRunUnitsParams,
 ): Promise<TActivityContext> => {
   const { run, units, start } = params
+  const carriedInitially = new Set(start.upstream.map((one) => one.activity))
   const approveAfter = params.approveAfter ?? []
   const onWaiting = params.onWaiting ?? (() => undefined)
   const trust = params.trust ?? TRUST_DEFAULT
@@ -537,32 +539,49 @@ export const runUnits = (
     noteDisagreement(run, unit, ran)
     noteUnexpectedChanges(run, unit, ran)
 
-    const upstream: readonly TUpstream[] = ran.flatMap((one) =>
+    const produced: readonly TUpstream[] = ran.flatMap((one) =>
       one.result.previous === undefined
         ? []
         : [{ activity: one.activity.name, envelope: one.result.previous }],
     )
-    /*
-     * The envelope a single-upstream consumer reads.
-     *
-     * Serially this is the Activity that just ran, exactly as before. From a
-     * concurrent Stage it is the first in declaration order — deterministic,
-     * so two runs of the same configuration produce the same trace, and
-     * never the whole story. `upstream` is the whole story, and an agent is
-     * given all of it.
-     */
+    // Map replacement retains first-production order while bounding the
+    // history to the latest envelope per participant, not per attempt.
+    const upstream = [
+      ...new Map(
+        [...ctx.upstream, ...produced].map((one) => [one.activity, one]),
+      ).values(),
+    ]
+    // The first superseding result wins within a Unit, regardless of which
+    // concurrent sibling finished first. Annotations never replace the work.
+    const superseding = ran.find((one) => {
+      const name =
+        one.activity.params.kind === 'agent'
+          ? one.activity.params.owner
+          : one.activity.name
+      // Rehydrating an already-carried result is not new work. In particular,
+      // replaying the original builder must not displace a later revision.
+      const replayed =
+        carriedInitially.has(one.activity.name) &&
+        isReplayedActivityRunId(
+          run.runId,
+          handleIdOf(run, one.activity.instance),
+        )
+
+      return (
+        one.result.previous !== undefined &&
+        activitySuccession(run.cfg.activities, name) === 'supersedes' &&
+        !replayed
+      )
+    })
     const primary = ran[0]
     const last = ran.at(-1)
     const next: TActivityContext = {
       ...ctx,
-      previous:
-        unit.strategy === 'concurrent'
-          ? primary?.result.previous
-          : last?.result.previous,
+      previous: superseding?.result.previous ?? ctx.previous,
       previousStep:
-        unit.strategy === 'concurrent'
-          ? primary?.activity.name
-          : last?.activity.name,
+        superseding === undefined
+          ? ctx.previousStep
+          : superseding.activity.name,
       upstream,
       cohort: [],
       outcomes: [

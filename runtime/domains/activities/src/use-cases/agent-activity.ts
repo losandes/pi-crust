@@ -12,9 +12,10 @@
  * is still writing to the tree and whether there is budget left to run the
  * Activity again.
  *
- * Replay reads `{sessionDir}/{activity}/envelope.json`, which exists because
- * `executeAgent` persists an envelope the moment it parses. A missing one is
- * reported with the exact path and both ways forward, never papered over
+ * Replay reads `{sessionDir}/envelope-history/{activity}/envelope.json`,
+ * falling back to the per-agent file for older sessions. `executeAgent`
+ * persists both the moment an envelope parses. A missing one is reported
+ * with the exact path and both ways forward, never papered over
  * with `previous: undefined`: that silence is the bug this mechanism was
  * built to close.
  */
@@ -44,7 +45,7 @@ import type { TResolvedActivity } from './activity-registry'
 import type { TAgentPorts } from './execute-agent'
 import { callAgent, liveAgent } from './execute-agent'
 import { intakeRejection, intakeViolations } from './intake'
-import { readEnvelope } from './read-envelope'
+import { readHistoryEnvelope } from './read-envelope'
 export const DOCUMENT_NOTES =
   'Read diff_path in full before writing. Document only what the diff shows, ' +
   'then copy the write-up into app_docs/ as your task describes.'
@@ -170,8 +171,13 @@ export const agentActivity = (
       return { previous: envelope, accepted: accepted(envelope) }
     },
 
-    replay: (ctx) => {
-      const settled = readEnvelope(ctx.run, config.name, spec)
+    replay: (ctx, participant = config.name) => {
+      const settled = readHistoryEnvelope(
+        ctx.run,
+        participant,
+        config.name,
+        spec,
+      )
       if (settled.status === 'error') {
         throw new Error(
           `cannot resume activityRun '${instance}': ${settled.error.message}. ` +

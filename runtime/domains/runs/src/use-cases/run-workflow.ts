@@ -58,6 +58,7 @@ import {
   selfAnsweredIn,
   writeDecisionRequest,
 } from './human-gate'
+import { replayEnvelopeHistory } from './replay-envelope-history'
 import { loopAgents, runReviseLoop } from './revise-loop'
 import type { TWaiting } from './run-activities'
 import { recordRequest, runActivities, runUnits } from './run-activities'
@@ -386,6 +387,7 @@ export const runWorkflow = async (
         : { activities: wholeChain.join(' -> '), baseline: shortSha(baseline) },
     )
 
+    const units = unitsFrom(foldPlan, activities)
     const start: TActivityContext = {
       run,
       prompt: args.prompt,
@@ -396,6 +398,7 @@ export const runWorkflow = async (
       baseline,
       outcomes: [],
       feedback: [],
+      ...(args.resume ? replayEnvelopeHistory(run, units) : {}),
     }
     // `let` is deliberate and contained: the callback fires inside the fold,
     // and threading an out-parameter through every activity for one optional
@@ -403,7 +406,7 @@ export const runWorkflow = async (
     let waiting: TWaiting | undefined
     const ctx = await runUnits({
       run,
-      units: unitsFrom(foldPlan, activities),
+      units,
       start,
       approveAfter: parseApproveAfter(args.approveAfter),
       onWaiting: (stopped) => {
@@ -454,6 +457,7 @@ export const runWorkflow = async (
       ctx: after,
       fallbackReason: NOT_ACCEPTED,
       ledger,
+      ...(agentPorts === undefined ? {} : { agentPorts }),
     })
 
     /*

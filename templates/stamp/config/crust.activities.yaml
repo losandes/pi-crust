@@ -1,6 +1,7 @@
 # Repository Activity roster. Lifecycles reference these definitions by name.
 # Entries may override the default agent configuration and specify:
 #   output   Required result schema; unknown names are rejected
+#   succession `supersedes` the prior work or `annotates` it alongside the history
 #   gates    Explicit validation steps; `checks` runs routing.checks
 #   input    `upstream` (default) or `changes` (this run's diff)
 #   attempts Maximum executions per Activity instance, including first (default: 2)
@@ -28,6 +29,7 @@ activities:
 
   - name: build
     output: buildOutput
+    succession: supersedes
     gates: [diffMatchesClaims, checks]
     attempts: 2  # includes first attempt
     commit: true
@@ -40,6 +42,7 @@ activities:
 
   - name: code-review
     output: reviewOutput
+    succession: annotates
     gates: [artifactsExist, verdictConsistent]
     thinking: high
     color: indigo
@@ -52,6 +55,7 @@ activities:
   # Logical architecture only; technology selection belongs to design.
   - name: conceptualize
     output: conceptualizeOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: cyan
     purpose: Decide what the solution must mean and do; choose no technology.
@@ -63,6 +67,7 @@ activities:
   # No live database access; prepares queries for human execution.
   - name: data-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: violet
     purpose: Establish what the data can show, and what it cannot.
@@ -82,6 +87,7 @@ activities:
 
   - name: design
     output: designOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: pink
     purpose: Give the logical architecture a physical shape here, observability included.
@@ -94,6 +100,7 @@ activities:
   # May add failing tests; adjust allowed test paths for this repository.
   - name: diagnose
     output: diagnosisOutput
+    succession: supersedes
     gates: [artifactsExist, reproductionSupported]
     color: purple
     purpose: Reproduce the reported behaviour and name its cause, with evidence.
@@ -110,6 +117,7 @@ activities:
 
   - name: document
     output: documentOutput
+    succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
@@ -128,6 +136,7 @@ activities:
   # Distinguish established domain rules from local interpretations.
   - name: domain-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: pink
     purpose: Model the domain and the rules that actually govern it.
@@ -148,6 +157,7 @@ activities:
   # Creates an external issue; the handoff records what was filed.
   - name: gh-issue
     output: ghIssueOutput
+    succession: annotates  # an issue describes the work; it does not replace it
     gates: [artifactsExist, filesNonEmpty, issueCreated]
     color: indigo
     purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
@@ -163,6 +173,7 @@ activities:
   # Define measurable outcomes, not implementation details.
   - name: identify
     output: identifyOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: blue
     purpose: Turn a problem into an outcome with criteria anyone could check.
@@ -173,6 +184,7 @@ activities:
 
   - name: outcome-review
     output: reviewOutput
+    succession: annotates
     gates: [artifactsExist, verdictConsistent]
     thinking: high
     color: lime
@@ -184,6 +196,7 @@ activities:
 
   - name: plan
     output: planOutput
+    succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
     thinking: high
     color: violet
@@ -201,6 +214,7 @@ activities:
 
   - name: scout
     output: scoutOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: orange
     purpose: Find and report where things live; change nothing.
@@ -217,6 +231,7 @@ activities:
   # Distinguish demonstrated, plausible, and speculative risks.
   - name: security-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: rose
     purpose: Establish how this could fail, be misused, or be attacked.
@@ -237,6 +252,7 @@ activities:
   # Treat repository code as primary evidence.
   - name: technical-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: purple
     purpose: Establish what is technically true, feasible, and evidenced.
@@ -257,6 +273,7 @@ activities:
   # Author tests before implementation; `checks` is intentionally omitted.
   - name: test-tdd
     output: buildOutput
+    succession: supersedes
     gates: [diffMatchesClaims]  # tests expected to fail before build
     commit: true
     color: teal
@@ -275,6 +292,7 @@ activities:
   # Running test commands is a gate, not an Activity.
   - name: test
     output: buildOutput
+    succession: supersedes
     gates: [diffMatchesClaims, checks]
     commit: true
     color: teal
@@ -291,6 +309,7 @@ activities:
 
   - name: ux-design
     output: uxDesignOutput
+    succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
     color: orange
     purpose: Specify an interface precisely enough to implement without inventing UX.
@@ -311,6 +330,7 @@ activities:
   # Distinguish user needs from proposed features.
   - name: ux-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     color: cyan
     purpose: Establish what users need, experience, and struggle with.
