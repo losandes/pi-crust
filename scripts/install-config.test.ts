@@ -252,3 +252,161 @@ for (const { name, args, refresh } of MODES) {
     },
   )
 }
+
+const reportPaths = (report: string, heading: string): readonly string[] => {
+  const lines = report.split('\n')
+  const start = lines.findIndex((line) => line.startsWith(`  ${heading}:`))
+  if (start === -1) {
+    return []
+  }
+  const remaining = lines.slice(start + 1)
+  const end = remaining.findIndex((line) => !/^ {4}[+=] /.test(line))
+  return remaining
+    .slice(0, end === -1 ? remaining.length : end)
+    .map((line) => line.slice(6))
+}
+
+const EXAMPLE_LOOKALIKES = [
+  'new/agents.example.yml',
+  'new/agents.example.yaml.backup',
+  'new.example.yaml/agents.yaml',
+] as const
+
+// SC<n> refers to acceptance criterion n in issue #114.
+for (const { name, args, refresh } of MODES) {
+  test(
+    [
+      'given SC4/SC5: a repository that deliberately removed a config file',
+      `when reinstalling with ${name}`,
+      'it should keep the file absent and report that adopting it belongs to the repository',
+    ].join(', '),
+    () => {
+      // given
+      withFixture(({ config, templates, install }) => {
+        install()
+        const removed = join(config, 'nested/routing.yaml')
+        rmSync(removed)
+        put(join(templates, 'nested/routing.yaml'), 'checks: [new-default]\n')
+
+        // when
+        const report = install(...args)
+
+        // then
+        expect(existsSync(removed)).toBe(false)
+        expect(
+          reportPaths(report, 'left to the repository (config/)'),
+        ).toContain(removed)
+        expect(reportPaths(report, 'stamped')).not.toContain(removed)
+      })
+    },
+  )
+
+  for (const path of EXAMPLE_LOOKALIKES) {
+    test(
+      [
+        `given SC4/SC5: an existing config/ and a new ${path} template`,
+        `when reinstalling with ${name}`,
+        'it should not treat a lookalike filename or directory as a .example.yaml file',
+      ].join(', '),
+      () => {
+        // given
+        withFixture(({ config, templates, install }) => {
+          install()
+          put(join(templates, path), 'activities: [not-an-example]\n')
+          const destination = join(config, path)
+
+          // when
+          const report = install(...args)
+
+          // then
+          expect(existsSync(destination)).toBe(false)
+          expect(
+            reportPaths(report, 'left to the repository (config/)'),
+          ).toContain(destination)
+          expect(
+            reportPaths(report, 'added to config/ (new since your install)'),
+          ).not.toContain(destination)
+        })
+      },
+    )
+  }
+
+  test(
+    [
+      'given SC1/SC2/SC3/SC5: edited files and new config and prompt templates',
+      `when reinstalling with ${name}`,
+      'it should distinguish additions, replacements, existing-file skips, and config exclusions without double-counting paths',
+    ].join(', '),
+    () => {
+      // given
+      withFixture(({ root, config, templates, install }) => {
+        const promptTemplate = join(
+          templates,
+          '..',
+          'prompt-engineering',
+          'README.md',
+        )
+        put(promptTemplate, 'template prompt\n')
+        install()
+        const paths = {
+          setting: join(config, 'crust.config.yaml'),
+          unadopted: join(config, 'new/settings.yaml'),
+          example: join(config, 'nested/roster.example.yaml'),
+          newExample: join(config, 'new/agents.example.yaml'),
+          nestedExample: join(config, 'new/nested/agents.example.yaml'),
+          prompt: join(root, '.pi-crust', 'prompt-engineering', 'README.md'),
+          newPrompt: join(root, '.pi-crust', 'prompt-engineering', 'new.md'),
+        }
+        put(paths.setting, 'repository settings\r\n')
+        put(paths.example, 'repository example\r\n')
+        put(paths.prompt, 'repository prompt\r\n')
+        put(join(templates, 'new/settings.yaml'), 'settings: [unadopted]\n')
+        put(join(templates, 'new/agents.example.yaml'), 'activities: [new]\n')
+        put(
+          join(templates, 'new/nested/agents.example.yaml'),
+          'activities: [nested]\n',
+        )
+        put(
+          join(templates, '..', 'prompt-engineering', 'new.md'),
+          'new prompt\n',
+        )
+
+        // when
+        const report = install(...args)
+
+        // then
+        expect(readFileSync(paths.prompt, 'utf8')).toBe(
+          refresh ? 'template prompt\n' : 'repository prompt\r\n',
+        )
+        expect(readFileSync(paths.newPrompt, 'utf8')).toBe('new prompt\n')
+        const expectedSections = [
+          [
+            'stamped',
+            refresh
+              ? [paths.example, paths.prompt, paths.newPrompt]
+              : [paths.newPrompt],
+          ],
+          [
+            'added to config/ (new since your install)',
+            [paths.newExample, paths.nestedExample],
+          ],
+          ['skipped (exists)', refresh ? [] : [paths.example, paths.prompt]],
+          [
+            'left to the repository (config/)',
+            [paths.setting, paths.unadopted],
+          ],
+        ] as const
+        const observedPaths = Object.values(paths)
+        for (const [heading, expected] of expectedSections) {
+          const actual = reportPaths(report, heading)
+          expect(
+            actual.filter((path) => observedPaths.includes(path)).toSorted(),
+          ).toEqual(expected.toSorted())
+          if (actual.length > 0) {
+            expect(report).toContain(`  ${heading}: ${actual.length} file(s)`)
+          }
+        }
+      })
+    },
+  )
+}

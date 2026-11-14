@@ -1,4 +1,5 @@
-import { afterAll, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { startHarnessServer } from '@/lib/testing'
@@ -80,51 +81,11 @@ const ARCHIVED_SESSION: SessionSummary = session({
  * command AGENTS.md tells people to run on a fresh clone. A skip is a check
  * not run, not a check that passed.
  */
-const initialBrowser: Browser | undefined = await chromium
-  .launch()
-  .catch(() => undefined)
-const browser = initialBrowser
-if (browser === undefined) {
+const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
+if (!CHROMIUM_AVAILABLE) {
   console.warn(
     'FilterDropdown.behavior.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
   )
-}
-
-/*
- * Held as a mutable reference rather than the `const browser` above: when the
- * whole repository's suite runs together, four files
- * (`SessionCard.layout.test.ts`, `ActivityRunDetail.layout.test.ts`,
- * `ThemePicker.interaction.test.ts` and this one) each launch Chromium and
- * run real browsers concurrently with over 900 other tests, and under that
- * load a Chromium instance can be torn down between two tests in the same
- * file for reasons outside this file's control. `withPage` below relaunches
- * rather than trusting one browser to outlive every test in this file.
- */
-let liveBrowser = initialBrowser
-
-afterAll(async () => {
-  await liveBrowser?.close()
-  await server.close()
-})
-
-/*
- * One Vite dev server for the whole file, not one per test. Each test used
- * to pay for its own listen/close cycle, which left this file (and the
- * Chromium instances the other three harness files launch at the same time,
- * in the same `bun test` process) competing for process teardown for
- * several seconds longer than the assertions themselves take — long
- * enough, under load, to blow the 5s default hook timeout on `afterAll` in
- * one of these files, or to tear a browser down mid-test. A fresh browser
- * context per test gives each one a clean `sessionStorage` without a new
- * server.
- */
-const { server, base: BASE } = await startHarnessServer()
-
-/** Relaunches when the previous Chromium instance is no longer connected. */
-const ensureBrowser = async (): Promise<Browser | undefined> => {
-  if (liveBrowser?.isConnected()) return liveBrowser
-  liveBrowser = await chromium.launch().catch(() => undefined)
-  return liveBrowser
 }
 
 const ACTION_TIMEOUT_MS = 8_000
@@ -136,13 +97,14 @@ const ACTION_TIMEOUT_MS = 8_000
  */
 const attemptPage = async (
   activeBrowser: Browser,
+  base: string,
   run: (page: Page, base: string) => Promise<void>,
 ) => {
   const context: BrowserContext = await activeBrowser.newContext()
-  const page = await context.newPage()
-  page.setDefaultTimeout(ACTION_TIMEOUT_MS)
-  page.setDefaultNavigationTimeout(ACTION_TIMEOUT_MS)
   try {
+    const page = await context.newPage()
+    page.setDefaultTimeout(ACTION_TIMEOUT_MS)
+    page.setDefaultNavigationTimeout(ACTION_TIMEOUT_MS)
     await page.route('**/__diag__/index.html', (route) =>
       route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
     )
@@ -158,9 +120,9 @@ const attemptPage = async (
           : BASE_SESSIONS
       return route.fulfill({ json: sessions })
     })
-    await page.goto(`${BASE}/__diag__/index.html`)
+    await page.goto(`${base}/__diag__/index.html`)
     await page.waitForSelector('a[href*="run-1"]')
-    await run(page, BASE)
+    await run(page, base)
   } finally {
     await context.close()
   }
@@ -186,35 +148,35 @@ const withTimeout = <T>(
   ])
 
 /**
- * One fresh context (and so a fresh `sessionStorage`) per test, retried
- * against a freshly launched Chromium when the first attempt's browser turns
- * out to have been torn down or hangs — see the comment on `liveBrowser`
- * above. Under the load of the whole repository's suite, both have been
- * observed; a single retry with a fresh browser has recovered from either.
+ * Each test owns its server and browser, so teardown shares the existing
+ * 30s test budget instead of a separate 5s hook budget. Retain one retry
+ * with a fresh browser, closing each attempt before starting the next.
  */
 const withPage = async (run: (page: Page, base: string) => Promise<void>) => {
-  const attempts = [0, 1]
-  let lastError: unknown
+  const { server, base } = await startHarnessServer()
+  try {
+    let lastError: unknown
+    for (const attempt of [1, 2]) {
+      const activeBrowser = await chromium.launch()
 
-  for (const attempt of attempts) {
-    if (attempt > 0) liveBrowser = undefined
-    const activeBrowser = await ensureBrowser()
-    if (activeBrowser === undefined)
-      throw new Error('Chromium is no longer available')
-
-    // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung browser into one retry rather than failing the test on resource contention outside this file's control
-    try {
-      await withTimeout(
-        attemptPage(activeBrowser, run),
-        12_000,
-        'withPage attempt',
-      )
-      return
-    } catch (cause) {
-      lastError = cause
+      // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung browser into one retry rather than failing the test on resource contention outside this file's control
+      try {
+        await withTimeout(
+          attemptPage(activeBrowser, base, run),
+          12_000,
+          `withPage attempt ${attempt}`,
+        )
+        return
+      } catch (cause) {
+        lastError = cause
+      } finally {
+        await activeBrowser.close()
+      }
     }
+    throw lastError
+  } finally {
+    await server.close()
   }
-  throw lastError
 }
 
 const cardCount = (page: Page) => page.locator('a[href*="run-"]').count()
@@ -229,10 +191,13 @@ const waitFor = async (check: () => Promise<boolean>, timeoutMs = 3000) => {
   }
 }
 
-test.skipIf(browser === undefined)(
-  'the archived run is hidden by default and appears once the state panel selects it',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given active and archived sessions',
+    'when the state panel selects archived sessions',
+    'it should reveal the archived run that was hidden by default',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
     await withPage(async (page) => {
       // given
       expect(await cardCount(page)).toBe(4)
@@ -249,10 +214,13 @@ test.skipIf(browser === undefined)(
   30_000,
 )
 
-test.skipIf(browser === undefined)(
-  'selecting a tree option narrows the list and leaves the panel open',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given sessions from two trees',
+    'when selecting one tree option',
+    'it should narrow the list and leave the panel open',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
     await withPage(async (page) => {
       // given
       expect(await cardCount(page)).toBe(4)
@@ -271,10 +239,13 @@ test.skipIf(browser === undefined)(
   30_000,
 )
 
-test.skipIf(browser === undefined)(
-  'clicking the background closes the open panel without changing the list',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given an open tree filter panel',
+    'when clicking the background',
+    'it should close the panel without changing the list',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
     await withPage(async (page) => {
       // given
       await page.getByRole('button', { name: 'tree' }).click()
@@ -295,10 +266,13 @@ test.skipIf(browser === undefined)(
   30_000,
 )
 
-test.skipIf(browser === undefined)(
-  'typing in the search box narrows the option rows without touching the result set',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given an open tree filter panel with two options',
+    'when typing in the search box',
+    'it should narrow the option rows without touching the result set',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
     await withPage(async (page) => {
       // given
       await page.getByRole('button', { name: 'tree' }).click()
@@ -326,10 +300,13 @@ test.skipIf(browser === undefined)(
   30_000,
 )
 
-test.skipIf(browser === undefined)(
-  'a selection survives a same-page reload',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given a selected tree filter',
+    'when reloading the same page',
+    'it should preserve the selection',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
     await withPage(async (page, base) => {
       // given
       await page.getByRole('button', { name: 'tree' }).click()
