@@ -893,13 +893,7 @@ for (const selection of [
         fixtureModel,
         async () => false,
       )
-      const events = readFileSync(
-        join(dir, 'data', 'sessions', runId, 'events.jsonl'),
-        'utf8',
-      )
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
+      const events = workflowEvents(dir, runId)
 
       // then
       expect(exitCode).toBe(EXIT.SUCCESS)
@@ -951,13 +945,7 @@ test(
       fixtureModel,
       async () => false,
     )
-    const events = readFileSync(
-      join(dir, 'data', 'sessions', runId, 'events.jsonl'),
-      'utf8',
-    )
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const events = workflowEvents(dir, runId)
     const firstAgent = events.findIndex((event) => event.type === 'agent_start')
     const warnings = events.filter(
       (event) =>
