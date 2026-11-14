@@ -55,10 +55,23 @@
 }
 
 /*
+ * Inline Tailwind's default small radius before clearing its root token:
+ * legacy CSS Modules use the same name with different fallback radii.
+ */
+@theme inline {
+  --radius-sm: 0.25rem;
+}
+
+/*
  * Stylesheet-backed components and raw markdown still use browser defaults.
  * Preserve those below utilities while keeping preflight enabled.
  */
 @layer base {
+  :root,
+  :host {
+    --radius-sm: initial;
+  }
+
   h1,
   h2,
   h3,

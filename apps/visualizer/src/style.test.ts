@@ -80,6 +80,20 @@ ${NATIVE_HTML}
 ${COLOR_PROBES}
 <div id="soft-fill" class="bg-ok/10">Soft fill</div>
 <div id="soft-fill-reference" style="background-color:color-mix(in oklab,var(--ok) 10%,transparent)">Soft fill</div>
+<section id="radius-probes">
+  <span id="legacy-radius" data-radius style="border-radius:var(--radius-sm, 3px)">Legacy fallback</span>
+  <input id="token-radius-input" data-radius>
+  <button id="token-radius-save" data-radius>Save token</button>
+  <pre id="narration-radius-code" data-radius>Code</pre>
+  <div id="decision-radius-body">
+    <code id="decision-radius-code" data-radius>Code</code>
+    <pre id="decision-radius-pre" data-radius>Code block</pre>
+  </div>
+  <span id="legacy-radius-four" data-radius style="border-radius:var(--radius-sm, 4px)">Other fallback</span>
+  <span id="utility-radius-small" data-radius class="rounded-sm">Small utility</span>
+  <span id="utility-radius-top" data-radius class="rounded-t-sm">Top utility</span>
+  <span id="utility-radius-medium" data-radius class="rounded-md">Medium utility</span>
+</section>
 <button id="utility-control" class="font-sans">Utility control</button>
 <div id="utility" class="text-ok bg-fail/16 border-violet/45 font-sans">Theme</div>
 <div id="reference" style="color:var(--ok);background-color:color-mix(in oklab,var(--fail) 16%,transparent);border-color:color-mix(in oklab,var(--violet) 45%,transparent);font-family:var(--sans)">Theme</div>
@@ -116,6 +130,9 @@ import dots from '/src/domains/activity-runs/src/_components/ActivityRunDots.mod
 import card from '/src/domains/sessions/src/_components/SessionCard.module.css'
 import trace from '/src/domains/sessions/src/_components/SessionTrace.module.css'
 import layout from '/src/layouts/default-layout.module.css'
+import notice from '/src/lib/_components/src/molecules/TokenNotice.module.css'
+import narration from '/src/domains/narration/src/_components/NarrationPane.module.css'
+import decision from '/src/domains/decisions/src/_components/DecisionRequest.module.css'
 applyCustomThemes(document, [${JSON.stringify(registeredTheme)}])
 applyTheme(document.documentElement, 'dark', window.matchMedia)
 document.getElementById('theme-choice').addEventListener('change', (event) => {
@@ -129,6 +146,10 @@ const classes = {
   'trace-status': [trace.blockStatus, trace.running],
   'trace-block': [trace.block, trace.running],
   'live-dot': [layout.liveDot],
+  'token-radius-input': [notice.input],
+  'token-radius-save': [notice.save],
+  'narration-radius-code': [narration.code],
+  'decision-radius-body': [decision.body],
 }
 for (const [id, names] of Object.entries(classes)) {
   document.getElementById(id).className = names.join(' ')
@@ -247,6 +268,58 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
         expect(unchanged).toEqual([])
         expect(softFill).toHaveLength(2)
         expect(softFill[0]).toBe(softFill[1])
+      })
+    },
+    20_000,
+  )
+
+  test.skipIf(!hasChromium)(
+    [
+      `given legacy radius fallbacks under the ${theme} theme`,
+      'when CSS Modules render beside Tailwind radius utilities at the xl tier',
+      'it should preserve per-declaration fallbacks and the default utility scale',
+    ].join(', '),
+    async () => {
+      // given — requirement 1.7.2 includes both existing small-radius fallbacks
+      await withStyles(async (page) => {
+        const legacySmall = ['3px', '3px', '3px', '3px']
+        const utilitySmall = ['4px', '4px', '4px', '4px']
+        await page.emulateMedia({ colorScheme: 'light' })
+        await page.selectOption('#theme-choice', theme)
+
+        // when
+        const radii = await page
+          .locator('[data-radius]')
+          .evaluateAll((elements) =>
+            Object.fromEntries(
+              elements.map((element) => {
+                const style = getComputedStyle(element)
+                return [
+                  element.id,
+                  [
+                    style.borderTopLeftRadius,
+                    style.borderTopRightRadius,
+                    style.borderBottomRightRadius,
+                    style.borderBottomLeftRadius,
+                  ],
+                ]
+              }),
+            ),
+          )
+
+        // then
+        expect(radii).toEqual({
+          'legacy-radius': legacySmall,
+          'token-radius-input': legacySmall,
+          'token-radius-save': legacySmall,
+          'narration-radius-code': ['0px', '3px', '3px', '0px'],
+          'decision-radius-code': legacySmall,
+          'decision-radius-pre': legacySmall,
+          'legacy-radius-four': utilitySmall,
+          'utility-radius-small': utilitySmall,
+          'utility-radius-top': ['4px', '4px', '0px', '0px'],
+          'utility-radius-medium': ['6px', '6px', '6px', '6px'],
+        })
       })
     },
     20_000,
