@@ -439,10 +439,8 @@ test(
       ],
     })
     let received: readonly TActivityContext[] = []
-    let release: () => void = () => undefined
-    const secondFinished = new Promise<void>((resolve) => {
-      release = resolve
-    })
+    const { promise: secondFinished, resolve: release } =
+      Promise.withResolvers<void>()
     const observe = (activity: TActivity): TActivity => ({
       ...activity,
       execute: (ctx, handle) => {
