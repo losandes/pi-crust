@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import {
   buildOutput,
+  buildOutputSchema,
   contextEnvelopeSchema,
   envelopeAccepted,
   envelopeJudges,
@@ -8,8 +9,10 @@ import {
   genericOutputSchema,
   ghIssueOutputSchema,
   narrowEnvelope,
+  planOutputSchema,
   questionSchema,
   regressionOf,
+  reviewFindingSchema,
   reviewOutput,
   type TEnvelopeBase,
 } from './envelope'
@@ -47,6 +50,94 @@ const build = {
   commit_message: 'do the thing',
   disputes: [],
 } as unknown as TEnvelopeBase
+
+test(
+  [
+    'given typedefs/envelope::planOutputSchema',
+    'when a first-attempt plan reports no revision fields',
+    'it should default both fields without weakening the build contract',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = contextEnvelopeSchema.parse(build)
+
+    // when
+    const actual = planOutputSchema.parse(envelope)
+    const missingBuildClaim = buildOutputSchema.safeParse(envelope)
+
+    // then
+    expect(actual.changed_files).toEqual([])
+    expect(actual.disputes).toEqual([])
+    expect(missingBuildClaim.success).toBe(false)
+  },
+)
+
+test(
+  [
+    'given typedefs/envelope::planOutputSchema',
+    'when a revised plan reports rewrites and evidenced disputes',
+    'it should retain both answers to the reviewers',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = {
+      ...contextEnvelopeSchema.parse(build),
+      changed_files: ['handoff/plan.md'],
+      disputes: [{ finding: 'name the file', evidence: 'plan.md:12' }],
+    }
+
+    // when
+    const actual = planOutputSchema.parse(envelope)
+
+    // then
+    expect(actual.changed_files).toEqual(envelope.changed_files)
+    expect(actual.disputes).toEqual(
+      envelope.disputes.map((dispute) => ({ ...dispute, reason: '' })),
+    )
+  },
+)
+
+for (const severity of ['blocker', 'major', 'nit', undefined] as const) {
+  test(
+    [
+      'given typedefs/envelope::reviewFindingSchema',
+      `when a finding reports severity ${severity}`,
+      'it should preserve the grade and default an omitted grade to nit',
+    ].join(', '),
+    () => {
+      // given
+      const finding = { requirement: 'name the file', met: false, severity }
+
+      // when
+      const actual = reviewFindingSchema.parse(finding)
+
+      // then
+      expect(actual.severity).toBe(severity ?? 'nit')
+    },
+  )
+}
+
+test(
+  [
+    'given typedefs/envelope::reviewFindingSchema',
+    'when a finding reports an unknown severity',
+    'it should reject the grade',
+  ].join(', '),
+  () => {
+    // given
+    const finding = {
+      requirement: 'name the file',
+      met: false,
+      severity: 'low',
+    }
+
+    // when
+    const actual = reviewFindingSchema.safeParse(finding)
+
+    // then
+    expect(actual.success).toBe(false)
+  },
+)
 
 test(
   [
@@ -347,7 +438,8 @@ test(
     'it should answer undefined, because there is nothing to have asked',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = regressionOf(undefined)
 
     // then
@@ -415,7 +507,8 @@ test(
     'it should find it in the catalogue',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = envelopeNamed('buildOutput')
 
     // then
@@ -430,7 +523,8 @@ test(
     'it should answer undefined',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = envelopeNamed('no-such-spec')
 
     // then
@@ -463,7 +557,8 @@ test(
     'it should reject, regardless of status',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = envelopeAccepted(reviewOutput, review)
 
     // then
@@ -478,7 +573,8 @@ test(
     'it should accept exactly when status is success',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = envelopeAccepted(buildOutput, build)
 
     // then
@@ -493,7 +589,8 @@ test(
     'it should answer undefined rather than call the schema at all',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = narrowEnvelope(reviewOutput, undefined)
 
     // then
@@ -508,7 +605,8 @@ test(
     'it should say it rules on somebody else\u2019s change',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = envelopeJudges(reviewOutput)
 
     // then
@@ -523,7 +621,8 @@ test(
     'it should say it does not',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = envelopeJudges(buildOutput)
 
     // then

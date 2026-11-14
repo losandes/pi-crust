@@ -20,7 +20,7 @@ import { offeredActivities, runnableActivities } from './resolve-activities'
  * rather than a fixture shaped like them, because the issue's own success
  * criteria are about what a stamp installs: an Activity an operator can name
  * in `--activities` or a Planner can choose, and a Lifecycle that chains
- * `identify, plan, gh-issue`. `shipped-config.test.ts` already proves the
+ * `identify, plan`, plan review, then `gh-issue`. `shipped-config.test.ts` already proves the
  * roster loads with no registry fault and every prompt file resolves; this
  * file proves the SHAPE of the `gh-issue` entry and its Lifecycle match what
  * the issue asked for, which a registry-fault check does not look at.
@@ -135,7 +135,7 @@ test(
       (one) => one.name === 'gh-issue',
     )
 
-    // then
+    // when, then
     expect(given?.output).toBe('ghIssueOutput')
   },
 )
@@ -152,7 +152,7 @@ test(
       (one) => one.name === 'gh-issue',
     )
 
-    // then
+    // when, then
     expect(given?.writes).toEqual(['{handoff}/gh_issue.md'])
   },
 )
@@ -169,7 +169,7 @@ test(
       (one) => one.name === 'gh-issue',
     )
 
-    // then
+    // when, then
     expect(given?.commit).toBe(false)
     expect(given?.attempts).toBe(DEFAULT_ATTEMPTS)
   },
@@ -179,7 +179,7 @@ test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
     'when the shipped lifecycles are read',
-    'it should run a serial discover stage of identify, plan, gh-issue',
+    'it should review the plan between discovery and filing the issue',
   ].join(', '),
   () => {
     // given
@@ -197,12 +197,18 @@ test(
     )
 
     // then
-    expect(actual?.stages).toHaveLength(1)
-    expect(actual?.stages[0]?.strategy).toBe('serial')
-    expect(actual?.stages[0]?.activities).toEqual([
-      'identify',
-      'plan',
-      'gh-issue',
+    expect(actual?.stages).toEqual([
+      {
+        name: 'discover',
+        strategy: 'serial',
+        activities: ['identify', 'plan'],
+      },
+      {
+        name: 'review-plan',
+        strategy: 'concurrent',
+        activities: ['plan-comprehension', 'plan-readiness'],
+      },
+      { name: 'file', strategy: 'serial', activities: ['gh-issue'] },
     ])
   },
 )
@@ -211,19 +217,23 @@ test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
     'when the shipped lifecycles are read',
-    'it should change no existing Lifecycle\u2019s activities',
+    'it should review bugfix plans while leaving de-risk unchanged',
   ].join(', '),
   () => {
     // given
     const given = join(STAMP, 'crust.lifecycles.yaml')
+
+    // when
     const actual = loadLifecycles(given, shippedConfig())
     const stagesOf = (name: string) =>
       actual.find((one) => one.name === name)?.stages.map((s) => s.activities)
 
-    // then — unchanged from before this Activity existed
+    // then
     expect(stagesOf('bugfix')).toEqual([
       ['diagnose'],
-      ['plan', 'test-tdd', 'build'],
+      ['plan'],
+      ['plan-comprehension', 'plan-readiness'],
+      ['test-tdd', 'build'],
       ['outcome-review', 'code-review'],
       ['gh-pull-request'],
     ])

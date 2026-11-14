@@ -40,6 +40,23 @@ Plan the work described in `prompt`.
 4. Write it ONCE, and leave the repository alone. Do not copy the plan into `specs/`, `docs/`, or anywhere else in the working tree: a second copy drifts from the first, costs the whole document again, and lands in somebody's diff as a change nobody asked for. The run keeps the plan in the handoff directory, where the trace and the interface already read it from.
 5. Emit your `Report` JSON, declaring that path in `artifacts`.
 
+## When `previous_envelopes` carries review verdicts
+
+You are revising a plan that has been reviewed, not writing a new one. Keep everything the reviewers did not object to: a rewrite that improves prose they approved costs a round and risks re-opening a finding they had settled.
+
+More than one reviewer may have ruled, and `previous_envelopes` carries all of them. Answer every blocking item in all of them — the list appended to this prompt is the union of what they blocked on, and no item may be left without one of these two answers.
+
+**Rewrite it** — change the part of `{{output_document}}` the finding names, then list that file in `changed_files`. A finding you agree with is answered by the document, not by a note saying you agree.
+
+**Dispute it** — one `disputes` entry quoting the finding, carrying evidence a third party can re-check: a `path:line` a reader can open, or a command and the status it exited with. "The plan already says this" is a dispute only when you cite the line where it says it. A dispute without evidence of that shape is a refusal, and the gate rejects it.
+
+Two things you do not get to decide:
+
+- Whether a reviewer's reading of your plan is reasonable. If a fresh reader misread it, the plan is ambiguous — that is the finding, and the answer is to rewrite the sentence.
+- Whether the argument has gone on long enough. Do not re-argue a finding you already disputed with the same evidence: the harness counts repeats and ends the loop, so saying it louder costs a round and changes nothing.
+
+Reporting neither a rewritten file nor a dispute fails the gate, because it is the one answer that leaves the reviewers with nothing to re-examine.
+
 ## Report
 
 Respond with ONLY valid JSON matching `PlanOutput` — no prose before or after:
@@ -71,6 +88,10 @@ Respond with ONLY valid JSON matching `PlanOutput` — no prose before or after:
   "status": "success",
   "summary": "<one sentence describing the plan>",
   "artifacts": ["{{output_document}}"],
+  "changed_files": ["<the plan file, when you rewrote it to answer a review; [] on a first plan>"],
+  "disputes": [
+    { "finding": "<the blocking item you are answering, quoted>", "evidence": "<path:line, or a command and its exit status>", "reason": "<why the finding does not hold>" }
+  ],
   "commit_message": "<imperative one-line git subject for committing THIS PLAN DOCUMENT, not the work it describes — e.g. 'Add spec for the /health endpoint'>",
   "notes_for_next_agent": "<what the builder must know>"
 }

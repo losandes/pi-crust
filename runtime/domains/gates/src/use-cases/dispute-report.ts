@@ -7,8 +7,9 @@
  */
 
 import type { TRoundRecord } from './dispute-ledger'
+import { disputeFilename } from './dispute-ledger'
 
-export const REPORT_FILENAME = 'disputes.md'
+export const REPORT_FILENAME = disputeFilename('revise', 'md')
 
 /** The escalation a developer reads: what each side said, and in which round. */
 export const renderReport = (
@@ -27,10 +28,21 @@ export const renderReport = (
     )
     return `## ${finding}\n\n${lines.join('\n')}\n`
   })
+  const reviewers = rounds.map((round) => {
+    const members = Object.entries(round.reviewers ?? {}).map(
+      ([name, blocking]) =>
+        `- ${name}: ${blocking.join('; ') || '(nothing blocking)'}`,
+    )
+    return (
+      `## Round ${round.round} reviewers\n\n` +
+      `${members.join('\n') || '(reviewer attribution unavailable)'}\n`
+    )
+  })
   return (
     '# Unresolved findings\n\n' +
     'The harness stopped the revise loop and handed these to you. Neither ' +
     'agent settled them.\n\n' +
+    `${reviewers.join('\n')}\n` +
     `${sections.join('\n') || '(none)\n'}`
   )
 }

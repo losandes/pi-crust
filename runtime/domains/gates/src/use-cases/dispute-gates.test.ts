@@ -31,8 +31,8 @@ const build = (disputes: readonly unknown[]): TEnvelopeBase =>
 test(
   [
     'given use-cases/gates::disputesSupported',
-    'when a build disputes nothing',
-    'it should pass vacuously and record nothing',
+    'when a revise neither rewrites a file nor disputes a finding',
+    'it should fail rather than send the reviewers nothing to re-examine',
   ].join(', '),
   () => {
     // given
@@ -42,8 +42,28 @@ test(
     const actual = disputesSupported.check(envelope, runWith(['lint']), [])
 
     // then
-    expect(reportPassed(actual)).toEqual(true)
-    expect(actual.checks).toEqual([])
+    expect(reportPassed(actual)).toEqual(false)
+    expect(violationsOf(actual)).toEqual([
+      'review answered: a revise must report at least one changed file or a supported dispute',
+    ])
+  },
+)
+
+test(
+  [
+    'given use-cases/gates::disputesSupported',
+    'when a plan revise reports the rewritten plan without a dispute',
+    'it should pass because a rewrite answers the review too',
+  ].join(', '),
+  () => {
+    // given
+    const envelope = { ...build([]), changed_files: ['handoff/plan.md'] }
+
+    // when
+    const actual = disputesSupported.check(envelope, runWith([]), [])
+
+    // then
+    expect(reportPassed(actual)).toBe(true)
   },
 )
 
@@ -69,6 +89,7 @@ test(
     // then
     expect(reportPassed(actual)).toEqual(true)
     expect(actual.checks.map((check) => check.item)).toEqual([
+      'review answered',
       'dispute[0] names a finding',
       'dispute[0] carries evidence',
       'dispute[0] is open to judgement',

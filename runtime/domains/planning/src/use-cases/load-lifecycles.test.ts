@@ -171,6 +171,49 @@ lifecycles:
 
 test(
   [
+    'given use-cases/load-lifecycles::loadLifecycles',
+    'when a concurrent Stage mixes a judge and a writer with disjoint writes',
+    'it should reject the Stage at load and name both Activities',
+  ].join(', '),
+  () => {
+    // given
+    const path = written(`
+lifecycles:
+  - name: mixed
+    stages:
+      - name: review-and-work
+        strategy: concurrent
+        activities: [custom-judge, custom-writer]
+`)
+    const cfg = crustConfigSchema.parse({
+      activities: [
+        {
+          name: 'custom-judge',
+          output: 'reviewOutput',
+          writes: ['handoff/findings.md'],
+          prompt_engineering: { system: 's.md', user: 'u.md' },
+        },
+        {
+          name: 'custom-writer',
+          output: 'planOutput',
+          writes: ['handoff/plan.md'],
+          prompt_engineering: { system: 's.md', user: 'u.md' },
+        },
+      ],
+    })
+
+    // when
+    const actual = () => loadLifecycles(path, cfg)
+
+    // then
+    expect(actual).toThrow(
+      /review-and-work.*custom-judge.*custom-writer.*one judges/,
+    )
+  },
+)
+
+test(
+  [
     'given use-cases/load-lifecycles::mergeLifecycles',
     'when a local lifecycle replaces one of the team lifecycles',
     'it should hold the place the team file gave it',

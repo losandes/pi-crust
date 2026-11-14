@@ -83,17 +83,26 @@ const checkDispute = (
   )
 }
 
-/**
- * Every dispute in a build envelope must be one, not a refusal wearing the word.
- *
- * An envelope with no disputes passes vacuously and records nothing: a plain
- * build is not asked to justify an argument it never made.
- */
+/** A revise must answer the review with a rewrite or a supported dispute. */
 export const disputesSupported: TGate = {
   name: 'disputes_supported',
-  check: (envelope, run) =>
-    disputesOf(envelope).reduce(
+  check: (envelope, run) => {
+    const disputes = disputesOf(envelope)
+    const changed = (envelope as Readonly<{ changed_files?: unknown }>)
+      .changed_files
+    const answered =
+      disputes.length > 0 || (Array.isArray(changed) && changed.length > 0)
+
+    return disputes.reduce(
       (report, dispute, index) => checkDispute(report, run, dispute, index),
-      emptyReport,
-    ),
+      addCheck(
+        emptyReport,
+        'review answered',
+        answered,
+        answered
+          ? 'reported a rewrite or a dispute'
+          : 'a revise must report at least one changed file or a supported dispute',
+      ),
+    )
+  },
 }

@@ -5,6 +5,7 @@ export { diffMatchesClaims } from './src/use-cases/claim-gates'
 export { disputesSupported } from './src/use-cases/dispute-gates'
 export type { TRoundRecord } from './src/use-cases/dispute-ledger'
 export {
+  disputeFilename,
   readLedger,
   roundRecord,
   unmovedFindings,
