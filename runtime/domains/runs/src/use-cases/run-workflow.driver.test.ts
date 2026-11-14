@@ -718,7 +718,7 @@ test(
 for (const name of ['build', 'gh-pull-request']) {
   test(
     [
-      'given #112 requirements 1.4.1 and 1.4.3, a reviser and a terminal outside the activity chain',
+      'given #112 requirements 1.4.1 and 1.4.3, a reviser that has not started yet and a terminal outside the activity chain',
       `when --model selects an unresolvable model for ${name}`,
       'it should refuse before even the first activity starts',
     ].join(', '),
@@ -754,7 +754,7 @@ for (const name of ['build', 'gh-pull-request']) {
             {
               name: 'inspect',
               strategy: 'serial',
-              activities: ['prep', 'review'],
+              activities: ['prep', 'build', 'review'],
             },
             {
               name: 'deliver',
@@ -819,7 +819,11 @@ test(
         approveAfter: 'prep',
       },
       [
-        { name: 'inspect', strategy: 'serial', activities: ['prep', 'review'] },
+        {
+          name: 'inspect',
+          strategy: 'serial',
+          activities: ['prep', 'build', 'review'],
+        },
         {
           name: 'deliver',
           strategy: 'serial',
