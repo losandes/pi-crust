@@ -1,8 +1,8 @@
 /**
  * Stopping for a person, without anything waiting on a prompt.
  *
- * A gated run completes the stage, writes down what a human has to decide,
- * records it, and EXITS. Nothing blocks. A process sitting on `readline` in an
+ * A gated run writes down what a human has to decide, records it, and EXITS.
+ * Nothing blocks. A process sitting on `readline` in an
  * unattended run is the 1Password failure in another costume: the work was
  * finished, the chain had one activity left, and sixty seconds of silence killed
  * it because nobody was at the keyboard.
@@ -23,14 +23,22 @@
  */
 
 import { join } from 'node:path'
-import type { TEnvelopeBase, TQuestion, TRun } from '../../../../lib/contracts'
+import type {
+  TActivityContext,
+  TEnvelopeBase,
+  TRun,
+} from '../../../../lib/contracts'
 import {
+  blockingQuestions,
   contextEnvelopeSchema,
+  questionsOf,
   stanceFor,
   TRUST_PROVISIONAL,
 } from '../../../../lib/contracts'
 import { fileExists, readText, writeText } from '../../../../lib/system'
 import { recipeArgv, resumeArgv, shellLine } from '../../../cli'
+
+export { blockingQuestions }
 export const DECISION_FILENAME = 'decision-request.md'
 export const ANSWER_FILENAME = 'decision-answer.md'
 
@@ -75,41 +83,6 @@ export const parseApproveAfter = (
     .map((name) => name.trim())
     .filter(Boolean)
 
-const questionsOf = (
-  envelope: TEnvelopeBase | undefined,
-): readonly TQuestion[] => {
-  const parsed =
-    envelope === undefined
-      ? undefined
-      : contextEnvelopeSchema.safeParse(envelope)
-  return parsed === undefined || !parsed.success ? [] : parsed.data.unresolved
-}
-
-/**
- * The questions that STOP this run, given how much the agents are trusted.
- *
- * At the default level a question stops the run only when the stage had no
- * defensible answer for it, or when answering would act beyond what
- * discarding this run would undo. Everything else is decided, said out loud,
- * and listed again at the end. At the top of the dial nothing stops it; at
- * the bottom everything does.
- */
-export const blockingQuestions = (
-  envelope: TEnvelopeBase | undefined,
-  level: number,
-): readonly string[] =>
-  questionsOf(envelope)
-    .filter(
-      (question) =>
-        stanceFor({
-          level,
-          answerable: question.provisional_answer.trim() !== '',
-          beyondThisRun: question.beyond_this_run,
-          consequential: question.consequential,
-        }) === 'gate',
-    )
-    .map((question) => question.question)
-
 /**
  * What a stage decided for itself because the dial let it.
  *
@@ -149,10 +122,9 @@ export const selfAnswered = (
  *
  * `hasSuccessor` is why the unprompted stop is justified at all. The rule it
  * enforces is the Authority Rule — a LATER stage would otherwise have to
- * invent the answer. After the last stage there is no later stage, so the
- * premise is false: the question is a finding to report, not a decision
- * blocking anything. Stopping there produced a completed nine-stage run that
- * exited `waiting` and offered a resume command with nothing left to resume.
+ * invent the answer. After a successful last stage there is no later stage,
+ * so the question is a finding to report. A FAILED stage is itself unfinished:
+ * answering lets that stage run again, even when it ends the chain.
  *
  * A gate you asked for is different, and still fires on the last stage: you
  * asked to see that stage's output before anything continued, and "nothing
@@ -169,7 +141,10 @@ export const gateReason = (params: {
   readonly trust: number
 }): TGateReason | undefined => {
   const questions = blockingQuestions(params.envelope, params.trust)
-  if (questions.length > 0 && params.hasSuccessor) {
+  if (
+    questions.length > 0 &&
+    (params.hasSuccessor || params.envelope?.status === 'fail')
+  ) {
     return { kind: 'escalated', activity: params.activity, questions }
   }
   if (params.approveAfter.includes(params.activity)) {
@@ -306,6 +281,51 @@ export const answerAsFact = (
     ? undefined
     : { fact: text, evidence: `answered by ${engineer} in ${path}` }
 }
+
+/** Keep the person's answer available even when a replay replaces an input. */
+export const withDecisionAnswer =
+  (fact: Readonly<ReturnType<typeof answerAsFact>>) =>
+  (ctx: TActivityContext): TActivityContext => {
+    if (fact === undefined) return ctx
+
+    const withFact = (envelope: TEnvelopeBase | undefined): TEnvelopeBase => {
+      const parsed =
+        envelope === undefined
+          ? undefined
+          : contextEnvelopeSchema.safeParse(envelope)
+      const facts = parsed?.success ? parsed.data.facts : []
+      const updated = {
+        ...(envelope ?? {
+          status: 'success' as const,
+          summary: 'The engineer answered the human gate',
+          artifacts: [],
+          notes_for_next_agent: '',
+          decisions: [],
+          assumptions: [],
+          unresolved: [],
+          risks: [],
+          objective_met: { met: true, evidence: fact.evidence },
+          regress_to: { activity: '', because: '' },
+        }),
+        facts: [
+          ...facts.filter(
+            (one) => one.fact !== fact.fact || one.evidence !== fact.evidence,
+          ),
+          fact,
+        ],
+      }
+      return updated
+    }
+
+    return {
+      ...ctx,
+      previous: withFact(ctx.previous),
+      upstream: ctx.upstream.map((one) => ({
+        ...one,
+        envelope: withFact(one.envelope),
+      })),
+    }
+  }
 
 export type TSelfAnswered = Readonly<{
   activity: string

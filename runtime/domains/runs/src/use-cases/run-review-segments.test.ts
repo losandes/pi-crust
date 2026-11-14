@@ -28,6 +28,7 @@ import { asSingleStage, unitsFrom } from '../../../planning'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger } from './attempts'
 import { reviseActivity } from './revise-loop'
+import type { TWaiting } from './run-activities'
 import { reviewBoundaries, runReviewSegments } from './run-review-segments'
 
 const CONTEXT = {
@@ -176,6 +177,7 @@ const execute = (
   params: Readonly<{
     stages?: readonly TStage[]
     ledger?: TAttemptLedger
+    onWaiting?: (waiting: TWaiting) => void
   }> = {},
 ) =>
   runReviewSegments({
@@ -195,6 +197,7 @@ const execute = (
     fallbackReason: 'not accepted',
     agentPorts: fixture.ports,
     ...(params.ledger === undefined ? {} : { ledger: params.ledger }),
+    ...(params.onWaiting === undefined ? {} : { onWaiting: params.onWaiting }),
   })
 
 test(
@@ -323,6 +326,55 @@ test(
     expect(fixture.calls()).not.toContain('build')
     expect(ledger.remaining('revise-plan', 3)).toBe(1)
     expect(actual.reason).toContain('disputes-plan.md')
+  },
+)
+
+test(
+  [
+    'given a plan revise that asks a person a question only they can answer',
+    'when the plan review segment settles',
+    'it should wait before build and record the unreached work as blocked',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = fixtureWith((name, attempt) =>
+      name === 'plan'
+        ? planOutputSchema.parse({
+            ...plan(attempt),
+            ...(attempt > 1
+              ? {
+                  status: 'fail',
+                  unresolved: [
+                    {
+                      question: 'Which retention window is authorised?',
+                      consequential: true,
+                      beyond_this_run: false,
+                      provisional_answer: '',
+                    },
+                  ],
+                }
+              : {}),
+          })
+        : verdict(false),
+    )
+    let waiting: TWaiting | undefined
+
+    // when
+    await execute(fixture, ['plan', 'plan-readiness', 'build'], {
+      onWaiting: (stopped) => {
+        waiting = stopped
+      },
+    })
+
+    // then
+    expect(waiting?.reason.kind).toBe('escalated')
+    expect(fixture.calls()).toEqual(['plan', 'plan-readiness', 'plan'])
+    expect(
+      fixture.run.tracer.eventsNamed(fixture.run.runId, 'activities_blocked'),
+    ).toEqual([expect.objectContaining({ activities: ['build'] })])
+    expect(
+      fixture.run.tracer.eventsNamed(fixture.run.runId, 'activities_cancelled'),
+    ).toEqual([])
   },
 )
 

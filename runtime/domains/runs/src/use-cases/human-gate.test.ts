@@ -11,7 +11,7 @@ import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
  */
 const CAUTIOUS = 20
 
-import { TRUST_DEFAULT } from '../../../../lib/contracts'
+import { contextEnvelopeSchema, TRUST_DEFAULT } from '../../../../lib/contracts'
 import {
   answerAsFact,
   answerPath,
@@ -24,8 +24,10 @@ import {
   resumeInvocation,
   selfAnswered,
   selfAnsweredIn,
+  withDecisionAnswer,
   writeDecisionRequest,
 } from './human-gate'
+import { contextFor, gateFixture, work } from './human-gate-fixture.test'
 
 /** A context envelope carrying questions, with sane defaults per question. */
 const envelope = (
@@ -155,6 +157,125 @@ test(
     expect(actual).toEqual([])
   },
 )
+
+for (const hasSuccessor of [true, false]) {
+  test(
+    [
+      'given a failed envelope with a blocking question',
+      `when the asking stage ${hasSuccessor ? 'has a successor' : 'ends the chain'}`,
+      'it should escalate because the asking stage itself is unfinished',
+    ].join(', '),
+    () => {
+      // given
+      const failed = {
+        ...envelope([
+          { question: 'Which retention window?', consequential: true },
+        ]),
+        status: 'fail' as const,
+      }
+
+      // when
+      const actual = gateReason({
+        activity: 'build',
+        envelope: failed,
+        approveAfter: [],
+        hasSuccessor,
+        trust: TRUST_DEFAULT,
+      })
+
+      // then
+      expect(actual).toEqual({
+        kind: 'escalated',
+        activity: 'build',
+        questions: ['Which retention window?'],
+      })
+    },
+  )
+}
+
+test(
+  [
+    'given a failed envelope with a question at total trust',
+    'when gateReason judges the envelope',
+    'it should leave failure handling to the agent boundary rather than open a gate',
+  ].join(', '),
+  () => {
+    // given
+    const failed = {
+      ...envelope([
+        { question: 'Which retention window?', consequential: true },
+      ]),
+      status: 'fail' as const,
+    }
+
+    // when
+    const actual = gateReason({
+      activity: 'build',
+      envelope: failed,
+      approveAfter: [],
+      hasSuccessor: true,
+      trust: 100,
+    })
+
+    // then
+    expect(actual).toBeUndefined()
+  },
+)
+
+for (const hasInput of [true, false]) {
+  test(
+    [
+      `given a person's answer ${hasInput ? 'alongside existing context' : 'before any input envelope'}`,
+      'when withDecisionAnswer prepares context twice',
+      'it should preserve existing facts and add the attributed answer exactly once without mutating input',
+    ].join(', '),
+    () => {
+      // given
+      using fixture = gateFixture()
+      const known = {
+        fact: 'The policy is configurable',
+        evidence: 'src/retention.ts:12',
+      }
+      const previous = hasInput ? work({ facts: [known] }) : undefined
+      const original = structuredClone(previous)
+      const ctx = {
+        ...contextFor(fixture.run),
+        previous,
+        upstream:
+          previous === undefined
+            ? []
+            : [{ activity: 'build', envelope: previous }],
+      }
+      const answer = 'Retain data for 90 days.'
+      writeFileSync(answerPath(fixture.run.contextHandoffDir), answer)
+
+      const withAnswer = withDecisionAnswer(
+        answerAsFact(fixture.run.contextHandoffDir, 'tester'),
+      )
+
+      // when
+      const actual = withAnswer(withAnswer(ctx))
+
+      // then
+      const expected = [
+        ...(hasInput ? [known] : []),
+        {
+          fact: answer,
+          evidence: `answered by tester in ${answerPath(fixture.run.contextHandoffDir)}`,
+        },
+      ]
+      expect(contextEnvelopeSchema.parse(actual.previous).facts).toEqual(
+        expected,
+      )
+      if (hasInput) {
+        expect(
+          contextEnvelopeSchema.parse(actual.upstream[0]?.envelope).facts,
+        ).toEqual(expected)
+      }
+      expect(previous).toEqual(original)
+    },
+  )
+}
 
 test(
   [

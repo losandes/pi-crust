@@ -69,6 +69,7 @@ import {
 } from '../../../gates'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger, reviseCause } from './attempts'
+import type { TWaiting } from './run-activities'
 import { runActivities, runUnits } from './run-activities'
 
 /** Preserve the trailing build-contract loop's name; other groups get their writer's. */
@@ -90,6 +91,7 @@ export type TReviewGroup = Readonly<{
 
 export type TLoopOutcome =
   | 'not-applicable'
+  | 'waiting'
   | 'approved'
   | 'deadlocked'
   | 'exhausted'
@@ -365,6 +367,8 @@ export const runReviseLoop = (
     options: Readonly<Partial<TActivityOptions>>
     ctx: TActivityContext
     fallbackReason: string
+    approveAfter?: readonly string[]
+    onWaiting?: (waiting: TWaiting) => void
     /** the run's one budget; the loop spends from it like everything else */
     ledger?: TAttemptLedger
     /** In-process agent boundary for driver tests; omitted for live runs. */
@@ -517,9 +521,12 @@ export const runReviseLoop = (
     // runs: it is the question the loop exists to re-ask, and leaving it in
     // would make a later approval unable to turn the run green. Everything
     // before it — a failed `verify`, say — stays, and stays decisive.
-    const answering = state.ctx.upstream.find((one) =>
-      group.includes(one.activity),
-    )
+    // The nested folds notify synchronously before returning their context.
+    let waiting: TWaiting | undefined
+    const onWaiting = (stopped: TWaiting): void => {
+      waiting = stopped
+      params.onWaiting?.(stopped)
+    }
     const revising = reviseActivity(
       reviser,
       params.options,
@@ -531,8 +538,11 @@ export const runReviseLoop = (
       activities: [
         {
           ...revising,
-          execute: (ctx, handle) =>
-            revising.execute(
+          execute: (ctx, handle) => {
+            const answering = ctx.upstream.find((one) =>
+              group.includes(one.activity),
+            )
+            return revising.execute(
               {
                 ...ctx,
                 // Only the reviser's input is overridden. The fold still carries
@@ -541,7 +551,8 @@ export const runReviseLoop = (
                 previousStep: answering?.activity,
               },
               handle,
-            ),
+            )
+          },
         },
       ],
       start: {
@@ -555,7 +566,14 @@ export const runReviseLoop = (
       },
       ledger,
       cause: reviseCause(attempt),
+      approveAfter: params.approveAfter ?? [],
+      onWaiting,
+      trust: run.trust,
+      hasSuccessor: true,
     })
+    if (waiting !== undefined) {
+      return settle({ ctx: revised, rounds: state.rounds }, 'waiting', [])
+    }
     const revise = narrowEnvelope(
       spec,
       revised.upstream.find((one) => one.activity === name)?.envelope,
@@ -579,7 +597,13 @@ export const runReviseLoop = (
       ],
       start: { ...revised, feedback: [] },
       ledger,
+      approveAfter: params.approveAfter ?? [],
+      onWaiting,
+      trust: run.trust,
     })
+    if (waiting !== undefined) {
+      return settle({ ctx: reviewed, rounds: state.rounds }, 'waiting', [])
+    }
 
     const reviews = reviewsOf(reviewed, group)
     const record = roundRecord({

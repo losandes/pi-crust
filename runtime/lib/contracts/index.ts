@@ -68,6 +68,7 @@ export type {
   TReviewOutput,
 } from './src/envelope'
 export {
+  blockingQuestions,
   buildOutput,
   buildOutputSchema,
   contextEnvelopeSchema,
@@ -81,6 +82,7 @@ export {
   planOutput,
   planOutputSchema,
   pullRequestOutput,
+  questionsOf,
   regressionOf,
   reviewOutput,
   reviewOutputSchema,
