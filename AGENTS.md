@@ -32,8 +32,9 @@ Read the listed record **before** producing code, prose or a plan for the matchi
 | Prose carrying a finding, decision or recommendation — records, PR and issue text, review replies, commit bodies, code comments | `.claude/skills/adr/conventions/write-from-evidence.md`                    |
 | SQL, schema, or query documentation                                                                                             | `.claude/skills/adr/sql/README.md`                                         |
 | Writing a commit message                                                                                                        | `.claude/skills/adr/git/use-conventional-commits.md`                       |
-| Why verification and skills are selected by changed path rather than by position                                                | `adr/route-verification-by-changed-paths.md`                               |
+| Why verification and skills are selected by changed path rather than by position                                                | `adr/deterministic-verification/route-verification-by-changed-paths.md`    |
 | Deciding what an Activity is handed from the Activities before it — supersede vs annotate, single input vs whole history        | `adr/envelope-succession.md`                                               |
+| Assigning a model or a thinking level to an Activity, or questioning one already assigned                                       | `adr/choosing-models/choosing-the-right-model-for-an-activity.md`          |
 
 The briefs are scope-specific rather than abridged — read the one for the side of the stack you are on. `1-domains-and-atomic-design.md` is the shared rationale behind both; reach for it when deciding structure, not when following it.
 
