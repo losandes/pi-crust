@@ -31,6 +31,8 @@ activities:
     gates: [diffMatchesClaims, checks]
     attempts: 2  # includes first attempt
     commit: true
+    model: openai/gpt-6.1-sol
+    thinking: max
     color: green
     purpose: Implement the plan exactly; report every changed file in the envelope.
     prompt_engineering:
@@ -42,7 +44,8 @@ activities:
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
     # model: openai/gpt-5.6-terra # anthropic/claude-sonnet-5
-    thinking: high
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
     color: indigo
     purpose: Judge the change against this repository's ratified conventions, through its own review skill.
     prompt_engineering:
@@ -54,6 +57,8 @@ activities:
   - name: conceptualize
     output: conceptualizeOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
     color: cyan
     purpose: Decide what the solution must mean and do; choose no technology.
     prompt_engineering:
@@ -65,6 +70,8 @@ activities:
   - name: data-research
     output: researchOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
     color: violet
     purpose: Establish what the data can show, and what it cannot.
     prompt_engineering:
@@ -84,6 +91,8 @@ activities:
   - name: design
     output: designOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
     color: pink
     purpose: Give the logical architecture a physical shape here, observability included.
     prompt_engineering:
@@ -96,6 +105,8 @@ activities:
   - name: diagnose
     output: diagnosisOutput
     gates: [artifactsExist, reproductionSupported]
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
     color: purple
     purpose: Reproduce the reported behaviour and name its cause, with evidence.
     prompt_engineering:
@@ -115,6 +126,8 @@ activities:
     input: changes  # this run’s diff
     commit: true
     # model: openai/gpt-5.6-luna # anthropic/claude-sonnet-5
+    model: google/gemini-4-argon
+    thinking: high
     color: blue
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:
@@ -131,6 +144,8 @@ activities:
   - name: domain-research
     output: researchOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
     color: pink
     purpose: Model the domain and the rules that actually govern it.
     prompt_engineering:
@@ -151,6 +166,8 @@ activities:
   - name: gh-issue
     output: ghIssueOutput
     gates: [artifactsExist, filesNonEmpty, issueCreated]
+    model: google/gemini-4-argon
+    thinking: high
     color: indigo
     purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
     prompt_engineering:
@@ -166,6 +183,8 @@ activities:
   - name: identify
     output: identifyOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
     color: blue
     purpose: Turn a problem into an outcome with criteria anyone could check.
     prompt_engineering:
@@ -177,7 +196,8 @@ activities:
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
     # model: openai/gpt-5.6-terra  # anthropic/claude-sonnet-5
-    thinking: high
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
     prompt_engineering:
@@ -188,8 +208,8 @@ activities:
   - name: plan
     output: planOutput
     gates: [artifactsExist, filesNonEmpty]
-    model: anthropic/claude-opus-5 # fireworks/accounts/fireworks/models/kimi-k3
-    thinking: high
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
     color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
@@ -206,6 +226,8 @@ activities:
   - name: scout
     output: scoutOutput
     gates: [artifactsExist]
+    model: openai/gpt-6.1-sol
+    thinking: max
     color: orange
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
@@ -222,6 +244,8 @@ activities:
   - name: security-research
     output: researchOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
     color: rose
     purpose: Establish how this could fail, be misused, or be attacked.
     prompt_engineering:
@@ -242,6 +266,8 @@ activities:
   - name: technical-research
     output: researchOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
     color: purple
     purpose: Establish what is technically true, feasible, and evidenced.
     prompt_engineering:
@@ -263,6 +289,8 @@ activities:
     output: buildOutput
     gates: [diffMatchesClaims]  # tests expected to fail before build
     commit: true
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
     color: teal
     purpose: Write the tests that would prove the request was implemented (before build); implement nothing else.
     prompt_engineering:
@@ -281,6 +309,8 @@ activities:
     output: buildOutput
     gates: [diffMatchesClaims, checks]
     commit: true
+    model: openai/gpt-6.1-sol
+    thinking: max
     color: teal
     purpose: Write the tests that prove the request was implemented (after build); implement nothing else.
     prompt_engineering:
@@ -296,6 +326,8 @@ activities:
   - name: ux-design
     output: uxDesignOutput
     gates: [artifactsExist, filesNonEmpty]
+    model: openai/gpt-6-astra
+    thinking: xhigh
     color: orange
     purpose: Specify an interface precisely enough to implement without inventing UX.
     prompt_engineering:
@@ -316,6 +348,8 @@ activities:
   - name: ux-research
     output: researchOutput
     gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
     color: cyan
     purpose: Establish what users need, experience, and struggle with.
     prompt_engineering:
@@ -343,6 +377,8 @@ planners:
 
   # Select and execute the smallest suitable Activity chain.
   - name: operator
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
     color: amber
     purpose: Choose the smallest chain of Activities that can produce the outcome.
     prompt_engineering:
@@ -355,6 +391,8 @@ planners:
 
   # Recommend an Activity chain without executing it.
   - name: triage
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
     color: amber
     purpose: Choose the smallest chain that can produce the outcome, and hand it back.
     prompt_engineering:
@@ -375,6 +413,8 @@ terminal:
 
   # Harness handles GitHub operations; agent only drafts content.
   - name: gh-pull-request
+    model: google/gemini-4-argon
+    thinking: high
     color: teal
     purpose: Push the run's branch and open or update one GitHub pull request describing it.
     prompt_engineering:
