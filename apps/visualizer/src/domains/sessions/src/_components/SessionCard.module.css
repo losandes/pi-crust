@@ -202,7 +202,7 @@
   width: 13px;
   height: 13px;
   box-shadow: 0 0 10px currentColor;
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: global(crust-pulse) 1.4s ease-in-out infinite;
 }
 
 .empty {

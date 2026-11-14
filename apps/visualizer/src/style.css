@@ -1,4 +1,118 @@
+@import "tailwindcss" source("../");
 @import './domains/themes/src/tokens.css';
+
+/*
+ * The runtime theme swap rewrites these variables under [data-theme]; `inline`
+ * keeps each generated utility pointing at the live var() at its use site.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-app-bg: var(--app-bg);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-panel-3: var(--panel-3);
+  --color-zebra: var(--zebra);
+  --color-table-head: var(--table-head);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-text: var(--text);
+  --color-dim: var(--dim);
+  --color-faint: var(--faint);
+  --color-ok: var(--ok);
+  --color-fail: var(--fail);
+  --color-busy: var(--busy);
+  --color-warn: var(--warn);
+  --color-waiting: var(--waiting);
+  --color-accent: var(--accent);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --color-blue: var(--blue);
+  --color-amber: var(--amber);
+  --color-purple: var(--purple);
+  --color-cyan: var(--cyan);
+  --color-violet: var(--violet);
+  --color-pink: var(--pink);
+  --font-sans: var(--sans);
+  --font-card: var(--card-sans);
+  --font-mono: var(--mono);
+}
+
+@keyframes crust-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes crust-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * Stylesheet-backed components and raw markdown still use browser defaults.
+ * Preserve those below utilities while keeping preflight enabled.
+ */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: revert;
+    font-weight: revert;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  blockquote,
+  dl,
+  dd,
+  figure,
+  ul,
+  ol,
+  dialog {
+    margin: revert;
+  }
+
+  ul,
+  ol {
+    padding: revert;
+    list-style: revert;
+  }
+
+  button,
+  input,
+  select,
+  optgroup,
+  textarea {
+    font: revert;
+    letter-spacing: revert;
+    appearance: revert;
+  }
+
+  code,
+  kbd,
+  samp {
+    font-family: revert;
+    font-size: revert;
+  }
+
+  ::placeholder {
+    color: revert;
+  }
+}
 
 * {
   box-sizing: border-box;
@@ -155,6 +269,14 @@ pre {
   padding-left: 28px;
 }
 
+.md ul {
+  list-style: disc;
+}
+
+.md ol {
+  list-style: decimal;
+}
+
 .md li {
   margin: 3px 0;
 }
@@ -205,14 +327,4 @@ pre {
    1.04:1 in high contrast, which is to say it was not there. */
 .md-table tbody tr:nth-child(even) {
   background: var(--zebra);
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
 }

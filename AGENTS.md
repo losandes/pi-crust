@@ -30,6 +30,7 @@ Read the listed record **before** producing code, prose or a plan for the matchi
 | Repository-wide principles — KISS, single responsibility, avoiding redundancy                                                   | `.claude/skills/adr/conventions/conventions.md`                            |
 | Formatting a markdown document — wrapping, headings, lists, fences, tables                                                      | `.claude/skills/adr/conventions/format-markdown.md`                        |
 | Prose carrying a finding, decision or recommendation — records, PR and issue text, review replies, commit bodies, code comments | `.claude/skills/adr/conventions/write-from-evidence.md`                    |
+| CSS, styling, theme bridges, or responsive layout                                                                               | `.claude/skills/adr/css/README.md`                                         |
 | SQL, schema, or query documentation                                                                                             | `.claude/skills/adr/sql/README.md`                                         |
 | Writing a commit message                                                                                                        | `.claude/skills/adr/git/use-conventional-commits.md`                       |
 | Why verification and skills are selected by changed path rather than by position                                                | `adr/deterministic-verification/route-verification-by-changed-paths.md`    |
