@@ -33,6 +33,7 @@ Read the listed record **before** producing code, prose or a plan for the matchi
 | SQL, schema, or query documentation                                                                                             | `.claude/skills/adr/sql/README.md`                                         |
 | Writing a commit message                                                                                                        | `.claude/skills/adr/git/use-conventional-commits.md`                       |
 | Why verification and skills are selected by changed path rather than by position                                                | `adr/route-verification-by-changed-paths.md`                               |
+| Deciding what an Activity is handed from the Activities before it — supersede vs annotate, single input vs whole history        | `adr/envelope-succession.md`                                               |
 
 The briefs are scope-specific rather than abridged — read the one for the side of the stack you are on. `1-domains-and-atomic-design.md` is the shared rationale behind both; reach for it when deciding structure, not when following it.
 
