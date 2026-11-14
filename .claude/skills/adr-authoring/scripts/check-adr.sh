@@ -87,10 +87,15 @@ collect_changed() {
   changed_files '\.md$' "$REPO_ROOT" | grep "^$REPO_ROOT/adr/" | sed "s|^$REPO_ROOT/||"
 }
 
+# `select_files` applies the `-name` expression only when it walks the tree for
+# `--all`. Explicit paths arrive unfiltered, so the extension is re-tested here:
+# a caller that hands this script every changed path under adr/ — pr-check does
+# — otherwise gets `missing-status` reported against the data files that sit
+# beside a record.
 select_files -name '*.md' -- "$@"
 FILES=()
 for abs in ${SELECTED+"${SELECTED[@]}"}; do
-  case "$abs" in "$REPO_ROOT"/adr/*) FILES+=("${abs#"$REPO_ROOT"/}") ;; esac
+  case "$abs" in "$REPO_ROOT"/adr/*.md) FILES+=("${abs#"$REPO_ROOT"/}") ;; esac
 done
 
 VIOLATIONS=0

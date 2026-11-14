@@ -1,0 +1,430 @@
+# BEST-IN-CLASS VARIANT - NOT LOADED BY THE ENGINE.
+# Repository Activity roster. Lifecycles reference these definitions by name.
+# Entries may override the default agent configuration and specify:
+#   output   Required result schema; unknown names are rejected
+#   gates    Explicit validation steps; `checks` runs routing.checks
+#   input    `upstream` (default) or `changes` (this run's diff)
+#   attempts Maximum executions per Activity instance, including first (default: 2)
+#   commit  Commit the Activity's changes after its gates pass; --commit false disables
+#   aliases Alternate CLI/Lifecycle names; canonical names appear in logs and lists
+#           No prefix matching or Planner aliases
+#
+# Declaration order controls interactive lists; removing an entry disables it.
+# Prompts resolve from this repo first, then the pi-crust package.
+# Local overrides: crust.activities.local.yaml (gitignored).
+# Example: <pi-crust>/cookbooks/examples/crust.activities.local.example.yaml
+#
+# Gates:
+#   artifactsExist        required artifacts exist
+#   filesNonEmpty         declared artifacts are nonempty
+#   jsonParses            declared .json artifacts parse
+#   diffMatchesClaims     diff matches reported changes
+#   checks                run repository checks from routing.checks
+#   reproductionSupported diagnosis evidence is internally consistent
+#   verdictConsistent     review verdict follows repository conventions
+#   issueCreated          GitHub issue URL, number, and repository agree
+
+# ── Activities ────────────────────────────────────────────────────────────────
+activities:
+
+  - name: build
+    output: buildOutput
+    gates: [diffMatchesClaims, checks]
+    attempts: 2  # includes first attempt
+    commit: true
+    model: openai/gpt-6.1-sol
+    thinking: max
+    color: green
+    purpose: Implement the plan exactly; report every changed file in the envelope.
+    prompt_engineering:
+      system: prompt-engineering/build/system.md
+      user: prompt-engineering/build/user.md
+    writes: ['*']  # except protected paths
+
+  - name: code-review
+    output: reviewOutput
+    gates: [artifactsExist, verdictConsistent]
+    # model: openai/gpt-5.6-terra # anthropic/claude-sonnet-5
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
+    color: indigo
+    purpose: Judge the change against this repository's ratified conventions, through its own review skill.
+    prompt_engineering:
+      system: prompt-engineering/code-review/system.md
+      user: prompt-engineering/code-review/user.md
+    writes: ['{handoff}/code_review.md']
+
+  # Logical architecture only; technology selection belongs to design.
+  - name: conceptualize
+    output: conceptualizeOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
+    color: cyan
+    purpose: Decide what the solution must mean and do; choose no technology.
+    prompt_engineering:
+      system: prompt-engineering/conceptualize/system.md
+      user: prompt-engineering/conceptualize/user.md
+    writes: ['{handoff}/conceptualize.md']
+
+  # No live database access; prepares queries for human execution.
+  - name: data-research
+    output: researchOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
+    color: violet
+    purpose: Establish what the data can show, and what it cannot.
+    prompt_engineering:
+      system: prompt-engineering/data-research/system.md
+      user: prompt-engineering/data-research/user.md
+    writes: ['{handoff}/data-research.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+      - web_enable
+      - web_search
+      - fetch_content
+      - source_check
+
+  - name: design
+    output: designOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
+    color: pink
+    purpose: Give the logical architecture a physical shape here, observability included.
+    prompt_engineering:
+      system: prompt-engineering/design/system.md
+      user: prompt-engineering/design/user.md
+    writes: ['{handoff}/design.md']
+
+  # Reproduce and explain defects without implementing fixes.
+  # May add failing tests; adjust allowed test paths for this repository.
+  - name: diagnose
+    output: diagnosisOutput
+    gates: [artifactsExist, reproductionSupported]
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
+    color: purple
+    purpose: Reproduce the reported behaviour and name its cause, with evidence.
+    prompt_engineering:
+      system: prompt-engineering/diagnose/system.md
+      user: prompt-engineering/diagnose/user.md
+    writes:
+      - "{handoff}/diagnosis.md"
+      - "**/*.test.*"
+      - "**/*_test.*"
+      - "**/test/**"
+      - "**/tests/**"
+      - "**/spec/**"
+
+  - name: document
+    output: documentOutput
+    gates: [artifactsExist, filesNonEmpty]
+    input: changes  # this run’s diff
+    commit: true
+    # model: openai/gpt-5.6-luna # anthropic/claude-sonnet-5
+    model: google/gemini-4-argon
+    thinking: high
+    color: blue
+    purpose: Write up the change that was just made, from the diff; document only.
+    prompt_engineering:
+      system: prompt-engineering/document/system.md
+      user: prompt-engineering/document/user.md
+    writes:
+      - "{handoff}/document.md"
+      - "**/adr/"
+      - "**/docs/"
+      - "**/*.md"
+      - "*.md"
+
+  # Distinguish established domain rules from local interpretations.
+  - name: domain-research
+    output: researchOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
+    color: pink
+    purpose: Model the domain and the rules that actually govern it.
+    prompt_engineering:
+      system: prompt-engineering/domain-research/system.md
+      user: prompt-engineering/domain-research/user.md
+    writes: ['{handoff}/domain-research.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+      - web_enable
+      - web_search
+      - fetch_content
+      - source_check
+
+  # Creates an external issue; the handoff records what was filed.
+  - name: gh-issue
+    output: ghIssueOutput
+    gates: [artifactsExist, filesNonEmpty, issueCreated]
+    model: google/gemini-4-argon
+    thinking: high
+    color: indigo
+    purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
+    prompt_engineering:
+      system: prompt-engineering/gh-issue/system.md
+      user: prompt-engineering/gh-issue/user.md
+    writes: ['{handoff}/gh_issue.md']
+    tools:
+      - bash
+      - read
+      - write
+
+  # Define measurable outcomes, not implementation details.
+  - name: identify
+    output: identifyOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
+    color: blue
+    purpose: Turn a problem into an outcome with criteria anyone could check.
+    prompt_engineering:
+      system: prompt-engineering/identify/system.md
+      user: prompt-engineering/identify/user.md
+    writes: ['{handoff}/identify.md']
+
+  - name: outcome-review
+    output: reviewOutput
+    gates: [artifactsExist, verdictConsistent]
+    # model: openai/gpt-5.6-terra  # anthropic/claude-sonnet-5
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
+    color: lime
+    purpose: Confirm that what was built is what was asked for; change nothing.
+    prompt_engineering:
+      system: prompt-engineering/outcome-review/system.md
+      user: prompt-engineering/outcome-review/user.md
+    writes: ['{handoff}/outcome_review.md']
+
+  - name: plan
+    output: planOutput
+    gates: [artifactsExist, filesNonEmpty]
+    model: anthropic/claude-fable-5-2
+    thinking: xhigh
+    color: violet
+    purpose: Turn a request into a plan the builder can implement without asking questions.
+    prompt_engineering:
+      system: prompt-engineering/plan/system.md
+      user: prompt-engineering/plan/user.md
+    writes:
+      - "{handoff}/plan.md"
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+
+  - name: scout
+    output: scoutOutput
+    gates: [artifactsExist]
+    model: openai/gpt-6.1-sol
+    thinking: max
+    color: orange
+    purpose: Find and report where things live; change nothing.
+    prompt_engineering:
+      system: prompt-engineering/scout/system.md
+      user: prompt-engineering/scout/user.md
+    writes: ['{handoff}/scout_findings.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+
+  # Distinguish demonstrated, plausible, and speculative risks.
+  - name: security-research
+    output: researchOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
+    color: rose
+    purpose: Establish how this could fail, be misused, or be attacked.
+    prompt_engineering:
+      system: prompt-engineering/security-research/system.md
+      user: prompt-engineering/security-research/user.md
+    writes: ['{handoff}/security-research.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+      - web_enable
+      - web_search
+      - fetch_content
+      - source_check
+
+  # Treat repository code as primary evidence.
+  - name: technical-research
+    output: researchOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
+    color: purple
+    purpose: Establish what is technically true, feasible, and evidenced.
+    prompt_engineering:
+      system: prompt-engineering/technical-research/system.md
+      user: prompt-engineering/technical-research/user.md
+    writes: ['{handoff}/technical-research.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+      - web_enable
+      - web_search
+      - fetch_content
+      - source_check
+
+  # Author tests before implementation; `checks` is intentionally omitted.
+  - name: test-tdd
+    output: buildOutput
+    gates: [diffMatchesClaims]  # tests expected to fail before build
+    commit: true
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
+    color: teal
+    purpose: Write the tests that would prove the request was implemented (before build); implement nothing else.
+    prompt_engineering:
+      system: prompt-engineering/test/system.md
+      user: prompt-engineering/test/user.md
+    writes:
+      - "**/*.test.ts"
+      - "**/*.test.tsx"
+      - "**/*.spec.ts"
+      - "**/__tests__/"
+      - "**/tests/"
+
+  # Author tests after implementation; `checks` must pass.
+  # Running test commands is a gate, not an Activity.
+  - name: test
+    output: buildOutput
+    gates: [diffMatchesClaims, checks]
+    commit: true
+    model: openai/gpt-6.1-sol
+    thinking: max
+    color: teal
+    purpose: Write the tests that prove the request was implemented (after build); implement nothing else.
+    prompt_engineering:
+      system: prompt-engineering/test/system.md
+      user: prompt-engineering/test/user.md
+    writes:
+      - "**/*.test.ts"
+      - "**/*.test.tsx"
+      - "**/*.spec.ts"
+      - "**/__tests__/"
+      - "**/tests/"
+
+  - name: ux-design
+    output: uxDesignOutput
+    gates: [artifactsExist, filesNonEmpty]
+    model: openai/gpt-6-astra
+    thinking: xhigh
+    color: orange
+    purpose: Specify an interface precisely enough to implement without inventing UX.
+    prompt_engineering:
+      system: prompt-engineering/ux-design/system.md
+      user: prompt-engineering/ux-design/user.md
+    writes: ['{handoff}/ux-design.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+      - web_enable
+      - web_search
+      - fetch_content
+      - source_check
+
+  # Distinguish user needs from proposed features.
+  - name: ux-research
+    output: researchOutput
+    gates: [artifactsExist]
+    model: anthropic/claude-fable-5-2
+    thinking: high
+    color: cyan
+    purpose: Establish what users need, experience, and struggle with.
+    prompt_engineering:
+      system: prompt-engineering/ux-research/system.md
+      user: prompt-engineering/ux-research/user.md
+    writes: ['{handoff}/ux-research.md']
+    tools:
+      - bash
+      - edit
+      - read
+      - write
+      - web_enable
+      - web_search
+      - fetch_content
+      - source_check
+
+# ── Planners ──────────────────────────────────────────────────────────────────
+# Planners are fixed engine entry points: operator executes its proposed chain;
+# triage returns a proposed chain without running it. Composer executes a supplied
+# plan and has no agent configuration here.
+# You may tune existing Planners, but cannot add or remove them.
+# Their output, gates, attempts, and commit behavior are engine-controlled.
+planners:
+
+
+  # Select and execute the smallest suitable Activity chain.
+  - name: operator
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
+    color: amber
+    purpose: Choose the smallest chain of Activities that can produce the outcome.
+    prompt_engineering:
+      system: prompt-engineering/operator/system.md
+      user: prompt-engineering/operator/user.md
+    writes: ['{handoff}/plan.md']
+    tools:
+      - read
+      - write
+
+  # Recommend an Activity chain without executing it.
+  - name: triage
+    model: anthropic/claude-opus-5-5
+    thinking: xhigh
+    color: amber
+    purpose: Choose the smallest chain that can produce the outcome, and hand it back.
+    prompt_engineering:
+      system: prompt-engineering/triage/system.md
+      user: prompt-engineering/triage/user.md
+    writes: ['{handoff}/plan.md']
+    tools:
+      - read
+      - write
+
+# ── Terminal Activities ───────────────────────────────────────────────────────
+# Terminal Activities execute once after the revision loop.
+# The set is engine-defined; a Lifecycle may use one only as its final Activity.
+# `delivery` configures the Git remote, PR base, and draft status.
+# The base branch is also protected from being pushed as the source branch.
+terminal:
+
+
+  # Harness handles GitHub operations; agent only drafts content.
+  - name: gh-pull-request
+    model: google/gemini-4-argon
+    thinking: high
+    color: teal
+    purpose: Push the run's branch and open or update one GitHub pull request describing it.
+    prompt_engineering:
+      system: prompt-engineering/gh-pull-request/system.md
+      user: prompt-engineering/gh-pull-request/user.md
+    writes: []  # agent is read-only
+    tools:
+      - read
+    delivery:
+      remote: origin
+      base: main
+      draft: false
