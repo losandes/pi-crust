@@ -69,7 +69,7 @@ The stamp, which is all a target repository carries:
 
 ```text
 .pi-crust/
-├── config/                   yours once stamped; --force skips it
+├── config/                   repo-owned settings; examples may be refreshed
 │   ├── crust.activities.yaml the Activity registry — what a Lifecycle may name
 │   ├── crust.lifecycles.yaml the Lifecycles, their Stages, and each strategy
 │   ├── crust.config.yaml     defaults and routing
@@ -84,6 +84,8 @@ The stamp, which is all a target repository carries:
     │   └── {agent}/{prompts/, raw_output.jsonl, envelope.json}
     └── crust.db              gitignored SQLite trace db the visualizer polls
 ```
+
+A missing `config/` is seeded on first install. Once it exists, `install.ts --refresh` neither adds nor overwrites non-example settings; only new `.example.yaml` documents are added there, and existing examples are refreshed on request. `--force` is a deprecated alias with the same exclusions — see [install.md](install.md).
 
 `data/` is worth more than the rest put together: it cannot be regenerated. An install copies and appends, and deletes nothing here.
 

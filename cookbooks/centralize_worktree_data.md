@@ -32,6 +32,8 @@ cd ../pi-crust-issue-42 && just crust run "fix the retry bug" --lifecycle bugfix
 
 The linked worktree needs no re-stamp: `just crust` resolves the pi-crust package itself through `CRUST_HOME`, then its own stamp pointer, then the pointer beside the shared git directory — found through the clone it was branched from (`references/config.md`, 1.6). The run's data lands in the main clone's `.pi-crust/data`, not the worktree's own, because of the `override:` above.
 
+If you do re-stamp to refresh template-owned documents, use `install.ts --refresh` or `just crust update`. Non-example config files are neither added nor overwritten once `config/` exists; only new `.example.yaml` documents are added there, and existing examples are refreshed. See [install.md](install.md) for the deprecated installer `--force` alias.
+
 ```bash
 # done with the issue
 git worktree remove --force ../pi-crust-issue-42

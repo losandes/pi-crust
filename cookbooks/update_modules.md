@@ -129,6 +129,8 @@ Reusable gates live in `domains/gates/src/use-cases/` and are re-exported from `
 - `data/` and `use-cases/` return settlements rather than throwing. The two sanctioned exceptions are `run-activity-run.ts`, which IS the error boundary, and `safeParseSettlement`, which wraps a throwing call once at the edge.
 - Build new values; do not mutate the ones you were handed. The run's counters live in a closure in `create-run.ts` precisely so no other layer has to.
 
+Runtime changes need no re-stamp. If template-owned stamp documents also changed, use `install.ts --refresh` or `just crust update`: existing examples are refreshed, new `.example.yaml` documents may be added under `config/`, and non-example config files are neither added nor overwritten once that directory exists. See [install.md](install.md) for the deprecated `--force` alias and deliberate adoption of settings.
+
 ## Before you finish
 
 Run the smoke chain — `just crust prompt "ping"` — since every module change rides the same path a real run does. `bun test` in `.pi-crust/` covers the modules the skill ships with tests for.

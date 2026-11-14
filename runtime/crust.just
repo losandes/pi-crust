@@ -255,11 +255,11 @@ forget-tree *PATHS:
 # habit most tools teach. Tested: with the separator vite reports "use --host
 # to expose", so it never sees the flag; without it, the Network line appears.
 
-# Re-stamps everything pi-crust owns and proves the result matches. It REPLACES
-# files the template owns and REMOVES NOTHING: data/ has no counterpart in the
-# template, so the trace database and every session directory are untouched.
-# config/ is yours and is skipped. A breaking schema change is a separate,
-# explicitly invoked migration — never part of this.
+# Refreshes template-owned files and proves the result matches. data/ has no
+# counterpart in the template, so the trace database and sessions are untouched.
+# Existing config/ is repo-owned: only .example.yaml documents are added or
+# refreshed; other settings are left alone. A breaking schema change is a
+# separate, explicitly invoked migration — never part of this.
 
 # bring this tree up to date with the pi-crust it was stamped from
 update:
@@ -284,7 +284,7 @@ update:
       echo "  run its installer from this directory, or set CRUST_HOME to the package." >&2
       exit 2
     fi
-    bun "$home/scripts/install.ts" --force
+    bun "$home/scripts/install.ts" --refresh
     "$home/scripts/verify-install.sh"
 
 # The app itself is not in this tree. It ships with pi-crust, which may be a

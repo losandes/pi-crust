@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import type { Browser } from 'playwright'
 import { chromium } from 'playwright'
 import { startHarnessServer } from '@/lib/testing'
@@ -32,10 +32,6 @@ if (browser === undefined) {
     'ActivityRunDetail.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
   )
 }
-
-afterAll(async () => {
-  await browser?.close()
-})
 
 const panelWidths = async (activeBrowser: Browser) => {
   const { server, base } = await startHarnessServer()
@@ -82,21 +78,33 @@ test.skipIf(browser === undefined)(
     'it should fill the panel like the events tab does',
   ].join(', '),
   async () => {
+    // given
     if (browser === undefined) return // unreachable; narrows the type for tsc
-    const { contextWidth, eventsWidth } = await panelWidths(browser)
-    expect(contextWidth).toBeDefined()
-    expect(eventsWidth).toBeDefined()
-    if (contextWidth === undefined || eventsWidth === undefined) return // unreachable; narrows the type for tsc
+    // Browser teardown belongs to this test's 20s budget, not an afterAll
+    // hook whose separate 5s default can expire after the assertions pass.
+    try {
+      // when
+      const { contextWidth, eventsWidth } = await panelWidths(browser)
 
-    // 1.1.1 — the context panel's content fills its container's content box.
-    expect(
-      Math.abs(contextWidth.contentWidth - contextWidth.containerContentWidth),
-    ).toBeLessThanOrEqual(0.5)
+      // then
+      expect(contextWidth).toBeDefined()
+      expect(eventsWidth).toBeDefined()
+      if (contextWidth === undefined || eventsWidth === undefined) return // unreachable; narrows the type for tsc
 
-    // 1.1.3 — the context tab's content width matches the events tab's.
-    expect(
-      Math.abs(contextWidth.contentWidth - eventsWidth.contentWidth),
-    ).toBeLessThanOrEqual(0.5)
+      // 1.1.1 — the context panel's content fills its container's content box.
+      expect(
+        Math.abs(
+          contextWidth.contentWidth - contextWidth.containerContentWidth,
+        ),
+      ).toBeLessThanOrEqual(0.5)
+
+      // 1.1.3 — the context tab's content width matches the events tab's.
+      expect(
+        Math.abs(contextWidth.contentWidth - eventsWidth.contentWidth),
+      ).toBeLessThanOrEqual(0.5)
+    } finally {
+      await browser.close()
+    }
   },
   20_000,
 )

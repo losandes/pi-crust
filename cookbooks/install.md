@@ -12,9 +12,22 @@ Run from the **target repo root** — the cwd is where everything lands, whateve
 
 The installer records where it ran from in `.pi-crust/data/pi-crust-home`, which is how `just crust observe` later finds the web app without being told. Move or reinstall pi-crust and that file is stale — re-run the installer, or set `CRUST_HOME`.
 
+## Reinstall or refresh
+
+```bash
+bun <pi-crust>/scripts/install.ts --refresh
+# Or: just crust update
+```
+
+Without flags, existing files are left alone. `--refresh` replaces template-owned files, including existing `.example.yaml` documents under `config/`. `--force` remains a deprecated alias through 0.1.x and is scheduled for removal in 0.2.0; it has exactly the same exclusions.
+
+A missing `.pi-crust/config/` is seeded on first install. Once that directory exists, even if empty, only new `.example.yaml` documents are added there. Non-example settings, rosters, lifecycles and themes are neither added nor overwritten, with or without `--refresh`. To adopt a new settings file, review the corresponding file in `<pi-crust>/templates/stamp/config/` and copy it deliberately; to retune an existing one, edit it by hand. `make-config.ts --force` explicitly replaces just `crust.config.yaml` and is a separate command.
+
+The report distinguishes `stamped`, `skipped (exists)` and `left to the repository (config/)`, naming the files and the config ownership exclusion. New examples have their own `added to config/ (new since your install)` section rather than being mixed with replacements.
+
 ## What gets stamped
 
-`install.ts` copies `templates/stamp/` into `./.pi-crust/`. That is the whole stamp, and all of it is yours:
+`install.ts` copies template-owned files from `templates/stamp/` into `./.pi-crust/` and seeds a missing `config/`. Non-example config becomes repository-owned; examples remain template-owned documentation:
 
 | Stamped                                  | What it is                                                   | Tracked?          |
 | ---------------------------------------- | ------------------------------------------------------------ | ----------------- |
@@ -38,17 +51,17 @@ An install also **removes** paths an earlier version stamped into `.pi-crust/`: 
 
 Nothing here needs a `.gitignore` edit. Every directory that receives your work is already tracked.
 
-| To                                | Do                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------ |
-| Add an Activity                   | Add an entry to `config/crust.activities.yaml`                                             |
-| Remove one                        | Delete its entry — the file lists everything, so deleting removes the capability           |
-| Reorder the menu                  | Reorder the file; nothing else records a sequence                                          |
-| Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner |
-| Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                        |
-| Override a prompt                 | Write `.pi-crust/prompt-engineering/<activity>/system.md`. It wins; nothing else changes   |
+| To                                | Do                                                                                                   |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Add an Activity                   | Add an entry to `config/crust.activities.yaml`                                                       |
+| Remove one                        | Delete its entry — the file lists everything, so deleting removes the capability                     |
+| Reorder the menu                  | Reorder the file; nothing else records a sequence                                                    |
+| Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner           |
+| Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                                  |
+| Override a prompt                 | Write `.pi-crust/prompt-engineering/<activity>/system.md`. It wins; nothing else changes             |
 | Add a theme                       | Register it in `config/crust.observe.yaml` and put the `.css` beside it, as `high-contrast.css` does |
-| Move the trace UI's ports         | `ports:` in `config/crust.observe.yaml`; `CRUST_BE_PORT` / `CRUST_FE_PORT` win, for one shell |
-| Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                          |
+| Move the trace UI's ports         | `ports:` in `config/crust.observe.yaml`; `CRUST_BE_PORT` / `CRUST_FE_PORT` win, for one shell        |
+| Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                                    |
 
 A local layer may set any key and may add an Activity or Lifecycle the team file does not have. It is not restricted, because whoever writes it can equally write the committed file.
 
