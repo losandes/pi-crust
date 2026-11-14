@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { chromium, devices, type Page } from 'playwright'
+import { build } from 'vite'
 import { startHarnessServer, viewportWidths } from '@/lib/testing'
 
 const hasChromium = existsSync(chromium.executablePath())
@@ -63,6 +64,19 @@ const COLOR_PROBES = Object.entries(COLOR_UTILITIES)
   )
   .join('')
 
+const THEME_PROBES = `<div id="soft-fill" class="bg-ok/10">Soft fill</div>
+<div id="soft-fill-reference" style="background-color:color-mix(in oklab,var(--ok) 10%,transparent)">Soft fill</div>
+<div id="utility" class="text-ok bg-fail/16 border-violet/45 font-sans">Theme</div>
+<div id="reference" style="color:var(--ok);background-color:color-mix(in oklab,var(--fail) 16%,transparent);border-color:color-mix(in oklab,var(--violet) 45%,transparent);font-family:var(--sans)">Theme</div>
+<div style="--ok:var(--fail)">
+  <span id="scoped" class="text-ok">Scoped</span>
+  <span id="scoped-reference" style="color:var(--fail)">Scoped</span>
+</div>
+<span id="card-font" class="font-card">Reading</span>
+<span id="card-reference" style="font-family:var(--card-sans)">Reading</span>
+<span id="mono-font" class="font-mono">Code</span>
+<span id="mono-reference" style="font-family:var(--mono)">Code</span>`
+
 const NATIVE_HTML = `<section id="native-prose">
 <h1>Heading</h1><p>Paragraph</p>
 <ul><li>Bullet</li></ul><ol><li>Number</li></ol>
@@ -78,8 +92,6 @@ const HARNESS_HTML = `<!doctype html>
 </select>
 ${NATIVE_HTML}
 ${COLOR_PROBES}
-<div id="soft-fill" class="bg-ok/10">Soft fill</div>
-<div id="soft-fill-reference" style="background-color:color-mix(in oklab,var(--ok) 10%,transparent)">Soft fill</div>
 <section id="radius-probes">
   <span id="legacy-radius" data-radius style="border-radius:var(--radius-sm, 3px)">Legacy fallback</span>
   <input id="token-radius-input" data-radius>
@@ -95,16 +107,7 @@ ${COLOR_PROBES}
   <span id="utility-radius-medium" data-radius class="rounded-md">Medium utility</span>
 </section>
 <button id="utility-control" class="font-sans">Utility control</button>
-<div id="utility" class="text-ok bg-fail/16 border-violet/45 font-sans">Theme</div>
-<div id="reference" style="color:var(--ok);background-color:color-mix(in oklab,var(--fail) 16%,transparent);border-color:color-mix(in oklab,var(--violet) 45%,transparent);font-family:var(--sans)">Theme</div>
-<div style="--ok:var(--fail)">
-  <span id="scoped" class="text-ok">Scoped</span>
-  <span id="scoped-reference" style="color:var(--fail)">Scoped</span>
-</div>
-<span id="card-font" class="font-card">Reading</span>
-<span id="card-reference" style="font-family:var(--card-sans)">Reading</span>
-<span id="mono-font" class="font-mono">Code</span>
-<span id="mono-reference" style="font-family:var(--mono)">Code</span>
+${THEME_PROBES}
 <div class="md">
   <h1>Heading</h1>
   <ul><li>Bullet</li></ul>
@@ -682,6 +685,178 @@ test.skipIf(!hasChromium)(
         await page.setViewportSize({ width, height })
         expect(await page.locator(`[id="${tier}"]`).isVisible()).toBe(true)
       }
+    })
+  },
+  20_000,
+)
+
+test.skipIf(!hasChromium)(
+  [
+    'given issue #85 production CSS at the xl tier',
+    'when themes change after the build and descendants override semantic variables',
+    'it should keep colour utilities, fonts and opacity modifiers live',
+  ].join(', '),
+  async () => {
+    // given — requirements 1.1.2–1.1.4, 1.3.1–1.3.3 and target state 2.1
+    const result = await build({
+      root: new URL('../', import.meta.url).pathname,
+      logLevel: 'silent',
+      build: { write: false },
+    })
+    const outputs = Array.isArray(result) ? result : [result]
+    const css = outputs
+      .flatMap((output) => ('output' in output ? output.output : []))
+      .flatMap((asset) =>
+        asset.type === 'asset' && asset.fileName.endsWith('.css')
+          ? [
+              typeof asset.source === 'string'
+                ? asset.source
+                : new TextDecoder().decode(asset.source),
+            ]
+          : [],
+      )
+      .join('\n')
+    expect(css).not.toBe('')
+    const browser = await chromium.launch()
+    try {
+      const page = await browser.newPage({
+        viewport: {
+          width: viewportWidths.xl,
+          height: devices['iPhone SE'].viewport.height,
+        },
+      })
+      // No development server or stylesheet can mask a production-build gap.
+      await page.setContent(`<!doctype html>
+<html data-theme="dark"><body>${COLOR_PROBES}${THEME_PROBES}</body></html>`)
+      await page.addStyleTag({ content: css })
+      await page.addStyleTag({ content: registeredTheme.css })
+      const dark = await readColorProbes(page)
+
+      // when
+      await page.locator('html').evaluate((element) => {
+        element.setAttribute('data-theme', 'light')
+      })
+      const light = await readColorProbes(page)
+      await page.locator('html').evaluate((element) => {
+        element.setAttribute('data-theme', 'high-contrast')
+      })
+      const registered = await readColorProbes(page)
+      await page.evaluate((cases) => {
+        for (const { selectors, variable, replacement } of cases) {
+          for (const element of document.querySelectorAll(selectors)) {
+            const original = element.getAttribute('style') ?? ''
+            element.setAttribute(
+              'style',
+              `${original};${variable}:var(${replacement})`,
+            )
+          }
+        }
+      }, fontCases)
+      const utility = await page
+        .locator('#utility, #reference')
+        .evaluateAll((elements) =>
+          elements.map((element) => {
+            const style = getComputedStyle(element)
+            return {
+              color: style.color,
+              background: style.backgroundColor,
+              border: style.borderColor,
+              font: style.fontFamily,
+            }
+          }),
+        )
+      const scoped = await page
+        .locator('#scoped, #scoped-reference')
+        .evaluateAll((elements) =>
+          elements.map((element) => getComputedStyle(element).color),
+        )
+      const fonts = await page
+        .locator('#card-font, #card-reference, #mono-font, #mono-reference')
+        .evaluateAll((elements) =>
+          elements.map((element) => getComputedStyle(element).fontFamily),
+        )
+      const softFill = await page
+        .locator('#soft-fill, #soft-fill-reference')
+        .evaluateAll((elements) =>
+          elements.map((element) => getComputedStyle(element).backgroundColor),
+        )
+
+      // then
+      expect(dark.actual).toEqual(dark.expected)
+      expect(light.actual).toEqual(light.expected)
+      expect(light.actual).not.toEqual(dark.actual)
+      expect(registered.actual).toEqual(registered.expected)
+      expect(registered.actual).not.toEqual(light.actual)
+      expect(utility).toHaveLength(2)
+      expect(utility[0]).toEqual(utility[1])
+      expect(scoped).toHaveLength(2)
+      expect(scoped[0]).toBe(scoped[1])
+      expect(fonts).toHaveLength(4)
+      expect(fonts[0]).toBe(fonts[1])
+      expect(fonts[2]).toBe(fonts[3])
+      expect(softFill).toHaveLength(2)
+      expect(softFill[0]).toBe(softFill[1])
+    } finally {
+      await browser.close()
+    }
+  },
+  30_000,
+)
+
+test.skipIf(!hasChromium)(
+  [
+    'given issue #85 running indicators and the existing reduced-motion preference',
+    'when the preference changes while global animations are loaded',
+    'it should shorten every animation to one iteration and restore motion on request',
+  ].join(', '),
+  async () => {
+    // given — requirements 1.2.1–1.2.2, 1.3.4 and 1.7.2
+    await withStyles(async (page) => {
+      const readMotion = () =>
+        page.locator('[data-animation]').evaluateAll((elements) =>
+          elements.map((element) => {
+            const style = getComputedStyle(element)
+            return {
+              id: element.id,
+              name: style.animationName,
+              duration: Number.parseFloat(style.animationDuration) * 1000,
+              iterations: style.animationIterationCount,
+            }
+          }),
+        )
+      await page.emulateMedia({ reducedMotion: 'no-preference' })
+      const normal = await readMotion()
+
+      // when
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      const reduced = await readMotion()
+      await page.emulateMedia({ reducedMotion: 'no-preference' })
+      const restored = await readMotion()
+
+      // then
+      expect(normal.map(({ name }) => name)).toEqual([
+        'crust-spin',
+        'crust-pulse',
+        'crust-pulse',
+        'crust-pulse',
+        'crust-pulse',
+        'crust-pulse',
+      ])
+      expect(
+        normal.every(
+          ({ duration, iterations }) =>
+            duration > 0.01 && iterations === 'infinite',
+        ),
+      ).toBe(true)
+      expect(reduced).toEqual(
+        normal.map(({ id, name }) => ({
+          id,
+          name,
+          duration: expect.closeTo(0.01, 5),
+          iterations: '1',
+        })),
+      )
+      expect(restored).toEqual(normal)
     })
   },
   20_000,
