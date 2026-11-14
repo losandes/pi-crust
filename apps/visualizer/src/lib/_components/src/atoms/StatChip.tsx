@@ -1,7 +1,7 @@
 import { BookOpen, CircleDollarSign, Coins, PenLine, Timer } from 'lucide-react'
 import type { ComponentType } from 'react'
+import { cx } from '@/lib/cx'
 import { fmtCost, fmtDuration, fmtTokens } from '@/lib/format'
-import styles from './StatChip.module.css'
 
 export type TStatKind = 'cost' | 'tokens' | 'runtime' | 'read' | 'written'
 
@@ -62,11 +62,27 @@ export const StatChip = ({
 
   return (
     <span
-      className={compact ? `${styles.stat} ${styles.compact}` : styles.stat}
+      className={cx(
+        'inline-flex items-center gap-2 rounded-full text-base whitespace-nowrap',
+        compact
+          ? 'border-none p-0'
+          : 'border-[length:var(--border-width)] border-border-soft bg-panel-2/60 px-3 py-0.5',
+      )}
       title={TITLES[kind]}
     >
-      <Icon className={styles.icon} size={compact ? 17 : 19} strokeWidth={2} />
-      <span className={styles.value}>{text}</span>
+      <Icon
+        className="flex-none text-faint"
+        size={compact ? 17 : 19}
+        strokeWidth={2}
+      />
+      <span
+        className={cx(
+          'font-mono tabular-nums',
+          compact ? 'text-dim' : 'text-text',
+        )}
+      >
+        {text}
+      </span>
     </span>
   )
 }

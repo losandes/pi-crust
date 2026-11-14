@@ -13,7 +13,10 @@
  * LOST, named by the caller who knows.
  */
 import { useEffect, useRef } from 'react'
-import styles from './ConfirmDialog.module.css'
+import { cx } from '@/lib/cx'
+
+const BUTTON_CLASSES =
+  'cursor-pointer rounded-sm border-[length:var(--border-width)] border-border bg-panel px-3.5 py-1.5 font-sans text-[0.86rem] leading-normal text-text'
 
 export const ConfirmDialog = ({
   open,
@@ -44,7 +47,7 @@ export const ConfirmDialog = ({
   return (
     <dialog
       ref={ref}
-      className={styles.dialog}
+      className="max-w-md rounded-md border-[length:var(--border-width)] border-fail/[calc(var(--edge-alpha)*100%)] bg-panel-2 px-5 py-4 text-text backdrop:bg-bg/55 backdrop:brightness-0"
       /*
        * Escape means "no", and the browser fires `cancel` for it without
        * telling React — so without this the state that opened the dialog
@@ -60,13 +63,21 @@ export const ConfirmDialog = ({
         onCancel()
       }}
     >
-      <h2 className={styles.title}>{title}</h2>
-      <p className={styles.body}>{body}</p>
-      <div className={styles.actions}>
-        <button type="button" className={styles.cancel} onClick={onCancel}>
+      <h2 className="m-0 mb-2 text-base font-[650] text-fail">{title}</h2>
+      <p className="m-0 mb-4 text-[0.86rem] leading-normal text-dim">{body}</p>
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          className={cx(BUTTON_CLASSES, 'hover:bg-panel-3')}
+          onClick={onCancel}
+        >
           {cancelLabel}
         </button>
-        <button type="button" className={styles.confirm} onClick={onConfirm}>
+        <button
+          type="button"
+          className={cx(BUTTON_CLASSES, 'hover:bg-fail/22')}
+          onClick={onConfirm}
+        >
           {confirmLabel}
         </button>
       </div>

@@ -91,11 +91,16 @@ const HARNESS_HTML = `<!doctype html>
   <option>high-contrast</option>
 </select>
 ${NATIVE_HTML}
+<div>
+  <section id="detail-section-margin">
+    <button id="detail-section-head" type="button">Margins</button>
+    <div id="detail-section-body"><p id="detail-section-paragraph">Body paragraph</p></div>
+  </section>
+  <div id="after-detail-section">After the section</div>
+</div>
 ${COLOR_PROBES}
 <section id="radius-probes">
   <span id="legacy-radius" data-radius style="border-radius:var(--radius-sm, 3px)">Legacy fallback</span>
-  <input id="token-radius-input" data-radius>
-  <button id="token-radius-save" data-radius>Save token</button>
   <pre id="narration-radius-code" data-radius>Code</pre>
   <div id="decision-radius-body">
     <code id="decision-radius-code" data-radius>Code</code>
@@ -128,12 +133,11 @@ ${THEME_PROBES}
 <script type="module">
 import '/src/style.css'
 import { applyCustomThemes, applyTheme } from '/src/domains/themes/index.ts'
-import chip from '/src/lib/_components/src/atoms/StatusChip.module.css'
+import { DetailSection, StatusChip } from '/src/lib/_components/index.ts'
 import dots from '/src/domains/activity-runs/src/_components/ActivityRunDots.module.css'
 import card from '/src/domains/sessions/src/_components/SessionCard.module.css'
 import trace from '/src/domains/sessions/src/_components/SessionTrace.module.css'
 import layout from '/src/layouts/default-layout.module.css'
-import notice from '/src/lib/_components/src/molecules/TokenNotice.module.css'
 import narration from '/src/domains/narration/src/_components/NarrationPane.module.css'
 import decision from '/src/domains/decisions/src/_components/DecisionRequest.module.css'
 applyCustomThemes(document, [${JSON.stringify(registeredTheme)}])
@@ -141,16 +145,19 @@ applyTheme(document.documentElement, 'dark', window.matchMedia)
 document.getElementById('theme-choice').addEventListener('change', (event) => {
   applyTheme(document.documentElement, event.target.value, window.matchMedia)
 })
+const runningChip = StatusChip({ status: 'running' })
+const detailSection = DetailSection({ title: 'Margins', open: true, onToggle: () => {} })
 const classes = {
-  spinner: [chip.chip, chip.running],
-  'spinner-icon': [chip.icon],
+  'detail-section-margin': [detailSection.props.className],
+  'detail-section-head': [detailSection.props.children[0].props.className],
+  'detail-section-body': [detailSection.props.children[1].props.className],
+  spinner: [runningChip.props.className],
+  'spinner-icon': [runningChip.props.children[0].props.className],
   activity: [dots.running],
   'card-dot': [card.dot, card.latest],
   'trace-status': [trace.blockStatus, trace.running],
   'trace-block': [trace.block, trace.running],
   'live-dot': [layout.liveDot],
-  'token-radius-input': [notice.input],
-  'token-radius-save': [notice.save],
   'narration-radius-code': [narration.code],
   'decision-radius-body': [decision.body],
 }
@@ -313,8 +320,6 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
         // then
         expect(radii).toEqual({
           'legacy-radius': legacySmall,
-          'token-radius-input': legacySmall,
-          'token-radius-save': legacySmall,
           'narration-radius-code': ['0px', '3px', '3px', '0px'],
           'decision-radius-code': legacySmall,
           'decision-radius-pre': legacySmall,
@@ -328,6 +333,41 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
     20_000,
   )
 }
+
+test.skipIf(!hasChromium)(
+  [
+    'given DetailSection with a paragraph at the end of its body',
+    'when another block follows the section',
+    'it should preserve collapsed margins rather than adding a containment gap',
+  ].join(', '),
+  async () => {
+    // given
+    await withStyles(async (page) => {
+      // when
+      const spacing = await page.evaluate(() => {
+        const section = document.getElementById('detail-section-margin')
+        const paragraph = document.getElementById('detail-section-paragraph')
+        const after = document.getElementById('after-detail-section')
+        if (!(section && paragraph && after)) {
+          throw new Error('Missing DetailSection margin probe')
+        }
+        return {
+          actual:
+            after.getBoundingClientRect().top -
+            paragraph.getBoundingClientRect().bottom,
+          expected: Math.max(
+            Number.parseFloat(getComputedStyle(section).marginBottom),
+            Number.parseFloat(getComputedStyle(paragraph).marginBottom),
+          ),
+        }
+      })
+
+      // then
+      expect(spacing.actual).toBeCloseTo(spacing.expected, 1)
+    })
+  },
+  20_000,
+)
 
 const fontCases = [
   {
