@@ -14,12 +14,12 @@ Deterministic verification and skill selection stay in one registry, declared on
 
 Four alternatives are rejected, and the reasons are in Context:
 
-| Rejected                                                                        | Instead                                                                                                    |
-| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Per-Activity `before`/`after` script hooks                                      | Declare the command in the registry; the Activity names the gate that runs it                              |
-| A second configuration section for run-level acceptance, parallel to the checks | One registry; the moment it is evaluated is a property of the engine, not a second vocabulary              |
-| A declaration of what an Activity produces, separate from what it may write     | The write boundary is the only declaration; intent that nothing enforces is a comment with a schema        |
-| Refusing a chain at composition time for lacking a test-producing Activity      | Judge the work, not the shape of the chain                                                                 |
+| Rejected                                                                        | Instead                                                                                             |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Per-Activity `before`/`after` script hooks                                      | Declare the command in the registry; the Activity names the gate that runs it                       |
+| A second configuration section for run-level acceptance, parallel to the checks | One registry; the moment it is evaluated is a property of the engine, not a second vocabulary       |
+| A declaration of what an Activity produces, separate from what it may write     | The write boundary is the only declaration; intent that nothing enforces is a comment with a schema |
+| Refusing a chain at composition time for lacking a test-producing Activity      | Judge the work, not the shape of the chain                                                          |
 
 An Activity is not expected to produce work outside its stated purpose because no other Activity in the chain will. A chain that must produce tests names an Activity that writes tests. An implementation Activity may or may not write them, and no part of the system should be designed as though it reliably will.
 
