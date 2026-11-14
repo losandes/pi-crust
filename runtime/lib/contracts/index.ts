@@ -10,6 +10,7 @@ export {
   activityConfigSchema,
   activityNamed,
   activityPatchFileSchema,
+  activitySuccession,
   DEFAULT_ATTEMPTS,
   isPlannerName,
   isTerminalName,
@@ -124,6 +125,7 @@ export type {
 } from './src/runnable-activity'
 export {
   acceptedExcluding,
+  activityNameFromRun,
   activityRunName,
   allAccepted,
   DEFAULT_ACTIVITY_OPTIONS,

@@ -1,6 +1,9 @@
 /**
  * How a hand-written workflow's activityRuns are replayed under `--resume`.
  *
+ * Composed workflows restore their run-wide context with
+ * `replay-envelope-history.ts` before replaying individual Activities.
+ *
  * The activity library answers this per activity. The workflows with real control flow
  * — bounded fix loops, conditional tails — are not activities, so they say it at the
  * call site: `activityRun(params, body, replay)`. One extra argument, and the cost is

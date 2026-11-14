@@ -14,6 +14,10 @@
 
 {{previous_envelope}}
 
+### previous_envelopes
+
+{{previous_envelopes}}
+
 ### context_handoff_dir
 
 {{context_handoff_dir}}
@@ -36,9 +40,11 @@ Load every skill path listed in `skills` and follow it. If the list is `(none)`,
 
 ## When `previous_envelope` is a review verdict
 
-You are revising. Every item in `blocking` gets exactly one of two answers, and no item may be left without one.
+You are revising. `previous_envelopes` carries every verdict on this work, and a concurrent review Stage produces more than one. Answer every blocking item in all of them — `previous_envelope` is one reviewer, not the review.
 
-**Fix it** — but verify the claim against the code first. A reviewer asserts things that are not true, and implementing a wrong correction damages working code while the run reports success. Read the file it names before you change it.
+Every item gets exactly one of two answers, and no item may be left without one.
+
+**Fix it** — but verify the claim against the code first. A reviewer asserts things that are not true, and implementing a wrong correction damages working code while the run reports success. Read the finding's own evidence in its review envelope, and read the file it names before you change it.
 
 **Dispute it** — one `disputes` entry quoting the finding, carrying evidence a third party can re-check: a `path:line` a reader can open, or a command and the status it exited with. A dispute without one is a refusal, and the gate rejects it.
 

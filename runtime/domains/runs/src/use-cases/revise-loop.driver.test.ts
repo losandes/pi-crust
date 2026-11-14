@@ -7,11 +7,12 @@
  * parameter to hand it a literal `TActivity`. What stands in instead is the
  * real resume mechanism: `run.resume` names the instances the loop would
  * otherwise spawn an agent for, with the envelope each one would have
- * replayed already written to `{sessionDir}/{agent}/envelope.json` — exactly
- * what a live `--resume` reads. No agent is spawned anywhere in this file.
+ * replayed already written to `{sessionDir}/{agent}/envelope.json` — the
+ * legacy-session fallback a live `--resume` still reads. No agent is spawned
+ * anywhere in this file.
  */
 
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -34,8 +35,10 @@ import { REPORT_FILENAME } from '../../../gates'
 import { attemptLedger } from './attempts'
 import { runReviseLoop } from './revise-loop'
 
-beforeEach(silenceTerminal)
-afterEach(restoreTerminal)
+const capturedTerminal = () => {
+  silenceTerminal()
+  return { [Symbol.dispose]: restoreTerminal }
+}
 
 const PROMPT_ENGINEERING = { system: 's.md', user: 'u.md' }
 
@@ -136,6 +139,7 @@ test(
     "it should settle 'not-applicable', carrying the chain's own acceptance forward",
   ].join(', '),
   async () => {
+    using _terminal = capturedTerminal()
     // given
     const cfg = cfgWith([
       {
@@ -171,6 +175,7 @@ test(
     "it should settle 'not-applicable' rather than invent a writer to revise with",
   ].join(', '),
   async () => {
+    using _terminal = capturedTerminal()
     // given — no Activity named 'build' exists anywhere in this registry
     const cfg = cfgWith([
       {
@@ -204,6 +209,7 @@ test(
     "it should settle 'exhausted', unaccepted, and write the dispute report",
   ].join(', '),
   async () => {
+    using _terminal = capturedTerminal()
     // given
     const cfg = cfgWith([
       {
@@ -265,14 +271,15 @@ test(
     "it should settle 'approved' and accept the run, without spawning an agent",
   ].join(', '),
   async () => {
+    using _terminal = capturedTerminal()
+    // given
     /*
-     * given — 'build' wrote the thing, 'review' rejected it once. Resuming
+     * 'build' wrote the thing, 'review' rejected it once. Resuming
      * replays BOTH the revise ('build' is the writer `reviserFor` revises
-     * with) and the re-asked 'review_2' — `agentActivity.replay` always
-     * reads `{sessionDir}/{config.name}/envelope.json`, by the BASE name,
-     * never by instance (the comment at the top of revise-loop.ts is
-     * explicit about this: a replayed `code-review` and `code-review_2`
-     * hand back the same object).
+     * with) and the re-asked 'review_2'. This fixture has no participant
+     * snapshots, so replay falls back to the legacy per-agent file,
+     * `{sessionDir}/{config.name}/envelope.json`. Numbered review instances
+     * still share one latest verdict rather than one envelope per attempt.
      */
     const cfg = cfgWith([
       {
@@ -336,7 +343,7 @@ test(
     expect(actual.accepted).toBe(true)
     expect(
       (actual.ctx.previous as Readonly<{ summary: string }>).summary,
-    ).toEqual('now it is fine')
+    ).toEqual('revised')
     // the round was recorded, with no agent ever spawned to produce it
     expect(run.tracer.eventsNamed(run.runId, 'human_gate_open')).toHaveLength(0)
   },

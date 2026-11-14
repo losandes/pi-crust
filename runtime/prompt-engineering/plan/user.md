@@ -10,6 +10,10 @@
 
 {{previous_envelope}}
 
+### previous_envelopes
+
+{{previous_envelopes}}
+
 ### context_handoff_dir
 
 {{context_handoff_dir}}
@@ -27,6 +31,8 @@ Do not reject over style, completeness you do not need, or work you would have d
 ## Task
 
 Plan the work described in `prompt`.
+
+`previous_envelopes` carries every Activity that has run before you, each labelled with its name — not only the stage immediately before. A run that identified, conceptualized and designed hands you all three, and all three are inputs to the plan. Read them before you write anything, and say in `facts` which of them you relied on.
 
 1. Find the identify output before anything else. It is in `<context_handoff_dir>/identify.md` when `identify` ran in this run; when it ran in an earlier one, its content might be copied into `prompt` or in a ticket the prompt references — a `## Success criteria` list, a `## Scenarios` section of Gherkin, or both. Read whichever you find and treat it exactly as you would the document: the criteria are numbered `SC<n>` and the scenarios are the cases you owe. If both are present and they disagree, the handoff document governs, and say in `unresolved` that the copy in `prompt` differs. If neither carries success criteria, say so in `facts` rather than inferring them from the request.
 2. Its `## Success criteria` are numbered `SC1`, `SC2`, …, and they are the standard the finished work is reviewed against — not your paraphrase of them. Every criterion must end up in one of two places: cited by the numbered requirement that satisfies it, or listed under Out of scope with the reason you are not covering it. Narrowing the scope is a decision you are allowed to make; narrowing it silently is the failure this step exists to stop. Copy its `## Scenarios` forward unchanged if it has any, or point at them by path — they are what the tester writes cases from.

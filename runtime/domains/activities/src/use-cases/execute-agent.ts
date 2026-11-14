@@ -21,6 +21,7 @@ import type {
   TTreeWarning,
 } from '../../../../lib/contracts'
 import {
+  activityNameFromRun,
   trustStance,
   WARNING_EVENT,
   warningPayload,
@@ -58,6 +59,7 @@ import type { TRoots, TTreeSnapshot } from '../../../workspace'
 import { activityCatalogue } from './activity-catalogue'
 import { liveAgent } from './execute-agent-live'
 import { extractJson } from './extract-json'
+import { envelopeHistoryPath } from './read-envelope'
 /**
  * What a gate said about the LAST attempt, appended to this one's prompt.
  *
@@ -210,18 +212,20 @@ const persistEnvelope = (
     : JSON.stringify({ raw: raw.slice(-2000) })
   run.tracer.envelopeRow(activityRun, agentName, spec.name, payloadJson, valid)
   if (envelope) {
+    const text = `${JSON.stringify(
+      {
+        agent_name: agentName,
+        purpose: resolveAgent(run.cfg, agentName).purpose,
+        output_type: spec.name,
+        ...envelope,
+      },
+      undefined,
+      2,
+    )}\n`
+    writeText(join(run.sessionDir, agentName, 'envelope.json'), text)
     writeText(
-      join(run.sessionDir, agentName, 'envelope.json'),
-      `${JSON.stringify(
-        {
-          agent_name: agentName,
-          purpose: resolveAgent(run.cfg, agentName).purpose,
-          output_type: spec.name,
-          ...envelope,
-        },
-        null,
-        2,
-      )}\n`,
+      envelopeHistoryPath(run, activityNameFromRun(activityRun.params)),
+      text,
     )
   }
 }
@@ -356,14 +360,11 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       ? JSON.stringify(call.previous, null, 2)
       : '(none)',
     /*
-     * Everything upstream, not just the first of it.
+     * The run's latest envelope per participant, in first-production order.
      *
-     * A concurrent Stage hands several envelopes forward, and
-     * `previous_envelope` can only carry one. Rendering the rest here — each
-     * labelled with the Activity that produced it — is what stops a
-     * downstream agent from silently judging half the work. Identical to
-     * `previous_envelope` in the ordinary single-upstream case, so a prompt
-     * may use either.
+     * Labels preserve provenance across serial and concurrent Stages.
+     * `previous_envelope` remains the single superseding input (or a verdict
+     * explicitly handed to a reviser); history also includes annotations.
      */
     previous_envelopes:
       (call.upstream ?? []).length > 0

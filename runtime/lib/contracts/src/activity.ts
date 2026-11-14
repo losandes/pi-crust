@@ -19,6 +19,7 @@
  */
 
 import { z } from 'zod'
+import { envelopeNamed, reviewOutput } from './envelope'
 
 /**
  * The primitives an Activity and the roster share.
@@ -134,13 +135,20 @@ export const activityConfigSchema = z.object({
 
   /** the envelope spec this Activity answers with, from `ENVELOPE_CATALOGUE` */
   output: z.string().default('genericOutput'),
+  /**
+   * Does this Activity's output replace what came before it, or comment on it?
+   *
+   * Omitted is the ordinary case: an Activity that reports a verdict annotates,
+   * and everything else supersedes. Declared only where the default is wrong.
+   */
+  succession: z.enum(['supersedes', 'annotates']).optional(),
   /** gates this Activity's envelope must survive, from `GATE_CATALOGUE` */
   gates: z.array(z.string()).default([]),
   /**
    * What this Activity is handed as its `previous` envelope, from
    * `INPUT_CATALOGUE`.
    *
-   *   upstream  what the Activity before it produced (the default)
+   *   upstream  the most recent superseding work (the default)
    *   changes   the diff this run has made since its own baseline
    *
    * `changes` is what the documenter needs: it writes up a change rather
@@ -166,12 +174,13 @@ export type TActivityConfig = Readonly<z.infer<typeof activityConfigSchema>>
 /**
  * A Planner's entry: the agent half only.
  *
- * No `output`, `gates`, `attempts` or `commit`, because a Planner's work
- * configuration is the engine's and not a team's. What a team may change is
- * who answers and how: model, thinking, tools, writes, prompts.
+ * No `output`, `succession`, `gates`, `input`, `attempts` or `commit`, because
+ * a Planner's work configuration is the engine's and not a team's. What a
+ * team may change is who answers and how: model, thinking, tools, writes, prompts.
  */
 export const plannerConfigSchema = activityConfigSchema.omit({
   output: true,
+  succession: true,
   gates: true,
   input: true,
   attempts: true,
@@ -206,9 +215,9 @@ export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
 /**
  * A terminal entry's config: a Planner's shape, plus where it delivers.
  *
- * No `output`, `gates`, `input`, `attempts` or `commit` — same reasoning as
- * `plannerConfigSchema`: a terminal Activity's work configuration is the
- * engine's, not a team's.
+ * No `output`, `succession`, `gates`, `input`, `attempts` or `commit` — same
+ * reasoning as `plannerConfigSchema`: a terminal Activity's work configuration
+ * is the engine's, not a team's.
  */
 export const terminalConfigSchema = plannerConfigSchema.extend({
   delivery: deliverySchema.default({
@@ -302,6 +311,21 @@ export const activityNamed = (
   activities: readonly TActivityConfig[],
   name: string,
 ): TActivityConfig | undefined => activities.find((one) => one.name === name)
+
+/** Succession comes from the loaded registry, never the envelope's shape. */
+export const activitySuccession = (
+  activities: readonly TActivityConfig[],
+  name: string,
+): 'supersedes' | 'annotates' => {
+  const activity = activityNamed(activities, name)
+
+  return (
+    activity?.succession ??
+    (envelopeNamed(activity?.output ?? '') === reviewOutput
+      ? 'annotates'
+      : 'supersedes')
+  )
+}
 
 /**
  * A developer's private layer, merged over the team's.

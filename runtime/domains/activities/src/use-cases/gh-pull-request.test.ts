@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -10,10 +10,14 @@ import type {
   TTerminalConfig,
 } from '../../../../lib/contracts'
 import {
+  activityRunParams,
+  crustConfigSchema,
   DEFAULT_ACTIVITY_OPTIONS,
   terminalConfigSchema,
 } from '../../../../lib/contracts'
 import { ensureDir, readText, writeText } from '../../../../lib/system'
+import { emptyUsage, render } from '../../../agents'
+import type { TAgentPorts } from './execute-agent'
 import type {
   TDeliveryPorts,
   TForge,
@@ -572,8 +576,8 @@ test(
     'it should produce a title and a body that names the reason',
   ].join(', '),
   () => {
-    // given / when
-    const actual = fallbackPullRequest({
+    // given
+    const given = {
       runId: 'ffff6666',
       prompt: 'add the widget',
       because: 'the agent never answered',
@@ -581,7 +585,10 @@ test(
       declaredChecks: [],
       uncommitted: [],
       composedBy: 'gh-pull-request',
-    })
+    }
+
+    // when
+    const actual = fallbackPullRequest(given)
 
     // then
     expect(actual.title).toEqual('add the widget')
@@ -596,8 +603,11 @@ test(
     'it should name it both before and after the body',
   ].join(', '),
   () => {
-    // given / when
-    const actual = attributedBody('the body', 'openai/gpt-5', 'octocat')
+    // given
+    const login = 'octocat'
+
+    // when
+    const actual = attributedBody('the body', 'openai/gpt-5', login)
 
     // then
     expect(actual).toMatch(
@@ -605,5 +615,154 @@ test(
     )
     expect(actual).toMatch(/— pi-crust, on behalf of @octocat\.$/)
     expect(actual).toContain('the body')
+  },
+)
+
+test(
+  [
+    'given issue #108 requirement 1.5.2 and two verdicts after built work',
+    'when gh-pull-request composes its shipped prompt at the agent boundary',
+    'it should still receive both complete verdicts alongside the superseding work',
+  ].join(', '),
+  async () => {
+    // given
+    const base = aRun()
+    const terminal = config({
+      prompt_engineering: {
+        system: join(
+          import.meta.dir,
+          '../../../../prompt-engineering/gh-pull-request/system.md',
+        ),
+        user: join(
+          import.meta.dir,
+          '../../../../prompt-engineering/gh-pull-request/user.md',
+        ),
+      },
+    })
+    const run: TRun = {
+      ...base,
+      cfg: crustConfigSchema.parse({
+        defaults: { protected_files: [] },
+        observability: { db: join(base.sessionDir, 'no-database.db') },
+        agents: [terminal],
+        terminal: [terminal],
+      }),
+      repoRoot: base.sessionDir,
+      vcsRoot: base.sessionDir,
+      trust: 50,
+      stream: false,
+      agentMap: () => ({}),
+      saveAgentMap: () => undefined,
+      addUsage: () => undefined,
+      console: {
+        ...base.console,
+        agentStarted: () => undefined,
+        agentFinished: () => undefined,
+        envelopeSummary: () => undefined,
+      },
+      tracer: {
+        ...base.tracer,
+        envelopeRow: () => undefined,
+        agentSessionRow: () => undefined,
+      },
+    }
+    const built = {
+      ...CONTEXT_ENVELOPE_DEFAULTS,
+      status: 'success' as const,
+      summary: 'built the change',
+      changed_files: ['src/work.ts'],
+    }
+    const verdicts = ['outcome-review', 'code-review'].map((name) => ({
+      activity: name,
+      envelope: {
+        ...CONTEXT_ENVELOPE_DEFAULTS,
+        status: 'success' as const,
+        summary: `${name} verdict`,
+        approved: true,
+        blocking: [],
+        findings: [
+          {
+            requirement: `${name} requirement`,
+            met: true,
+            evidence: `src/${name}.ts:42`,
+          },
+        ],
+      },
+    }))
+    let prompt = ''
+    const agentPorts: TAgentPorts = {
+      run: (request) => {
+        prompt = request.prompt
+        return Promise.resolve({
+          text: JSON.stringify({
+            ...CONTEXT_ENVELOPE_DEFAULTS,
+            status: 'success',
+            summary: 'composed',
+            title: 'Preserve envelope history',
+            body: 'The complete reviews informed this description.',
+          }),
+          returncode: 0,
+          sessionId: 'fixture-session',
+          tokens: 0,
+          cost: 0,
+          usage: emptyUsage,
+          contextTokens: 0,
+          contextWindow: 0,
+        })
+      },
+      changed: () => [],
+      untracked: () => [],
+      render,
+      savePrompt: (directory, name) => join(directory, name),
+      snapshot: () => ({}),
+      rev: () => '',
+    }
+    const { ports } = fakePorts()
+    const activity = ghPullRequestActivity(terminal, OPTIONS, ports, agentPorts)
+    const handle: TActivityRunHandle = {
+      activityRun: {
+        activity_run_id: 'terminal-history',
+        run_id: run.runId,
+        seq: 1,
+        params: activityRunParams({
+          name: terminal.name,
+          kind: 'agent',
+          owner: terminal.name,
+          description: 'Compose a pull request from every verdict',
+        }),
+        status: 'running',
+        error: undefined,
+        started_at: undefined,
+        ended_at: undefined,
+      },
+      log: () => undefined,
+    }
+
+    try {
+      // when
+      const actual = await activity.deliver(
+        aCtx(run, {
+          previous: built,
+          previousStep: 'build',
+          upstream: [{ activity: 'build', envelope: built }, ...verdicts],
+        }),
+        handle,
+      )
+
+      // then
+      expect(actual.fallback).toBe(false)
+      expect(prompt).toContain(
+        `## from build\n\n${JSON.stringify(built, undefined, 2)}`,
+      )
+      for (const verdict of verdicts) {
+        expect(prompt).toContain(
+          `## from ${verdict.activity}\n\n${JSON.stringify(verdict.envelope, undefined, 2)}`,
+        )
+      }
+      expect(prompt).not.toContain('{{previous_envelopes}}')
+    } finally {
+      rmSync(run.sessionDir, { recursive: true, force: true })
+      rmSync(run.contextHandoffDir, { recursive: true, force: true })
+    }
   },
 )

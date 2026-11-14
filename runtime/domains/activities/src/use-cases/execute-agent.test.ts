@@ -294,7 +294,7 @@ test(
       },
     })
 
-    // when / then
+    // when, then
     await expect(
       executeAgent(run, activityRun, aCall(), ports),
     ).rejects.toThrow(/never produced valid GenericOutput JSON/)
@@ -309,7 +309,14 @@ test(
     'it should render nothing',
   ].join(', '),
   () => {
-    expect(feedbackBlock([])).toBe('')
+    // given
+    const violations: readonly string[] = []
+
+    // when
+    const actual = feedbackBlock(violations)
+
+    // then
+    expect(actual).toBe('')
   },
 )
 
@@ -320,7 +327,13 @@ test(
     'it should render each one under "What failed last time"',
   ].join(', '),
   () => {
-    const block = feedbackBlock(['missing a test', 'left a TODO'])
+    // given
+    const violations = ['missing a test', 'left a TODO']
+
+    // when
+    const block = feedbackBlock(violations)
+
+    // then
     expect(block).toContain('## What failed last time')
     expect(block).toContain('- missing a test')
     expect(block).toContain('- left a TODO')
@@ -354,7 +367,7 @@ test(
     )
     const { ports } = fakePorts()
 
-    // when / then
+    // when, then
     await expect(
       executeAgent(run, activityRun, aCall(), ports),
     ).rejects.toThrow(
@@ -520,7 +533,7 @@ test(
     const handle: TActivityRunHandle = { activityRun, log: () => undefined }
     const { ports, calls } = fakePorts()
 
-    // when / then
+    // when, then
     expect(() => callAgent(run, handle, aCall(), ports)).toThrow(
       /callAgent\(\) is only valid inside an agent activity-run/,
     )
@@ -589,8 +602,8 @@ test(
 test(
   [
     'given use-cases/execute-agent::executeAgent',
-    'when the call carries upstream envelopes',
-    'it should render all of them, each labelled with the activity that produced it',
+    'when the call carries a history spanning several Stages',
+    'it should render every envelope in order with provenance, independently of the single previous envelope',
   ].join(', '),
   async () => {
     // given
@@ -621,13 +634,44 @@ test(
               notes_for_next_agent: '',
             },
           },
+          {
+            activity: 'build',
+            envelope: {
+              status: 'success',
+              summary: 'built it',
+              artifacts: [],
+              notes_for_next_agent: '',
+            },
+          },
+          {
+            activity: 'code-review',
+            envelope: {
+              status: 'success',
+              summary: 'review evidence',
+              artifacts: [],
+              notes_for_next_agent: '',
+            },
+          },
         ],
       }),
       ports,
     )
 
     // then
-    expect(renders[0]?.previous_envelopes).toContain('## from scout')
+    const history = renders[0]?.previous_envelopes ?? ''
+    expect(history).toContain('## from scout\n\n{')
+    expect(history).toContain('## from build\n\n{')
+    expect(history).toContain('## from code-review\n\n{')
+    expect(history).toContain('found it')
+    expect(history).toContain('built it')
+    expect(history).toContain('review evidence')
+    expect(history.indexOf('## from scout')).toBeLessThan(
+      history.indexOf('## from build'),
+    )
+    expect(history.indexOf('## from build')).toBeLessThan(
+      history.indexOf('## from code-review'),
+    )
+    expect(renders[0]?.previous_envelope).toBe('(none)')
   },
 )
 
@@ -687,7 +731,7 @@ test(
     const activityRun = anActivityRun()
     const { ports } = fakePorts()
 
-    // when / then — resolves without throwing, whether or not the sibling
+    // when, then — resolves without throwing, whether or not the sibling
     // claimed anything; 'unknown-sibling' exercises the "not on the roster"
     // branch of the same flatMap
     const envelope = await executeAgent(
@@ -768,7 +812,7 @@ test(
         }),
     })
 
-    // when / then
+    // when, then
     await expect(
       executeAgent(run, activityRun, aCall(), ports),
     ).rejects.toThrow(/builder reported status='fail': could not finish/)
