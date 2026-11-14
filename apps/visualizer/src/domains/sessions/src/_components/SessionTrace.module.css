@@ -237,7 +237,7 @@
 
 .blockStatus.running {
   color: var(--blue);
-  animation: pulse 1.2s ease-in-out infinite;
+  animation: global(crust-pulse) 1.2s ease-in-out infinite;
 }
 
 .blockStatus.queued {
@@ -265,7 +265,7 @@
 }
 
 .block.running {
-  animation: pulse 1.6s ease-in-out infinite;
+  animation: global(crust-pulse) 1.6s ease-in-out infinite;
 }
 
 .block.queued {

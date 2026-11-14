@@ -7,6 +7,16 @@ just crust observe              # the ports crust.observe.yaml names (4601, api 
 just crust observe --host       # listen on every interface, so a phone can watch
 ```
 
+## Styling
+
+`src/style.css` loads Tailwind CSS v4 through the Vite plugin, bridges the runtime theme variables with `@theme inline`, and owns global keyframes and rendered-markdown rules. Theme palettes and derivation remain in `src/domains/themes/src/tokens.css`; registered themes still repaint the app through `data-theme`.
+
+A compatibility block in `@layer base` preserves the browser typography, prose spacing, dialog centering and placeholder colours still used by stylesheet-backed components and raw markdown. Preflight stays enabled; utilities can override the compatibility defaults.
+
+Author components with Tailwind utilities, following the portable [CSS conventions](../../.claude/skills/adr/css/README.md). Existing components remain on their CSS Modules until migrated as a unit: do not mix a component's stylesheet with utility styling. Compose conditional classes with `@/lib/cx`.
+
+Browser tests import `viewportWidths` from `@/lib/testing` and refer to widths by tier: `base`, `sm`, `md`, `lg`, `xl` and `2xl`. The helper reads Tailwind's default `--breakpoint-*` values and takes the base width from Playwright's small-phone device descriptor; do not repeat viewport dimensions in tests.
+
 ## What it reads, and what it can change
 
 Reads come straight from the trace: sessions, Activity Runs, events, envelopes and gate results. They never block a run — the database is WAL, so poll as hard as you like.

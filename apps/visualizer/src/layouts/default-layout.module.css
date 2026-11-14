@@ -91,5 +91,5 @@
   border-radius: 50%;
   background: var(--ok);
   box-shadow: 0 0 10px rgb(var(--ok-rgb) / 0.7);
-  animation: pulse 1.6s ease-in-out infinite;
+  animation: global(crust-pulse) 1.6s ease-in-out infinite;
 }

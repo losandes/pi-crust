@@ -15,7 +15,7 @@
 
 .running {
   color: var(--busy);
-  animation: pulse 1.2s ease-in-out infinite;
+  animation: global(crust-pulse) 1.2s ease-in-out infinite;
 }
 
 .queued {
