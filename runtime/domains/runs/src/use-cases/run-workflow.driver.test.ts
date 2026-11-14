@@ -28,9 +28,17 @@
  * machine's catalogue actually has.
  */
 
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -38,6 +46,7 @@ import {
   crustConfigSchema,
   EXIT,
 } from '../../../../lib/contracts'
+import { plain } from '../../../../lib/terminal'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -85,7 +94,12 @@ const fakeAgentPorts = (
   rev: () => '',
 })
 
-beforeEach(() => {
+const workflowEnvironment = () => {
+  const environment = {
+    machine: process.env.CRUST_MACHINE_CONFIG ?? '',
+    data: process.env.CRUST_DATA_DIR ?? '',
+    registry: process.env.CRUST_REGISTRY ?? '',
+  }
   silenceTerminal()
   /*
    * This machine may carry its own `~/.pi-crust/config/crust.config.yaml`,
@@ -109,14 +123,18 @@ beforeEach(() => {
    */
   // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
   process.env.CRUST_DATA_DIR = ''
-})
-afterEach(() => {
-  restoreTerminal()
-  // Reset here too: a test that sets it and then fails would otherwise leak
-  // it into the next file, which is how this was found.
-  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
-  process.env.CRUST_DATA_DIR = ''
-})
+  return {
+    [Symbol.dispose]: () => {
+      restoreTerminal()
+      // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
+      process.env.CRUST_MACHINE_CONFIG = environment.machine
+      // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
+      process.env.CRUST_DATA_DIR = environment.data
+      // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
+      process.env.CRUST_REGISTRY = environment.registry
+    },
+  }
+}
 
 /**
  * Model resolution as a value, so no test here needs a pi install.
@@ -283,6 +301,7 @@ const configFor = (
   const configPath = join(dir, 'crust.config.yaml')
   const entries = activities.map((activity) => ({
     model: MODEL,
+    purpose: `Perform ${activity.name}`,
     prompt_engineering: { system, user },
     writes: [],
     ...activity,
@@ -324,6 +343,7 @@ const argsFor = (
   resume: true,
   activities: undefined,
   lifecycle: undefined,
+  models: undefined,
   approveAfter: undefined,
   commit: undefined,
   stream: false,
@@ -331,6 +351,665 @@ const argsFor = (
   handoff: undefined,
   name: undefined,
 })
+
+const overrideFixture = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-models-'))
+  const environment = workflowEnvironment()
+  // biome-ignore lint/plugin/no-object-mutation: process.env is the registry boundary owned by this disposable fixture
+  process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+
+  return {
+    dir,
+    [Symbol.dispose]: () => {
+      environment[Symbol.dispose]()
+      rmSync(dir, { recursive: true, force: true })
+    },
+  }
+}
+
+const workflowEvents = (dir: string, runId: string) =>
+  readFileSync(join(dir, 'data', 'sessions', runId, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+
+const overrideWarningsIn = (
+  events: ReturnType<typeof workflowEvents>,
+): readonly string[] =>
+  events
+    .filter((event) => event.type === 'log')
+    .map((event) => String(event.payload.message))
+    .filter((message) => message.includes('--model:'))
+    .map((message) => message.slice(message.indexOf('--model:')))
+
+const partialModelOverrides = [
+  {
+    setting: 'a model-only alias',
+    models: 'b=openai/gpt-5',
+    model: 'openai/gpt-5',
+    thinking: 'provider-adaptive',
+    warnings: [],
+  },
+  {
+    setting: 'a thinking-only alias',
+    models: 'b=@off',
+    model: MODEL,
+    thinking: 'off',
+    warnings: [],
+  },
+  {
+    setting: 'an invalid thinking-only entry',
+    models: 'build=@extreme',
+    model: MODEL,
+    thinking: 'provider-adaptive',
+    warnings: [
+      "--model: ignored thinking level 'extreme' for 'build' — use one of off, minimal, low, medium, high, xhigh, max",
+    ],
+  },
+  {
+    setting: 'a later model-only setting',
+    models: 'build=discarded/model@xhigh,build=openai/gpt-5',
+    model: 'openai/gpt-5',
+    thinking: 'provider-adaptive',
+    warnings: [
+      "--model: 'build' is named more than once — using 'build=openai/gpt-5'",
+    ],
+  },
+  {
+    setting: 'an empty comma list',
+    models: ' , , ',
+    model: MODEL,
+    thinking: 'provider-adaptive',
+    warnings: [],
+  },
+] as const
+
+for (const {
+  setting,
+  models,
+  model,
+  thinking,
+  warnings,
+} of partialModelOverrides) {
+  test(
+    [
+      'given #112 requirements 1.2 and 1.3, a configured activity with an alias',
+      `when --model supplies ${setting}`,
+      'it should send and record only the applicable changes, preserving the other configured field',
+    ].join(', '),
+    async () => {
+      // given
+      using fixture = overrideFixture()
+      const { dir } = fixture
+      const configPath = configFor(dir, [
+        {
+          name: 'build',
+          aliases: ['b'],
+          thinking: 'provider-adaptive',
+          output: 'genericOutput',
+          attempts: 1,
+          commit: false,
+        },
+      ])
+      const runId = '1120bb01'
+      const canned = fakeAgentPorts({
+        status: 'success',
+        summary: 'built it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      })
+      let spawned: Parameters<TAgentPorts['run']>[0] | undefined
+      const ports: TAgentPorts = {
+        ...canned,
+        run: (request) => {
+          spawned = request
+          return canned.run(request)
+        },
+      }
+
+      // when
+      const exitCode = await runWorkflow(
+        { ...freshArgs(configPath), runId, models },
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        ports,
+        fixtureModel,
+        async () => false,
+      )
+      const events = workflowEvents(dir, runId)
+
+      // then
+      expect(exitCode).toBe(EXIT.SUCCESS)
+      expect(spawned).toMatchObject({ model, thinking })
+      expect(
+        events
+          .filter((event) => event.type === 'agent_start')
+          .map((event) => ({
+            name: event.name,
+            model: event.payload.model,
+            thinking: event.payload.thinking,
+          })),
+      ).toEqual([{ name: 'build', model, thinking }])
+      expect(overrideWarningsIn(events)).toEqual(warnings)
+    },
+  )
+}
+
+test(
+  [
+    'given #112 requirements 1.3.6 and 1.4.4, all config layers and a stale local override',
+    'when a model override is followed by a separate run without the flag',
+    'it should win only in the first run, leave every file unchanged, and print config warnings before override warnings',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = overrideFixture()
+    const { dir } = fixture
+    const configPath = configFor(dir, [
+      { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
+    ])
+    const prompts = {
+      system: join(dir, 'system.md'),
+      user: join(dir, 'user.md'),
+    }
+    const registered = {
+      name: 'build',
+      purpose: 'Build the requested change',
+      model: 'repository/activity',
+      thinking: 'low',
+      prompt_engineering: prompts,
+      writes: [],
+      attempts: 1,
+      commit: false,
+    }
+    const machinePath = join(dir, 'machine.yaml')
+    const layers = [
+      {
+        path: join(dir, 'crust.activities.yaml'),
+        document: {
+          activities: [registered],
+          planners: ['operator', 'triage'].map((name) => ({
+            ...registered,
+            name,
+          })),
+          terminal: [{ ...registered, name: 'gh-pull-request' }],
+        },
+      },
+      {
+        path: join(dir, 'crust.activities.local.yaml'),
+        document: {
+          activities: [
+            { name: 'build', model: 'local/activity', thinking: 'medium' },
+          ],
+        },
+      },
+      {
+        path: machinePath,
+        document: {
+          override: {
+            agents: [
+              { name: 'build', model: 'machine/model', thinking: 'high' },
+            ],
+          },
+        },
+      },
+      {
+        path: join(dir, 'crust.config.local.yaml'),
+        document: {
+          agents: [
+            { name: 'build', model: 'local/config', thinking: 'max' },
+            { name: 'retired', model: 'unused/model' },
+          ],
+        },
+      },
+    ]
+    for (const { path, document } of layers) {
+      writeFileSync(path, Bun.YAML.stringify(document))
+    }
+    // biome-ignore lint/plugin/no-object-mutation: this disposable fixture owns the machine-config environment boundary
+    process.env.CRUST_MACHINE_CONFIG = machinePath
+    const filesBefore = [configPath, ...layers.map(({ path }) => path)].map(
+      (path) => ({ path, text: readFileSync(path, 'utf8') }),
+    )
+    const ports = fakeAgentPorts({
+      status: 'success',
+      summary: 'built it',
+      artifacts: [],
+      notes_for_next_agent: '',
+    })
+    const plan = [
+      { name: 'implement', strategy: 'serial' as const, activities: ['build'] },
+    ]
+
+    // when
+    const overridden = await runWorkflow(
+      {
+        ...freshArgs(configPath),
+        runId: '1120bb02',
+        models: 'nameless,build=openai/gpt-5@xhigh,biuld=missing/model',
+      },
+      plan,
+      ports,
+      fixtureModel,
+      async () => false,
+    )
+    const configured = await runWorkflow(
+      { ...freshArgs(configPath), runId: '1120bb03' },
+      plan,
+      ports,
+      fixtureModel,
+      async () => false,
+    )
+    const firstEvents = workflowEvents(dir, '1120bb02')
+    const firstAgent = firstEvents.findIndex(
+      (event) => event.type === 'agent_start',
+    )
+    const notices = firstEvents.filter(
+      (event) =>
+        event.type === 'log' &&
+        (String(event.payload.message).includes('local config names') ||
+          String(event.payload.message).includes('--model:')),
+    )
+
+    // then
+    expect([overridden, configured]).toEqual([EXIT.SUCCESS, EXIT.SUCCESS])
+    expect(
+      ['1120bb02', '1120bb03'].flatMap((runId) =>
+        workflowEvents(dir, runId)
+          .filter((event) => event.type === 'agent_start')
+          .map((event) => ({
+            model: event.payload.model,
+            thinking: event.payload.thinking,
+          })),
+      ),
+    ).toEqual([
+      { model: 'openai/gpt-5', thinking: 'xhigh' },
+      { model: 'local/config', thinking: 'max' },
+    ])
+    expect(
+      notices.map((event) => {
+        const message = String(event.payload.message)
+        const marker = message.includes('--model:')
+          ? '--model:'
+          : 'local config names'
+        return message.slice(message.indexOf(marker))
+      }),
+    ).toEqual([
+      "local config names agent 'retired', which this config does not have — that override did nothing. Activities are registered in crust.activities.yaml.",
+      "--model: ignored 'nameless' — name the activity it applies to, as <activity>=<provider/model>@<thinking>",
+      "--model: no activity named 'biuld' in this repository — ignored",
+    ])
+    expect(firstAgent).toBeGreaterThan(-1)
+    const printed = plain(terminalOutput())
+    for (const notice of notices) {
+      expect(firstEvents.indexOf(notice)).toBeLessThan(firstAgent)
+      expect(printed).toContain(notice.payload.message)
+    }
+    expect(printed.indexOf(notices[0]?.payload.message)).toBeLessThan(
+      printed.indexOf(notices[1]?.payload.message),
+    )
+    expect(
+      filesBefore.map(({ path }) => ({
+        path,
+        text: readFileSync(path, 'utf8'),
+      })),
+    ).toEqual(filesBefore)
+  },
+)
+
+test(
+  [
+    'given #112 requirements 1.3.4, 1.3.5 and 1.4.3, invalid models on unknown and unused names',
+    'when only build is selected',
+    'it should warn and run build without attempting to resolve either unused model',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = overrideFixture()
+    const { dir } = fixture
+    const configPath = configFor(dir, [
+      { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
+      { name: 'ux-design', output: 'genericOutput' },
+    ])
+    const resolve: TResolveModel = (pattern) => {
+      if (pattern.startsWith('missing/')) {
+        throw new Error(`no model matches '${pattern}'`)
+      }
+      return fixtureModel(pattern)
+    }
+    const runId = '1120bb04'
+
+    // when
+    const exitCode = await runWorkflow(
+      {
+        ...freshArgs(configPath),
+        runId,
+        models: 'biuld=missing/unknown,ux-design=missing/unused,build=@high',
+      },
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      fakeAgentPorts({
+        status: 'success',
+        summary: 'built it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      }),
+      resolve,
+      async () => false,
+    )
+    const events = workflowEvents(dir, runId)
+
+    // then
+    expect(exitCode).toBe(EXIT.SUCCESS)
+    expect(
+      events
+        .filter((event) => event.type === 'agent_start')
+        .map((event) => ({
+          name: event.name,
+          model: event.payload.model,
+          thinking: event.payload.thinking,
+        })),
+    ).toEqual([{ name: 'build', model: MODEL, thinking: 'high' }])
+    expect(overrideWarningsIn(events)).toEqual([
+      "--model: no activity named 'biuld' in this repository — ignored",
+      "--model: 'ux-design' does not run in this run — the override has no effect",
+    ])
+  },
+)
+
+for (const name of ['build', 'gh-pull-request']) {
+  test(
+    [
+      'given #112 requirements 1.4.1 and 1.4.3, a reviser and a terminal outside the activity chain',
+      `when --model selects an unresolvable model for ${name}`,
+      'it should refuse before even the first activity starts',
+    ].join(', '),
+    async () => {
+      // given
+      using fixture = overrideFixture()
+      const { dir } = fixture
+      const configPath = configFor(
+        dir,
+        [
+          { name: 'prep', output: 'genericOutput', attempts: 1 },
+          { name: 'review', output: 'reviewOutput' },
+          { name: 'build', output: 'buildOutput' },
+        ],
+        [{ name: 'gh-pull-request', purpose: 'Deliver the reviewed change' }],
+      )
+      const resolve: TResolveModel = (pattern) => {
+        if (pattern === 'missing/model') {
+          throw new Error(`no model matches '${pattern}'`)
+        }
+        return fixtureModel(pattern)
+      }
+
+      // when, then
+      await expect(
+        runWorkflow(
+          {
+            ...freshArgs(configPath),
+            models: `${name}=missing/model`,
+            approveAfter: 'prep',
+          },
+          [
+            {
+              name: 'inspect',
+              strategy: 'serial',
+              activities: ['prep', 'review'],
+            },
+            {
+              name: 'deliver',
+              strategy: 'serial',
+              activities: ['gh-pull-request'],
+            },
+          ],
+          fakeAgentPorts({
+            status: 'success',
+            summary: 'prepared it',
+            artifacts: [],
+            notes_for_next_agent: '',
+          }),
+          resolve,
+          async () => false,
+        ),
+      ).rejects.toThrow(`agent '${name}': no model matches 'missing/model'`)
+      expect(existsSync(join(dir, 'data'))).toBe(false)
+    },
+  )
+}
+
+test(
+  [
+    'given #112 requirement 1.4.1, a reviser and terminal with otherwise unresolvable configured models',
+    'when their models are overridden and the run waits after prep',
+    'it should validate the replacements and not call either override unused',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = overrideFixture()
+    const { dir } = fixture
+    const configPath = configFor(
+      dir,
+      [
+        { name: 'prep', output: 'genericOutput', attempts: 1 },
+        { name: 'review', output: 'reviewOutput' },
+        { name: 'build', output: 'buildOutput', model: 'missing/reviser' },
+      ],
+      [
+        {
+          name: 'gh-pull-request',
+          purpose: 'Deliver the reviewed change',
+          model: 'missing/terminal',
+        },
+      ],
+    )
+    const resolve: TResolveModel = (pattern) => {
+      if (pattern.startsWith('missing/')) {
+        throw new Error(`no model matches '${pattern}'`)
+      }
+      return fixtureModel(pattern)
+    }
+    const runId = '1120bb05'
+
+    // when
+    const exitCode = await runWorkflow(
+      {
+        ...freshArgs(configPath),
+        runId,
+        models: 'build=openai/gpt-5@max,gh-pull-request=openai/gpt-5@low',
+        approveAfter: 'prep',
+      },
+      [
+        { name: 'inspect', strategy: 'serial', activities: ['prep', 'review'] },
+        {
+          name: 'deliver',
+          strategy: 'serial',
+          activities: ['gh-pull-request'],
+        },
+      ],
+      fakeAgentPorts({
+        status: 'success',
+        summary: 'prepared it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      }),
+      resolve,
+      async () => false,
+    )
+    const events = workflowEvents(dir, runId)
+
+    // then
+    expect(exitCode).toBe(EXIT.WAITING)
+    expect(
+      events
+        .filter((event) => event.type === 'agent_start')
+        .map((event) => event.name),
+    ).toEqual(['prep'])
+    expect(overrideWarningsIn(events)).toEqual([])
+    expect(plain(terminalOutput())).not.toContain('does not run in this run')
+  },
+)
+
+for (const selection of [
+  { activities: 'build', lifecycle: undefined },
+  { activities: undefined, lifecycle: 'deliver' },
+]) {
+  test(
+    [
+      'given use-cases/run-workflow::runWorkflow',
+      `when --model overrides a run selected by ${selection.lifecycle === undefined ? '--activities' : '--lifecycle'}`,
+      'it should validate and trace the overridden model and thinking level instead of the local config',
+    ].join(', '),
+    async () => {
+      // given
+      using fixture = overrideFixture()
+      const { dir } = fixture
+      const configPath = configFor(dir, [
+        { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
+      ])
+      writeFileSync(
+        join(dir, 'crust.config.local.yaml'),
+        Bun.YAML.stringify({
+          agents: [{ name: 'build', model: 'local/model', thinking: 'low' }],
+        }),
+      )
+      const runId = '1120aa01'
+      const ports = fakeAgentPorts({
+        status: 'success',
+        summary: 'built it',
+        artifacts: [],
+        notes_for_next_agent: '',
+      })
+
+      // when
+      const exitCode = await runWorkflow(
+        {
+          ...freshArgs(configPath),
+          ...selection,
+          runId,
+          models: 'build=openai/gpt-5@high',
+        },
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        ports,
+        fixtureModel,
+        async () => false,
+      )
+      const events = readFileSync(
+        join(dir, 'data', 'sessions', runId, 'events.jsonl'),
+        'utf8',
+      )
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+
+      // then
+      expect(exitCode).toBe(EXIT.SUCCESS)
+      expect(
+        events
+          .filter((event) => event.type === 'agent_start')
+          .map((event) => ({
+            name: event.name,
+            model: event.payload.model,
+            thinking: event.payload.thinking,
+          })),
+      ).toEqual([{ name: 'build', model: 'openai/gpt-5', thinking: 'high' }])
+    },
+  )
+}
+
+test(
+  [
+    'given use-cases/run-workflow::runWorkflow',
+    'when model overrides contain an unknown name, an unused activity, and malformed settings',
+    'it should trace their warnings before the first agent and still complete the run',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = overrideFixture()
+    const { dir } = fixture
+    const configPath = configFor(dir, [
+      { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
+      { name: 'ux-design', output: 'genericOutput' },
+    ])
+    const runId = '1120aa02'
+    const ports = fakeAgentPorts({
+      status: 'success',
+      summary: 'built it',
+      artifacts: [],
+      notes_for_next_agent: '',
+    })
+
+    // when
+    const exitCode = await runWorkflow(
+      {
+        ...freshArgs(configPath),
+        runId,
+        models:
+          'nameless,build=openai/gpt-5@extreme,biuld=openai/gpt-5,ux-design=@high',
+      },
+      [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+      ports,
+      fixtureModel,
+      async () => false,
+    )
+    const events = readFileSync(
+      join(dir, 'data', 'sessions', runId, 'events.jsonl'),
+      'utf8',
+    )
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const firstAgent = events.findIndex((event) => event.type === 'agent_start')
+    const warnings = events.filter(
+      (event) =>
+        event.type === 'log' &&
+        String(event.payload.message).includes('--model:'),
+    )
+
+    // then
+    expect(exitCode).toBe(EXIT.SUCCESS)
+    expect(firstAgent).toBeGreaterThan(-1)
+    expect(warnings).toHaveLength(4)
+    for (const warning of warnings) {
+      expect(warning.activity_run_id).toBe('')
+      expect(events.indexOf(warning)).toBeLessThan(firstAgent)
+      expect(plain(terminalOutput())).toContain(warning.payload.message)
+    }
+    expect(warnings.map((event) => event.payload.message).join('\n')).toContain(
+      "--model: no activity named 'biuld' in this repository — ignored",
+    )
+  },
+)
+
+test(
+  [
+    'given use-cases/run-workflow::runWorkflow',
+    'when the model resolver rejects an overridden model',
+    'it should refuse before creating a session or spawning an agent',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = overrideFixture()
+    const { dir } = fixture
+    const configPath = configFor(dir, [
+      { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
+    ])
+    const refuseModel: TResolveModel = (pattern) => {
+      throw new Error(`no model matches '${pattern}'`)
+    }
+
+    // when, then
+    await expect(
+      runWorkflow(
+        { ...freshArgs(configPath), models: 'build=missing/model' },
+        [{ name: 'implement', strategy: 'serial', activities: ['build'] }],
+        fakeAgentPorts({}),
+        refuseModel,
+        async () => false,
+      ),
+    ).rejects.toThrow("no model matches 'missing/model'")
+    expect(existsSync(join(dir, 'data'))).toBe(false)
+  },
+)
 
 test(
   [
@@ -340,6 +1019,7 @@ test(
   ].join(', '),
   async () => {
     // given — 'build' is a planned Activity but no 'agents' entry answers to it
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-validate-'))
     const configPath = join(dir, 'crust.config.yaml')
     const system = join(dir, 'system.md')
@@ -386,6 +1066,7 @@ test(
   ].join(', '),
   async () => {
     // given
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-e2e-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -457,8 +1138,10 @@ test(
     'it should raise a human gate, wait rather than invent an answer, and settle the run as waiting',
   ].join(', '),
   async () => {
+    // given
+    using _environment = workflowEnvironment()
     /*
-     * given \u2014 'build' is resumed and replays; 'review' is NOT resumed, so
+     * 'build' is resumed and replays; 'review' is NOT resumed, so
      * it actually runs, through `fakeAgentPorts` rather than `pi`; 'document'
      * follows it, so the Authority Rule applies \u2014 a later stage would
      * otherwise have to invent the answer \u2014 and the gate fires.
@@ -592,6 +1275,7 @@ test(
   ].join(', '),
   async () => {
     // given
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-planned-gate-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -684,6 +1368,7 @@ test(
   ].join(', '),
   async () => {
     // given
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-self-answered-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -781,6 +1466,7 @@ test(
   ].join(', '),
   async () => {
     // given
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-local-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -858,6 +1544,7 @@ test(
     // given — a machine config outside the repository, and a data directory
     // the environment chose rather than the repository's own config: both
     // are invisible in a trace unless the run says so at the start
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-machine-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -940,8 +1627,10 @@ test(
     'it should cancel the terminal rather than deliver, and say why',
   ].join(', '),
   async () => {
+    // given
+    using _environment = workflowEnvironment()
     /*
-     * given — a resumed run whose planned chain replays clean, but whose
+     * A resumed run whose planned chain replays clean, but whose
      * trace already carries a counted activity run that failed. A terminal
      * Activity never enters the fold; it is settled after the loop, and a
      * run with a failure in it must not open a pull request for itself.
@@ -1055,6 +1744,7 @@ test(
   async () => {
     // given — the probe as a port, because whether a developer happens to
     // have the visualizer open must not decide what a run prints
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-watch-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -1115,6 +1805,7 @@ test(
   ].join(', '),
   async () => {
     // given
+    using _environment = workflowEnvironment()
     // note the resumed Activity Run's envelope on disk does not parse,
     // so replay throws from inside the fold, after `startSession` has already
     // marked this session running
@@ -1181,6 +1872,7 @@ test(
   async () => {
     // given — resumed, with the single planned Activity's envelope already on
     // disk, so the chain replays with no agent spawned
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-planned-ok-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
@@ -1267,6 +1959,7 @@ test(
   ].join(', '),
   async () => {
     // given
+    using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-planned-'))
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
