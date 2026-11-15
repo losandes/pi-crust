@@ -162,6 +162,65 @@ const OPTIONS: TActivityOptions = DEFAULT_ACTIVITY_OPTIONS
 
 test(
   [
+    'given the gh-pull-request terminal Activity',
+    'when it declares its engine requirements',
+    'it should require committing regardless of the invocation',
+  ].join(', '),
+  () => {
+    // given
+    const { ports } = fakePorts()
+
+    // when
+    const actual = ghPullRequestActivity(config(), OPTIONS, ports)
+
+    // then
+    expect(actual.requiresCommitting).toBe(true)
+  },
+)
+
+test(
+  [
+    'given a push port that throws a multi-line SSH failure',
+    'when gh-pull-request tries to deliver',
+    'it should return a recoverable refusal before finding, creating or updating any pull request',
+  ].join(', '),
+  async () => {
+    // given
+    const { ports, calls } = fakePorts({
+      push: () => {
+        throw new Error('SSH agent unavailable\nmore details')
+      },
+    })
+    const activity = ghPullRequestActivity(config(), OPTIONS, ports)
+    const run = aRun({ resume: new Set(['gh-pull-request']) })
+    resumedEnvelope(run, {
+      status: 'success',
+      summary: 'done',
+      title: 'Ship it',
+      body: 'Complete work.',
+    })
+    try {
+      // when
+      const actual = await activity.deliver(aCtx(run), aHandle())
+
+      // then
+      expect(actual).toEqual({
+        action: 'refused',
+        url: '',
+        reason: 'git push failed: SSH agent unavailable',
+        recoverable: true,
+        fallback: false,
+      })
+      expect(calls).toEqual([])
+    } finally {
+      rmSync(run.sessionDir, { recursive: true, force: true })
+      rmSync(run.contextHandoffDir, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  [
     'given use-cases/activities/gh-pull-request::ghPullRequestActivity',
     'when --commit false was in force',
     'it should refuse without pushing or calling the forge',
@@ -182,6 +241,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/--commit false/)
+    expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
 )
@@ -203,6 +263,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/not a git repository|HEAD is detached/)
+    expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
 )
@@ -224,6 +285,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/IS delivery.base/)
+    expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
 )
@@ -245,6 +307,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/is not a configured remote/)
+    expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
 )
@@ -266,6 +329,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/resolves to a commit/)
+    expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
 )
@@ -287,6 +351,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/not ahead of/)
+    expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
 )
@@ -308,6 +373,7 @@ test(
     // then
     expect(actual.action).toEqual('refused')
     expect(actual.reason).toMatch(/not installed|auth status/)
+    expect(actual.recoverable).toBe(true)
     expect(calls).toEqual([])
   },
 )
@@ -335,6 +401,7 @@ test(
 
     // then
     expect(actual.action).toEqual('created')
+    expect(actual.recoverable).toBe(false)
     expect(actual.fallback).toBe(false)
     expect(calls.map((one) => one.op)).toEqual(['push', 'find', 'create'])
   },
@@ -372,6 +439,7 @@ test(
 
     // then
     expect(actual.action).toEqual('updated')
+    expect(actual.recoverable).toBe(false)
     expect(actual.url).toEqual('https://example.com/owner/repo/pull/9')
     expect(calls.map((one) => one.op)).toEqual(['push', 'find', 'update'])
   },

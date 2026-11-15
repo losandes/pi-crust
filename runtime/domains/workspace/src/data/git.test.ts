@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -163,6 +169,7 @@ test(
     'it should still stage and commit it — an absolute pathspec resolves inside the repository regardless of cwd',
   ].join(', '),
   () => {
+    // given
     /*
      * given — the nested-workspace shape this fix exists for: a file that
      * lives above the directory commitPaths is addressed from. `cwd` here
@@ -211,7 +218,7 @@ test(
     // given
     const { dir } = aRepoWithRemote()
 
-    // when / then
+    // when, then
     expect(remoteExists('origin', dir)).toBe(true)
     expect(remoteExists('upstream', dir)).toBe(false)
   },
@@ -477,5 +484,63 @@ test(
     expect(() => commitPaths('msg', ['a.txt'], dir)).toThrow(
       /not a git repository/,
     )
+  },
+)
+
+test(
+  [
+    'given a pre-commit hook that waits longer than the injected bound',
+    'when commitPaths times out the commit',
+    'it should name the timeout, retain the staged work, and let git remove its index lock',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    const hooks = join(dir, '.git', 'hooks')
+    git(dir, 'config', 'core.hooksPath', hooks)
+    const hook = join(hooks, 'pre-commit')
+    writeFileSync(hook, '#!/bin/sh\nsleep 2\nexit 1\n')
+    chmodSync(hook, 0o755)
+    writeFileSync(join(dir, 'extra.test.ts'), 'updated\n')
+    const before = git(dir, 'rev-parse', 'HEAD')
+    try {
+      // when, then
+      expect(() =>
+        commitPaths('fix: bounded commit', ['extra.test.ts'], dir, 100),
+      ).toThrow(
+        'git commit did not finish within 0.1 s and was stopped — a signing or SSH agent may be waiting for approval',
+      )
+      expect(git(dir, 'diff', '--cached', '--name-only')).toBe('extra.test.ts')
+      expect(git(dir, 'rev-parse', 'HEAD')).toBe(before)
+      expect(existsSync(join(dir, '.git', 'index.lock'))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  [
+    'given a local remote and a pre-push hook that waits longer than the injected bound',
+    'when pushBranch times out the push',
+    'it should report the bound without contacting any network remote',
+  ].join(', '),
+  () => {
+    // given
+    const { dir, bare } = aRepoWithRemote()
+    const hooks = join(dir, '.git', 'hooks')
+    git(dir, 'config', 'core.hooksPath', hooks)
+    const hook = join(hooks, 'pre-push')
+    writeFileSync(hook, '#!/bin/sh\nsleep 2\nexit 1\n')
+    chmodSync(hook, 0o755)
+    try {
+      // when, then
+      expect(() => pushBranch('origin', 'main', dir, 100)).toThrow(
+        'git push did not finish within 0.1 s and was stopped — a signing or SSH agent may be waiting for approval',
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(bare, { recursive: true, force: true })
+    }
   },
 )

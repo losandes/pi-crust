@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -8,6 +8,7 @@ import type {
   TActivityRunStatus,
   TRunState,
   TTracer,
+  TTreeWarning,
 } from '../../../../lib/contracts'
 import {
   activityRunParams,
@@ -113,6 +114,7 @@ test(
     'it should still say the session is resumable',
   ].join(', '),
   () => {
+    // given
     /*
      * given — run fbf49583: a commit failed and killed the process before
      * the next Activity ever opened a row. `resume_from` cannot see what it
@@ -230,6 +232,7 @@ test(
     'it should carry that warning into the state the reporter prints',
   ].join(', '),
   () => {
+    // given
     /*
      * given — a developer asking a finished run what happened is usually not
      * the person who watched it happen, so the terminal cannot be the only
@@ -404,3 +407,83 @@ test(
     expect(actual?.name).toEqual('')
   },
 )
+
+const uncommittedWarning: TTreeWarning = {
+  kind: 'uncommitted',
+  activities: ['build'],
+  activityRunIds: ['aaaa1111_01_build'],
+  stage: 'implement',
+  paths: ['src/work.ts'],
+  note: 'first refusal',
+}
+const recoveredWarning: TTreeWarning = {
+  ...uncommittedWarning,
+  kind: 'recovered',
+  note: 'committed abc123',
+}
+const laterWarning: TTreeWarning = {
+  ...uncommittedWarning,
+  note: 'later refusal',
+}
+const otherWarning: TTreeWarning = {
+  ...uncommittedWarning,
+  kind: 'unexpected',
+  note: 'unattributed',
+}
+
+for (const given of [
+  {
+    name: 'answered refusal',
+    warnings: [uncommittedWarning, recoveredWarning],
+    expected: [],
+  },
+  {
+    name: 'later refusal replacing an earlier one',
+    warnings: [uncommittedWarning, laterWarning],
+    expected: [laterWarning],
+  },
+  {
+    name: 'refusal filed after recovery',
+    warnings: [uncommittedWarning, recoveredWarning, laterWarning],
+    expected: [laterWarning],
+  },
+  {
+    name: 'another kind alongside an answered refusal',
+    warnings: [otherWarning, uncommittedWarning, recoveredWarning],
+    expected: [otherWarning],
+  },
+]) {
+  test(
+    [
+      `given a trace containing ${given.name}`,
+      'when readRunState reports the run',
+      'it should return only standing warnings in trace order',
+    ].join(', '),
+    () => {
+      // given
+      const dir = scratch()
+      const dbPath = join(dir, 'crust.db')
+      const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+      session(tracer, 'aaaa1111', [[1, 'build', 'success']])
+      for (const warning of given.warnings) {
+        tracer.event({
+          run_id: 'aaaa1111',
+          activity_run_id: 'aaaa1111_01_build',
+          type: 'log',
+          name: WARNING_EVENT,
+          payload: warningPayload(warning),
+        })
+      }
+      try {
+        // when
+        const actual = readRunState(dbPath, 'aaaa1111')
+
+        // then
+        expect(actual?.warnings).toEqual(given.expected)
+      } finally {
+        tracer.close()
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+}

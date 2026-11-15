@@ -179,6 +179,7 @@ for (const status of ['success', 'fail'] as const) {
       const terminal: TTerminalActivity = {
         name: 'gh-pull-request',
         requires: [],
+        requiresCommitting: true,
         params: activityRunParams({
           name: 'gh-pull-request',
           kind: 'agent',
@@ -191,6 +192,7 @@ for (const status of ['success', 'fail'] as const) {
             action: 'created',
             url: 'https://example.test/pr/117',
             reason: '',
+            recoverable: false,
             fallback: false,
           })
         },

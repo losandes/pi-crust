@@ -2,6 +2,8 @@
 
 export { checks } from './src/use-cases/checks-gate'
 export { diffMatchesClaims } from './src/use-cases/claim-gates'
+export type { TDelivered, TDeliveryGate } from './src/use-cases/delivery-gates'
+export { DELIVERY_GATES } from './src/use-cases/delivery-gates'
 export { disputesSupported } from './src/use-cases/dispute-gates'
 export type { TRoundRecord } from './src/use-cases/dispute-ledger'
 export {

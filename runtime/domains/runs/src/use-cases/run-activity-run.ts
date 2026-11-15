@@ -316,10 +316,17 @@ export const finishWaiting = (run: TRun, requestPath: string): number => {
    * continue afterwards. The resume line matters most: it carries the flags
    * this run was launched with, which are not stored anywhere.
    */
+  const resume = resumeInvocation(process.argv, run.runId)
+  const kind = run.tracer.eventsNamed(run.runId, 'human_gate_open').at(-1)?.kind
   run.console.instructions([
     `run ${run.runId} is waiting for you — ${requestPath}`,
     '',
-    ...decisionOptions(run.runId, resumeInvocation(process.argv, run.runId)),
+    ...(kind === 'delivery'
+      ? [
+          'No answer is needed. Resolve what the error names, then resume:',
+          `    ${resume}`,
+        ]
+      : decisionOptions(run.runId, resume)),
   ])
   return EXIT.WAITING
 }

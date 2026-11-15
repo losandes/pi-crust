@@ -312,6 +312,12 @@ export const runWorkflow = async (
     terminalName === undefined
       ? undefined
       : terminalActivityFor(terminalName, cfg, terminalOptions)
+  if (terminal?.requiresCommitting && !terminalOptions.committing) {
+    throw new Error(
+      `terminal Activity '${terminal.name}' delivers this run's commits, and --commit false means this run makes none — ` +
+        `drop --commit false, or choose a lifecycle that does not end in '${terminal.name}'`,
+    )
+  }
   validateAgents(cfg, [...used], resolveModel)
   const ledger = attemptLedger(
     ledgerSeed(cfg, args.runId, args.resume === true),
@@ -510,12 +516,13 @@ export const runWorkflow = async (
     }
 
     if (terminal !== undefined) {
-      await runTerminal({
+      const outcome = await runTerminal({
         run,
         activity: terminal,
         ctx: settled.ctx,
         accepted: settled.accepted,
       })
+      if (outcome.kind === 'waiting') return finishWaiting(run, outcome.request)
     }
 
     return finish(run, { accepted: settled.accepted, reason: settled.reason })

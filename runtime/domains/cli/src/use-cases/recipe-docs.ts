@@ -194,7 +194,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       {
         name: '--commit false (-c)',
         detail:
-          'land nothing. Only `false` is accepted \u2014 committing is declared per Activity',
+          'land nothing. Only `false` is accepted \u2014 committing is declared per Activity. --commit false is rejected at startup for a Lifecycle ending in a terminal Activity that requires commits',
       },
       {
         name: '--trust-level 50',

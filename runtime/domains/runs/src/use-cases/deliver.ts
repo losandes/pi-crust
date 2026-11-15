@@ -13,6 +13,11 @@
  * registry declares. There is no `--commit true`: a flag granting a
  * permission the configuration withheld would make a run behave in a way
  * nobody reading the registry could predict.
+ *
+ * A refused or timed-out commit does not stop the chain. Terminal delivery
+ * retries each outstanding commit once, with signing and hooks unchanged;
+ * if git still refuses, the run waits before anything is pushed. A resume
+ * retries again. Recovery answers the warning on the same ordered channel.
  */
 
 import { resolve } from 'node:path'
@@ -20,12 +25,35 @@ import {
   errorMessage,
   safeParseSettlement,
 } from '../../../../../lib/typedefs/src/settlement'
-import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
-import { WARNING_EVENT, warningPayload } from '../../../../lib/contracts'
+import type {
+  TEnvelopeBase,
+  TRun,
+  TTreeWarning,
+} from '../../../../lib/contracts'
+import {
+  outstandingUncommitted,
+  WARNING_EVENT,
+  warningFromPayload,
+  warningPayload,
+} from '../../../../lib/contracts'
 import { touchedBy } from '../../../policy'
 import { commitPaths } from '../../../workspace'
 
+export const COMMIT_REFUSED_EVENT = 'commit_refused'
+
 const firstLine = (text: string): string => text.split('\n')[0] ?? ''
+
+/** Refused commits still standing in this run's ordered warning channel. */
+export const outstandingCommits = ({
+  tracer,
+  runId,
+}: Pick<TRun, 'tracer' | 'runId'>): readonly TTreeWarning[] =>
+  outstandingUncommitted(
+    tracer.eventsNamed(runId, WARNING_EVENT).flatMap((payload) => {
+      const warning = warningFromPayload(payload)
+      return warning === undefined ? [] : [warning]
+    }),
+  )
 
 export const commitMessage = (
   run: TRun,
@@ -71,14 +99,13 @@ export const commitMessage = (
  * same reason `commitPaths` never puts a file back: pi-crust cannot tell an
  * agent's write from a developer's save, so it reports rather than acts.
  */
-export const commitActivity = (
+const attemptCommit = (
   run: TRun,
   instance: string,
   activityRunId: string,
-  envelope: TEnvelopeBase | undefined,
+  message: string,
   stage: string,
 ): string => {
-  const message = commitMessage(run, envelope)
   const touched = touchedBy(run, instance)
   /*
    * `touched` is spelled relative to the WORKSPACE (or absolute, for a path
@@ -93,8 +120,13 @@ export const commitActivity = (
     commitPaths(message, atVcsRoot, run.vcsRoot),
   )
   if (settlement.status === 'error') {
+    // Git includes the whole -m argument before stderr. Collapse that argument
+    // before taking a line, so the warning still names git's actual refusal.
+    const failure = firstLine(
+      errorMessage(settlement.error).replace(message, () => firstLine(message)),
+    )
     run.console.note(
-      `${instance}: commit failed — ${firstLine(errorMessage(settlement.error))}` +
+      `${instance}: commit failed — ${failure}` +
         ` (${touched.length} path(s) left uncommitted)`,
     )
     run.tracer.event({
@@ -108,13 +140,40 @@ export const commitActivity = (
         activityRunIds: [activityRunId],
         stage,
         paths: touched,
-        note: `commit failed: ${firstLine(errorMessage(settlement.error))} — message: ${firstLine(message)}`,
+        note: `commit failed: ${failure} — message: ${firstLine(message)}`,
       }),
+    })
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRunId,
+      type: 'log',
+      name: COMMIT_REFUSED_EVENT,
+      payload: { activity: instance, stage, message },
     })
 
     return ''
   }
   const { sha, paths } = settlement.data
+  if (
+    outstandingCommits(run).some((warning) =>
+      warning.activities.includes(instance),
+    )
+  ) {
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: activityRunId,
+      type: 'log',
+      name: WARNING_EVENT,
+      payload: warningPayload({
+        kind: 'recovered',
+        activities: [instance],
+        activityRunIds: [activityRunId],
+        stage,
+        paths,
+        note: sha === '' ? 'nothing was left to commit' : `committed ${sha}`,
+      }),
+    })
+  }
   if (sha === '') {
     run.console.note(`${instance}: nothing to commit`)
 
@@ -135,4 +194,52 @@ export const commitActivity = (
   })
 
   return sha
+}
+
+/**
+ * Commit the Activity's observed paths under its envelope's whole message.
+ * Refusal warns without stopping the chain; success answers any outstanding
+ * warning for this Activity, including when nothing was left to commit.
+ */
+export const commitActivity = (
+  run: TRun,
+  instance: string,
+  activityRunId: string,
+  envelope: TEnvelopeBase | undefined,
+  stage: string,
+): string =>
+  attemptCommit(
+    run,
+    instance,
+    activityRunId,
+    commitMessage(run, envelope),
+    stage,
+  )
+
+/** Try once more every commit git refused earlier in this run. */
+export const recommitRefused = (run: TRun): void => {
+  const outstanding = outstandingCommits(run)
+  if (outstanding.length === 0) return
+
+  run.console.note(
+    `${outstanding.length} commit(s) git refused earlier — trying each once more`,
+  )
+  const refusals = run.tracer.eventsNamed(run.runId, COMMIT_REFUSED_EVENT)
+  outstanding.forEach((warning) => {
+    const instance = warning.activities[0] ?? ''
+    const refusal = refusals.findLast(
+      (payload) => payload.activity === instance,
+    )
+    const message =
+      typeof refusal?.message === 'string'
+        ? refusal.message
+        : commitMessage(run, undefined)
+    attemptCommit(
+      run,
+      instance,
+      warning.activityRunIds[0] ?? '',
+      message,
+      warning.stage,
+    )
+  })
 }

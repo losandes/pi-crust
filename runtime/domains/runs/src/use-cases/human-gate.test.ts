@@ -2,7 +2,14 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
+import type {
+  TEnvelopeBase,
+  TRun,
+  TTreeWarning,
+} from '../../../../lib/contracts'
+import { terminalOutput } from '../../../../testing/terminal-capture'
+import type { TGateReason } from './human-gate'
+import { finishWaiting } from './run-activity-run'
 
 /*
  * The conservative band, spelled out. These cases are about what a GATE does
@@ -11,7 +18,11 @@ import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
  */
 const CAUTIOUS = 20
 
-import { contextEnvelopeSchema, TRUST_DEFAULT } from '../../../../lib/contracts'
+import {
+  contextEnvelopeSchema,
+  EXIT,
+  TRUST_DEFAULT,
+} from '../../../../lib/contracts'
 import {
   answerAsFact,
   answerPath,
@@ -920,3 +931,86 @@ test(
     expect(actual.join('\n')).toContain(resume)
   },
 )
+
+for (const cause of ['uncommitted', 'forge'] as const) {
+  test(
+    [
+      `given delivery waiting for the operator because of ${cause}`,
+      'when its decision request and waiting instructions are rendered',
+      'it should describe the blocker and resume without offering answer, approve or reject',
+    ].join(', '),
+    () => {
+      // given
+      using fixture = gateFixture()
+      const { run } = fixture
+      const warnings: readonly TTreeWarning[] = ['build', 'test'].map(
+        (activity) => ({
+          kind: 'uncommitted',
+          activities: [activity],
+          activityRunIds: [`id_${activity}`],
+          stage: 'implement',
+          paths: [`${activity}.ts`],
+          note: `${activity}: signing prompt unanswered`,
+        }),
+      )
+      const reason: TGateReason = {
+        kind: 'delivery',
+        activity: 'gh-pull-request',
+        cause,
+        outstanding: cause === 'uncommitted' ? warnings : [],
+        refusal:
+          cause === 'forge' ? 'git push failed: SSH agent unavailable' : '',
+      }
+      const resume = resumeInvocation(process.argv, run.runId)
+      const request = writeDecisionRequest(
+        run.contextHandoffDir,
+        reason,
+        run.runId,
+        resume,
+      )
+      run.tracer.event({
+        run_id: run.runId,
+        type: 'log',
+        name: 'human_gate_open',
+        payload: { kind: 'delivery', cause, request },
+      })
+
+      // when
+      const actual = renderDecisionRequest(reason, run.runId, resume)
+      const exit = finishWaiting(run, request)
+      const output = terminalOutput()
+
+      // then
+      expect(exit).toBe(EXIT.WAITING)
+      expect(actual).toContain('## Why')
+      expect(actual).toContain('## What happens next')
+      expect(actual).toContain('No answer is needed')
+      expect(actual).toContain('1Password')
+      expect(actual).toContain('your own signing configuration')
+      expect(actual).toContain(`\`\`\`bash\n${resume}\n\`\`\``)
+      expect(actual).toContain('repeats the flags')
+      if (cause === 'uncommitted') {
+        expect(actual).toContain(
+          'Nothing has been pushed and no pull request is open',
+        )
+        expect(actual).toContain(
+          '- build: 1 path(s) — build: signing prompt unanswered',
+        )
+        expect(actual).toContain(
+          '- test: 1 path(s) — test: signing prompt unanswered',
+        )
+      } else {
+        expect(actual).toContain(reason.refusal)
+        expect(actual).toContain('Nothing reached the forge')
+      }
+      expect(actual).not.toContain('just crust answer')
+      expect(actual).not.toContain('just crust approve')
+      expect(actual).not.toContain('just crust reject')
+      expect(output).toContain(request)
+      expect(output).toContain(resume)
+      expect(output).not.toContain('just crust answer')
+      expect(output).not.toContain('just crust approve')
+      expect(output).not.toContain('just crust reject')
+    },
+  )
+}
