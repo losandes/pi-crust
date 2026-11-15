@@ -102,6 +102,48 @@ test(
 
 test(
   [
+    'given #112 requirement 1.6.1, the run recipe documentation',
+    'when an operator looks up model overrides',
+    'it should describe both model and thinking changes as run-only and the flag as non-repeatable',
+  ].join(', '),
+  () => {
+    // given
+    const recipe = 'run'
+
+    // when
+    const actual = recipeDoc(recipe)
+
+    // then
+    expect(actual?.flags).toContainEqual({
+      name: '--model <activity>=<model>@<thinking>,... (-m)',
+      detail:
+        "change an activity's model, thinking level, or both, for this run only; give the flag once",
+    })
+  },
+)
+
+test(
+  [
+    'given #112 requirement 1.6.2, the run recipe documentation',
+    'when an operator looks for a lifecycle model-override example',
+    'it should show model-plus-thinking and thinking-only overrides in one short flag',
+  ].join(', '),
+  () => {
+    // given
+    const recipe = 'run'
+
+    // when
+    const actual = recipeDoc(recipe)
+
+    // then
+    expect(actual?.examples).toContain(
+      'just crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
+    )
+  },
+)
+
+test(
+  [
     'given recipe-docs::recipeDoc',
     'when asked for a name nothing documents',
     'it should return undefined',

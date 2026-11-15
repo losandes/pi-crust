@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { parseCli } from './parse-cli'
 import {
   INVOCATION_FILENAME,
   recordedInvocation,
@@ -106,6 +107,52 @@ test(
     ])
   },
 )
+
+for (const flags of [
+  ['--model', 'build=openai/gpt-5@high,code-review=@xhigh'],
+  ['-m', 'build=openai/gpt-5@high,code-review=@xhigh'],
+  ['--model=build=openai/gpt-5@high,code-review=@xhigh'],
+  ['-m=build=openai/gpt-5@high,code-review=@xhigh'],
+]) {
+  test(
+    [
+      'given use-cases/resume-run::resumeArgv',
+      `when a run was launched with ${flags[0]}`,
+      'it should retain the model overrides, normalise the flag, and parse on resume',
+    ].join(', '),
+    () => {
+      // given
+      const argv = [
+        'bun',
+        '/x/compose.ts',
+        'build it',
+        '-l',
+        'deliver',
+        ...flags,
+      ]
+
+      // when
+      const actual = resumeArgv(argv, '9afffac5')
+      const parsed = parseCli(actual.slice(1))
+
+      // then
+      expect(actual).toEqual([
+        '/x/compose.ts',
+        'build it',
+        '--lifecycle',
+        'deliver',
+        ...(flags.length === 1
+          ? ['--model=build=openai/gpt-5@high,code-review=@xhigh']
+          : ['--model', 'build=openai/gpt-5@high,code-review=@xhigh']),
+        '--run-id',
+        '9afffac5',
+        '--resume',
+      ])
+      expect(parsed.models).toBe('build=openai/gpt-5@high,code-review=@xhigh')
+      expect(parsed.resume).toBe(true)
+    },
+  )
+}
 
 test(
   [

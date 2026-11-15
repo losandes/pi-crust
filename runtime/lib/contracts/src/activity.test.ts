@@ -12,8 +12,10 @@ import {
   plannerConfigSchema,
   plannerFaults,
   TERMINAL_NAMES,
+  terminalConfigSchema,
   terminalFaults,
 } from './activity'
+import { agentConfigSchema, configDefaultsSchema } from './config'
 
 /**
  * The registry this refactor has to carry forward without losing anything.
@@ -40,6 +42,37 @@ const shippedFile = () =>
   )
 
 const shippedActivities = () => shippedFile().activities
+
+for (const { name, schema } of [
+  { name: 'activity', schema: activityConfigSchema },
+  { name: 'Planner', schema: plannerConfigSchema },
+  { name: 'terminal', schema: terminalConfigSchema },
+  { name: 'agent', schema: agentConfigSchema },
+  { name: 'defaults', schema: configDefaultsSchema },
+]) {
+  test(
+    [
+      `given #112 requirement 1.2.8, the ${name} config schema`,
+      'when a file contains a provider-specific thinking level outside the CLI list',
+      'it should preserve that string rather than restrict config to CLI thinking levels',
+    ].join(', '),
+    () => {
+      // given
+      const entry = {
+        name: 'build',
+        thinking: 'provider-adaptive',
+        prompt_engineering: { system: 'system.md', user: 'user.md' },
+        writes: [],
+      }
+
+      // when
+      const actual = schema.parse(entry)
+
+      // then
+      expect(actual.thinking).toBe('provider-adaptive')
+    },
+  )
+}
 
 test(
   [
@@ -401,8 +434,9 @@ test(
     'it should default to two attempts, no gates, no commit and the generic envelope',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — two, including the first, because the failure modes a budget
+     * Two, including the first, because the failure modes a budget
      * governs are correlated: one bad input expresses itself as a gate
      * failure, then a revision, then a regression.
      */

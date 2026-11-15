@@ -119,6 +119,7 @@ const fixtureWith = (
       resume: false,
       activities: undefined,
       lifecycle: undefined,
+      models: undefined,
       approveAfter: undefined,
       stream: false,
       handoff: undefined,

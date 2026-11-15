@@ -33,6 +33,12 @@ export const main = (args: TWorkflowArgs): Promise<number> =>
 
 if (import.meta.main) {
   await runCli('operator', (args) => {
+    if (args.models !== undefined) {
+      process.stderr.write(
+        '--model applies to `just crust run` only — the operator chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n',
+      )
+      return Promise.resolve(EXIT.USAGE)
+    }
     /*
      * Refused rather than reconciled. Honouring one silently would mean
      * guessing which the developer meant, and the wrong guess is either a
