@@ -9,8 +9,9 @@ import { SessionTrace } from '../SessionTrace'
 
 const now = Date.now()
 const at = (seconds: number) => new Date(now + seconds * 1000).toISOString()
-const status =
-  new URLSearchParams(window.location.search).get('status') ?? 'waiting'
+const query = new URLSearchParams(window.location.search)
+const status = query.get('status') ?? 'waiting'
+const state = query.get('state') ?? 'populated'
 const session = {
   run_id: 'trace-layout',
   lifecycle: 'build',
@@ -183,7 +184,8 @@ const themes = [
     name: 'high-contrast',
     label: 'High contrast',
     builtin: false,
-    css: highContrastCss,
+    css: `${highContrastCss}
+[data-theme='high-contrast'] { --edge-alpha: 0.73; --fill-soft: 0.27; }`,
   },
 ]
 
@@ -195,13 +197,21 @@ window.fetch = new Proxy(window.fetch, {
       input instanceof Request ? input.url : String(input),
       window.location.href,
     )
+    if (url.pathname === '/api/sessions/trace-layout') {
+      if (state === 'loading') return new Promise<Response>(() => {})
+      if (state === 'error') {
+        return Promise.resolve(
+          Response.json({ error: 'fixture unavailable' }, { status: 503 }),
+        )
+      }
+    }
     const body =
       url.pathname === '/api/themes'
         ? { themes }
         : url.pathname === '/api/sessions/trace-layout'
           ? {
               session,
-              activityRuns,
+              activityRuns: state === 'empty' ? [] : activityRuns,
               agents,
               usage: { read: 10000, written: 2345 },
               handoff_dir: '',

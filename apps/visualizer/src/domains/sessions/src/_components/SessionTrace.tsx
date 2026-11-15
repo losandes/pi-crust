@@ -83,6 +83,7 @@ const STATUS_TONES: Readonly<Partial<Record<string, string>>> = {
   queued: 'text-faint',
 }
 const TOOL_TICK = 'absolute bottom-1 h-2.5 w-0.5 rounded-xs'
+const EMPTY_STATE = 'px-6 py-14 text-center text-base text-dim'
 
 const NUM = new Intl.NumberFormat('en-US')
 
@@ -344,7 +345,7 @@ export const SessionTrace = ({
   return (
     <div className="pb-10">
       {trace.error !== undefined && (
-        <div className="error-bar">
+        <div className="mx-6 my-3 rounded-lg border-[length:var(--border-width)] border-fail/[calc(var(--edge-alpha)*100%)] bg-fail/[calc(var(--fill-soft)*100%)] px-3.5 py-2.5 text-base text-red">
           api unreachable — retrying {trace.error}
         </div>
       )}
@@ -358,7 +359,9 @@ export const SessionTrace = ({
             {session.request}
           </span>
           <StatusChip status={session.status ?? 'fail'} />
-          <span className="dim">started {fmtDate(session.started_at)}</span>
+          <span className="text-dim">
+            started {fmtDate(session.started_at)}
+          </span>
           <span className="inline-flex flex-wrap gap-3">
             <StatChip kind="cost" value={session.total_cost ?? undefined} />
             <StatChip kind="runtime" value={sessionDurationMs} />
@@ -582,11 +585,11 @@ export const SessionTrace = ({
           })}
         </div>
       ) : trace.loaded ? (
-        <div className="empty-state">
+        <div className={EMPTY_STATE}>
           no activityRuns recorded for this session
         </div>
       ) : trace.error === undefined ? (
-        <div className="empty-state">loading trace…</div>
+        <div className={EMPTY_STATE}>loading trace…</div>
       ) : undefined}
 
       {/*

@@ -26,11 +26,19 @@ const STRIP = `${TRACE} > div:first-child`
 const WATERFALL = `${TRACE} > div:nth-child(2)`
 const NOTICES = `${TRACE} > div:nth-child(3)`
 const RUNNING_BLOCK = 'button[title^="build — running"]'
+const THEMES = [
+  { theme: 'Dark', scheme: 'dark' },
+  { theme: 'Light', scheme: 'light' },
+  { theme: 'Auto', scheme: 'dark' },
+  { theme: 'Auto', scheme: 'light' },
+  { theme: 'High contrast', scheme: 'dark' },
+] as const
 
 const withTrace = async (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
   status = 'waiting',
+  state: 'populated' | 'error' | 'empty' | 'loading' = 'populated',
 ) => {
   const { server, base } = await startHarnessServer()
   try {
@@ -57,14 +65,26 @@ const withTrace = async (
         }),
       )
       await page.goto(
-        `${base}/__trace__/index.html?status=${status}#/fixture:trace-layout`,
+        `${base}/__trace__/index.html?status=${status}&state=${state}#/fixture:trace-layout`,
       )
-      await page.locator(RUNNING_BLOCK).waitFor()
-      await page.getByRole('heading', { name: 'unexplained changes' }).waitFor()
-      if (status === 'waiting') {
+      const ready = {
+        populated: page.locator(RUNNING_BLOCK),
+        error: page.getByText(/^api unreachable — retrying/),
+        empty: page.getByText('no activityRuns recorded for this session', {
+          exact: true,
+        }),
+        loading: page.getByText('loading trace…', { exact: true }),
+      }[state]
+      await ready.waitFor()
+      if (state === 'populated' || state === 'empty') {
         await page
-          .getByRole('region', { name: 'what this run is asking' })
+          .getByRole('heading', { name: 'unexplained changes' })
           .waitFor()
+        if (status === 'waiting') {
+          await page
+            .getByRole('region', { name: 'what this run is asking' })
+            .waitFor()
+        }
       }
       await page.waitForFunction(() =>
         document
@@ -80,6 +100,16 @@ const withTrace = async (
     await server.close()
   }
 }
+
+const afterPaint = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => setTimeout(resolve, 0)),
+        ),
+      ),
+  )
 
 for (const { tier, columns, below } of [
   { tier: 'base', columns: 1, below: false },
@@ -159,7 +189,7 @@ for (const { tier, columns, below } of [
 const TYPE = ['font-family', 'font-size', 'font-weight', 'line-height']
 const BORDER = ['border-top-color', 'border-top-width', 'border-top-style']
 
-// Independent declarations from the two stylesheets replaced by issue #89.
+// Independent declarations from the legacy shell styles and shared messages.
 const legacyStyles = [
   {
     selector: STRIP,
@@ -176,6 +206,11 @@ const legacyStyles = [
     selector: `${STRIP} > span:first-child`,
     css: 'font-size:17px;color:var(--text);max-width:52ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap',
     properties: [...TYPE, 'color', 'max-width', 'text-overflow', 'white-space'],
+  },
+  {
+    selector: `${STRIP} > span:nth-child(3)`,
+    css: 'color:var(--dim)',
+    properties: [...TYPE, 'color'],
   },
   {
     selector: WATERFALL,
@@ -289,16 +324,57 @@ const legacyStyles = [
   },
 ]
 
-const styleDifferences = (page: Page) =>
+const legacyEmptyStyle = {
+  css: 'padding:56px 24px;text-align:center;color:var(--dim);font-size:16px',
+  properties: [
+    ...TYPE,
+    'color',
+    'text-align',
+    'padding-top',
+    'padding-right',
+    'padding-bottom',
+    'padding-left',
+  ],
+}
+const legacyMessageStyles = {
+  error: {
+    selector: `${TRACE} > div:first-child`,
+    css: 'margin:12px 24px;padding:10px 14px;border:var(--border-width) solid rgb(var(--fail-rgb)/var(--edge-alpha));background:rgb(var(--fail-rgb)/var(--fill-soft));color:var(--red);border-radius:8px;font-size:16px',
+    properties: [
+      ...TYPE,
+      ...BORDER,
+      'color',
+      'background-color',
+      'border-radius',
+      'margin-top',
+      'margin-right',
+      'margin-bottom',
+      'margin-left',
+      'padding-top',
+      'padding-right',
+      'padding-bottom',
+      'padding-left',
+    ],
+  },
+  empty: { selector: `${TRACE} > div:nth-child(2)`, ...legacyEmptyStyle },
+  loading: { selector: `${TRACE} > div:first-child`, ...legacyEmptyStyle },
+}
+
+const styleDifferences = (page: Page, cases = legacyStyles) =>
   page.evaluate((cases) => {
     const context = document.createElement('canvas').getContext('2d')
     if (!context) throw new Error('Missing colour-normalization canvas')
-    const rgba = (color: string) => {
+    const premultipliedRgba = (color: string) => {
       context.clearRect(0, 0, 1, 1)
       // biome-ignore lint/plugin/no-object-mutation: the browser canvas exposes colour normalization through a setter.
       context.fillStyle = color
       context.fillRect(0, 0, 1, 1)
-      return Array.from(context.getImageData(0, 0, 1, 1).data)
+      const pixels = context.getImageData(0, 0, 1, 1).data
+      const alpha = pixels[3] ?? 0
+      // Unpremultiplication amplifies rounding differences at low opacity.
+      return Array.from(pixels, (channel, index) =>
+        index < 3 ? Math.round((channel * alpha) / 255) : channel,
+      )
     }
     return cases.flatMap(({ selector, css, properties }) => {
       const element = document.querySelector(selector)
@@ -318,9 +394,11 @@ const styleDifferences = (page: Page) =>
           const a = actual.getPropertyValue(property)
           const e = expected.getPropertyValue(property)
           const matches = property.endsWith('color')
-            ? rgba(a).every(
+            ? premultipliedRgba(a).every(
                 (channel, index) =>
-                  Math.abs(channel - (rgba(e)[index] ?? Number.NaN)) <= 1,
+                  Math.abs(
+                    channel - (premultipliedRgba(e)[index] ?? Number.NaN),
+                  ) <= 1,
               )
             : a === e
           return matches ? [] : [{ selector, property, actual: a, expected: e }]
@@ -329,7 +407,7 @@ const styleDifferences = (page: Page) =>
         reference.remove()
       }
     })
-  }, legacyStyles)
+  }, cases)
 
 test.skipIf(!hasChromium)(
   [
@@ -340,23 +418,12 @@ test.skipIf(!hasChromium)(
   async () => {
     // given
     await withTrace('xl', async (page) => {
-      for (const { theme, scheme } of [
-        { theme: 'Dark', scheme: 'dark' },
-        { theme: 'Light', scheme: 'light' },
-        { theme: 'Auto', scheme: 'dark' },
-        { theme: 'Auto', scheme: 'light' },
-        { theme: 'High contrast', scheme: 'dark' },
-      ] as const) {
+      for (const { theme, scheme } of THEMES) {
         // when
         await page.emulateMedia({ colorScheme: scheme })
         await page.getByRole('button', { name: /^Theme:/ }).click()
         await page.getByRole('option', { name: theme, exact: true }).click()
-        await page.evaluate(
-          () =>
-            new Promise((resolve) =>
-              requestAnimationFrame(() => requestAnimationFrame(resolve)),
-            ),
-        )
+        await afterPaint(page)
 
         // then
         expect(await styleDifferences(page), `${theme}: ${scheme}`).toEqual([])
@@ -365,6 +432,68 @@ test.skipIf(!hasChromium)(
   },
   30_000,
 )
+
+for (const { theme, scheme } of THEMES) {
+  for (const state of ['error', 'empty', 'loading'] as const) {
+    test.skipIf(!hasChromium)(
+      [
+        `given the trace ${state} state under ${theme} (${scheme}) at the xl tier`,
+        'when its message renders and the viewport narrows to the base tier',
+        'it should preserve legacy styling and theme opacity variables without horizontal overflow',
+      ].join(', '),
+      async () => {
+        // given
+        await withTrace(
+          'xl',
+          async (page) => {
+            const messageStyle = legacyMessageStyles[state]
+
+            // when
+            await page.emulateMedia({ colorScheme: scheme })
+            await page.getByRole('button', { name: /^Theme:/ }).click()
+            await page.getByRole('option', { name: theme, exact: true }).click()
+            await afterPaint(page)
+            await page.waitForFunction(
+              ({ selector, role }) => {
+                const element = document.querySelector(selector)
+                if (!element) return false
+                const reference = document.createElement('span')
+                reference.setAttribute('style', `color:var(--${role})`)
+                document.body.append(reference)
+                const expected = getComputedStyle(reference).color
+                reference.remove()
+                return getComputedStyle(element).color === expected
+              },
+              {
+                selector: messageStyle.selector,
+                role: state === 'error' ? 'red' : 'dim',
+              },
+            )
+
+            // then
+            expect(await styleDifferences(page, [messageStyle])).toEqual([])
+
+            // when
+            await page.setViewportSize({
+              width: viewportWidths.base,
+              height: devices['iPhone SE'].viewport.height,
+            })
+            const overflow = await page.evaluate(() => ({
+              document: document.documentElement.scrollWidth,
+              viewport: window.innerWidth,
+            }))
+
+            // then
+            expect(overflow.document).toBeLessThanOrEqual(overflow.viewport + 1)
+          },
+          'waiting',
+          state,
+        )
+      },
+      30_000,
+    )
+  }
+}
 
 test.skipIf(!hasChromium)(
   [
