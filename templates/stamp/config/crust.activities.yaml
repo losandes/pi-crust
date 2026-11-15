@@ -44,7 +44,6 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    thinking: high
     color: indigo
     purpose: Judge the change against this repository's ratified conventions, through its own review skill.
     prompt_engineering:
@@ -186,7 +185,6 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    thinking: high
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
     prompt_engineering:
@@ -199,7 +197,6 @@ activities:
     output: planOutput
     succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
-    thinking: high
     color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
     prompt_engineering:
@@ -218,8 +215,6 @@ activities:
   - name: plan-comprehension
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    model: anthropic/claude-sonnet-5
-    thinking: medium
     color: sky
     purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
     prompt_engineering:
@@ -234,8 +229,6 @@ activities:
   - name: plan-readiness
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    model: anthropic/claude-opus-5
-    thinking: high
     color: cyan
     purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
     prompt_engineering:

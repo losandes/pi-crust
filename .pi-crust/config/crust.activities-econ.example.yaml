@@ -33,6 +33,7 @@ activities:
 
   - name: build
     output: buildOutput
+    succession: supersedes
     gates: [diffMatchesClaims, checks]
     attempts: 2  # includes first attempt
     commit: true
@@ -47,8 +48,8 @@ activities:
 
   - name: code-review
     output: reviewOutput
+    succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    # model: openai/gpt-5.6-terra # anthropic/claude-sonnet-5
     model: openai/gpt-6.1-sol
     thinking: max
     color: indigo
@@ -61,6 +62,7 @@ activities:
   # Logical architecture only; technology selection belongs to design.
   - name: conceptualize
     output: conceptualizeOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -74,6 +76,7 @@ activities:
   # No live database access; prepares queries for human execution.
   - name: data-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -95,6 +98,7 @@ activities:
 
   - name: design
     output: designOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -109,6 +113,7 @@ activities:
   # May add failing tests; adjust allowed test paths for this repository.
   - name: diagnose
     output: diagnosisOutput
+    succession: supersedes
     gates: [artifactsExist, reproductionSupported]
     model: openai/gpt-6.1-sol
     thinking: max
@@ -127,10 +132,10 @@ activities:
 
   - name: document
     output: documentOutput
+    succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
-    # model: openai/gpt-5.6-luna # anthropic/claude-sonnet-5
     model: anthropic/claude-haiku-5-5
     thinking: medium
     color: blue
@@ -148,6 +153,7 @@ activities:
   # Distinguish established domain rules from local interpretations.
   - name: domain-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -170,6 +176,7 @@ activities:
   # Creates an external issue; the handoff records what was filed.
   - name: gh-issue
     output: ghIssueOutput
+    succession: annotates
     gates: [artifactsExist, filesNonEmpty, issueCreated]
     model: anthropic/claude-haiku-5-5
     thinking: medium
@@ -187,6 +194,7 @@ activities:
   # Define measurable outcomes, not implementation details.
   - name: identify
     output: identifyOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -199,8 +207,8 @@ activities:
 
   - name: outcome-review
     output: reviewOutput
+    succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    # model: openai/gpt-5.6-terra  # anthropic/claude-sonnet-5
     model: anthropic/claude-opus-5-5
     thinking: high
     color: lime
@@ -211,7 +219,9 @@ activities:
     writes: ['{handoff}/outcome_review.md']
 
   - name: plan
+    attempts: 3
     output: planOutput
+    succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -228,8 +238,45 @@ activities:
       - read
       - write
 
+  # Reads the plan with no memory of the conversation that produced it, and
+  # no access to the repository: self-containment is what it tests.
+  - name: plan-comprehension
+    output: reviewOutput
+    succession: annotates
+    gates: [artifactsExist, verdictConsistent]
+    model: anthropic/claude-opus-5-5
+    thinking: medium
+    color: sky
+    purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
+    prompt_engineering:
+      system: prompt-engineering/plan-comprehension/system.md
+      user: prompt-engineering/plan-comprehension/user.md
+    writes: ['{handoff}/plan_comprehension.md']
+    tools:
+      - read
+      - write
+
+  # Judges the plan against the repository it will be executed in.
+  - name: plan-readiness
+    output: reviewOutput
+    succession: annotates
+    gates: [artifactsExist, verdictConsistent]
+    model: anthropic/claude-opus-5-5
+    thinking: high
+    color: cyan
+    purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
+    prompt_engineering:
+      system: prompt-engineering/plan-readiness/system.md
+      user: prompt-engineering/plan-readiness/user.md
+    writes: ['{handoff}/plan_readiness.md']
+    tools:
+      - bash
+      - read
+      - write
+
   - name: scout
     output: scoutOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-haiku-5-5
     thinking: max
@@ -248,6 +295,7 @@ activities:
   # Distinguish demonstrated, plausible, and speculative risks.
   - name: security-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -270,6 +318,7 @@ activities:
   # Treat repository code as primary evidence.
   - name: technical-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
@@ -292,6 +341,7 @@ activities:
   # Author tests before implementation; `checks` is intentionally omitted.
   - name: test-tdd
     output: buildOutput
+    succession: supersedes
     gates: [diffMatchesClaims]  # tests expected to fail before build
     commit: true
     model: openai/gpt-6.1-sol
@@ -312,6 +362,7 @@ activities:
   # Running test commands is a gate, not an Activity.
   - name: test
     output: buildOutput
+    succession: supersedes
     gates: [diffMatchesClaims, checks]
     commit: true
     model: anthropic/claude-haiku-5-5
@@ -330,6 +381,7 @@ activities:
 
   - name: ux-design
     output: uxDesignOutput
+    succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
     model: openai/gpt-6.1-sol
     thinking: max
@@ -352,6 +404,7 @@ activities:
   # Distinguish user needs from proposed features.
   - name: ux-research
     output: researchOutput
+    succession: supersedes
     gates: [artifactsExist]
     model: anthropic/claude-opus-5-5
     thinking: high
