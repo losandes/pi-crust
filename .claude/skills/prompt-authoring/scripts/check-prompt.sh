@@ -41,6 +41,13 @@ source "$SHARED/ignored-paths.sh"
 # shellcheck source=/dev/null
 source "$SHARED/select-files.sh"
 
+# `build` names an Activity here, not generated output. Keep it in every scope.
+for index in "${!PRUNED_DIRS[@]}"; do
+  if [[ "${PRUNED_DIRS[$index]}" == "build" ]]; then
+    unset 'PRUNED_DIRS[index]'
+  fi
+done
+
 REPO_ROOT="$(workspace_root)"
 
 command -v bun >/dev/null 2>&1 || { echo "error: bun is not on PATH" >&2; exit 2; }

@@ -68,7 +68,7 @@ Respond with ONLY valid JSON matching `DocumentOutput` — no prose before or af
   "status": "success",
   "summary": "<one sentence describing what you documented>",
   "document_path": "app_docs/<run_id>_<slug>.md",
-  "documented_files": ["src/server.ts"],
+  "documented_files": ["<a path the diff touched>"],
   "artifacts": ["{{output_document}}", "app_docs/<run_id>_<slug>.md"],
   "commit_message": "<imperative one-line git subject for committing THIS WRITE-UP, not the change it describes — e.g. 'Document the /health endpoint'>",
   "notes_for_next_agent": "<anything the diff left unexplained>"

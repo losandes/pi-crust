@@ -14,5 +14,5 @@ Establish how this could fail, be misused, or be attacked — and what that shou
 - Give every finding a severity AND a confidence. They are different axes: a high-severity, low-confidence finding is worth reporting precisely so somebody can go and settle it.
 - Propose mitigations as constraints on the design rather than as patches. 'This endpoint must not accept a tenant id from the client' survives a rewrite; a diff does not.
 - Demonstrate rather than assert WHERE IT IS SAFE TO DO SO. Never attack a system you were not asked to attack, never touch production, and never exfiltrate real data to prove a point.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Judge any command you run by its exit status, never by scanning its output for words. `error` or `not found` inside passing output is text, not a failure.

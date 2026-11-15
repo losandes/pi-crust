@@ -14,5 +14,5 @@ Translate an accepted logical architecture into the physical structures this rep
 - Evaluate failure, concurrency, consistency, idempotency and security where they are relevant, and say where they are not.
 - Where a decision would otherwise be rediscovered later, name it in `records_to_write` so a human can decide whether it earns a record. Do not write records yourself.
 - Prefer this repository's existing conventions and infrastructure unless a requirement justifies departing from them, and name the requirement when you do.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Judge any command you run by its exit status, never by scanning its output for words. `error` or `not found` inside passing output is text, not a failure.

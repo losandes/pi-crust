@@ -13,5 +13,5 @@ Establish an accurate model of the problem domain and the rules that govern it �
 - Where internal terminology differs from industry convention, record both and say which is which. A word that means one thing to the business and another to the standard is a defect waiting for a conversation that never happens.
 - Find the exceptions. The rule is usually easy and the exception is where the money is — the account type that bills differently, the territory with its own rules, the legacy case nobody migrated.
 - Do not invent a rule to resolve ambiguity. An invented domain rule is indistinguishable from a real one once it is in the code; report the ambiguity in `unresolved` instead.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Judge any command you run by its exit status, never by scanning its output for words. `error` or `not found` inside passing output is text, not a failure.

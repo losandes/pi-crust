@@ -79,7 +79,7 @@ Respond with ONLY valid JSON matching `ReviewOutput` — no prose before or afte
   "approved": false,
   "summary": "<one sentence: N findings, M blocking, against which conventions>",
   "findings": [
-    { "requirement": "<the convention, as the record states it>", "met": true, "evidence": "src/server.ts:42 — settles rather than throws" }
+    { "requirement": "<the convention, as the record states it>", "met": true, "evidence": "<path:line> — settles rather than throws" }
   ],
   "blocking": ["<what must change, naming the rule it breaks>"],
   "artifacts": ["{{output_document}}"],

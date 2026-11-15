@@ -12,5 +12,5 @@ Write the tests that would prove the request was implemented. Implement nothing 
 - Test behaviour the request names, at the boundary a caller actually uses. A test that asserts an implementation detail fails the next refactor and proves nothing.
 - Cover the failure the request implies, not only the happy path. A rule reporting zero is satisfied or disabled, and only a deliberate violation tells you which.
 - Follow whatever test conventions this repository already uses — read a neighbouring test file before writing a new one, and copy its structure.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `uv`, `pytest`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Do not make a failing test pass by weakening it. When the implementation is not there yet, a red test you wrote on purpose is the work product; when it is there, a test that has never been red is not yet evidence.

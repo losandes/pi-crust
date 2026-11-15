@@ -57,7 +57,8 @@ const SUPPORTED_VARIABLES = [
 ] as const
 
 /** Where that list is defined, and where this script verifies it. */
-const VARIABLE_SOURCE = 'runtime/domains/activities/src/use-cases/execute-agent.ts'
+const VARIABLE_SOURCE =
+  'runtime/domains/activities/src/use-cases/execute-agent.ts'
 
 /** Where the envelope a Report example illustrates is actually declared. */
 const ENVELOPE_SOURCE = 'runtime/lib/contracts/src/envelope.ts'
@@ -67,6 +68,16 @@ const REQUIRED_SECTIONS: Readonly<Record<string, readonly string[]>> = {
   'system.md': ['## Purpose'],
   'user.md': ['## Variables', '## Intake', '## Task', '## Report'],
 }
+
+/**
+ * A path a model copies, rather than one it reads as an analogy.
+ *
+ * Only inside a fenced json block: there, a path is a template for a field
+ * the agent fills in, and a concrete one from the author's own repository
+ * arrives in a Go project as a TypeScript filename. In prose the same path
+ * is an illustration, and a concrete one is clearer than a placeholder.
+ */
+const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx|py|go|rs|rb|java|kt|php|cs|swift)\b/
 
 /** Directories never walked when collecting the test corpus. */
 const SKIPPED_DIRECTORIES = new Set([
@@ -113,6 +124,15 @@ const jsonKeys = (text: string): readonly Token[] =>
     }))
   })
 
+const jsonSourcePaths = (text: string): readonly Token[] =>
+  matchAll(text, /```json\n([\s\S]*?)```/g).flatMap((fence) => {
+    const firstLine = lineOf(text, fence.index ?? 0) + 1
+    return (fence[1] ?? '')
+      .split('\n')
+      .map((line, index) => ({ text: line, line: firstLine + index }))
+      .filter((token) => SOURCE_EXTENSION.test(token.text))
+  })
+
 /*
  * A backticked token is interface-shaped when dropping it changes what the
  * agent is told to read, run, or produce: a path, a filename, a schema name,
@@ -143,6 +163,16 @@ const literals = (text: string): readonly Token[] =>
     .filter((token) =>
       INTERFACE_SHAPED.some((pattern) => pattern.test(token.text)),
     )
+    .filter((token) => {
+      // This advice illustrates command categories, not commands to execute.
+      const examples =
+        text
+          .split('\n')
+          [token.line - 1]?.match(
+            /^- \*\*Make every change provable\.\*\* .*the one command that settles it: (.*), a specific assertion\./,
+          )?.[1] ?? ''
+      return !examples.includes(`\`${token.text}\``)
+    })
 
 const unique = (tokens: readonly Token[]): readonly Token[] => {
   const seen = new Set<string>()
@@ -255,7 +285,24 @@ const structuralFindings = (
             },
           ]
 
-  return [...variableFindings, ...sectionFindings, ...reportFindings]
+  const sourcePathFindings: readonly Finding[] =
+    isScaffold || !relativePath.startsWith('runtime/prompt-engineering/')
+      ? []
+      : jsonSourcePaths(text).map((token) => ({
+          file: relativePath,
+          line: token.line,
+          rule: 'source-path-in-json',
+          message:
+            'shipped JSON examples must use angle-bracket path placeholders, ' +
+            'not source-file paths with a language extension',
+        }))
+
+  return [
+    ...variableFindings,
+    ...sectionFindings,
+    ...reportFindings,
+    ...sourcePathFindings,
+  ]
 }
 
 const comparativeFindings = (
@@ -312,6 +359,19 @@ const comparativeFindings = (
 
   const droppedLiterals = unique(literals(baseline))
     .filter((token) => !current.includes(stem(token.text)))
+    .filter((token) => {
+      // The shell advice's binary path is a forbidden example, not a command.
+      const baselineLine = baseline.split('\n')[token.line - 1] ?? ''
+      const generalizedShellExample =
+        baselineLine.startsWith(
+          "- You inherit the operator's shell environment",
+        ) &&
+        token.text.startsWith('/usr/bin/') &&
+        current.includes(
+          'never hunt for a binary or fall back to an absolute `/usr/bin/*` path.',
+        )
+      return !generalizedShellExample
+    })
     .map((token) => ({
       file: relativePath,
       line: token.line,
