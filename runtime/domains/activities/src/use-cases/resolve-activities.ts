@@ -30,7 +30,7 @@ import {
 } from './activity-registry'
 import { agentActivity } from './agent-activity'
 import type { TAgentPorts } from './execute-agent'
-import type { TTerminalActivity } from './gh-pull-request'
+import type { TDeliveryPorts, TTerminalActivity } from './gh-pull-request'
 import { ghPullRequestActivity } from './gh-pull-request'
 import { plannerActivity } from './planner-activity'
 
@@ -68,6 +68,8 @@ export const terminalActivityFor = (
   name: string,
   cfg: TPiCrustConfig,
   options: TActivityOptions,
+  ports?: TDeliveryPorts,
+  agentPorts?: TAgentPorts,
 ): TTerminalActivity => {
   const config = cfg.terminal.find((one) => one.name === name)
   if (config === undefined) {
@@ -77,7 +79,12 @@ export const terminalActivityFor = (
     )
   }
 
-  return ghPullRequestActivity(config as TTerminalConfig, options)
+  return ghPullRequestActivity(
+    config as TTerminalConfig,
+    options,
+    ports,
+    agentPorts,
+  )
 }
 
 /** The Activities a run may name, in the order the registry declares them. */

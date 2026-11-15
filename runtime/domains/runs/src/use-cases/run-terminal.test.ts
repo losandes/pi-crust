@@ -143,7 +143,7 @@ test(
   [
     'given use-cases/run-terminal::runTerminal',
     'when the run was not accepted',
-    'it should record the row cancelled and never call deliver',
+    'it should wait without a terminal row and never call deliver',
   ].join(', '),
   async () => {
     // given
@@ -161,12 +161,29 @@ test(
     })
 
     // when
-    await runTerminal({ run, activity, ctx, accepted: false })
+    const actual = await runTerminal({
+      run,
+      activity,
+      ctx,
+      accepted: false,
+      reason: 'The revise budget is exhausted — see handoff/disputes.md',
+    })
 
     // then
+    expect(actual.kind).toBe('waiting')
     expect(fixture.gates).toEqual([])
     expect(delivered).toBe(false)
-    expect(rows.at(-1)?.status).toEqual('cancelled')
+    expect(rows).toEqual([])
+    expect(fixture.events).toContainEqual(
+      expect.objectContaining({
+        name: 'human_gate_open',
+        activity_run_id: '',
+        payload: expect.objectContaining({ kind: 'acceptance' }),
+      }),
+    )
+    expect(
+      readFileSync(join(run.contextHandoffDir, 'decision-request.md'), 'utf8'),
+    ).toContain('The revise budget is exhausted — see handoff/disputes.md')
   },
 )
 
@@ -446,7 +463,7 @@ for (const status of ['fail', 'waiting'] as const) {
 
 for (const given of [
   { status: 'fail' as const, accepted: true, otherFailed: true },
-  { status: 'waiting' as const, accepted: false, otherFailed: false },
+  { status: 'waiting' as const, accepted: false, otherFailed: true },
   { status: 'cancelled' as const, accepted: true, otherFailed: false },
 ]) {
   test(
@@ -529,6 +546,44 @@ test(
     expect(delivered).toBe(1)
     expect(commitsAtDelivery).not.toBe(before)
     expect(gitIn(dir, 'show', 'HEAD:work.txt')).toBe('after')
+  },
+)
+
+test(
+  [
+    'given an unaccepted run with a refused commit whose hook is now repaired',
+    'when runTerminal reaches delivery',
+    'it should request acceptance before retrying any commit or delivering',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = deliveryFixture()
+    const { run, dir } = fixture
+    const hook = await refuseBuildCommit(run)
+    rmSync(hook)
+    const before = gitIn(dir, 'rev-parse', 'HEAD')
+    const activity = terminalActivity(() => {
+      throw new Error('delivery must not run')
+    })
+
+    // when
+    const actual = await runTerminal({
+      run,
+      activity,
+      ctx: terminalContext(run),
+      accepted: false,
+    })
+
+    // then
+    expect(actual.kind).toBe('waiting')
+    expect(gitIn(dir, 'rev-parse', 'HEAD')).toBe(before)
+    expect(outstandingCommits(run)).toHaveLength(1)
+    expect(
+      run.tracer.eventsNamed(run.runId, 'human_gate_open').at(-1)?.kind,
+    ).toBe('acceptance')
+    expect(
+      run.tracer.activityRunsFor(run.runId).map((row) => row.params.name),
+    ).toEqual(['build'])
   },
 )
 

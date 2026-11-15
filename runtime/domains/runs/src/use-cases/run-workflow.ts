@@ -32,7 +32,7 @@ import {
   withoutTerminal,
 } from '../../../../lib/contracts'
 import { dataDirFromEnv } from '../../../../lib/system'
-import type { TAgentPorts } from '../../../activities'
+import type { TAgentPorts, TDeliveryPorts } from '../../../activities'
 import {
   requiredAgents,
   runnableActivities,
@@ -53,6 +53,7 @@ import type { TAttemptLedger } from './attempts'
 import { attemptLedger } from './attempts'
 import type { TGateReason } from './human-gate'
 import {
+  acceptanceDecision,
   parseApproveAfter,
   resumeInvocation,
   selfAnsweredIn,
@@ -263,6 +264,8 @@ export const runWorkflow = async (
    */
   visualizerUp: (port: number) => Promise<boolean> = (port) =>
     visualizerIsUp(process.env, fetch, port),
+  /** External delivery boundary, so workflow tests never push or contact a forge. */
+  deliveryPorts?: TDeliveryPorts,
 ): Promise<number> => {
   /*
    * A terminal Activity never enters the fold — it is wired to run once the
@@ -311,7 +314,13 @@ export const runWorkflow = async (
   const terminal =
     terminalName === undefined
       ? undefined
-      : terminalActivityFor(terminalName, cfg, terminalOptions)
+      : terminalActivityFor(
+          terminalName,
+          cfg,
+          terminalOptions,
+          deliveryPorts,
+          agentPorts,
+        )
   if (terminal?.requiresCommitting && !terminalOptions.committing) {
     throw new Error(
       `terminal Activity '${terminal.name}' delivers this run's commits, and --commit false means this run makes none — ` +
@@ -439,6 +448,38 @@ export const runWorkflow = async (
       feedback: [],
       ...(args.resume ? replayEnvelopeHistory(run, units) : {}),
     }
+    const decision =
+      args.resume && terminal !== undefined
+        ? acceptanceDecision(run)
+        : undefined
+    if (decision !== undefined && terminal !== undefined) {
+      const answer = decision.answer
+      const accepted = answer !== undefined && answer.verb !== 'reject'
+      if (accepted) {
+        run.tracer.event({
+          run_id: run.runId,
+          activity_run_id: '',
+          type: 'log',
+          name: 'human_accepted',
+          payload: { ...answer, reason: decision.gate.detail },
+        })
+      }
+      const reason =
+        answer?.verb === 'reject'
+          ? `the person rejected the run — ${answer.from}`
+          : decision.gate.detail
+      const outcome = await runTerminal({
+        run,
+        activity: terminal,
+        ctx: start,
+        accepted,
+        reason,
+        ...(answer?.verb === 'reject' ? { rejectedBy: answer.from } : {}),
+      })
+      return outcome.kind === 'waiting'
+        ? finishWaiting(run, outcome.request)
+        : finish(run, { accepted, reason })
+    }
     // `let` is deliberate and contained: the callback fires inside the fold,
     // and threading an out-parameter through every activity for one optional
     // outcome would be worse than a single assignment nothing else can see.
@@ -521,6 +562,7 @@ export const runWorkflow = async (
         activity: terminal,
         ctx: settled.ctx,
         accepted: settled.accepted,
+        reason: settled.reason,
       })
       if (outcome.kind === 'waiting') return finishWaiting(run, outcome.request)
     }

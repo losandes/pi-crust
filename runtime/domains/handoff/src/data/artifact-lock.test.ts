@@ -1,4 +1,4 @@
-import { afterAll, expect, mock, test } from 'bun:test'
+import { expect, mock, test } from 'bun:test'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -76,6 +76,7 @@ test(
     for (const name of [
       'decision-request.md',
       'decision-answer.md',
+      'decision-answer.json',
       'answers-identify.md',
       'disputes.json',
       'changes.diff',
@@ -87,6 +88,7 @@ test(
     const locked = lockArtifacts(dir, [
       'decision-request.md',
       'decision-answer.md',
+      'decision-answer.json',
       'answers-identify.md',
       'disputes.json',
       'changes.diff',
@@ -142,13 +144,6 @@ test(
   },
 )
 
-afterAll(() => {
-  // mock.module() leaks across files in bun's shared module registry
-  // (https://bun.sh/docs/test/parallel); restore the real module explicitly
-  // rather than rely on mock.restore(), which does not undo it.
-  mock.module('node:fs', () => require('node:fs'))
-})
-
 test(
   [
     'given data/artifact-lock::lockArtifacts',
@@ -167,11 +162,14 @@ test(
       },
     }))
 
-    // when
-    const locked = lockArtifacts(dir, ['design.md'])
+    try {
+      // when
+      const locked = lockArtifacts(dir, ['design.md'])
 
-    // then
-    expect(locked).toEqual([])
-    mock.module('node:fs', () => require('node:fs'))
+      // then
+      expect(locked).toEqual([])
+    } finally {
+      mock.module('node:fs', () => require('node:fs'))
+    }
   },
 )

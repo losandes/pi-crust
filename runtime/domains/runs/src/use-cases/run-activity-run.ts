@@ -345,7 +345,11 @@ export const finishWaiting = (run: TRun, requestPath: string): number => {
           'No answer is needed. Resolve what the error names, then resume:',
           `    ${resume}`,
         ]
-      : decisionOptions(run.runId, resume)),
+      : decisionOptions(
+          run.runId,
+          resume,
+          typeof kind === 'string' ? kind : undefined,
+        )),
   ])
   return EXIT.WAITING
 }

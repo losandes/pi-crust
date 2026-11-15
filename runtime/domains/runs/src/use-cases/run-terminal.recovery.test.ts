@@ -22,11 +22,16 @@ import {
 for (const blocker of [
   { name: 'unaccepted work', accepted: false, failedReview: false },
   { name: 'a failed review', accepted: true, failedReview: true },
+  {
+    name: 'unaccepted work and a failed review',
+    accepted: false,
+    failedReview: true,
+  },
 ]) {
   test(
     [
       `given issue #125 requirements 1.1.9 and 1.5.3, refused work, and ${blocker.name}`,
-      'when the operator removes the refusing hook but delivery is still cancelled',
+      'when the operator removes the refusing hook but delivery cannot proceed',
       'it should not retry or commit the work before acceptance and successful counted Activities',
     ].join(', '),
     async () => {
@@ -72,7 +77,7 @@ for (const blocker of [
       const state = readRunState(run.tracer.dbPath, run.runId)
 
       // then
-      expect(actual).toEqual({ kind: 'settled' })
+      expect(actual.kind).toBe(blocker.failedReview ? 'settled' : 'waiting')
       expect(deliveries).toBe(0)
       expect(gitIn(dir, 'rev-parse', 'HEAD')).toBe(head)
       expect(gitIn(dir, 'diff', '--cached', '--name-only')).toBe('work.txt')
@@ -87,7 +92,16 @@ for (const blocker of [
           .eventsNamed(run.runId, 'tree_warning')
           .filter((warning) => warning.kind === 'recovered'),
       ).toEqual([])
-      expect(state?.activityRuns.at(-1)?.status).toBe('cancelled')
+      expect(
+        state?.activityRuns
+          .filter((row) => row.name === activity.name)
+          .map((row) => row.status),
+      ).toEqual(blocker.failedReview ? ['cancelled'] : [])
+      expect(
+        run.tracer
+          .eventsNamed(run.runId, 'human_gate_open')
+          .map((event) => event.kind),
+      ).toEqual(blocker.failedReview ? [] : ['acceptance'])
       expect(state?.activityRuns.flatMap((row) => row.gates)).toEqual([])
     },
   )

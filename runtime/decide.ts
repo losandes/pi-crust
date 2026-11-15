@@ -28,9 +28,9 @@ import {
 import { DECIDE_CLI, positionalArgs, resumeRecordedRun } from './domains/cli'
 import { loadConfig } from './domains/config'
 import { handoffDirFor } from './domains/handoff'
-import { ANSWER_FILENAME } from './domains/runs'
+import { ANSWER_FILENAME, ANSWER_RECORD_FILENAME } from './domains/runs'
 import { readRunState } from './domains/trace'
-import { repoRoot, resolveDataPaths } from './domains/workspace'
+import { engineerName, repoRoot, resolveDataPaths } from './domains/workspace'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB, EXIT } from './lib/contracts'
 import {
   configPathFromEnv,
@@ -143,6 +143,14 @@ export const main = async (argv: readonly string[]): Promise<number> => {
 
   const handoff = handoffDirFor(dataDir, args.runId)
   writeText(join(handoff, ANSWER_FILENAME), `${answerText(args).trim()}\n`)
+  writeText(
+    join(handoff, ANSWER_RECORD_FILENAME),
+    `${JSON.stringify({
+      verb: args.verb,
+      at: new Date().toISOString(),
+      from: engineerName(),
+    })}\n`,
+  )
 
   writeLine(
     box(

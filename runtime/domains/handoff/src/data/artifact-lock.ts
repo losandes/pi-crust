@@ -38,6 +38,7 @@ const UNLOCKED = 0o644
 const MACHINERY = new Set([
   'decision-request.md',
   'decision-answer.md',
+  'decision-answer.json',
   'disputes.md',
   'disputes.json',
   'changes.diff',

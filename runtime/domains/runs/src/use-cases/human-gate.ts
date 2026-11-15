@@ -12,17 +12,14 @@
  * that succeeded. A human's answer enters the next stage's context as a FACT
  * attributed to them, not as an agent's inference.
  *
- * Opt-in, always. `--approve-after identify,design` names the stages whose
- * output you want to see before the chain carries on. A run with no flag
- * behaves exactly as it did before.
- *
- * Two escalations happen WITHOUT being asked for, because the lifecycle
- * requires them: a consequential unresolved question reaching a stage that
- * would otherwise invent the answer (the Authority Rule), and a second
- * regression to one stage (no agent is going to settle that).
+ * `--approve-after identify,design` opts into stage approvals. The lifecycle
+ * also requires gates for unresolved authority questions, repeated regressions,
+ * unaccepted work at delivery, and operator-recoverable delivery refusals.
  */
 
 import { join } from 'node:path'
+import { z } from 'zod'
+import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
 import type {
   TActivityContext,
   TEnvelopeBase,
@@ -42,6 +39,48 @@ import { recipeArgv, resumeArgv, shellLine } from '../../../cli'
 export { blockingQuestions }
 export const DECISION_FILENAME = 'decision-request.md'
 export const ANSWER_FILENAME = 'decision-answer.md'
+export const ANSWER_RECORD_FILENAME = 'decision-answer.json'
+
+const answerRecordSchema = z.object({
+  verb: z.enum(['approve', 'reject', 'answer']),
+  at: z.string().datetime(),
+  from: z.string(),
+})
+
+const acceptanceGateSchema = z.object({
+  kind: z.literal('acceptance'),
+  activity: z.string(),
+  detail: z.string(),
+  opened_at: z.string().datetime(),
+})
+
+/** A delivery wait must not hide the acceptance gate this answer belongs to. */
+export const acceptanceDecision = (
+  run: Readonly<Pick<TRun, 'tracer' | 'runId' | 'contextHandoffDir'>>,
+) => {
+  const gate = acceptanceGateSchema.safeParse(
+    run.tracer
+      .eventsNamed(run.runId, 'human_gate_open')
+      .filter((event) => event.kind === 'acceptance')
+      .at(-1),
+  )
+  if (!gate.success) return undefined
+  const path = join(run.contextHandoffDir, ANSWER_RECORD_FILENAME)
+  const json = fileExists(path)
+    ? safeParseSettlement(() => JSON.parse(readText(path)))
+    : undefined
+  const answer = answerRecordSchema.safeParse(
+    json?.status === 'ok' ? json.data : undefined,
+  )
+  return {
+    gate: gate.data,
+    answer:
+      answer.success &&
+      Date.parse(answer.data.at) > Date.parse(gate.data.opened_at)
+        ? answer.data
+        : undefined,
+  }
+}
 
 /**
  * Why a run stopped for a person. Delivery needs no answer: the operator
@@ -67,6 +106,7 @@ export type TGateReason =
       questions: readonly string[]
     }>
   | Readonly<{ kind: 'deadlocked'; activity: string; detail: string }>
+  | Readonly<{ kind: 'acceptance'; activity: string; detail: string }>
   /**
    * An agent chose the chain and is about to run it.
    *
@@ -197,17 +237,30 @@ export const resumeInvocation = (
 export const decisionOptions = (
   runId: string,
   resume: string,
-): readonly string[] => [
-  `just crust answer  ${runId} --file answers.md`,
-  '    your text enters the next stage as a FACT attributed to you',
-  `just crust reject  ${runId} --note "..."`,
-  '    send the stage back to redo its work with a correction',
-  `just crust approve ${runId}`,
-  '    continue WITHOUT answering — the questions stay open in the record',
-  '',
-  'then pick it up where it stopped (nothing already green is re-run):',
-  `    ${resume}`,
-]
+  kind?: string,
+): readonly string[] =>
+  kind === 'acceptance'
+    ? [
+        `just crust approve ${runId}`,
+        '    accept the run over unresolved findings and open the pull request',
+        `just crust answer  ${runId} --file answers.md`,
+        '    accept the run with your answer and open the pull request',
+        `just crust reject  ${runId} --note "..."`,
+        '    cancel the pull request and end the run as not accepted',
+        '',
+        `    ${resume}`,
+      ]
+    : [
+        `just crust answer  ${runId} --file answers.md`,
+        '    your text enters the next stage as a FACT attributed to you',
+        `just crust reject  ${runId} --note "..."`,
+        '    send the stage back to redo its work with a correction',
+        `just crust approve ${runId}`,
+        '    continue WITHOUT answering — the questions stay open in the record',
+        '',
+        'then pick it up where it stopped (nothing already green is re-run):',
+        `    ${resume}`,
+      ]
 
 const launchFlagsExplanation =
   'That line repeats the flags this run was launched with. They are NOT ' +
@@ -241,6 +294,17 @@ export const renderDecisionRequest = (
       'Resuming retries each refused commit once under your own signing configuration, ' +
       'then pushes and opens the pull request.\n\n' +
       `\`\`\`bash\n${resume}\n\`\`\`\n\n` +
+      launchFlagsExplanation
+    )
+  }
+  if (reason.kind === 'acceptance') {
+    return (
+      `# Waiting for you\n\nRun \`${runId}\` has not been accepted for \`${reason.activity}\`.\n\n` +
+      `## Why\n\n${reason.detail}\n\n## What happens next\n\n` +
+      'Approve opens the pull request over the unresolved findings. Answer also accepts the run. ' +
+      'Reject cancels the pull request and ends the run as not accepted; it does not revise the work. ' +
+      'Delivery may stop again if a commit or push is refused.\n\n' +
+      `\`\`\`text\n${decisionOptions(runId, resume, reason.kind).join('\n')}\n\`\`\`\n\n` +
       launchFlagsExplanation
     )
   }
