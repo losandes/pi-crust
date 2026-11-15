@@ -52,10 +52,12 @@ import {
 import { commitActivity } from './deliver'
 import type { TGateReason } from './human-gate'
 import {
+  answerAsFact,
   blockingQuestions,
   gateReason,
   resumeInvocation,
   selfAnswered,
+  withDecisionAnswer,
   writeDecisionRequest,
 } from './human-gate'
 import { isReplayedActivityRunId, skipIfDone } from './resume'
@@ -163,7 +165,9 @@ const runStep = (
    * than by the window it landed in.
    */
   const given: TActivityContext = {
-    ...ctx,
+    ...withDecisionAnswer(answerAsFact(run.contextHandoffDir, run.engineer))(
+      ctx,
+    ),
     cohort:
       unit.strategy === 'concurrent'
         ? unit.activities
@@ -277,15 +281,31 @@ export const judgeGates = (
  * own change here, in the words its envelope carried.
  */
 const settleGates = (
-  run: TRun,
-  unit: TUnit,
-  ctx: TActivityContext,
-  ran: readonly TRan[],
-  ledger: TAttemptLedger,
+  params: Readonly<{
+    run: TRun
+    unit: TUnit
+    ctx: TActivityContext
+    ran: readonly TRan[]
+    ledger: TAttemptLedger
+    trust: number
+    hasSuccessor: boolean
+  }>,
 ): Promise<readonly TRan[]> => {
+  const { run, unit, ctx, ran, ledger, trust, hasSuccessor } = params
   const settleOne = async (entry: TRan): Promise<TRan> => {
     const envelope = entry.result.previous
-    if (envelope === undefined || entry.activity.gates.length === 0) {
+    const waiting = gateReason({
+      activity: entry.activity.name,
+      envelope,
+      approveAfter: [],
+      hasSuccessor,
+      trust,
+    })
+    if (
+      envelope === undefined ||
+      entry.activity.gates.length === 0 ||
+      waiting?.kind === 'escalated'
+    ) {
       return entry
     }
     const violations = judgeGates(run, entry.activity, envelope)
@@ -490,6 +510,8 @@ export type TRunUnitsParams = Readonly<{
   start: TActivityContext
   approveAfter?: readonly string[]
   onWaiting?: (waiting: TWaiting) => void
+  /** Work following this nested fold, such as the reviser's reviewers. */
+  hasSuccessor?: boolean
   trust?: number
   ledger?: TAttemptLedger
   /** why this execution runs; gate retries supply their own cause */
@@ -498,7 +520,14 @@ export type TRunUnitsParams = Readonly<{
   afterUnit?: (
     ctx: TActivityContext,
     at: number,
-  ) => Promise<Readonly<{ ctx: TActivityContext; stopReason?: string }>>
+  ) => Promise<
+    Readonly<{
+      ctx: TActivityContext
+      stopReason?: string
+      /** how the Units after a stop are recorded; a waiting stop is `blocked` */
+      stopStatus?: 'blocked' | 'cancelled'
+    }>
+  >
 }>
 
 export const runUnits = (
@@ -508,7 +537,7 @@ export const runUnits = (
   const carriedInitially = new Set(start.upstream.map((one) => one.activity))
   const approveAfter = params.approveAfter ?? []
   const onWaiting = params.onWaiting ?? (() => undefined)
-  const trust = params.trust ?? TRUST_DEFAULT
+  const trust = params.trust ?? run.trust ?? TRUST_DEFAULT
   const ledger = params.ledger ?? attemptLedger()
   const names = units.flatMap((unit) =>
     unit.activities.map((activity) => activity.name),
@@ -536,16 +565,20 @@ export const runUnits = (
     if (unit === undefined) {
       return ctx
     }
-    const ran = await settleGates(
+    const hasSuccessor =
+      index + 1 < units.length || params.hasSuccessor === true
+    const ran = await settleGates({
       run,
       unit,
       ctx,
-      await runUnit(run, unit, ctx, {
+      ran: await runUnit(run, unit, ctx, {
         ledger,
         cause: params.cause ?? FIRST_ATTEMPT,
       }),
       ledger,
-    )
+      trust,
+      hasSuccessor,
+    })
     noteDisagreement(run, unit, ran)
     noteUnexpectedChanges(run, unit, ran)
 
@@ -619,7 +652,6 @@ export const runUnits = (
      * approve, resume, replay, gate, approve, forever. Observed exactly that
      * way on the first live test of resuming from a gate.
      */
-    const replayed = ran.every((one) => run.resume.has(one.activity.name))
     /*
      * A stage gate is spelled `stage:<name>` and only fires on the Unit that
      * ends the Stage. In a serial Stage that is its last Activity, so
@@ -629,21 +661,24 @@ export const runUnits = (
      */
     const stageGated =
       unit.endsStage && wantsStageGate(approveAfter, unit.stage)
-    const gates = replayed
-      ? []
-      : ran.flatMap((one) => {
-          const reason = gateReason({
-            activity: one.activity.name,
-            envelope: one.result.previous,
-            approveAfter: stageGated
-              ? [...gatedActivities, one.activity.name]
-              : gatedActivities,
-            hasSuccessor: index + 1 < units.length,
-            trust,
-          })
+    const gates = ran.flatMap((one) => {
+      const replayed = isReplayedActivityRunId(
+        run.runId,
+        handleIdOf(run, one.activity.instance),
+      )
+      if (replayed) return []
+      const reason = gateReason({
+        activity: one.activity.name,
+        envelope: one.result.previous,
+        approveAfter: stageGated
+          ? [...gatedActivities, one.activity.name]
+          : gatedActivities,
+        hasSuccessor,
+        trust,
+      })
 
-          return reason === undefined ? [] : [reason]
-        })
+      return reason === undefined ? [] : [reason]
+    })
     /*
      * The first in declaration order, when a concurrent Stage raised several.
      * They are all recorded in the Unit's outcomes; the run can only wait on
@@ -652,6 +687,17 @@ export const runUnits = (
      */
     const gate = gates[0]
     if (gate !== undefined) {
+      for (const one of ran) {
+        if (
+          gates.some(
+            (reason) =>
+              reason.kind === 'escalated' &&
+              reason.activity === one.activity.name,
+          )
+        ) {
+          settleStatus(run, handleIdOf(run, one.activity.instance), 'waiting')
+        }
+      }
       const path = writeDecisionRequest(
         run.contextHandoffDir,
         gate,
@@ -666,7 +712,11 @@ export const runUnits = (
       )
       run.tracer.event({
         run_id: run.runId,
-        activity_run_id: handleIdOf(run, gate.activity),
+        activity_run_id: handleIdOf(
+          run,
+          ran.find((one) => one.activity.name === gate.activity)?.activity
+            .instance ?? gate.activity,
+        ),
         type: 'log',
         name: 'human_gate_open',
         payload: {
@@ -711,8 +761,9 @@ export const runUnits = (
       }
     }
 
-    const trailing =
-      index + 1 < units.length ? [] : blockingQuestions(result?.previous, trust)
+    const trailing = hasSuccessor
+      ? []
+      : blockingQuestions(result?.previous, trust)
     if (trailing.length > 0) {
       run.console.note(
         `'${activity.name}' finished the chain with ${trailing.length} open ` +
@@ -820,7 +871,7 @@ export const runUnits = (
       recordUnreached(
         run,
         units.slice(index + 1),
-        'cancelled',
+        boundary.stopStatus ?? 'cancelled',
         boundary.stopReason,
       )
       return after
@@ -844,6 +895,7 @@ export const runActivities = (
     start: TActivityContext
     approveAfter?: readonly string[]
     onWaiting?: (waiting: TWaiting) => void
+    hasSuccessor?: boolean
     trust?: number
     ledger?: TAttemptLedger
     cause?: string

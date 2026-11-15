@@ -22,6 +22,7 @@ import type {
 } from '../../../../lib/contracts'
 import {
   activityNameFromRun,
+  blockingQuestions,
   trustStance,
   WARNING_EVENT,
   warningPayload,
@@ -777,7 +778,10 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     },
   })
   run.console.agentFinished(agent.name, spent.total_tokens, spent.total_cost)
-  if (envelope.status !== 'success') {
+  if (
+    envelope.status !== 'success' &&
+    blockingQuestions(envelope, run.trust).length === 0
+  ) {
     throw new Error(
       `${agent.name} reported status='${envelope.status}': ${envelope.summary}`,
     )

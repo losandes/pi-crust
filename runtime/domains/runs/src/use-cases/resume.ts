@@ -72,6 +72,24 @@ export const replayStepResult = (
     : latestLogPayload(state, activityRunName, STEP_RESULT_EVENT)
 }
 
+/** A person's retry replaces its unfinished attempt, including across processes. */
+const supersedeWaiting = (run: TRun, name: string): void => {
+  const waiting = run.tracer
+    .activityRunsFor(run.runId)
+    .filter((one) => one.params.name === name && one.status === 'waiting')
+  for (const previous of waiting) {
+    const inMemory = run
+      .activityRuns()
+      .some((one) => one.activity_run_id === previous.activity_run_id)
+    const updated = inMemory
+      ? run.updateActivityRun(previous.activity_run_id, {
+          status: 'superseded',
+        })
+      : { ...previous, status: 'superseded' as const }
+    run.tracer.activityRunUpsert(updated)
+  }
+}
+
 export const skipIfDone = <TResult>(
   run: TRun,
   params: TActivityRunParams,
@@ -79,7 +97,10 @@ export const skipIfDone = <TResult>(
   replay: () => Promise<TResult>,
 ): Promise<TResult> => {
   if (!run.claimResume(params.name)) {
-    return runActivityRun(run)(params, body)
+    return runActivityRun(run)(params, (handle) => {
+      supersedeWaiting(run, params.name)
+      return body(handle)
+    })
   }
   run.tracer.event({
     run_id: run.runId,

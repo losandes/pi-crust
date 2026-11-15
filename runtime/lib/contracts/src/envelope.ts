@@ -13,6 +13,7 @@
  */
 
 import { z } from 'zod'
+import { stanceFor } from './trust'
 
 export const envelopeBaseSchema = z.object({
   status: z.enum(['success', 'fail']),
@@ -208,6 +209,33 @@ export const contextEnvelopeSchema = envelopeBaseSchema.extend({
   objective_met: objectiveSchema,
   regress_to: regressionSchema,
 })
+
+export const questionsOf = (
+  envelope: TEnvelopeBase | undefined,
+): readonly TQuestion[] => {
+  const parsed =
+    envelope === undefined
+      ? undefined
+      : contextEnvelopeSchema.safeParse(envelope)
+  return parsed === undefined || !parsed.success ? [] : parsed.data.unresolved
+}
+
+/** Questions this run's trust level reserves for a person. */
+export const blockingQuestions = (
+  envelope: TEnvelopeBase | undefined,
+  level: number,
+): readonly string[] =>
+  questionsOf(envelope)
+    .filter(
+      (question) =>
+        stanceFor({
+          level,
+          answerable: question.provisional_answer.trim() !== '',
+          beyondThisRun: question.beyond_this_run,
+          consequential: question.consequential,
+        }) === 'gate',
+    )
+    .map((question) => question.question)
 
 /** What a stage asked to go back to, or undefined when it did not ask. */
 export const regressionOf = (

@@ -72,6 +72,10 @@ export const runReviewSegments = async (
         ctx,
         fallbackReason,
         ledger,
+        approveAfter: driver.approveAfter ?? [],
+        ...(driver.onWaiting === undefined
+          ? {}
+          : { onWaiting: driver.onWaiting }),
         ...(agentPorts === undefined ? {} : { agentPorts }),
       })
       settlements.set(boundary.group.at, { group: boundary.group, result })
@@ -79,6 +83,12 @@ export const runReviewSegments = async (
         ctx: result.ctx,
         ...(result.outcome === 'deadlocked' || result.outcome === 'exhausted'
           ? { stopReason: result.reason }
+          : {}),
+        ...(result.outcome === 'waiting'
+          ? {
+              stopReason: 'waiting for a person during the revise loop',
+              stopStatus: 'blocked' as const,
+            }
           : {}),
       }
     },
