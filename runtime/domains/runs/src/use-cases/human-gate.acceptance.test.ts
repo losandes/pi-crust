@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../../../lib/contracts'
 import { terminalOutput } from '../../../../testing/terminal-capture'
+import { resolveDecisionAnswer } from '../data/resolve-decision-answer'
 import {
   acceptanceDecision,
   renderDecisionRequest,
@@ -102,7 +103,13 @@ for (const scenario of [
         )
 
       // when
-      const actual = acceptanceDecision(run)
+      const resolved = resolveDecisionAnswer(run.contextHandoffDir)
+      const actual = acceptanceDecision(
+        run.tracer
+          .eventsNamed(run.runId, 'human_gate_open')
+          .findLast((event) => event.kind === 'acceptance'),
+        resolved.status === 'ok' ? resolved.data : undefined,
+      )
 
       // then
       expect(actual?.gate.detail).toBe('Unresolved findings')
@@ -120,10 +127,10 @@ test(
   ].join(', '),
   () => {
     // given
-    using fixture = gateFixture()
+    const gatePayload = undefined
 
     // when
-    const actual = acceptanceDecision(fixture.run)
+    const actual = acceptanceDecision(gatePayload, undefined)
 
     // then
     expect(actual).toBeUndefined()
@@ -159,7 +166,13 @@ test(
     )
 
     // when
-    const actual = acceptanceDecision(run)
+    const resolved = resolveDecisionAnswer(run.contextHandoffDir)
+    const actual = acceptanceDecision(
+      run.tracer
+        .eventsNamed(run.runId, 'human_gate_open')
+        .findLast((event) => event.kind === 'acceptance'),
+      resolved.status === 'ok' ? resolved.data : undefined,
+    )
 
     // then
     expect(actual?.answer).toBeUndefined()

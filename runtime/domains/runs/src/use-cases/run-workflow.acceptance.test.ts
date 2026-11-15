@@ -4,6 +4,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { main as decide } from '../../../../decide'
 import { EXIT, pullRequestOutput, type TStage } from '../../../../lib/contracts'
+import { terminalOutput } from '../../../../testing/terminal-capture'
 import type { TDeliveryPorts } from '../../../activities'
 import { readRunState } from '../../../trace'
 import { createRun } from './create-run'
@@ -423,6 +424,33 @@ test(
         .slice(before)
         .map((row) => row.params.name),
     ).toEqual(['gh-pull-request'])
+  },
+)
+
+test(
+  [
+    'given a corrupt decision answer record at the acceptance gate',
+    'when resumed',
+    'it should explain the unreadable answer and stay waiting without revising or delivering',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = acceptanceFixture()
+    expect(await fixture.execute()).toBe(EXIT.WAITING)
+    writeFileSync(join(fixture.handoff, 'decision-answer.json'), '{')
+    const before = fixture.rows().length
+
+    // when
+    const actual = await fixture.execute(true)
+
+    // then
+    expect(actual).toBe(EXIT.WAITING)
+    expect(fixture.state()).toBe('waiting')
+    expect(fixture.rows()).toHaveLength(before)
+    expect(terminalOutput()).toContain('could not read decision-answer.json')
+    expect(
+      fixture.run.tracer.eventsNamed(fixture.runId, 'human_accepted'),
+    ).toEqual([])
   },
 )
 

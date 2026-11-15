@@ -19,7 +19,6 @@
 
 import { join } from 'node:path'
 import { z } from 'zod'
-import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
 import type {
   TActivityContext,
   TEnvelopeBase,
@@ -35,18 +34,13 @@ import {
 } from '../../../../lib/contracts'
 import { fileExists, readText, writeText } from '../../../../lib/system'
 import { recipeArgv, resumeArgv, shellLine } from '../../../cli'
+import type { TDecisionAnswer } from '../typedefs/decision-answer'
+
+export { ANSWER_RECORD_FILENAME } from '../typedefs/decision-answer'
 
 export { blockingQuestions }
 export const DECISION_FILENAME = 'decision-request.md'
 export const ANSWER_FILENAME = 'decision-answer.md'
-export const ANSWER_RECORD_FILENAME = 'decision-answer.json'
-
-const answerRecordSchema = z.object({
-  verb: z.enum(['approve', 'reject', 'answer']),
-  at: z.string().datetime(),
-  from: z.string(),
-})
-
 const acceptanceGateSchema = z.object({
   kind: z.literal('acceptance'),
   activity: z.string(),
@@ -54,30 +48,19 @@ const acceptanceGateSchema = z.object({
   opened_at: z.string().datetime(),
 })
 
-/** A delivery wait must not hide the acceptance gate this answer belongs to. */
+/** An answer counts only after the acceptance gate it is settling opened. */
 export const acceptanceDecision = (
-  run: Readonly<Pick<TRun, 'tracer' | 'runId' | 'contextHandoffDir'>>,
+  gatePayload: unknown,
+  answer: TDecisionAnswer | undefined,
 ) => {
-  const gate = acceptanceGateSchema.safeParse(
-    run.tracer
-      .eventsNamed(run.runId, 'human_gate_open')
-      .filter((event) => event.kind === 'acceptance')
-      .at(-1),
-  )
+  const gate = acceptanceGateSchema.safeParse(gatePayload)
   if (!gate.success) return undefined
-  const path = join(run.contextHandoffDir, ANSWER_RECORD_FILENAME)
-  const json = fileExists(path)
-    ? safeParseSettlement(() => JSON.parse(readText(path)))
-    : undefined
-  const answer = answerRecordSchema.safeParse(
-    json?.status === 'ok' ? json.data : undefined,
-  )
   return {
     gate: gate.data,
     answer:
-      answer.success &&
-      Date.parse(answer.data.at) > Date.parse(gate.data.opened_at)
-        ? answer.data
+      answer !== undefined &&
+      Date.parse(answer.at) > Date.parse(gate.data.opened_at)
+        ? answer
         : undefined,
   }
 }

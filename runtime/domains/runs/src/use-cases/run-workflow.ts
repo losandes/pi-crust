@@ -49,6 +49,7 @@ import {
 } from '../../../planning'
 import { readRunState, runLink, visualizerIsUp } from '../../../trace'
 import { isRepo, rev, shortSha } from '../../../workspace'
+import { resolveDecisionAnswer } from '../data/resolve-decision-answer'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger } from './attempts'
 import type { TGateReason } from './human-gate'
@@ -448,10 +449,26 @@ export const runWorkflow = async (
       feedback: [],
       ...(args.resume ? replayEnvelopeHistory(run, units) : {}),
     }
-    const decision =
+    // A later delivery gate must not hide the acceptance this answer settles.
+    const acceptanceGate =
       args.resume && terminal !== undefined
-        ? acceptanceDecision(run)
+        ? run.tracer
+            .eventsNamed(run.runId, 'human_gate_open')
+            .findLast((event) => event.kind === 'acceptance')
         : undefined
+    const resolvedAnswer =
+      acceptanceGate === undefined
+        ? undefined
+        : resolveDecisionAnswer(run.contextHandoffDir)
+    if (resolvedAnswer?.status === 'error') {
+      run.console.note(
+        `could not read decision-answer.json: ${resolvedAnswer.error.message} — acceptance still needs an answer`,
+      )
+    }
+    const decision = acceptanceDecision(
+      acceptanceGate,
+      resolvedAnswer?.status === 'ok' ? resolvedAnswer.data : undefined,
+    )
     if (decision !== undefined && terminal !== undefined) {
       const answer = decision.answer
       const accepted = answer !== undefined && answer.verb !== 'reject'
