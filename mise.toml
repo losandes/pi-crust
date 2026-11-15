@@ -5,6 +5,12 @@
 # because nothing else in the repository pins them. bun is NOT named here —
 # see [settings] below.
 
+# mise.toml
+monorepo_root = true
+
+[monorepo]
+config_roots = ["apps/*"]
+
 [tools]
 node = "26.13.0"
 just = "1.59.0"
@@ -24,4 +30,10 @@ auto = true
 run = "bun install --frozen-lockfile"
 
 [hooks]
-enter = "mise install --quiet"
+enter = "mise install --quiet --monorepo"
+
+[env]
+# --- Mode (both REQUIRED) ---------------------------------------------------
+# 'cicd' | 'localhost' | 'development' | 'test' | 'staging' | 'production'
+NODE_ENV = { default = "localhost" }
+MODE = { default = "{{ env.NODE_ENV }}" }
