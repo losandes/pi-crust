@@ -85,6 +85,7 @@ for (const names of [['build'], ['verify', 'build']]) {
       const terminal: TTerminalActivity = {
         name: 'gh-pull-request',
         requires: [],
+        requiresCommitting: true,
         params: activityRunParams({
           name: 'gh-pull-request',
           kind: 'agent',
@@ -97,6 +98,7 @@ for (const names of [['build'], ['verify', 'build']]) {
             action: 'created',
             url: 'https://example.test/pr/117',
             reason: '',
+            recoverable: false,
             fallback: false,
           })
         },

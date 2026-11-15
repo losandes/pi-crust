@@ -12,6 +12,8 @@
  * claimed — and a page that tried to rebuild it would be reading a tree that
  * has moved on since.
  */
+import { safeParseSettlement } from '@typedefs/settlement'
+import { z } from 'zod'
 import type { EventRow } from '@/domains/events'
 
 /** Must match the runtime's `WARNING_EVENT`, which writes these rows. */
@@ -37,23 +39,30 @@ const strings = (value: unknown): readonly string[] =>
 const text = (value: unknown): string =>
   typeof value === 'string' ? value : ''
 
-const parse = (event: EventRow): TTreeWarning | undefined => {
-  if (event.name !== WARNING_EVENT) return undefined
-  let payload: Record<string, unknown> = {}
-  // biome-ignore lint/plugin/no-intermediate-try-catch: a malformed payload is this function's own answer — one dropped warning, never a broken page
-  try {
-    payload = JSON.parse(event.payload_json ?? '{}') as Record<string, unknown>
-  } catch {
-    // A malformed payload costs this one warning, never the page that would
-    // have shown the others.
-    return undefined
+type TWarningRecord = Readonly<
+  Omit<TTreeWarning, 'kind'> & {
+    kind: TWarningKind | 'recovered'
   }
+>
+
+const payloadSchema = z.record(z.string(), z.unknown())
+
+const parse = (event: EventRow): TWarningRecord | undefined => {
+  if (event.name !== WARNING_EVENT) return undefined
+  const json = safeParseSettlement(
+    () => JSON.parse(event.payload_json ?? '{}') as unknown,
+  )
+  if (json.status === 'error') return undefined
+  const parsed = payloadSchema.safeParse(json.data)
+  if (!parsed.success) return undefined
+  const payload = parsed.data
   const kind = payload.kind
   if (
     kind !== 'unexpected' &&
     kind !== 'overstep' &&
     kind !== 'refusal' &&
-    kind !== 'uncommitted'
+    kind !== 'uncommitted' &&
+    kind !== 'recovered'
   ) {
     return undefined
   }
@@ -70,12 +79,27 @@ const parse = (event: EventRow): TTreeWarning | undefined => {
 
 export const warningsIn = (
   events: readonly EventRow[],
-): readonly TTreeWarning[] =>
-  events.flatMap((event) => {
+): readonly TTreeWarning[] => {
+  const warnings = events.flatMap((event) => {
     const warning = parse(event)
 
     return warning === undefined ? [] : [warning]
   })
+  return warnings.filter(
+    (warning, index): warning is TTreeWarning =>
+      warning.kind !== 'recovered' &&
+      (warning.kind !== 'uncommitted' ||
+        !warnings
+          .slice(index + 1)
+          .some(
+            (later) =>
+              (later.kind === 'uncommitted' || later.kind === 'recovered') &&
+              later.activities.some((activity) =>
+                warning.activities.includes(activity),
+              ),
+          )),
+  )
+}
 
 /**
  * The warnings belonging to one Activity Run.

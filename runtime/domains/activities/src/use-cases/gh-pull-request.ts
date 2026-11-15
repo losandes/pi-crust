@@ -12,7 +12,12 @@
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
-import { fail, succeed } from '../../../../../lib/typedefs/src/settlement'
+import {
+  errorMessage,
+  fail,
+  safeParseSettlement,
+  succeed,
+} from '../../../../../lib/typedefs/src/settlement'
 import type {
   TActivityContext,
   TActivityOptions,
@@ -207,6 +212,8 @@ export type TDeliveryResult = Readonly<{
   url: string
   /** '' unless refused */
   reason: string
+  /** True only when the operator's presence can clear the refusal. */
+  recoverable: boolean
   fallback: boolean
 }>
 
@@ -214,6 +221,8 @@ export type TTerminalActivity = Readonly<{
   name: string
   params: TActivityRunParams
   requires: readonly string[]
+  /** A run that may not commit has nothing for this Activity to deliver. */
+  requiresCommitting: boolean
   deliver: (
     ctx: TActivityContext,
     handle: TActivityRunHandle,
@@ -290,7 +299,11 @@ const numberFromUrl = (url: string): number => {
 }
 
 /** One precondition in the order 1.5.2 checks them. '' means it holds. */
-type TPrecondition = Readonly<{ ok: boolean; reason: string }>
+type TPrecondition = Readonly<{
+  ok: boolean
+  reason: string
+  recoverable: boolean
+}>
 
 const preconditions = (
   ports: TDeliveryPorts,
@@ -303,24 +316,29 @@ const preconditions = (
   return [
     {
       ok: options.committing,
+      recoverable: false,
       reason:
         '--commit false was in force; a terminal Activity delivers nothing it cannot commit alongside',
     },
     {
       ok: ports.isRepo(cwd) && branch !== '',
+      recoverable: false,
       reason: 'the workspace is not a git repository, or HEAD is detached',
     },
     {
       ok: branch !== config.delivery.base,
+      recoverable: false,
       reason:
         `the current branch IS delivery.base ('${config.delivery.base}') — ` +
         'pi-crust does not create branches',
     },
     {
       ok: ports.remoteExists(config.delivery.remote, cwd),
+      recoverable: false,
       reason: `delivery.remote ('${config.delivery.remote}') is not a configured remote`,
     },
     {
+      recoverable: false,
       ok:
         ports.baseRef(config.delivery.remote, config.delivery.base, cwd) !== '',
       reason:
@@ -328,6 +346,7 @@ const preconditions = (
         `nor ${config.delivery.base} resolves to a commit`,
     },
     {
+      recoverable: false,
       ok:
         ports.commitsAhead(
           ports.baseRef(config.delivery.remote, config.delivery.base, cwd),
@@ -338,6 +357,7 @@ const preconditions = (
     },
     {
       ok: ports.forge.authenticated(cwd),
+      recoverable: true,
       reason: "'gh' is not installed, or 'gh auth status' failed",
     },
   ]
@@ -348,8 +368,8 @@ const firstRefusal = (
   config: TTerminalConfig,
   options: TActivityOptions,
   cwd: string,
-): string | undefined =>
-  preconditions(ports, config, options, cwd).find((one) => !one.ok)?.reason
+): TPrecondition | undefined =>
+  preconditions(ports, config, options, cwd).find((one) => !one.ok)
 
 export const ghPullRequestActivity = (
   config: TTerminalConfig,
@@ -365,27 +385,37 @@ export const ghPullRequestActivity = (
     description: config.purpose,
   }),
   requires: [config.name],
+  requiresCommitting: true,
 
   deliver: async (ctx, handle) => {
     const run = ctx.run
     const cwd = run.vcsRoot
 
-    const refusal = firstRefusal(ports, config, options, cwd)
-    if (refusal !== undefined) {
-      run.console.note(`${config.name}: refused — ${refusal}`)
+    const refuse = (reason: string, recoverable: boolean): TDeliveryResult => {
+      run.console.note(`${config.name}: refused — ${reason}`)
       run.tracer.event({
         run_id: run.runId,
         activity_run_id: handle.activityRun.activity_run_id,
         type: 'log',
         name: 'pull_request_refused',
         payload: {
-          reason: refusal,
+          reason,
           branch: ports.branch(cwd),
           base: config.delivery.base,
           remote: config.delivery.remote,
         },
       })
-      return { action: 'refused', url: '', reason: refusal, fallback: false }
+      return {
+        action: 'refused',
+        url: '',
+        reason,
+        recoverable,
+        fallback: false,
+      }
+    }
+    const refusal = firstRefusal(ports, config, options, cwd)
+    if (refusal !== undefined) {
+      return refuse(refusal.reason, refusal.recoverable)
     }
 
     const branch = ports.branch(cwd)
@@ -489,8 +519,16 @@ export const ghPullRequestActivity = (
     const bodyPath = draftPath(run.contextHandoffDir)
     writeText(bodyPath, finalBody)
 
-    // biome-ignore lint/plugin/no-array-mutation: ports.push is this module's own git-push port, not Array.prototype.push
-    ports.push(config.delivery.remote, branch, cwd)
+    const pushed = safeParseSettlement(() => {
+      // biome-ignore lint/plugin/no-array-mutation: ports.push is this module's own git-push port, not Array.prototype.push
+      ports.push(config.delivery.remote, branch, cwd)
+    })
+    if (pushed.status === 'error') {
+      return refuse(
+        `git push failed: ${errorMessage(pushed.error).split('\n')[0] ?? ''}`,
+        true,
+      )
+    }
 
     const params: TPullRequestParams = {
       title: titleWithIssues(chosen.title, issueRefs(facts)),
@@ -524,6 +562,6 @@ export const ghPullRequestActivity = (
       },
     })
 
-    return { action, url, reason: '', fallback: fellBack }
+    return { action, url, reason: '', recoverable: false, fallback: fellBack }
   },
 })

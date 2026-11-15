@@ -27,6 +27,7 @@ import type {
   TActivityContext,
   TEnvelopeBase,
   TRun,
+  TTreeWarning,
 } from '../../../../lib/contracts'
 import {
   blockingQuestions,
@@ -43,7 +44,8 @@ export const DECISION_FILENAME = 'decision-request.md'
 export const ANSWER_FILENAME = 'decision-answer.md'
 
 /**
- * Why a run stopped for a person.
+ * Why a run stopped for a person. Delivery needs no answer: the operator
+ * resolves the refused commit, authentication or push and resumes the run.
  *
  * `activity`, not `stage`. The field has always held the name of one
  * Activity, and it was called `stage` back when a Stage was not a thing the
@@ -74,6 +76,15 @@ export type TGateReason =
    * and on your budget, shall I.
    */
   | Readonly<{ kind: 'plan'; activity: string; activities: readonly string[] }>
+  | Readonly<{
+      kind: 'delivery'
+      activity: string
+      cause: 'uncommitted' | 'forge'
+      /** Non-empty only when cause is `uncommitted`. */
+      outstanding: readonly TTreeWarning[]
+      /** Non-empty only when cause is `forge`. */
+      refusal: string
+    }>
 
 export const parseApproveAfter = (
   flag: string | undefined,
@@ -198,12 +209,41 @@ export const decisionOptions = (
   `    ${resume}`,
 ]
 
+const launchFlagsExplanation =
+  'That line repeats the flags this run was launched with. They are NOT ' +
+  'stored with the session — a gate you asked for with `--approve-after` is ' +
+  'a property of the invocation, so dropping it means the next gate never ' +
+  'fires.\n\n'
+
 /** What the human reads. Written to the handoff directory, never to stdout. */
 export const renderDecisionRequest = (
   reason: TGateReason,
   runId: string,
   resume: string,
 ): string => {
+  if (reason.kind === 'delivery') {
+    const why =
+      reason.cause === 'uncommitted'
+        ? 'Git refused these commits, and one retry at delivery was refused too. ' +
+          'Nothing has been pushed and no pull request is open.\n\n' +
+          reason.outstanding
+            .map(
+              (warning) =>
+                `- ${warning.activities.join(', ')}: ${warning.paths.length} path(s) — ${warning.note}`,
+            )
+            .join('\n')
+        : `Delivery was refused: ${reason.refusal}. Nothing reached the forge.`
+    return (
+      `# Waiting for you\n\nRun \`${runId}\` stopped while delivering \`${reason.activity}\`.\n\n` +
+      `## Why\n\n${why}\n\n## What happens next\n\n` +
+      'No answer is needed. Resolve what the error names so it can complete. ' +
+      'For a signing or SSH agent such as 1Password, be present to approve its prompt. ' +
+      'Resuming retries each refused commit once under your own signing configuration, ' +
+      'then pushes and opens the pull request.\n\n' +
+      `\`\`\`bash\n${resume}\n\`\`\`\n\n` +
+      launchFlagsExplanation
+    )
+  }
   const head = `# Waiting for you\n\nRun \`${runId}\` stopped after \`${reason.activity}\`.\n\n`
   const body =
     reason.kind === 'plan'
@@ -235,10 +275,7 @@ export const renderDecisionRequest = (
     '```\n\n' +
     'Then pick it up where it stopped:\n\n' +
     `\`\`\`bash\n${resume}\n\`\`\`\n\n` +
-    'That line repeats the flags this run was launched with. They are NOT ' +
-    'stored with the session — a gate you asked for with `--approve-after` is ' +
-    'a property of the invocation, so dropping it means the next gate never ' +
-    'fires.\n\n' +
+    launchFlagsExplanation +
     'Nothing is running. The run resumes from the first activityRun that has not ' +
     'succeeded, so answering costs only the stages that still have to happen.\n'
   )

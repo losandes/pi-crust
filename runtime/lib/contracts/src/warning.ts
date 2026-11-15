@@ -31,7 +31,10 @@
  *               it ran, or allowed and recorded under `stop` or `warn`.
  *   uncommitted an Activity's gates passed, it declared `commit: true`, and
  *               git refused the commit. The work is in the tree; nothing was
- *               staged back, unstaged, or signed on anybody's behalf.
+ *               staged back, unstaged, or signed on anybody's behalf. Still
+ *               outstanding at delivery, it stops the run waiting for you.
+ *   recovered   a previously refused commit landed, or nothing was left to
+ *               commit. Answers earlier uncommitted warnings for its Activity.
  *   outside_workspace  a claimed path resolved only against the VCS root, not
  *               the workspace -- a monorepo workspace legitimately owning
  *               work that lives above it. Never fails the gate; see
@@ -49,6 +52,7 @@ export type TWarningKind =
   | 'overstep'
   | 'refusal'
   | 'uncommitted'
+  | 'recovered'
   | 'outside_workspace'
   | 'unverified'
 
@@ -94,13 +98,40 @@ export const warningExplanation = (kind: TWarningKind): string =>
           ? 'The work is in the working tree. Nothing was staged back, unstaged, ' +
             "or signed on anybody's behalf — commit it yourself when you are " +
             'ready.'
-          : kind === 'outside_workspace'
-            ? 'These paths exist above the workspace, inside the repository it is ' +
-              'nested in — a supported layout, not a mistake. Resolved and acted ' +
-              'on exactly as a path inside the workspace would be.'
-            : 'No routing.checks rule reached these paths. Add one to have the ' +
-              'change verified, or set routing.unmatched: "block" to fail on ' +
-              'this instead of warning.'
+          : kind === 'recovered'
+            ? 'A previously refused commit landed, or nothing was left to commit.'
+            : kind === 'outside_workspace'
+              ? 'These paths exist above the workspace, inside the repository it is ' +
+                'nested in — a supported layout, not a mistake. Resolved and acted ' +
+                'on exactly as a path inside the workspace would be.'
+              : 'No routing.checks rule reached these paths. Add one to have the ' +
+                'change verified, or set routing.unmatched: "block" to fail on ' +
+                'this instead of warning.'
+
+/** Every warning still worth reporting, in the order it was filed. */
+export const standingWarnings = (
+  warnings: readonly TTreeWarning[],
+): readonly TTreeWarning[] =>
+  warnings.filter(
+    (warning, index) =>
+      warning.kind !== 'recovered' &&
+      (warning.kind !== 'uncommitted' ||
+        !warnings
+          .slice(index + 1)
+          .some(
+            (later) =>
+              (later.kind === 'uncommitted' || later.kind === 'recovered') &&
+              later.activities.some((activity) =>
+                warning.activities.includes(activity),
+              ),
+          )),
+  )
+
+/** The `uncommitted` warnings among `standingWarnings(warnings)`. */
+export const outstandingUncommitted = (
+  warnings: readonly TTreeWarning[],
+): readonly TTreeWarning[] =>
+  standingWarnings(warnings).filter((warning) => warning.kind === 'uncommitted')
 
 const headline = (warning: TTreeWarning): string =>
   `${warning.activities.join(', ')} (${warning.stage})`
@@ -199,13 +230,14 @@ const renderUnverified = (
 export const renderWarnings = (
   warnings: readonly TTreeWarning[],
 ): readonly string[] => {
-  if (warnings.length === 0) {
+  const standing = standingWarnings(warnings)
+  if (standing.length === 0) {
     return []
   }
-  const attributable = warnings.filter((warning) =>
+  const attributable = standing.filter((warning) =>
     ATTRIBUTION_KINDS.includes(warning.kind),
   )
-  const uncommitted = warnings.filter(
+  const uncommitted = standing.filter(
     (warning) => warning.kind === 'uncommitted',
   )
   const attributableTotal = attributable.reduce(
@@ -232,8 +264,8 @@ export const renderWarnings = (
           `\u26a0 ${uncommittedTotal} commit(s) this run could not make`,
           ...renderGroup(uncommitted, 'uncommitted'),
         ]),
-    ...renderOutsideWorkspace(warnings),
-    ...renderUnverified(warnings),
+    ...renderOutsideWorkspace(standing),
+    ...renderUnverified(standing),
   ]
 }
 
@@ -251,6 +283,7 @@ export const warningFromPayload = (
     kind !== 'overstep' &&
     kind !== 'refusal' &&
     kind !== 'uncommitted' &&
+    kind !== 'recovered' &&
     kind !== 'outside_workspace' &&
     kind !== 'unverified'
   ) {

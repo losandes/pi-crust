@@ -30,7 +30,11 @@ import type {
   TRunState,
   TTreeWarning,
 } from '../../../../lib/contracts'
-import { WARNING_EVENT, warningFromPayload } from '../../../../lib/contracts'
+import {
+  standingWarnings,
+  WARNING_EVENT,
+  warningFromPayload,
+} from '../../../../lib/contracts'
 import type {
   TTraceActivityRunRow,
   TTraceEventRow,
@@ -113,7 +117,7 @@ export const latestByName = (
   )
 
 /**
- * Every warning the run filed, in the order it filed them.
+ * Every standing warning, in trace order; recovered commits no longer warn.
  *
  * From the events rather than recomputed: the comparison that raises a
  * warning needs three sets that only existed while the Activity Run was
@@ -121,13 +125,15 @@ export const latestByName = (
  * tree that has moved on since.
  */
 const warningsIn = (rows: TTraceRows): readonly TTreeWarning[] =>
-  rows.events
-    .filter((event) => event.type === 'log' && event.name === WARNING_EVENT)
-    .flatMap((event) => {
-      const warning = warningFromPayload(asObject(event.payload_json))
+  standingWarnings(
+    rows.events
+      .filter((event) => event.type === 'log' && event.name === WARNING_EVENT)
+      .flatMap((event) => {
+        const warning = warningFromPayload(asObject(event.payload_json))
 
-      return warning === undefined ? [] : [warning]
-    })
+        return warning === undefined ? [] : [warning]
+      }),
+  )
 
 const envelopeRecords = (
   rows: TTraceRows,

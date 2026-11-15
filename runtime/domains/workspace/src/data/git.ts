@@ -42,6 +42,35 @@ const gitAt = (cwd: string, ...args: readonly string[]): string => {
   return result.stdout.trim()
 }
 
+export const GIT_BLOCKING_TIMEOUT_MS = 120_000
+
+/** Bound operations that can wait for an unattended signing or SSH agent. */
+const blockingGitAt = (
+  cwd: string,
+  timeoutMs: number,
+  args: readonly string[],
+): void => {
+  const result = spawnSync('git', [...args], {
+    cwd,
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    killSignal: 'SIGTERM',
+  })
+  if (
+    result.error &&
+    'code' in result.error &&
+    result.error.code === 'ETIMEDOUT'
+  ) {
+    throw new Error(
+      `git ${args[0]} did not finish within ${timeoutMs / 1000} s and was stopped — ` +
+        'a signing or SSH agent may be waiting for approval',
+    )
+  }
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.stderr.trim()}`)
+  }
+}
+
 /** Run git, keeping the output only when it succeeded. Never throws. */
 export const gitOutput = (args: readonly string[], cwd?: string): string => {
   const result = run(args, cwd)
@@ -185,6 +214,7 @@ export const commitPaths = (
   message: string,
   paths: readonly string[],
   cwd: string,
+  timeoutMs = GIT_BLOCKING_TIMEOUT_MS,
 ): TCommit => {
   if (!isRepo(cwd)) {
     throw new Error(
@@ -214,7 +244,7 @@ export const commitPaths = (
   if (staged.length === 0) {
     return { sha: '', paths: [] }
   }
-  gitAt(cwd, 'commit', '-m', message, '--', ...committable)
+  blockingGitAt(cwd, timeoutMs, ['commit', '-m', message, '--', ...committable])
 
   return { sha: gitAt(cwd, 'rev-parse', '--short', 'HEAD'), paths: staged }
 }
@@ -377,8 +407,9 @@ export const pushBranch = (
   remote: string,
   branch: string,
   cwd: string,
+  timeoutMs = GIT_BLOCKING_TIMEOUT_MS,
 ): void => {
-  gitAt(cwd, 'push', '--set-upstream', remote, branch)
+  blockingGitAt(cwd, timeoutMs, ['push', '--set-upstream', remote, branch])
 }
 
 /*

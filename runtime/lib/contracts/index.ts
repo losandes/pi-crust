@@ -149,7 +149,9 @@ export type { TUnit } from './src/unit'
 export { activityGates, wantsStageGate } from './src/unit'
 export type { TTreeWarning } from './src/warning'
 export {
+  outstandingUncommitted,
   renderWarnings,
+  standingWarnings,
   WARNING_EVENT,
   warningFromPayload,
   warningPayload,

@@ -1,11 +1,29 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
+import { terminalOutput } from '../../../../testing/terminal-capture'
 import { observedPayload, PATHS_TOUCHED } from '../../../policy'
-import { commitActivity, commitMessage } from './deliver'
+import {
+  COMMIT_REFUSED_EVENT,
+  commitActivity,
+  commitMessage,
+  outstandingCommits,
+  recommitRefused,
+} from './deliver'
+import {
+  deliveryFixture,
+  gitIn,
+  refuseBuildCommit,
+} from './run-terminal-fixture.test'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -68,7 +86,11 @@ const runIn = (
                 claimed: touched,
               }),
             )
-          : [],
+          : filed
+              .filter((event) => event.name === name)
+              .map(
+                (event) => event.payload as Readonly<Record<string, unknown>>,
+              ),
     },
   } as unknown as TRun
   EVENTS.set(run, filed)
@@ -116,11 +138,244 @@ const inRepo = <TResult>(dir: string, body: () => TResult): TResult => {
 
 test(
   [
+    'given a refused commit with a multi-line message',
+    'when the hook is removed and refused work is retried',
+    'it should retain the whole message and answer the warning exactly once',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = deliveryFixture()
+    const { run, dir } = fixture
+    const message =
+      'fix: complete the delivery\n\nPreserve this body, not only the subject.'
+    const hook = await refuseBuildCommit(run, message)
+    const refused = run.tracer.eventsNamed(run.runId, COMMIT_REFUSED_EVENT)
+    expect(refused).toEqual([
+      { activity: 'build', stage: 'implement', message },
+    ])
+    expect(outstandingCommits(run)[0]?.note).toContain('commit refused by hook')
+    rmSync(hook)
+
+    // when
+    recommitRefused(run)
+    recommitRefused(run)
+
+    // then
+    expect(gitIn(dir, 'log', '-1', '--pretty=%B')).toBe(message)
+    expect(outstandingCommits(run)).toEqual([])
+    const recovered = run.tracer
+      .eventsNamed(run.runId, 'tree_warning')
+      .filter((warning) => warning.kind === 'recovered')
+    expect(recovered).toEqual([
+      {
+        kind: 'recovered',
+        activities: ['build'],
+        activity_run_ids: [
+          run.tracer.activityRunsFor(run.runId)[0]?.activity_run_id,
+        ],
+        stage: 'implement',
+        paths: ['work.txt'],
+        note: `committed ${gitIn(dir, 'rev-parse', '--short', 'HEAD')}`,
+      },
+    ])
+  },
+)
+
+test(
+  [
+    'given a commit whose hook still refuses at delivery',
+    'when recommitRefused makes its one retry',
+    'it should leave exactly one outstanding warning for the Activity and retain the staged paths',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = deliveryFixture()
+    const { run, dir } = fixture
+    await refuseBuildCommit(run)
+    const head = gitIn(dir, 'rev-parse', 'HEAD')
+
+    // when
+    recommitRefused(run)
+
+    // then
+    expect(outstandingCommits(run)).toHaveLength(1)
+    expect(
+      run.tracer.eventsNamed(run.runId, COMMIT_REFUSED_EVENT),
+    ).toHaveLength(2)
+    expect(gitIn(dir, 'rev-parse', 'HEAD')).toBe(head)
+    expect(gitIn(dir, 'diff', '--cached', '--name-only')).toBe('work.txt')
+  },
+)
+
+test(
+  [
+    'given no refused commit in a real run',
+    'when recommitRefused is called',
+    'it should leave HEAD, the trace and the terminal unchanged',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = deliveryFixture()
+    const { run, dir } = fixture
+    const head = gitIn(dir, 'rev-parse', 'HEAD')
+    const output = terminalOutput()
+    const empty = runIn({}, dir)
+
+    // when
+    recommitRefused(run)
+    recommitRefused(empty)
+
+    // then
+    expect(gitIn(dir, 'rev-parse', 'HEAD')).toBe(head)
+    expect(eventsOf(empty)).toEqual([])
+    expect(terminalOutput()).toBe(output)
+  },
+)
+
+test(
+  [
+    'given an Activity with no outstanding warning',
+    'when its observed work is committed',
+    'it should not invent a recovered warning',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = deliveryFixture()
+    writeFileSync(join(fixture.dir, 'work.txt'), 'after\n')
+    const run = runIn({ build: ['work.txt'] }, fixture.dir)
+
+    // when
+    const sha = commitActivity(run, 'build', 'id_build', undefined, 'implement')
+
+    // then
+    expect(sha).not.toBe('')
+    expect(
+      eventsOf(run).filter((event) => event.name === 'tree_warning'),
+    ).toEqual([])
+  },
+)
+
+test(
+  [
+    'given a refused commit the operator subsequently committed by hand',
+    'when commitActivity finds nothing left to commit',
+    'it should answer the warning with an empty path list and the nothing-left note',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = deliveryFixture()
+    const { run, dir } = fixture
+    rmSync(await refuseBuildCommit(run))
+    gitIn(dir, 'commit', '-qm', 'operator landed it', '--', 'work.txt')
+    const id = run.tracer.activityRunsFor(run.runId)[0]?.activity_run_id ?? ''
+
+    // when
+    const actual = commitActivity(run, 'build', id, undefined, 'implement')
+
+    // then
+    expect(actual).toBe('')
+    expect(outstandingCommits(run)).toEqual([])
+    expect(
+      run.tracer.eventsNamed(run.runId, 'tree_warning').at(-1),
+    ).toMatchObject({
+      kind: 'recovered',
+      activities: ['build'],
+      paths: [],
+      note: 'nothing was left to commit',
+    })
+  },
+)
+
+test(
+  [
+    'given an older refusal without a commit_refused message event',
+    'when recommitRefused lands the work',
+    'it should use the run fallback message',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = deliveryFixture()
+    const { run, dir } = fixture
+    rmSync(await refuseBuildCommit(run))
+    const legacy: TRun = {
+      ...run,
+      tracer: {
+        ...run.tracer,
+        eventsNamed: (id, name) =>
+          name === COMMIT_REFUSED_EVENT ? [] : run.tracer.eventsNamed(id, name),
+      },
+    }
+
+    // when
+    recommitRefused(legacy)
+
+    // then
+    expect(gitIn(dir, 'log', '-1', '--pretty=%B')).toBe(
+      commitMessage(run, undefined),
+    )
+    expect(outstandingCommits(run)).toEqual([])
+  },
+)
+
+test(
+  [
+    'given distinct refused Activity instances in trace order',
+    'when recommitRefused retries them',
+    'it should commit each observed scope once with its own last full message',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = deliveryFixture()
+    const { dir } = fixture
+    writeFileSync(join(dir, 'first.txt'), 'first\n')
+    writeFileSync(join(dir, 'second.txt'), 'second\n')
+    const run = runIn({ build: ['first.txt'], build_2: ['second.txt'] }, dir)
+    withFailingPreCommit(dir)
+    commitActivity(
+      run,
+      'build',
+      'id_first',
+      envelopeWith('fix: first\n\nFirst body.'),
+      'one',
+    )
+    commitActivity(
+      run,
+      'build_2',
+      'id_second',
+      envelopeWith('fix: second\n\nSecond body.'),
+      'two',
+    )
+    rmSync(join(dir, '.hooks', 'pre-commit'))
+
+    // when
+    recommitRefused(run)
+
+    // then
+    expect(outstandingCommits(run)).toEqual([])
+    expect(gitIn(dir, 'log', '-2', '--pretty=%s').split('\n')).toEqual([
+      'fix: second',
+      'fix: first',
+    ])
+    expect(gitIn(dir, 'diff', '--name-only', 'HEAD~2', 'HEAD~1')).toBe(
+      'first.txt',
+    )
+    expect(gitIn(dir, 'diff', '--name-only', 'HEAD~1', 'HEAD')).toBe(
+      'second.txt',
+    )
+    expect(
+      eventsOf(run).filter((event) => event.name === COMMIT_REFUSED_EVENT),
+    ).toHaveLength(2)
+  },
+)
+
+test(
+  [
     'given use-cases/deliver::commitActivity',
     'when an Activity that declared commit has changed the tree',
     "it should commit it in the envelope's own words",
   ].join(', '),
   () => {
+    // given
     /*
      * given — granularity follows the chain: several writing Activities
      * produce several commits, each in the words of the envelope that
@@ -157,6 +412,7 @@ test(
     'it should leave it alone, because it is not this run’s to commit',
   ].join(', '),
   () => {
+    // given
     /*
      * given — the developer is working in the same branch, which is a
      * supported way to use this tool. `git add -A` swept their file into

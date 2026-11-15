@@ -80,6 +80,7 @@ test(
     'it should show on each of their screens, because each of them was running',
   ].join(', '),
   () => {
+    // given
     /*
      * given — the Stage warning names every Activity that was running, since
      * which of them changed a path is not a question the tree can answer.
@@ -200,3 +201,75 @@ test(
     ).toBe(true)
   },
 )
+
+const uncommitted = { ...warning, kind: 'uncommitted', note: 'first refusal' }
+const recovered = { ...warning, kind: 'recovered', note: 'committed abc123' }
+const later = { ...uncommitted, note: 'later refusal' }
+
+for (const given of [
+  {
+    name: 'a recovery answers a refusal',
+    warnings: [uncommitted, recovered],
+    notes: [],
+  },
+  {
+    name: 'a later refusal replaces the earlier one',
+    warnings: [uncommitted, later],
+    notes: ['later refusal'],
+  },
+  {
+    name: 'a refusal after recovery stands',
+    warnings: [uncommitted, recovered, later],
+    notes: ['later refusal'],
+  },
+  {
+    name: 'another kind is untouched',
+    warnings: [warning, uncommitted, recovered],
+    notes: [''],
+  },
+  {
+    name: 'recovery for another Activity does not answer this one',
+    warnings: [uncommitted, { ...recovered, activities: ['test'] }],
+    notes: ['first refusal'],
+  },
+]) {
+  test(
+    [
+      `given ${given.name}`,
+      'when the visualizer reads its warning channel',
+      'it should apply the standing rule without exposing recovery records',
+    ].join(', '),
+    () => {
+      // given
+      const events = given.warnings.map(event)
+
+      // when
+      const actual = warningsIn(events)
+      const mine = warningsFor(events, 'run_01_build')
+
+      // then
+      expect(actual.map((entry) => entry.note)).toEqual(given.notes)
+      expect(mine).toEqual(actual)
+    },
+  )
+}
+
+for (const payload of ['[]', 'null', '17']) {
+  test(
+    [
+      `given a non-object warning payload ${payload}`,
+      'when the visualizer parses it',
+      'it should discard it at the boundary instead of breaking the page',
+    ].join(', '),
+    () => {
+      // given
+      const given = { ...event(warning), payload_json: payload }
+
+      // when
+      const actual = warningsIn([given])
+
+      // then
+      expect(actual).toEqual([])
+    },
+  )
+}
