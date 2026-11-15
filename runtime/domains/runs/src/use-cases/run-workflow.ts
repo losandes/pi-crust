@@ -284,8 +284,11 @@ export const runWorkflow = async (
     options,
     agentPorts,
   )
-  // The loop can spawn the reviser even when the named chain never does, so
-  // its agent is validated here rather than discovered halfway through.
+  // Every agent the run can spawn: the chain's activities, the revisers the
+  // revise loop re-runs, and the terminal activity. A reviser is the writer
+  // before its review group, so it is already a chain activity. Overrides are
+  // judged against this set and every model in it is validated before the
+  // first activity starts.
   const used = new Set([
     ...requiredAgents(configuredActivities),
     ...loopAgents(loaded.config, names),
