@@ -1,5 +1,6 @@
-import { afterAll, expect, test } from 'bun:test'
-import type { Browser, BrowserContext, Page } from 'playwright'
+import { expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
+import type { Page } from 'playwright'
 import { chromium } from 'playwright'
 import { startHarnessServer } from '@/lib/testing'
 import { THEME_STORAGE_KEY } from '../state/theme-store'
@@ -35,30 +36,12 @@ const TWELVE_THEMES = [
  * command AGENTS.md tells people to run on a fresh clone. A skip is a check
  * not run, not a check that passed.
  */
-const browser: Browser | undefined = await chromium
-  .launch()
-  .catch(() => undefined)
-if (browser === undefined) {
+const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
+if (!CHROMIUM_AVAILABLE) {
   console.warn(
     'ThemePicker.interaction.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
   )
 }
-
-// One Vite dev server for the whole file, not one per `withPage` call.
-// Eleven calls across these tests each used to pay for their own
-// listen/close cycle, which left this file (and the Chromium instance
-// `SessionCard.layout.test.ts` launches at the same time, in the same
-// `bun test` process) competing for process teardown for several seconds
-// longer than the assertions themselves take — long enough, under load, to
-// blow the 5s default hook timeout on `afterAll(() => browser.close())` in
-// either file. A page reload sees the same server, so nothing about what
-// each test exercises changes.
-const { server, base: BASE } = await startHarnessServer()
-
-afterAll(async () => {
-  await browser?.close()
-  await server.close()
-})
 
 const withPage = async (
   themes: readonly {
@@ -67,65 +50,78 @@ const withPage = async (
     builtin: boolean
     css: string
   }[],
-  activeBrowser: Browser,
   run: (page: Page, base: string) => Promise<void>,
 ) => {
-  // A fresh context per call: `localStorage` persists across pages that
-  // share a context, and the "choosing a row" test would otherwise leak its
-  // chosen theme into the keyboard-navigation test that assumes `auto`.
-  const context: BrowserContext = await activeBrowser.newContext()
-  const page = await context.newPage()
+  // Each call owns its browser and server, keeping teardown inside the
+  // caller's existing 20s budget rather than a separate 5s hook budget.
+  // Fresh browser storage prevents one theme choice leaking into another test.
+  const { server, base } = await startHarnessServer()
   try {
-    await page.route('**/__diag__/index.html', (route) =>
-      route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
-    )
-    await page.route('**/api/themes*', (route) =>
-      route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({ themes }),
-      }),
-    )
-    await page.goto(`${BASE}/__diag__/index.html`)
-    await page.waitForSelector('#picker button')
-    await run(page, BASE)
+    const activeBrowser = await chromium.launch()
+    try {
+      const page = await activeBrowser.newPage()
+      await page.route('**/__diag__/index.html', (route) =>
+        route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+      )
+      await page.route('**/api/themes*', (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ themes }),
+        }),
+      )
+      await page.goto(`${base}/__diag__/index.html`)
+      await page.waitForSelector('#picker button')
+      await run(page, base)
+    } finally {
+      await activeBrowser.close()
+    }
   } finally {
-    await context.close()
+    await server.close()
   }
 }
 
-test.skipIf(browser === undefined)(
-  "the trigger's footprint does not grow with the number of registered themes",
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given a theme picker with three or twelve registered themes',
+    'when measuring the closed trigger',
+    'it should keep the same footprint',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
+    // given
     let twelveRect: { width: number; height: number } | undefined
     let threeRect: { width: number; height: number } | undefined
 
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // when
+    await withPage(TWELVE_THEMES, async (page) => {
       twelveRect = await page.$eval('#picker button', (el) => {
         const rect = el.getBoundingClientRect()
         return { width: rect.width, height: rect.height }
       })
     })
 
-    await withPage(BUILTIN_THEMES, browser, async (page) => {
+    await withPage(BUILTIN_THEMES, async (page) => {
       threeRect = await page.$eval('#picker button', (el) => {
         const rect = el.getBoundingClientRect()
         return { width: rect.width, height: rect.height }
       })
     })
 
+    // then
     expect(twelveRect).toEqual(threeRect)
   },
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'clicking the trigger opens one option per registered theme, each with an icon and a label',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given twelve registered themes',
+    'when clicking the picker trigger',
+    'it should open one option per registered theme, each with an icon and a label',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // given
+    await withPage(TWELVE_THEMES, async (page) => {
+      // when, then
       await page.click('#picker button')
       const rows = await page.$$eval('[role="option"]', (options) =>
         options.map((option) => ({
@@ -143,12 +139,16 @@ test.skipIf(browser === undefined)(
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'choosing a row applies that theme, closes the list, and returns focus to the trigger',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given an open theme picker',
+    'when choosing a theme row',
+    'it should apply that theme, close the list, and return focus to the trigger',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // given
+    await withPage(TWELVE_THEMES, async (page) => {
+      // when, then
       await page.click('#picker button')
       await page.click('[role="option"]:has-text("Ocean")')
 
@@ -171,12 +171,16 @@ test.skipIf(browser === undefined)(
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'ArrowDown and ArrowUp move focus between options, wrapping at both ends',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given an open theme picker with the default preference',
+    'when pressing ArrowDown and ArrowUp',
+    'it should move focus between options and wrap at both ends',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // given
+    await withPage(TWELVE_THEMES, async (page) => {
+      // when, then
       await page.click('#picker button')
       const current = await page.evaluate(() =>
         document.activeElement?.getAttribute('data-index'),
@@ -200,12 +204,16 @@ test.skipIf(browser === undefined)(
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'Escape closes the list without changing the selection and returns focus to the trigger',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given an open theme picker',
+    'when pressing Escape',
+    'it should close the list without changing the selection and return focus to the trigger',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // given
+    await withPage(TWELVE_THEMES, async (page) => {
+      // when, then
       const before = await page.evaluate(() =>
         document.documentElement.getAttribute('data-theme-choice'),
       )
@@ -231,18 +239,19 @@ test.skipIf(browser === undefined)(
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'the closed trigger shows exactly one icon matching the theme currently applied, falling back to the generic icon for a theme the icon map has never heard of',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given a stored theme preference',
+    'when applying a known theme and then one with no mapped icon',
+    'it should show exactly one matching icon and fall back to the generic icon',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    // One page, with the stored preference changed under it and the page
-    // reloaded, rather than two separate `withPage` calls — this suite
-    // already pays for a server and a browser context once per test, and a
-    // second full lifecycle here would buy nothing a reload does not. (Not
-    // `addInitScript`: it would re-run, and re-apply, on every reload this
-    // test makes.)
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // given
+    // Reload within one owned browser so localStorage survives navigation;
+    // a second withPage call intentionally starts with clean storage.
+    // addInitScript would reapply the preference on every reload instead.
+    await withPage(TWELVE_THEMES, async (page) => {
+      // when, then
       await page.evaluate(
         ([key, value]) => window.localStorage.setItem(key, value),
         [THEME_STORAGE_KEY, 'dark'] as const,
@@ -281,12 +290,16 @@ test.skipIf(browser === undefined)(
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'the trigger and the open list carry the ARIA a listbox needs, and only the option matching the current theme name is marked selected',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given a theme picker with a stored named preference',
+    'when opening the list',
+    'it should expose listbox ARIA and mark only the option matching the theme name as selected',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    // given
+    await withPage(TWELVE_THEMES, async (page) => {
+      // when, then
       await page.evaluate(
         ([key, value]) => window.localStorage.setItem(key, value),
         [THEME_STORAGE_KEY, 'high-contrast'] as const,
@@ -340,12 +353,16 @@ test.skipIf(browser === undefined)(
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'removing a theme from the registered list removes its row, and adding one adds a row, with no code change here',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given two different registered theme lists',
+    'when opening each picker',
+    'it should remove and add rows according to the registered list without a code change',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-
-    await withPage(BUILTIN_THEMES, browser, async (page) => {
+    // given
+    await withPage(BUILTIN_THEMES, async (page) => {
+      // when, then
       await page.click('#picker button')
       const labels = await page.$$eval('[role="option"]', (rows) =>
         rows.map((row) => row.textContent ?? ''),
@@ -353,7 +370,7 @@ test.skipIf(browser === undefined)(
       expect(labels.some((text) => text.includes('Ocean'))).toBe(false)
     })
 
-    await withPage(TWELVE_THEMES, browser, async (page) => {
+    await withPage(TWELVE_THEMES, async (page) => {
       await page.click('#picker button')
       const labels = await page.$$eval('[role="option"]', (rows) =>
         rows.map((row) => row.textContent ?? ''),

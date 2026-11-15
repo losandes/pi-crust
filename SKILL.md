@@ -113,11 +113,13 @@ Each does one thing, and each is invoked by path. `<pi-crust>` below is this ski
 
 | Task                                                                       | Command                                                                 |
 | -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Stamp the factory into the current repo (idempotent; `--force` overwrites) | `bun <pi-crust>/scripts/install.ts`                                     |
+| Stamp the factory into the current repo; `--refresh` template-owned files. | `bun <pi-crust>/scripts/install.ts`                                     |
 | Prove the installed `.pi-crust/` is the tree this skill ships              | `<pi-crust>/scripts/verify-install.sh`                                  |
 | Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                 |
 | Add a Lifecycle or an Activity                                             | edit `.pi-crust/config/crust.lifecycles.yaml` / `crust.activities.yaml` |
 | Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                     |
+
+`install.ts --refresh` replaces existing template-owned files, including `.example.yaml` documents under `config/`. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. A missing `config/` is seeded on first install; once it exists, non-example files are neither added nor overwritten. New examples are added even without flags and reported separately from replacements. Adopt new settings files deliberately — see [cookbooks/install.md](cookbooks/install.md).
 
 Run `verify-install.sh` after installing and after any change to the template. The skill is the source and `.pi-crust/` is a copy, so an edit made to one and not the other ships a factory that differs from the one it was tested in, and nothing says so until a run behaves strangely. It exempts `config/` (the repository's own roster and routing), `data/` (runtime), and tests, which `install.ts` never stamps.
 

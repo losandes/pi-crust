@@ -1,5 +1,5 @@
-import { afterAll, expect, test } from 'bun:test'
-import type { Browser } from 'playwright'
+import { expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import { chromium } from 'playwright'
 import { startHarnessServer } from '@/lib/testing'
 
@@ -31,61 +31,74 @@ const HARNESS_HTML = `<!doctype html>
  * command AGENTS.md tells people to run on a fresh clone. A skip is a check
  * not run, not a check that passed.
  */
-const browser: Browser | undefined = await chromium
-  .launch()
-  .catch(() => undefined)
-if (browser === undefined) {
+const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
+if (!CHROMIUM_AVAILABLE) {
   console.warn(
     'SessionCard.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
   )
 }
 
-afterAll(async () => {
-  await browser?.close()
-})
-
-const statsClipped = async (
-  variant: 'single' | 'multi',
-  activeBrowser: Browser,
-) => {
+const statsClipped = async (variant: 'single' | 'multi') => {
+  // Keep browser and server teardown inside each test's existing 20s budget.
   const { server, base } = await startHarnessServer()
-
-  const page = await activeBrowser.newPage()
   try {
-    await page.route('**/__diag__/index.html', (route) =>
-      route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
-    )
-    await page.goto(`${base}/__diag__/index.html`)
-    await page.waitForSelector(`#${variant} a`)
-    return await page.$eval(`#${variant} a`, (card) => {
-      const stats = card.querySelector('[class*="stats"]')
-      if (!stats) return { hasStats: false, clipped: false }
-      const cardBottom = card.getBoundingClientRect().bottom
-      const statsBottom = stats.getBoundingClientRect().bottom
-      return { hasStats: true, clipped: statsBottom > cardBottom + 0.5 }
-    })
+    const activeBrowser = await chromium.launch()
+    try {
+      const page = await activeBrowser.newPage()
+      await page.route('**/__diag__/index.html', (route) =>
+        route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+      )
+      await page.goto(`${base}/__diag__/index.html`)
+      await page.waitForSelector(`#${variant} a`)
+      return await page.$eval(`#${variant} a`, (card) => {
+        const stats = card.querySelector('[class*="stats"]')
+        if (!stats) return { hasStats: false, clipped: false }
+        const cardBottom = card.getBoundingClientRect().bottom
+        const statsBottom = stats.getBoundingClientRect().bottom
+        return { hasStats: true, clipped: statsBottom > cardBottom + 0.5 }
+      })
+    } finally {
+      await activeBrowser.close()
+    }
   } finally {
-    await page.close()
     await server.close()
   }
 }
 
-test.skipIf(browser === undefined)(
-  'stats row stays inside the card when only one workspace is watched',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given a single-workspace card',
+    'when measuring the stats row',
+    'it should keep the stats inside the card',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-    const result = await statsClipped('single', browser)
+    // given
+    const variant = 'single'
+
+    // when
+    const result = await statsClipped(variant)
+
+    // then
     expect(result.hasStats).toBe(true)
     expect(result.clipped).toBe(false)
   },
   20_000,
 )
 
-test.skipIf(browser === undefined)(
-  'workspace chip pushes the stats row past the bottom of a multi-workspace card',
+test.skipIf(!CHROMIUM_AVAILABLE)(
+  [
+    'given a multi-workspace card with a workspace chip',
+    'when measuring the stats row',
+    'it should keep the stats inside the card',
+  ].join(', '),
   async () => {
-    if (browser === undefined) return // unreachable; narrows the type for tsc
-    const result = await statsClipped('multi', browser)
+    // given
+    const variant = 'multi'
+
+    // when
+    const result = await statsClipped(variant)
+
+    // then
     expect(result.hasStats).toBe(true)
     // Reproduces the report: "content inside the cards gets pushed down beyond
     // the bottom so you can't see the bottom row of information."

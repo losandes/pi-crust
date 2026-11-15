@@ -3,12 +3,15 @@
  * install — stamp the pi-crust factory from the skill into the cwd. Idempotent.
  *
  * Usage:
- *     bun <pi-crust>/scripts/install.ts [--force]
+ *     bun <pi-crust>/scripts/install.ts [--refresh]
  *
- * Stamps: .pi-crust/ (modules, stages, lifecycles, config, prompts, recipes, README),
- * .env.pi-crust.example, .gitignore entries, and a `mod crust` line in the root
- * justfile.
- * Existing files are skipped unless --force.
+ * Stamps .pi-crust/ config and prompt documents, .env.pi-crust.example,
+ * .gitignore entries, and a `crust` passthrough recipe in the root justfile.
+ * Existing template-owned files are skipped unless --refresh. --force is a
+ * deprecated alias through 0.1.x; remove it in 0.2.0.
+ * A missing config/ is seeded once. Once it exists, non-.example.yaml files
+ * are neither added nor overwritten; examples are added and may be refreshed.
+ * The report separates existing files, repo-owned config, and new examples.
  */
 
 import {
@@ -204,15 +207,22 @@ const isSkipped = (name: string): boolean =>
 type TTally = Readonly<{
   stamped: readonly string[]
   skipped: readonly string[]
+  repoOwned: readonly string[]
+  configAdded: readonly string[]
 }>
 
-const EMPTY_TALLY: TTally = { stamped: [], skipped: [] }
+const EMPTY_TALLY: TTally = {
+  stamped: [],
+  skipped: [],
+  repoOwned: [],
+  configAdded: [],
+}
 
 /** One entry, as a `TTally` ready to merge \u2014 the unit every helper below returns. */
-const tallyOf = (kind: 'stamped' | 'skipped', entry: string): TTally =>
-  kind === 'stamped'
-    ? { stamped: [entry], skipped: [] }
-    : { stamped: [], skipped: [entry] }
+const tallyOf = (kind: keyof TTally, entry: string): TTally => ({
+  ...EMPTY_TALLY,
+  [kind]: [entry],
+})
 
 /** Combine tallies in the order they happened, which is the order they are reported in. */
 const mergeTally = (tallies: readonly TTally[]): TTally =>
@@ -220,51 +230,50 @@ const mergeTally = (tallies: readonly TTally[]): TTally =>
     (merged, next) => ({
       stamped: [...merged.stamped, ...next.stamped],
       skipped: [...merged.skipped, ...next.skipped],
+      repoOwned: [...merged.repoOwned, ...next.repoOwned],
+      configAdded: [...merged.configAdded, ...next.configAdded],
     }),
     EMPTY_TALLY,
   )
 
-const stamp = (source: string, destination: string, force: boolean): TTally => {
-  if (isSkipped(source.split('/').at(-1) ?? '')) {
-    return EMPTY_TALLY
-  }
-  if (statSync(source).isDirectory()) {
-    return mergeTally(
-      readdirSync(source)
-        .toSorted()
-        .map((child) =>
-          stamp(join(source, child), join(destination, child), force),
-        ),
+const stamp =
+  (refresh: boolean, configExists: boolean) =>
+  (source: string, destination: string): TTally => {
+    if (isSkipped(source.split('/').at(-1) ?? '')) {
+      return EMPTY_TALLY
+    }
+    if (statSync(source).isDirectory()) {
+      return mergeTally(
+        readdirSync(source)
+          .toSorted()
+          .map((child) =>
+            stamp(refresh, configExists)(
+              join(source, child),
+              join(destination, child),
+            ),
+          ),
+      )
+    }
+    /*
+     * An existing config/ belongs to the repository, including filenames it
+     * has not adopted. Only .example.yaml documentation is template-owned:
+     * add new examples, but refresh existing ones only when requested.
+     */
+    const inConfig = destination.includes('/.pi-crust/config/')
+    if (configExists && inConfig && !destination.endsWith('.example.yaml')) {
+      return tallyOf('repoOwned', destination)
+    }
+    const exists = existsSync(destination)
+    if (exists && !refresh) {
+      return tallyOf('skipped', destination)
+    }
+    mkdirSync(dirname(destination), { recursive: true })
+    copyFileSync(source, destination)
+    return tallyOf(
+      configExists && inConfig && !exists ? 'configAdded' : 'stamped',
+      destination,
     )
   }
-  /*
-   * The roster is the repository's, not the template's.
-   *
-   * `--force` exists to bring a stamped factory back in line with the skill
-   * after an upgrade, and everything under .pi-crust/ is replaceable for that
-   * reason — except config/, which holds the models, the writes boundaries and
-   * the routing a developer tuned by hand. Overwriting that is not an upgrade,
-   * it is deleting someone's work with a flag whose name promised the
-   * opposite. verify-install already treats config/ as repo-owned; this makes
-   * the installer agree.
-   */
-  /*
-   * ...except the example, which is DOCUMENTATION rather than tuning.
-   *
-   * Nothing reads it, nobody edits it in place, and it describes keys that
-   * change as the factory changes — so a copy frozen at whatever shipped
-   * first would quietly start lying. `--force` refreshes it like any other
-   * file the skill owns.
-   */
-  const isExample = destination.endsWith('.example.yaml')
-  const repoOwned = destination.includes('/.pi-crust/config/') && !isExample
-  if (existsSync(destination) && (!force || repoOwned)) {
-    return tallyOf('skipped', destination)
-  }
-  mkdirSync(dirname(destination), { recursive: true })
-  copyFileSync(source, destination)
-  return tallyOf('stamped', destination)
-}
 
 const ensureGitignore = (root: string): TTally => {
   const gitignore = join(root, '.gitignore')
@@ -400,19 +409,23 @@ const say = (line: string): void => {
 }
 
 const main = (): number => {
-  const force = process.argv.includes('--force')
+  const deprecatedForce = process.argv.includes('--force')
+  const refresh = process.argv.includes('--refresh') || deprecatedForce
   const root = process.cwd()
-  // Order matters only for the report below, which lists entries in the
-  // order they happened; every step here is an independent side effect.
+  // Capture ownership before stamping: creating config/ during a fresh
+  // install must not prevent the remaining initial settings from landing.
+  const stampFile = stamp(
+    refresh,
+    existsSync(join(root, '.pi-crust', 'config')),
+  )
   const tally = mergeTally([
-    stamp(join(TEMPLATES, 'stamp'), join(root, '.pi-crust'), force),
+    stampFile(join(TEMPLATES, 'stamp'), join(root, '.pi-crust')),
     // Namespaced rather than `.env.example`: the root of somebody else's
     // repository is not ours to claim, and a project with its own example
     // would otherwise have it overwritten by an install.
-    stamp(
+    stampFile(
       join(TEMPLATES, 'env.example'),
       join(root, '.env.pi-crust.example'),
-      force,
     ),
     removeOrphans(root),
     ensureGitignore(root),
@@ -421,14 +434,37 @@ const main = (): number => {
   ])
 
   say(`crust installed into ${root}`)
+  if (deprecatedForce) {
+    say(
+      '  --force is deprecated; use --refresh (alias supported through 0.1.x).',
+    )
+  }
   say(`  stamped: ${tally.stamped.length} file(s)`)
   for (const path of tally.stamped) {
     say(`    + ${path}`)
   }
+  if (tally.configAdded.length > 0) {
+    say(
+      `  added to config/ (new since your install): ${tally.configAdded.length} file(s)`,
+    )
+    for (const path of tally.configAdded) {
+      say(`    + ${path}`)
+    }
+  }
   if (tally.skipped.length > 0) {
     say(
-      `  skipped (already exist, use --force to overwrite): ${tally.skipped.length}`,
+      `  skipped (exists): ${tally.skipped.length} file(s) — use --refresh to replace template-owned files`,
     )
+    for (const path of tally.skipped) {
+      say(`    = ${path}`)
+    }
+  }
+  say(
+    '  config/ is repo-owned: non-.example.yaml files are neither added nor overwritten once config/ exists, even with --refresh.',
+  )
+  say(`  left to the repository (config/): ${tally.repoOwned.length} file(s)`)
+  for (const path of tally.repoOwned) {
+    say(`    = ${path}`)
   }
   say('\nnext steps:')
   say(

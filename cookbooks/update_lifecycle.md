@@ -2,6 +2,8 @@
 
 Change `.pi-crust/config/crust.lifecycles.yaml`. Nothing is generated from it and no script mirrors it, so the file is the whole change.
 
+`install.ts --refresh` does not replace this file or add new non-example files once `config/` exists. Adopt template changes by hand; only `.example.yaml` documents may be added there and refreshed. See [install.md](install.md) for the deprecated `--force` alias and the full ownership policy.
+
 ## Add an Activity to a Stage
 
 ```yaml

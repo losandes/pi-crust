@@ -6,7 +6,7 @@
 
 Nobody hand-wrote this directory. It was stamped out of pi-crust by its installer, which copies a template tree into the repository root. Where that copy came from is recorded in `data/pi-crust-home`.
 
-Once stamped, **it is yours.** Edit the prompts, retune the roster, rewrite a workflow, add a gate. The skill will not overwrite anything you change — a re-install skips every file that already exists, and only `--force` overwrites.
+Once stamped, **the non-example config is yours.** Retune the roster or change a Lifecycle by hand. A re-install skips existing files unless you use `--refresh`, which replaces only template-owned files, including `.example.yaml` documents under `config/`. A missing `config/` is seeded once; after that, non-example files there are neither added nor overwritten. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. See [the install cookbook](../cookbooks/install.md) for adopting new settings deliberately.
 
 ## The `/skill:crust` capability
 
