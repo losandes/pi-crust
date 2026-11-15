@@ -176,10 +176,16 @@ for (const { tier, columns, edge } of [
   )
 }
 
+/*
+ * The success card carries six activity dots so its footer cannot fit at base
+ * or md. At xl the same footer needs within a few pixels of the cell's 353px
+ * content box — 350px in macOS Chromium, 354px in Linux Chromium — so whether
+ * it wraps there depends on font rasterisation, and it is left out of the xl
+ * cases. The other three cards fit at xl with more than 60px to spare.
+ */
 for (const { tier, status, inline } of [
   { tier: 'base', status: 'success', inline: false },
   { tier: 'md', status: 'success', inline: false },
-  { tier: 'xl', status: 'success', inline: true },
   { tier: 'xl', status: 'fail', inline: true },
   { tier: 'xl', status: 'running', inline: true },
   { tier: 'xl', status: 'waiting', inline: true },
