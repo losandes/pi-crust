@@ -14,6 +14,7 @@ import { agentColor, hexAlpha, parseAgentStart } from '@/domains/events'
 import { SessionContext } from '@/domains/handoff'
 import { RunControls } from '@/domains/run-controls'
 import { StatChip, StatusChip } from '@/lib/_components'
+import { cx } from '@/lib/cx'
 import { axisTicks, fmtDate, payloadOk, ts } from '@/lib/format'
 import { modelIcon, modelName } from '@/lib/models'
 import { paletteColor } from '@/lib/palette'
@@ -33,7 +34,6 @@ import {
 } from '../usecases/waterfall'
 
 import { RunNotices } from './RunNotices'
-import styles from './SessionTrace.module.css'
 
 // The two lanes nobody configures: the request itself, and the code activityRuns
 // that run without an agent. Roles like every other lane, so they re-theme
@@ -60,6 +60,30 @@ const STATUS_GLYPH: Readonly<Record<string, string>> = {
   running: '\u25cf',
   queued: '\u25cb',
 }
+
+const ROW = 'grid grid-cols-1 md:grid-cols-[18rem_1fr]'
+const LABEL =
+  'flex min-w-0 flex-col justify-center gap-0.5 overflow-hidden border-r-[length:var(--border-width)] border-border px-4 py-3 whitespace-nowrap'
+const TRACK = 'relative min-h-30 min-w-0 overflow-hidden'
+const LANE_META = 'truncate font-mono text-base text-dim'
+const BLOCK =
+  'absolute top-3 flex min-h-23 cursor-pointer flex-col justify-start gap-1 overflow-hidden rounded-xl border-[length:var(--border-width)] px-3 pt-2.5 pb-4 text-left text-base leading-[normal] whitespace-nowrap transition-shadow duration-160 ease-[ease]'
+const BLOCK_HOVER =
+  'hover:shadow-[0_0_--spacing(4.5)_var(--lane-glow,rgb(var(--busy-rgb)/0.2))]'
+const BLOCK_SELECTED =
+  'shadow-[0_0_--spacing(5.5)_var(--lane-glow,rgb(var(--busy-rgb)/0.25))] outline-2 outline-offset-2 outline-blue'
+const BLOCK_TONES: Readonly<Partial<Record<string, string>>> = {
+  running: 'animate-[crust-pulse_1.6s_ease-in-out_infinite] text-text',
+  queued: 'border-dashed border-faint bg-transparent text-dim',
+}
+const STATUS_TONES: Readonly<Partial<Record<string, string>>> = {
+  success: 'text-green',
+  fail: 'text-red',
+  running: 'animate-[crust-pulse_1.2s_ease-in-out_infinite] text-blue',
+  queued: 'text-faint',
+}
+const TOOL_TICK = 'absolute bottom-1 h-2.5 w-0.5 rounded-xs'
+const EMPTY_STATE = 'px-6 py-14 text-center text-base text-dim'
 
 const NUM = new Intl.NumberFormat('en-US')
 
@@ -319,21 +343,26 @@ export const SessionTrace = ({
     )
 
   return (
-    <div className={styles.trace}>
+    <div className="pb-10">
       {trace.error !== undefined && (
-        <div className="error-bar">
+        <div className="mx-6 my-3 rounded-lg border-[length:var(--border-width)] border-fail/[calc(var(--edge-alpha)*100%)] bg-fail/[calc(var(--fill-soft)*100%)] px-3.5 py-2.5 text-base text-red">
           api unreachable — retrying {trace.error}
         </div>
       )}
 
       {session !== undefined && (
-        <div className={styles.runStrip}>
-          <span className={styles.request} title={session.request ?? ''}>
+        <div className="flex flex-wrap items-center gap-4 border-b-[length:var(--border-width)] border-border-soft px-6 py-3.5">
+          <span
+            className="min-w-0 max-w-[52ch] truncate text-[17px] text-text"
+            title={session.request ?? ''}
+          >
             {session.request}
           </span>
           <StatusChip status={session.status ?? 'fail'} />
-          <span className="dim">started {fmtDate(session.started_at)}</span>
-          <span className={styles.runStats}>
+          <span className="text-dim">
+            started {fmtDate(session.started_at)}
+          </span>
+          <span className="inline-flex flex-wrap gap-3">
             <StatChip kind="cost" value={session.total_cost ?? undefined} />
             <StatChip kind="runtime" value={sessionDurationMs} />
             <StatChip kind="tokens" value={session.total_tokens ?? undefined} />
@@ -344,13 +373,18 @@ export const SessionTrace = ({
       )}
 
       {activityRuns.length > 0 ? (
-        <div className={styles.waterfall}>
-          <div className={`${styles.row} ${styles.axisRow}`}>
-            <div className={styles.label} />
-            <div className={styles.track}>
+        <div className="mx-7 my-5 overflow-hidden rounded-2xl border-[length:var(--border-width)] border-border-soft bg-surface bg-[image:var(--surface)]">
+          <div
+            className={cx(
+              ROW,
+              'border-b-[length:var(--border-width)] border-border bg-panel-2',
+            )}
+          >
+            <div className={LABEL} />
+            <div className="relative min-h-10 min-w-0 overflow-hidden">
               {zonePct > 0 && (
                 <span
-                  className={styles.zoneHead}
+                  className="absolute inset-y-0 left-0 inline-flex items-center justify-center border-r-[length:var(--border-width)] border-border text-base text-amber"
                   style={{ width: `${zonePct}%` }}
                 >
                   request
@@ -359,7 +393,7 @@ export const SessionTrace = ({
               {ticks.map((tick) => (
                 <span
                   key={`${tick.label}-${tick.pct}`}
-                  className={styles.axisLabel}
+                  className="absolute bottom-2 -translate-x-1/2 font-mono text-base whitespace-nowrap text-dim"
                   style={{ left: `${tick.pct}%` }}
                 >
                   {tick.label}
@@ -373,14 +407,20 @@ export const SessionTrace = ({
             const icon = lane.model === undefined ? null : modelIcon(lane.model)
             const queued = lane.activityRuns.filter((p) => !p.started_at)
             return (
-              <div key={lane.id} className={`${styles.row} ${styles.lane}`}>
-                <div className={styles.label}>
+              <div
+                key={lane.id}
+                className={cx(
+                  ROW,
+                  'border-b-[length:var(--border-width)] border-border-soft last:border-b-0',
+                )}
+              >
+                <div className={LABEL}>
                   <span
-                    className={styles.laneName}
+                    className="inline-flex items-center gap-2 overflow-hidden text-[17px] font-bold text-ellipsis"
                     style={{ color: paletteColor(lane.color) }}
                   >
                     <KindIcon
-                      className={styles.laneIcon}
+                      className="flex-none opacity-85"
                       size={22}
                       strokeWidth={2}
                     />
@@ -388,29 +428,38 @@ export const SessionTrace = ({
                   </span>
                   {lane.model !== undefined && (
                     <span
-                      className={`${styles.laneMeta} ${styles.laneModel}`}
+                      className={cx(
+                        LANE_META,
+                        'inline-flex items-center gap-2',
+                      )}
                       title={lane.model}
                     >
                       {icon !== null && (
-                        <img className={styles.modelIcon} src={icon} alt="" />
+                        <img
+                          className="size-4 flex-none object-contain"
+                          src={icon}
+                          alt=""
+                        />
                       )}
                       {modelName(lane.model)}
                     </span>
                   )}
                   {lane.context !== undefined && (
                     <span
-                      className={styles.laneCtx}
+                      className="mt-0.5 flex max-w-48 flex-col gap-1"
                       title={`${NUM.format(lane.context.used)} / ${NUM.format(lane.context.window)} tokens used · ${NUM.format(lane.context.window - lane.context.used)} remaining`}
                     >
-                      <span className={styles.ctxHead}>
-                        <span className={styles.ctxLabel}>Context</span>
-                        <span className={styles.ctxPct}>
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm leading-normal tracking-[0.06em] text-faint uppercase">
+                          Context
+                        </span>
+                        <span className="font-mono text-sm leading-normal text-dim">
                           {contextLabel(lane.context)}
                         </span>
                       </span>
-                      <span className={styles.ctxBar}>
+                      <span className="h-1.5 overflow-hidden rounded-full border-[length:var(--border-width)] border-border-soft bg-bg/75">
                         <span
-                          className={styles.ctxFill}
+                          className="block h-full rounded-full transition-[width] duration-300 ease-[ease]"
                           style={{
                             width: contextFill(lane.context),
                             background: `linear-gradient(90deg, ${hexAlpha(lane.color, 0.55)}, ${paletteColor(lane.color)})`,
@@ -421,22 +470,22 @@ export const SessionTrace = ({
                     </span>
                   )}
                   {lane.metaLines.map((line) => (
-                    <span key={line} className={styles.laneMeta}>
+                    <span key={line} className={LANE_META}>
                       {line}
                     </span>
                   ))}
                 </div>
-                <div className={styles.track}>
+                <div className={TRACK}>
                   {zonePct > 0 && (
                     <span
-                      className={styles.zoneDivider}
+                      className="absolute inset-y-0 border-l-[length:var(--border-width)] border-border"
                       style={{ left: `${zonePct}%` }}
                     />
                   )}
                   {ticks.map((tick) => (
                     <span
                       key={`grid-${tick.label}-${tick.pct}`}
-                      className={styles.gridline}
+                      className="absolute inset-y-0 border-l border-dashed border-dim/14"
                       style={{ left: `${tick.pct}%` }}
                     />
                   ))}
@@ -446,32 +495,33 @@ export const SessionTrace = ({
                     )
                     .map((activityRun) => {
                       const duration = blockDurationMs(activityRun)
-                      const tone = styles[activityRun.status ?? '']
+                      const tone = BLOCK_TONES[activityRun.status ?? '']
                       const selected =
                         activityRun.activity_run_id === activityRunId
                       return (
                         <button
                           key={activityRun.activity_run_id}
                           type="button"
-                          className={[
-                            styles.block,
-                            tone,
-                            selected ? styles.selected : undefined,
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                          className={cx(
+                            BLOCK,
+                            tone ?? 'text-text',
+                            selected ? BLOCK_SELECTED : BLOCK_HOVER,
+                          )}
                           style={blockStyle(activityRun, lane)}
                           title={`${activityRun.name} — ${activityRun.status}${activityRun.description ? `\n${activityRun.description}` : ''}`}
                           onClick={() => selectActivityRun(activityRun)}
                         >
-                          <span className={styles.blockTop}>
+                          <span className="flex min-w-0 items-baseline gap-2.5">
                             <span
-                              className={`${styles.blockStatus} ${tone ?? ''}`}
+                              className={cx(
+                                'flex-none',
+                                STATUS_TONES[activityRun.status ?? ''],
+                              )}
                             >
                               {STATUS_GLYPH[activityRun.status ?? ''] ??
                                 '\u25cb'}
                             </span>
-                            <span className={styles.blockName}>
+                            <span className="truncate text-[17px] font-bold">
                               {activityRun.name}
                             </span>
                             {Number.isFinite(duration) && (
@@ -482,7 +532,7 @@ export const SessionTrace = ({
                               />
                             )}
                           </span>
-                          <span className={styles.blockDesc}>
+                          <span className="min-w-0 truncate text-dim">
                             {activityRun.description}
                           </span>
                           {toolTickPositions(
@@ -494,11 +544,10 @@ export const SessionTrace = ({
                           ).map((mark) => (
                             <span
                               key={mark.id}
-                              className={
-                                mark.ok
-                                  ? styles.toolTick
-                                  : `${styles.toolTick} ${styles.err}`
-                              }
+                              className={cx(
+                                TOOL_TICK,
+                                mark.ok ? 'bg-current opacity-55' : 'bg-red',
+                              )}
                               style={{ left: `${mark.x}%` }}
                             />
                           ))}
@@ -509,30 +558,25 @@ export const SessionTrace = ({
                     <button
                       key={activityRun.activity_run_id}
                       type="button"
-                      className={[
-                        styles.block,
-                        styles.queued,
+                      className={cx(
+                        BLOCK,
+                        'max-w-full min-w-44',
+                        BLOCK_TONES.queued,
                         activityRun.activity_run_id === activityRunId
-                          ? styles.selected
-                          : undefined,
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{ right: `${10 + index * 5}px`, width: '170px' }}
+                          ? BLOCK_SELECTED
+                          : BLOCK_HOVER,
+                      )}
+                      style={{ right: `${10 + index * 5}px` }}
                       title={`${activityRun.name} — queued`}
                       onClick={() => selectActivityRun(activityRun)}
                     >
-                      <span className={styles.blockTop}>
-                        <span
-                          className={`${styles.blockStatus} ${styles.queued}`}
-                        >
-                          {'\u25cb'}
-                        </span>
-                        <span className={styles.blockName}>
+                      <span className="flex min-w-0 items-baseline gap-2.5">
+                        <span className="flex-none text-faint">{'\u25cb'}</span>
+                        <span className="truncate text-[17px] font-bold">
                           {activityRun.name}
                         </span>
                       </span>
-                      <span className={styles.blockDesc}>queued</span>
+                      <span className="min-w-0 truncate text-dim">queued</span>
                     </button>
                   ))}
                 </div>
@@ -541,11 +585,11 @@ export const SessionTrace = ({
           })}
         </div>
       ) : trace.loaded ? (
-        <div className="empty-state">
+        <div className={EMPTY_STATE}>
           no activityRuns recorded for this session
         </div>
       ) : trace.error === undefined ? (
-        <div className="empty-state">loading trace…</div>
+        <div className={EMPTY_STATE}>loading trace…</div>
       ) : undefined}
 
       {/*

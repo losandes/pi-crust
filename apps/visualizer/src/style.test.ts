@@ -123,8 +123,8 @@ ${THEME_PROBES}
 <span id="spinner"><span id="spinner-icon" data-animation></span></span>
 <span id="activity" class="animate-[crust-pulse_1.2s_ease-in-out_infinite]" data-animation>Running</span>
 <span id="card-dot" class="animate-[crust-pulse_1.4s_ease-in-out_infinite]" data-animation></span>
-<span id="trace-status" data-animation>Running</span>
-<button id="trace-block" data-animation>Activity</button>
+<span id="trace-status" class="animate-[crust-pulse_1.2s_ease-in-out_infinite]" data-animation>Running</span>
+<button id="trace-block" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation>Activity</button>
 <span id="live-dot" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation></span>
 <div id="sm" class="hidden sm:block">sm</div>
 <div id="md" class="hidden md:block">md</div>
@@ -135,7 +135,6 @@ ${THEME_PROBES}
 import '/src/style.css'
 import { applyCustomThemes, applyTheme } from '/src/domains/themes/index.ts'
 import { DetailSection, StatusChip } from '/src/lib/_components/index.ts'
-import trace from '/src/domains/sessions/src/_components/SessionTrace.module.css'
 import narration from '/src/domains/narration/src/_components/NarrationPane.module.css'
 import decision from '/src/domains/decisions/src/_components/DecisionRequest.module.css'
 applyCustomThemes(document, [${JSON.stringify(registeredTheme)}])
@@ -151,8 +150,6 @@ const classes = {
   'detail-section-body': [detailSection.props.children[1].props.className],
   spinner: [runningChip.props.className],
   'spinner-icon': [runningChip.props.children[0].props.className],
-  'trace-status': [trace.blockStatus, trace.running],
-  'trace-block': [trace.block, trace.running],
   'narration-radius-code': [narration.code],
   'decision-radius-body': [decision.body],
 }
