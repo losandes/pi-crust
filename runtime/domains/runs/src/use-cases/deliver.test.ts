@@ -370,6 +370,99 @@ test(
 
 test(
   [
+    'given issue #125 requirement 1.3.3 and two refused attempts for the same Activity',
+    'when delivery retries after the hook is removed',
+    'it should use the latest whole message and recover the latest refusal only once',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = deliveryFixture()
+    const { dir } = fixture
+    writeFileSync(join(dir, 'work.txt'), 'completed work\n')
+    const run = runIn({ build: ['work.txt'] }, dir)
+    const firstMessage = 'fix: first attempt\n\nOriginal explanation.'
+    const lastMessage =
+      'fix: revised attempt\n\nKeep this replacement body.\n\nRefs: #125'
+    withFailingPreCommit(dir)
+    commitActivity(
+      run,
+      'build',
+      'id_first',
+      envelopeWith(firstMessage),
+      'implement',
+    )
+    commitActivity(
+      run,
+      'build',
+      'id_resumed',
+      envelopeWith(lastMessage),
+      'revise',
+    )
+    rmSync(join(dir, '.hooks', 'pre-commit'))
+
+    // when
+    recommitRefused(run)
+    recommitRefused(run)
+
+    // then
+    expect(gitIn(dir, 'log', '-1', '--pretty=%B')).toBe(lastMessage)
+    expect(gitIn(dir, 'rev-list', '--count', 'HEAD')).toBe('2')
+    expect(outstandingCommits(run)).toEqual([])
+    expect(
+      run.tracer
+        .eventsNamed(run.runId, 'tree_warning')
+        .filter((warning) => warning.kind === 'recovered'),
+    ).toEqual([
+      {
+        kind: 'recovered',
+        activities: ['build'],
+        activity_run_ids: ['id_resumed'],
+        stage: 'revise',
+        paths: ['work.txt'],
+        note: `committed ${gitIn(dir, 'rev-parse', '--short', 'HEAD')}`,
+      },
+    ])
+  },
+)
+
+test(
+  [
+    'given issue #125 requirement 1.3.3 and unrelated work the operator already staged',
+    'when delivery retries the refused Activity commit',
+    'it should commit only the observed paths and leave the operator work staged and intact',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = deliveryFixture()
+    const { dir } = fixture
+    writeFileSync(join(dir, 'work.txt'), 'completed work\n')
+    writeFileSync(join(dir, 'operator.txt'), 'unfinished operator work\n')
+    gitIn(dir, 'add', '--', 'operator.txt')
+    const run = runIn({ build: ['work.txt'] }, dir)
+    withFailingPreCommit(dir)
+    commitActivity(
+      run,
+      'build',
+      'id_build',
+      envelopeWith('fix: land only the Activity work'),
+      'implement',
+    )
+    rmSync(join(dir, '.hooks', 'pre-commit'))
+
+    // when
+    recommitRefused(run)
+
+    // then
+    expect(gitIn(dir, 'diff', '--name-only', 'HEAD~1', 'HEAD')).toBe('work.txt')
+    expect(gitIn(dir, 'diff', '--cached', '--name-only')).toBe('operator.txt')
+    expect(gitIn(dir, 'show', ':operator.txt')).toBe('unfinished operator work')
+    expect(gitIn(dir, 'show', 'HEAD:work.txt')).toBe('completed work')
+    expect(outstandingCommits(run)).toEqual([])
+  },
+)
+
+test(
+  [
     'given use-cases/deliver::commitActivity',
     'when an Activity that declared commit has changed the tree',
     "it should commit it in the envelope's own words",
