@@ -1,27 +1,20 @@
 import { expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
-import { chromium } from 'playwright'
-import { startHarnessServer } from '@/lib/testing'
+import { chromium, devices, type Locator, type Page } from 'playwright'
+import {
+  startHarnessServer,
+  type TViewportTier,
+  viewportWidths,
+} from '@/lib/testing'
 
 /*
- * `.card` is a fixed 420px flex column (SessionCard.module.css) with
- * `overflow: hidden`. Everything above `.timeline` is a normal flex child
- * with no reserved slot — including the `.workspace` chip, which only
- * renders "when more than one is watched" (SessionCard.tsx). Adding that
- * chip adds a row's height plus a `.card` gap to the column without adding
- * anything to the 420px budget, so once several workspaces are being
- * watched the `.stats` row (cost / runtime / tokens — the bottom row of
- * information) is pushed past the card's bottom edge and clipped.
- *
- * This spins up the real Vite dev pipeline (same CSS modules, same
- * component) and measures actual layout in a real browser, because
- * happy-dom does not run a layout engine and cannot see this at all.
+ * Real browser geometry verifies that the optional workspace chip and wrapped
+ * stats can grow the card. happy-dom has no layout engine to measure this.
  */
 
 const HARNESS_HTML = `<!doctype html>
 <html><body>
-<div id="single" style="width:360px"></div>
-<div id="multi" style="width:360px"></div>
+<div id="single" style="width:100%"></div>
+<div id="multi" style="width:100%"></div>
 <script type="module" src="/src/domains/sessions/src/_components/__fixtures__/session-card-harness.tsx"></script>
 </body></html>`
 
@@ -31,32 +24,42 @@ const HARNESS_HTML = `<!doctype html>
  * command AGENTS.md tells people to run on a fresh clone. A skip is a check
  * not run, not a check that passed.
  */
-const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
+const probe = await chromium.launch().catch(() => undefined)
+const CHROMIUM_AVAILABLE = probe !== undefined
+await probe?.close()
 if (!CHROMIUM_AVAILABLE) {
   console.warn(
     'SessionCard.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
   )
 }
 
-const statsClipped = async (variant: 'single' | 'multi') => {
+const withCards = async <T>(
+  tier: TViewportTier,
+  check: (page: Page) => Promise<T>,
+) => {
   // Keep browser and server teardown inside each test's existing 20s budget.
   const { server, base } = await startHarnessServer()
   try {
     const activeBrowser = await chromium.launch()
     try {
-      const page = await activeBrowser.newPage()
+      const page = await activeBrowser.newPage({
+        viewport: {
+          width: viewportWidths[tier],
+          height: devices['iPhone SE'].viewport.height,
+        },
+        reducedMotion: 'reduce',
+      })
+      page.setDefaultTimeout(5_000)
+      page.setDefaultNavigationTimeout(10_000)
+      await page.route('**/api/**', (route) => route.abort())
       await page.route('**/__diag__/index.html', (route) =>
         route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
       )
       await page.goto(`${base}/__diag__/index.html`)
-      await page.waitForSelector(`#${variant} a`)
-      return await page.$eval(`#${variant} a`, (card) => {
-        const stats = card.querySelector('[class*="stats"]')
-        if (!stats) return { hasStats: false, clipped: false }
-        const cardBottom = card.getBoundingClientRect().bottom
-        const statsBottom = stats.getBoundingClientRect().bottom
-        return { hasStats: true, clipped: statsBottom > cardBottom + 0.5 }
-      })
+      await page.waitForSelector('#single a')
+      await page.waitForSelector('#multi a')
+      await page.evaluate(() => document.fonts.ready)
+      return await check(page)
     } finally {
       await activeBrowser.close()
     }
@@ -65,44 +68,122 @@ const statsClipped = async (variant: 'single' | 'multi') => {
   }
 }
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
-  [
-    'given a single-workspace card',
-    'when measuring the stats row',
-    'it should keep the stats inside the card',
-  ].join(', '),
-  async () => {
-    // given
-    const variant = 'single'
+const statsClipped = (variant: 'single' | 'multi', tier: TViewportTier) =>
+  withCards(tier, (page) =>
+    page.$eval(`#${variant} a`, (card) => {
+      const stats = card.querySelector('[data-testid="session-stats"]')
+      if (!stats) return { hasStats: false, clipped: false }
+      const bounds = card.getBoundingClientRect()
+      const chips = Array.from(stats.children)
+      return {
+        hasStats: true,
+        clipped: stats.getBoundingClientRect().bottom > bounds.bottom + 0.5,
+        fillsViewport: Math.abs(bounds.width - window.innerWidth) <= 1,
+        values: chips.map((chip) => chip.textContent?.trim()),
+        chipsInside: chips.every((chip) => {
+          const rect = chip.getBoundingClientRect()
+          return (
+            rect.top >= bounds.top - 0.5 &&
+            rect.bottom <= bounds.bottom + 0.5 &&
+            rect.left >= bounds.left - 0.5 &&
+            rect.right <= bounds.right + 0.5
+          )
+        }),
+      }
+    }),
+  )
 
-    // when
-    const result = await statsClipped(variant)
+for (const tier of ['base', 'xl'] as const) {
+  for (const variant of ['single', 'multi'] as const) {
+    test.skipIf(!CHROMIUM_AVAILABLE)(
+      [
+        `given a ${variant}-workspace card at the ${tier} tier`,
+        'when measuring the stats row in a viewport-wide harness',
+        'it should keep the stats inside the card with or without a workspace chip',
+      ].join(', '),
+      async () => {
+        // given
+        const workspace = variant
 
-    // then
-    expect(result.hasStats).toBe(true)
-    expect(result.clipped).toBe(false)
-  },
-  20_000,
-)
+        // when
+        const result = await statsClipped(workspace, tier)
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
-  [
-    'given a multi-workspace card with a workspace chip',
-    'when measuring the stats row',
-    'it should keep the stats inside the card',
-  ].join(', '),
-  async () => {
-    // given
-    const variant = 'multi'
+        // then
+        expect(result.hasStats).toBe(true)
+        expect(result.clipped).toBe(false)
+        expect(result.fillsViewport).toBe(true)
+        expect(result.values).toEqual(['$0.4200', '1m 00s', '12.3k'])
+        expect(result.chipsInside).toBe(true)
+      },
+      20_000,
+    )
+  }
+}
 
-    // when
-    const result = await statsClipped(variant)
+const cardLayout = async (card: Locator) => {
+  // Container-query reflow can finish after the parent width write.
+  await card.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  )
+  const bounds = await card.boundingBox()
+  const status = await card.getByText('success', { exact: true }).boundingBox()
+  const startedAt = await card.getByText(/\d{1,2}:\d{2}:\d{2}/).boundingBox()
+  if (!(bounds && status && startedAt)) {
+    throw new Error('Missing card, status or start date in the layout fixture')
+  }
+  return {
+    width: bounds.width,
+    height: bounds.height,
+    statusRight: status.x + status.width - bounds.x,
+    statusTop: status.y - bounds.y,
+    statusBottom: status.y + status.height - bounds.y,
+    startedAtLeft: startedAt.x - bounds.x,
+    startedAtTop: startedAt.y - bounds.y,
+    startedAtRight: startedAt.x + startedAt.width - bounds.x,
+    startedAtBottom: startedAt.y + startedAt.height - bounds.y,
+  }
+}
 
-    // then
-    expect(result.hasStats).toBe(true)
-    // Reproduces the report: "content inside the cards gets pushed down beyond
-    // the bottom so you can't see the bottom row of information."
-    expect(result.clipped).toBe(false)
-  },
-  20_000,
-)
+for (const variant of ['single', 'multi'] as const) {
+  test.skipIf(!CHROMIUM_AVAILABLE)(
+    [
+      `given issue #88's ${variant}-workspace card at the xl tier`,
+      'when its parent narrows before the viewport changes to base',
+      'it should grow intrinsically and reflow from the parent width, not the viewport',
+    ].join(', '),
+    async () => {
+      // given — issue #88, requirements 1.3.1 and 1.3.6
+      await withCards('xl', async (page) => {
+        const parent = page.locator(`#${variant}`)
+        const card = parent.getByRole('link')
+        const wide = await cardLayout(card)
+
+        // when
+        await parent.evaluate(
+          (element, width) =>
+            element.setAttribute('style', `width:100%;max-width:${width}px`),
+          viewportWidths.base,
+        )
+        const narrowAtXl = await cardLayout(card)
+        await page.setViewportSize({
+          width: viewportWidths.base,
+          height: devices['iPhone SE'].viewport.height,
+        })
+        const narrowAtBase = await cardLayout(card)
+
+        // then
+        expect(narrowAtXl.width).toBe(viewportWidths.base)
+        expect(narrowAtXl).toEqual(narrowAtBase)
+        expect(narrowAtXl.height).toBeGreaterThan(wide.height)
+        expect(narrowAtXl.startedAtRight).toBeLessThanOrEqual(narrowAtXl.width)
+        expect(wide.startedAtLeft).toBeGreaterThan(wide.statusRight)
+        expect(wide.startedAtTop).toBeLessThan(wide.statusBottom)
+        expect(wide.startedAtBottom).toBeGreaterThan(wide.statusTop)
+      })
+    },
+    20_000,
+  )
+}

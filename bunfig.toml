@@ -29,6 +29,7 @@ pathIgnorePatterns = [
 # patterns. Can be a single string pattern or an array of patterns.
 coveragePathIgnorePatterns = [
   "apps/visualizer/src/domains/sessions/src/_components/SessionCard.layout.test.ts",
+  "apps/visualizer/src/domains/sessions/src/_components/SessionsList.layout.test.ts",
   "apps/visualizer/src/domains/activity-runs/src/_components/ActivityRunDetail.layout.test.ts",
   "apps/visualizer/src/domains/themes/src/_components/ThemePicker.interaction.test.ts",
   # Spawns the pi binary and folds its stream; no bun test process can run it.
