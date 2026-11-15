@@ -130,7 +130,7 @@ export const restoreAll = (
     try {
       const full = join(dir, path)
       ensureParentDir(full)
-      chmodSync(full, 0o644)
+      if (fileExists(full)) chmodSync(full, 0o644)
       writeFileSync(full, original)
       return true
     } catch (cause) {
