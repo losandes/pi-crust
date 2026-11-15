@@ -27,9 +27,12 @@ lifecycles:
       - name: review-plan
         strategy: concurrent
         activities: [plan-comprehension, plan-readiness]
+      - name: register
+        strategy: serial
+        activities: [gh-issue]
       - name: deliver
         strategy: serial
-        activities: [test-tdd, build]
+        activities: [build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
@@ -55,7 +58,7 @@ lifecycles:
     stages:
       - name: deliver
         strategy: serial
-        activities: [build, test]
+        activities: [build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
@@ -100,7 +103,7 @@ lifecycles:
         activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
-        activities: [build, test]
+        activities: [build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]

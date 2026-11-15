@@ -244,7 +244,7 @@ activities:
     gates: [artifactsExist, verdictConsistent]
     model: anthropic/claude-opus-5
     thinking: medium
-    color: sky
+    color: cyan
     purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
     prompt_engineering:
       system: prompt-engineering/plan-comprehension/system.md

@@ -215,7 +215,7 @@ activities:
   - name: plan-comprehension
     output: reviewOutput
     gates: [artifactsExist, verdictConsistent]
-    color: sky
+    color: cyan
     purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
     prompt_engineering:
       system: prompt-engineering/plan-comprehension/system.md
