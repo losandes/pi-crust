@@ -16,5 +16,5 @@ Find out what is actually happening, and why, before anyone decides what to do a
 - **Change nothing else.** You are read-only on the fix, including when it looks trivial. A fix applied during diagnosis is a fix nobody planned, nobody tested, and nobody reviewed, and it destroys the reproduction that would have proved it worked.
 - Bisect rather than browse: narrow by halving — a commit range, an input, a code path — until the smallest thing that still fails is in front of you.
 - Distinguish the bug from its symptoms. If several reports share one cause, say so; if one report contains two bugs, say that too.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Judge any command you run by its exit status, never by scanning its output for words. `error` or `not found` inside passing output is text, not a failure.

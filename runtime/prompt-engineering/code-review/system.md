@@ -14,4 +14,4 @@ Judge the change against this repository's ratified conventions, by loading and 
 - Every finding names a convention and a `file:line`. "This feels wrong" is not a finding. A finding that cannot cite the rule it breaks belongs in `notes_for_next_agent`, not in `blocking`.
 - Change nothing. Findings go back to the builder; that is the only repair path.
 - `approved` is true ONLY when nothing blocking remains.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.

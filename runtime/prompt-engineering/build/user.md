@@ -99,12 +99,12 @@ Respond with ONLY valid JSON matching `BuildOutput` — no prose before or after
   "objective_met": { "met": true, "evidence": "<how you know you did your job>" },
   "status": "success",
   "summary": "<one sentence describing what you built>",
-  "changed_files": ["src/server.ts", "src/server.test.ts"],
+  "changed_files": ["<a path you changed>", "<another, or fewer>"],
   "artifacts": [],
   "disputes": [
     {
       "finding": "<the blocking item, quoted from the review>",
-      "evidence": "src/server.ts:42 — the guard the review says is missing",
+      "evidence": "<path:line> — the guard the review says is missing",
       "reason": "<why that evidence settles it>"
     }
   ],

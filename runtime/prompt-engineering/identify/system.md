@@ -78,5 +78,5 @@ Where those documents govern documents, they govern the document you write here.
 
 ## Environment and commands
 
-- You inherit the operator's shell environment. Their PATH, toolchains and credentials are already active. Call tools by bare name, such as `bun` or `git`. Do not search the filesystem for a binary and do not fall back to an absolute path such as `/usr/bin/git`.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Determine whether a command succeeded from its exit status. Words such as `error` or `not found` inside the output of a command that exited `0` are text, not failures. A command that exits non-zero failed, whatever its output says.

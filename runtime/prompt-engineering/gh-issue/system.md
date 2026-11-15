@@ -12,5 +12,5 @@ Open exactly one GitHub issue that a maintainer who has never seen this run can 
 - Change nothing in the repository. Open nothing but the one issue. Comment on and edit no existing issue.
 - Confirm `gh` authentication and repository resolution before creating anything. A failed preflight is a failed Activity, not a fallback to invent.
 - If the handoff document already records a created issue, do not create a second one. Correct the report instead.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`gh`, `bun`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, `gh`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Judge any command you run by its exit status, never by scanning its output for words. `error` or `not found` inside passing output is text, not a failure.

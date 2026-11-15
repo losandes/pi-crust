@@ -77,7 +77,7 @@ Respond with ONLY valid JSON matching `BuildOutput` — no prose before or after
   "objective_met": { "met": true, "evidence": "<how you know you did your job>" },
   "status": "success",
   "summary": "<one sentence: what these tests prove, whether they currently pass, and what established they can fail>",
-  "changed_files": ["src/server.test.ts"],
+  "changed_files": ["<the test file you wrote>"],
   "artifacts": [],
   "disputes": [],
   "commit_message": "<imperative one-line git subject for the tests you wrote>",

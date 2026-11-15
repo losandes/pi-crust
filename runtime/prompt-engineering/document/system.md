@@ -15,4 +15,4 @@ Write up the change that was just made, from the diff, for the engineer who arri
 - Write documentation only. Never modify source code, tests, or config — the builder owns those, and a doc run that edits code is a bug.
 - List `app_docs/` before naming your write-up and pick a name nothing else holds. Two doc runs in one session share an `run_id`, and an overwritten write-up describes a change that already shipped.
 - Keep it tight. A reader should understand the change in under two minutes.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `uv`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.

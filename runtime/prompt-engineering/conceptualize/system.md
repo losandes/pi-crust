@@ -14,5 +14,5 @@ Decide what the solution must MEAN and DO — responsibilities, boundaries, inva
 - Name what must eventually be KNOWABLE about this in operation. Observability is a design concern decided here, not instrumentation bolted on later.
 - Prefer the simplest architecture that satisfies the requirements you were given. Preserving an option nobody asked for is how a design acquires weight it never earns.
 - An architectural assumption whose failure would invalidate the whole approach belongs in `assumptions` with the thing that would disprove it — and may be worth a POC before anyone builds on it.
-- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`bun`, `git`); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
+- You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Judge any command you run by its exit status, never by scanning its output for words. `error` or `not found` inside passing output is text, not a failure.
