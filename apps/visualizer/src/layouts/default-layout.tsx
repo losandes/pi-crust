@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react'
 import { ThemePicker } from '@/domains/themes'
+import { cx } from '@/lib/cx'
 import { hrefFor, useRoute } from '@/lib/router'
-import styles from './default-layout.module.css'
 
 const Logo = () => (
-  <img className={styles.logo} src="/logo.png" alt="pi-crust logo" />
+  <img
+    className="size-7 flex-none drop-shadow-[0_0_--spacing(2)_rgb(var(--purple-rgb)/0.35)]"
+    src="/logo.png"
+    alt="pi-crust logo"
+  />
 )
 
 /** The chrome around every page: logo, breadcrumbs, theme picker, main. */
@@ -14,26 +18,38 @@ export default function DefaultLayout({
   const route = useRoute()
 
   return (
-    <div className={styles.app}>
-      <header className={styles.topbar}>
-        <nav className={styles.crumbs}>
+    <div>
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-panel/72 px-4 py-4 backdrop-blur-lg after:absolute after:inset-x-0 after:bottom-0 after:h-(--border-width) after:bg-[linear-gradient(90deg,rgb(var(--purple-rgb)/0.45),rgb(var(--cyan-rgb)/0.35)_40%,rgb(var(--cyan-rgb)/0.06))] sm:px-7">
+        <nav className="flex min-w-0 items-center gap-2 text-[17px] sm:gap-2.5">
           <Logo />
-          <span className={styles.brand}>pi-crust</span>
-          <span className={styles.sep}>›</span>
+          <span className="bg-[linear-gradient(90deg,var(--purple),var(--cyan))] bg-clip-text font-bold tracking-wider whitespace-nowrap text-transparent">
+            pi-crust
+          </span>
+          <span className="text-faint">›</span>
           <a
             href={hrefFor()}
-            className={route.runId === undefined ? styles.current : undefined}
+            aria-current={route.runId === undefined ? 'page' : undefined}
+            className={cx(
+              'min-w-0 truncate hover:text-text!',
+              route.runId === undefined ? 'text-text!' : 'text-dim!',
+            )}
           >
             sessions
           </a>
           {route.runId !== undefined && (
             <>
-              <span className={styles.sep}>›</span>
+              <span className="text-faint">›</span>
               <a
                 href={hrefFor(route.runId, undefined, route.workspace)}
-                className={
-                  route.activityRunId === undefined ? styles.current : undefined
+                aria-current={
+                  route.activityRunId === undefined ? 'page' : undefined
                 }
+                className={cx(
+                  'min-w-0 truncate hover:text-text!',
+                  route.activityRunId === undefined
+                    ? 'text-text!'
+                    : 'text-dim!',
+                )}
               >
                 {route.workspace === undefined
                   ? route.runId
@@ -43,14 +59,17 @@ export default function DefaultLayout({
           )}
           {route.runId !== undefined && route.activityRunId !== undefined && (
             <>
-              <span className={styles.sep}>›</span>
-              <span className={styles.current}>{route.activityRunId}</span>
+              <span className="text-faint">›</span>
+              <span aria-current="page" className="min-w-0 truncate text-text">
+                {route.activityRunId}
+              </span>
             </>
           )}
         </nav>
-        <div className={styles.controls}>
-          <span className={styles.liveHint}>
-            <span className={styles.liveDot} /> live
+        <div className="flex items-center gap-4">
+          <span className="inline-flex items-center gap-2 text-base whitespace-nowrap text-dim">
+            <span className="size-2 animate-[crust-pulse_1.6s_ease-in-out_infinite] rounded-full bg-ok shadow-[0_0_--spacing(2.5)_rgb(var(--ok-rgb)/0.7)]" />{' '}
+            live
           </span>
           <ThemePicker workspace={route.workspace} />
         </div>

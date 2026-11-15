@@ -1,12 +1,12 @@
 import { Contrast, Monitor, Moon, Palette, Sun } from 'lucide-react'
 import type { ComponentType, KeyboardEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { cx } from '@/lib/cx'
 import { listboxKey } from '@/lib/listbox'
 import { THEME_LABELS } from '../state/theme-store'
 import { applyCustomThemes } from '../usecases/apply-custom-themes'
 import { useRegisteredThemes } from '../usecases/use-registered-themes'
 import { useTheme } from '../usecases/use-theme'
-import styles from './ThemePicker.module.css'
 
 /**
  * Icons for the themes that ship. A theme a repository defines gets the
@@ -140,7 +140,7 @@ export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
   }, [open])
 
   return (
-    <div className={styles.wrap} ref={wrapperRef}>
+    <div className="relative inline-flex" ref={wrapperRef}>
       <button
         ref={triggerRef}
         type="button"
@@ -149,7 +149,7 @@ export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
         aria-controls={open ? listId : undefined}
         aria-label={`Theme: ${currentLabel}`}
         title={`Theme: ${currentLabel}`}
-        className={styles.trigger}
+        className="inline-flex h-7 w-8 cursor-pointer items-center justify-center rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2/60 p-0 text-faint hover:bg-accent/[calc(var(--fill-soft)*100%)] hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
         onClick={() => (open ? close() : openAtCurrent())}
         onKeyDown={onTriggerKeyDown}
       >
@@ -164,7 +164,7 @@ export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
           id={listId}
           role="listbox"
           aria-label="Theme"
-          className={styles.list}
+          className="absolute top-full right-0 z-20 m-0 mt-1.5 max-h-80 min-w-44 list-none overflow-y-auto rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2 p-1 shadow-(--shadow-panel)"
           onKeyDown={onListKeyDown}
         >
           {registered.map((option, index) => {
@@ -177,9 +177,12 @@ export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
                 tabIndex={-1}
                 data-index={index}
                 aria-selected={selected}
-                className={
-                  selected ? `${styles.option} ${styles.on}` : styles.option
-                }
+                className={cx(
+                  'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/[calc(var(--fill-soft)*100%)] hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none',
+                  selected
+                    ? 'bg-accent/[calc(var(--fill-medium)*100%)] text-accent'
+                    : 'text-faint',
+                )}
                 onClick={() => select(index)}
                 onKeyDown={onListKeyDown}
               >
