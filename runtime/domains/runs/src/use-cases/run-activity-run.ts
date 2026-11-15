@@ -69,7 +69,7 @@ const openActivityRun = (
 export const artifactsEventName = (activity: string): string =>
   `${activity} artifacts`
 
-/** The documents an earlier run of THIS activity created, from the trace. */
+/** The documents earlier runs created under this recorded name. */
 const createdBefore = (run: TRun, activity: string): readonly string[] =>
   run.tracer
     .eventsNamed(run.runId, artifactsEventName(activity))
@@ -80,6 +80,23 @@ const createdBefore = (run: TRun, activity: string): readonly string[] =>
           )
         : [],
     )
+
+/**
+ * The names this run's documents are recorded under.
+ *
+ * Its own name and, on an agent run, its owner. An agent run's owner is the
+ * registry Activity it executes: `executeAgent` resolves the roster entry
+ * from it. The two differ when the engine names the run itself. A writer sent
+ * back by its reviewers runs as `revise` or `revise-<writer>`, while the
+ * document it has to rewrite is recorded under `<writer> artifacts`. An
+ * engineer run's owner is a person's name, so it is not consulted there.
+ */
+const recordedUnder = ({
+  name,
+  kind,
+  owner,
+}: Pick<TActivityRunParams, 'name' | 'kind' | 'owner'>): readonly string[] =>
+  kind === 'agent' ? [...new Set([name, owner])] : [name]
 
 const handleFor = (
   run: TRun,
@@ -136,7 +153,9 @@ export const runActivityRun =
      * Everything another activity produced stays locked, so "may I write this?"
      * is answered by who wrote it, not by who is asking.
      */
-    const own = new Set(createdBefore(run, params.name))
+    const own = new Set(
+      recordedUnder(params).flatMap((name) => createdBefore(run, name)),
+    )
     unlockArtifacts(run.contextHandoffDir, [...own])
     /*
      * Copies of what exists, so damage can be undone.
