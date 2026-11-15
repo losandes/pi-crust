@@ -33,7 +33,13 @@ jobs:
 
       # Without it the browser-driven visualizer tests skip, and a suite that
       # did not run them is green for the wrong reason.
+      #
+      # Run from apps/visualizer, where playwright is a pinned dependency. At
+      # the root `bunx playwright` resolves to whatever version is latest,
+      # which downloads a Chromium revision the pinned playwright never looks
+      # for, so every browser test skipped while this step reported success.
       - name: Install Chromium for the browser-driven tests
+        working-directory: apps/visualizer
         run: bunx playwright install --with-deps chromium
 
       # crust-home-resolution.test.ts evaluates the real crust.just through
