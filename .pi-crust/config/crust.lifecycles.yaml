@@ -21,9 +21,15 @@ lifecycles:
       - name: diagnose
         strategy: serial
         activities: [diagnose]
+      - name: plan
+        strategy: serial
+        activities: [plan]
+      - name: review-plan
+        strategy: concurrent
+        activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
-        activities: [plan, test-tdd, build]
+        activities: [test-tdd, build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
@@ -64,6 +70,9 @@ lifecycles:
       - name: discover
         strategy: serial
         activities: [identify, conceptualize, plan]
+      - name: review-plan
+        strategy: concurrent
+        activities: [plan-comprehension, plan-readiness]
 
   - name: gh-issue
     description: >-
@@ -71,7 +80,13 @@ lifecycles:
     stages:
       - name: discover
         strategy: serial
-        activities: [identify, plan, gh-issue]
+        activities: [identify, plan]
+      - name: review-plan
+        strategy: concurrent
+        activities: [plan-comprehension, plan-readiness]
+      - name: file
+        strategy: serial
+        activities: [gh-issue]
 
   - name: ship
     description: >-
@@ -80,6 +95,9 @@ lifecycles:
       - name: discover
         strategy: serial
         activities: [identify, plan]
+      - name: review-plan
+        strategy: concurrent
+        activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
         activities: [build, test]
