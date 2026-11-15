@@ -124,7 +124,7 @@ ${THEME_PROBES}
 <span id="card-dot" data-animation></span>
 <span id="trace-status" data-animation>Running</span>
 <button id="trace-block" data-animation>Activity</button>
-<span id="live-dot" data-animation></span>
+<span id="live-dot" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation></span>
 <div id="sm" class="hidden sm:block">sm</div>
 <div id="md" class="hidden md:block">md</div>
 <div id="lg" class="hidden lg:block">lg</div>
@@ -137,7 +137,6 @@ import { DetailSection, StatusChip } from '/src/lib/_components/index.ts'
 import dots from '/src/domains/activity-runs/src/_components/ActivityRunDots.module.css'
 import card from '/src/domains/sessions/src/_components/SessionCard.module.css'
 import trace from '/src/domains/sessions/src/_components/SessionTrace.module.css'
-import layout from '/src/layouts/default-layout.module.css'
 import narration from '/src/domains/narration/src/_components/NarrationPane.module.css'
 import decision from '/src/domains/decisions/src/_components/DecisionRequest.module.css'
 applyCustomThemes(document, [${JSON.stringify(registeredTheme)}])
@@ -157,7 +156,6 @@ const classes = {
   'card-dot': [card.dot, card.latest],
   'trace-status': [trace.blockStatus, trace.running],
   'trace-block': [trace.block, trace.running],
-  'live-dot': [layout.liveDot],
   'narration-radius-code': [narration.code],
   'decision-radius-body': [decision.body],
 }
@@ -435,7 +433,7 @@ for (const { name, variable, replacement, selectors } of fontCases) {
 
 test.skipIf(!hasChromium)(
   [
-    'given the issue #85 application-owned pulse at every existing call site',
+    'given the issue #85 application-owned pulse at stylesheet and utility call sites',
     'when each animation is sampled at the start, midpoint and next cycle',
     'it should retain the original full-opacity endpoints and pulse depth',
   ].join(', '),
