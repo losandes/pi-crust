@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
+import { cx } from '@/lib/cx'
 import { paletteColor } from '@/lib/palette'
 import { matchingOptions } from '../usecases/filters'
-import styles from './FilterDropdown.module.css'
 
 /**
  * One pill, one panel. Open-ness and selections live in the list that owns
@@ -42,10 +42,15 @@ export const FilterDropdown = (
   const text = selected.length === 0 ? label : `${label} · ${selected.length}`
 
   return (
-    <span className={styles.wrap}>
+    <span className="inline-block @3xl/dashboard:relative">
       <button
         type="button"
-        className={selected.length > 0 ? styles.onFilter : styles.filter}
+        className={cx(
+          'cursor-pointer rounded-full border-[length:var(--border-width)] px-2.5 py-0.5 font-mono text-[13px] focus-visible:shadow-[var(--ring)] focus-visible:outline-none',
+          selected.length > 0
+            ? 'border-current bg-panel-2 text-text'
+            : 'border-border-soft bg-transparent text-dim',
+        )}
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => onOpen(!open)}
@@ -53,15 +58,15 @@ export const FilterDropdown = (
         {text}
       </button>
       {open && (
-        <div className={styles.panel}>
+        <div className="absolute inset-x-4 z-20 mt-1 flex max-h-70 min-w-50 flex-col gap-1 overflow-y-auto rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2 p-2 shadow-(--shadow-panel) @3xl/dashboard:inset-x-auto @3xl/dashboard:top-full @3xl/dashboard:left-0">
           <input
             type="search"
-            className={styles.search}
+            className="min-w-0 rounded-md border-[length:var(--border-width)] border-border-soft bg-transparent px-2 py-1 font-mono text-[13px] text-text"
             aria-label={`search ${label}`}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <label className={styles.option}>
+          <label className="flex cursor-pointer items-center gap-1.5 px-1 py-0.5 text-[13px]">
             <input
               type="checkbox"
               checked={selected.length === 0}
@@ -72,13 +77,17 @@ export const FilterDropdown = (
             Select All
           </label>
           {visible.map((option) => (
-            <label key={option} className={styles.option}>
+            <label
+              key={option}
+              className="flex cursor-pointer items-center gap-1.5 px-1 py-0.5 text-[13px]"
+            >
               <input
                 type="checkbox"
                 checked={selected.includes(option)}
                 onChange={() => onToggle(option)}
               />
               <span
+                className="min-w-0 break-words"
                 style={
                   colorOf
                     ? { color: paletteColor(colorOf(option) ?? 'blue') }

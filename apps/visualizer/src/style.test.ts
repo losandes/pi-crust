@@ -121,8 +121,8 @@ ${THEME_PROBES}
 </div>
 <menu id="preflight-list"><li>Unstyled</li></menu>
 <span id="spinner"><span id="spinner-icon" data-animation></span></span>
-<span id="activity" data-animation>Running</span>
-<span id="card-dot" data-animation></span>
+<span id="activity" class="animate-[crust-pulse_1.2s_ease-in-out_infinite]" data-animation>Running</span>
+<span id="card-dot" class="animate-[crust-pulse_1.4s_ease-in-out_infinite]" data-animation></span>
 <span id="trace-status" data-animation>Running</span>
 <button id="trace-block" data-animation>Activity</button>
 <span id="live-dot" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation></span>
@@ -135,8 +135,6 @@ ${THEME_PROBES}
 import '/src/style.css'
 import { applyCustomThemes, applyTheme } from '/src/domains/themes/index.ts'
 import { DetailSection, StatusChip } from '/src/lib/_components/index.ts'
-import dots from '/src/domains/activity-runs/src/_components/ActivityRunDots.module.css'
-import card from '/src/domains/sessions/src/_components/SessionCard.module.css'
 import trace from '/src/domains/sessions/src/_components/SessionTrace.module.css'
 import narration from '/src/domains/narration/src/_components/NarrationPane.module.css'
 import decision from '/src/domains/decisions/src/_components/DecisionRequest.module.css'
@@ -153,8 +151,6 @@ const classes = {
   'detail-section-body': [detailSection.props.children[1].props.className],
   spinner: [runningChip.props.className],
   'spinner-icon': [runningChip.props.children[0].props.className],
-  activity: [dots.running],
-  'card-dot': [card.dot, card.latest],
   'trace-status': [trace.blockStatus, trace.running],
   'trace-block': [trace.block, trace.running],
   'narration-radius-code': [narration.code],
@@ -179,6 +175,9 @@ const withStyles = async (check: (page: Page) => Promise<void>) => {
         },
       })
       const page = await context.newPage()
+      // Leave time for browser/server teardown before Bun's test timeout.
+      page.setDefaultTimeout(8_000)
+      page.setDefaultNavigationTimeout(8_000)
       await page.route('**/__styles__/index.html', (route) =>
         route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
       )

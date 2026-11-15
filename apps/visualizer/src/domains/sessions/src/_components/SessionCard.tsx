@@ -3,21 +3,26 @@ import { ActivityRunDots } from '@/domains/activity-runs'
 import type { EventRow } from '@/domains/events'
 import { agentColor, dotColor, eventLabel, fetchEvents } from '@/domains/events'
 import { StatChip, StatusChip } from '@/lib/_components'
+import { cx } from '@/lib/cx'
 import { axisTicks, fmtDate, fmtOffset, ts } from '@/lib/format'
 import { paletteColor } from '@/lib/palette'
 import { hrefFor } from '@/lib/router'
 import { archiveSession } from '../io/send-archive-session'
 import type { SessionSummary } from '../typedefs/session'
-import styles from './SessionCard.module.css'
 
 /**
- * Cards are a fixed size, so the timeline region fits exactly MAX_VISIBLE_ROWS
- * row slots. A roster that overflows spends one slot on the "+N more" line and
- * shows MIN_VISIBLE_ROWS agents in the rest — never fewer than three, so a
+ * The timeline shows at most MAX_VISIBLE_ROWS slots. An overflowing roster
+ * spends one slot on "+N more", retaining at least three visible agents so a
  * five-agent chain still reads as a chain rather than as a pair and a count.
  */
 const MAX_VISIBLE_ROWS = 4
 const MIN_VISIBLE_ROWS = 3
+
+const TONE: Readonly<Partial<Record<string, string>>> = {
+  running:
+    'border-busy/60 shadow-[0_0_--spacing(5.5)_rgb(var(--busy-rgb)/var(--fill-medium))]',
+  fail: 'border-fail/60 hover:shadow-[0_10px_34px_rgb(var(--violet-rgb)/0.12)]',
+}
 
 type TTimelineDot = Readonly<{
   id: string
@@ -226,20 +231,17 @@ export const SessionCard = ({
   const visibleRows = overflowing ? rows.slice(0, MIN_VISIBLE_ROWS) : rows
   const hiddenRowCount = overflowing ? rows.length - MIN_VISIBLE_ROWS : 0
 
-  const tone = styles[session.status ?? '']
-  const classes = [
-    styles.card,
-    tone,
-    workspaceRole === undefined ? undefined : styles.withWorkspace,
-  ].filter((name): name is string => name !== undefined)
-
   return (
     <a
-      className={classes.join(' ')}
+      className={cx(
+        'group @container relative flex min-w-0 cursor-pointer flex-col gap-2 rounded-2xl border-[length:var(--border-width)] bg-surface bg-[image:var(--surface)] p-5 text-text! transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 focus-visible:shadow-[var(--ring)] focus-visible:outline-none',
+        TONE[session.status ?? ''] ??
+          'border-border-soft hover:border-violet/45 hover:shadow-[0_10px_34px_rgb(var(--violet-rgb)/0.12)]',
+      )}
       href={hrefFor(session.run_id, undefined, session.workspace)}
     >
       <button
-        className={styles.archive}
+        className="absolute top-2.5 right-3 size-7 cursor-pointer rounded-lg border-0 bg-transparent p-0 font-sans text-xl leading-none text-dim opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-fail/16 hover:text-fail focus-visible:opacity-100 pointer-coarse:opacity-100"
         type="button"
         title="Archive — remove this run from review"
         aria-label="Archive run"
@@ -247,14 +249,16 @@ export const SessionCard = ({
       >
         ×
       </button>
-      <span className={styles.id}>{session.run_id}</span>
+      <span className="flex-none truncate font-mono text-lg leading-normal font-bold text-purple">
+        {session.run_id}
+      </span>
       {/*
         Which tree this ran in. Only when several are watched: with one, it is
         the same word on every card, which is noise rather than information.
       */}
       {workspaceRole !== undefined && (
         <span
-          className={styles.workspace}
+          className="max-w-full flex-none self-start truncate rounded-full px-2 py-0.5 font-mono text-xs leading-normal"
           style={{
             color: paletteColor(workspaceRole),
             background: paletteColor(workspaceRole, 0.14),
@@ -265,28 +269,30 @@ export const SessionCard = ({
         </span>
       )}
       <span
-        className={styles.lifecycle}
+        className="flex-none truncate font-mono text-base text-cyan"
         title={session.name ?? session.lifecycle ?? ''}
       >
         {session.name || session.lifecycle || '—'}
       </span>
-      <span className={styles.request} title={session.request ?? ''}>
+      <span
+        className="flex-none truncate text-base text-text"
+        title={session.request ?? ''}
+      >
         {session.request}
       </span>
 
       {rows.length > 0 ? (
-        <div className={styles.timeline}>
-          <div className={styles.axis}>
-            <span className={styles.gutter} />
-            <span className={styles.scale}>
+        <div className="mt-1 flex min-h-48 flex-none flex-col">
+          <div className="mb-1.5 flex h-7 items-end">
+            <span className="w-24 flex-none truncate pr-2" />
+            <span className="relative h-full min-w-0 flex-1 border-b-[length:var(--border-width)] border-border">
               {ticks.map((tick) => (
                 <span
                   key={tick.label}
-                  className={
-                    tick.pct === 0
-                      ? `${styles.tick} ${styles.edge}`
-                      : styles.tick
-                  }
+                  className={cx(
+                    'absolute bottom-1 font-mono text-base whitespace-nowrap text-faint',
+                    tick.pct === 0 ? 'translate-x-0' : '-translate-x-1/2',
+                  )}
                   style={{ left: `${tick.pct}%` }}
                 >
                   {tick.label}
@@ -295,21 +301,24 @@ export const SessionCard = ({
             </span>
           </div>
           {visibleRows.map((row) => (
-            <div key={row.owner} className={styles.row}>
+            <div key={row.owner} className="flex h-10 items-center">
               <span
-                className={styles.agent}
+                className="w-24 flex-none truncate pr-2 text-base text-dim"
                 style={{ color: paletteColor(row.color) }}
                 title={row.title}
               >
                 {row.owner}
               </span>
-              <span className={styles.track}>
+              <span className="relative h-full min-w-0 flex-1 border-b-[length:var(--border-width)] border-border-soft">
                 {row.dots.map((dot) => (
                   <span
                     key={dot.id}
-                    className={
-                      dot.latest ? `${styles.dot} ${styles.latest}` : styles.dot
-                    }
+                    className={cx(
+                      'absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full',
+                      dot.latest
+                        ? 'size-3 animate-[crust-pulse_1.4s_ease-in-out_infinite] shadow-[0_0_--spacing(2.5)_currentColor]'
+                        : 'size-2',
+                    )}
                     style={{
                       left: `${dot.xPct}%`,
                       background: paletteColor(dot.color),
@@ -321,25 +330,28 @@ export const SessionCard = ({
             </div>
           ))}
           {hiddenRowCount > 0 && (
-            <div className={`${styles.more} dim`}>
+            <div className="flex h-10 items-center pl-24 text-base text-dim">
               +{hiddenRowCount} more agents
             </div>
           )}
         </div>
       ) : (
-        <div className={`${styles.timeline} ${styles.empty} faint`}>
+        <div className="mt-1 flex min-h-48 flex-none items-center justify-center text-base text-faint">
           no agent activity yet
         </div>
       )}
 
-      <div className={styles.foot}>
-        <span className={styles.footStatus}>
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-base">
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2">
           <StatusChip status={session.status ?? 'fail'} />
           <ActivityRunDots activityRuns={session.activityRuns ?? []} />
         </span>
-        <span className="dim">{fmtDate(session.started_at)}</span>
+        <span className="text-dim">{fmtDate(session.started_at)}</span>
       </div>
-      <div className={styles.stats}>
+      <div
+        className="flex flex-wrap items-center gap-3"
+        data-testid="session-stats"
+      >
         <StatChip kind="cost" value={session.total_cost ?? undefined} />
         <StatChip kind="runtime" value={durationMs} />
         <StatChip kind="tokens" value={session.total_tokens ?? undefined} />

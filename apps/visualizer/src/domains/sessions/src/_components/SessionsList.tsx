@@ -20,7 +20,6 @@ import {
 } from '../usecases/filters'
 import { FilterDropdown } from './FilterDropdown'
 import { SessionCard } from './SessionCard'
-import styles from './SessionsList.module.css'
 
 const NO_SESSIONS: readonly SessionSummary[] = []
 
@@ -146,9 +145,11 @@ export const SessionsList = () => {
   }
 
   return (
-    <div className={styles.sessions}>
+    <div className="@container/dashboard relative flex min-w-0 flex-col">
       {poll.error !== undefined && (
-        <div className="error-bar">api unreachable — retrying {poll.error}</div>
+        <div className="mx-4 my-3 rounded-lg border-[length:var(--border-width)] border-fail/45 bg-fail/10 px-3.5 py-2.5 text-base text-red sm:mx-6">
+          api unreachable — retrying {poll.error}
+        </div>
       )}
 
       {/*
@@ -162,9 +163,12 @@ export const SessionsList = () => {
 
       {poll.value.length > 0 ? (
         <>
-          <div className={`${styles.head} dim`}>
+          <div className="flex flex-wrap items-center gap-4 px-4 pt-4 text-base text-dim sm:px-6">
             {ordered.length} runs
-            <span className={styles.filters} ref={rowRef}>
+            <span
+              className="flex min-w-0 flex-wrap items-center gap-2"
+              ref={rowRef}
+            >
               {FILTER_KEYS.map((key) => {
                 const options = optionsFor(poll.value, key)
                 // The `archived` pill always renders; the rest need at least
@@ -197,7 +201,7 @@ export const SessionsList = () => {
             </span>
           </div>
           {ordered.length > 0 ? (
-            <div className={styles.cards}>
+            <div className="grid grid-cols-1 gap-4 px-4 pt-4 pb-6 sm:px-6 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
               {ordered.map((session) => (
                 <SessionCard
                   key={`${session.workspace}:${session.run_id}`}
@@ -214,15 +218,19 @@ export const SessionsList = () => {
               ))}
             </div>
           ) : (
-            <div className="empty-state">no runs match these filters</div>
+            <div className="px-6 py-14 text-center text-base text-dim">
+              no runs match these filters
+            </div>
           )}
         </>
       ) : poll.loaded ? (
-        <div className="empty-state">
+        <div className="px-6 py-14 text-center text-base text-dim">
           no sessions yet — run an lifecycle to see it here
         </div>
       ) : poll.error === undefined ? (
-        <div className="empty-state">loading sessions…</div>
+        <div className="px-6 py-14 text-center text-base text-dim">
+          loading sessions…
+        </div>
       ) : undefined}
     </div>
   )
