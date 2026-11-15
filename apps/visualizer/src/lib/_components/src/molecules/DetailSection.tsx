@@ -1,5 +1,4 @@
 import type { ComponentType, ReactNode } from 'react'
-import styles from './DetailSection.module.css'
 
 type TIconProps = Readonly<{
   size?: number
@@ -24,17 +23,21 @@ export const DetailSection = ({
   onToggle: () => void
   children?: ReactNode
 }>) => (
-  <section className={styles.section}>
-    <button type="button" className={styles.head} onClick={onToggle}>
-      <span className={styles.chev}>{open ? '\u25be' : '\u25b8'}</span>
+  <section className="mb-3.5">
+    <button
+      type="button"
+      className="@container flex w-full cursor-pointer items-center gap-2 rounded-t-md border-0 border-b-[length:var(--border-width)] border-border-soft px-2 py-1.5 text-left text-base/[normal] font-bold tracking-wider text-dim lowercase hover:bg-panel-2 hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
+      onClick={onToggle}
+    >
+      <span className="flex-none text-faint">{open ? '\u25be' : '\u25b8'}</span>
       {Icon !== undefined && (
-        <Icon className={styles.icon} size={19} strokeWidth={2} />
+        <Icon className="flex-none text-faint" size={19} strokeWidth={2} />
       )}
-      <span className={styles.title}>{title}</span>
+      <span className="min-w-0 @max-sm:wrap-anywhere">{title}</span>
       {count !== undefined && (
-        <span className={`${styles.count} dim`}>({count})</span>
+        <span className="font-medium text-dim">({count})</span>
       )}
     </button>
-    {open && <div className={styles.body}>{children}</div>}
+    {open && <div className="pt-2.5">{children}</div>}
   </section>
 )

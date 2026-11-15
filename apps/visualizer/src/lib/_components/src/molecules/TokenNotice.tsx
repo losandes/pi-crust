@@ -12,7 +12,6 @@
  */
 import { useId, useState } from 'react'
 import { readToken, writeToken } from '@/lib/api-client'
-import styles from './TokenNotice.module.css'
 
 export const TokenNotice = ({
   problem,
@@ -26,33 +25,42 @@ export const TokenNotice = ({
   if (problem === '') return undefined
 
   return (
-    <section className={styles.notice} aria-live="polite">
-      <p className={styles.problem}>{problem}</p>
+    <section
+      className="@container m-0 mb-3.5 rounded-md border-[length:var(--rule-width,1px)] border-amber/45 border-l-4 border-l-amber bg-amber/8 px-3.5 py-3"
+      aria-live="polite"
+    >
+      <p className="m-0 mb-2.5 text-[0.85rem]">{problem}</p>
       <form
-        className={styles.row}
+        className="flex flex-col gap-2 @sm:flex-row @sm:flex-wrap @sm:items-center"
         onSubmit={(event) => {
           event.preventDefault()
           writeToken(token)
           onSaved()
         }}
       >
-        <label className={styles.label} htmlFor={fieldId}>
+        <label
+          className="text-xs leading-normal tracking-[0.04em] lowercase"
+          htmlFor={fieldId}
+        >
           write token
         </label>
         <input
           id={fieldId}
           type="password"
-          className={styles.input}
+          className="min-w-0 flex-auto rounded-sm border-none px-2 py-1.5 font-mono text-[0.8rem] focus-visible:outline-none focus-visible:outline-offset-2 @sm:basis-56"
           value={token}
           placeholder="CRUST_TOKEN"
           autoComplete="off"
           onChange={(event) => setToken(event.target.value)}
         />
-        <button type="submit" className={styles.save}>
+        <button
+          type="submit"
+          className="cursor-pointer rounded-sm border-none px-3 py-1.5 text-[0.8rem] focus-visible:outline-none focus-visible:outline-offset-2"
+        >
           save token
         </button>
       </form>
-      <p className={styles.hint}>
+      <p className="m-0 mt-2 text-xs leading-normal [&_code]:font-mono [&_code]:text-[0.72rem]">
         It is the value the server was started with:{' '}
         <code>CRUST_TOKEN=… just crust observe</code>. Kept in this browser
         only, never sent anywhere but your own server.
