@@ -82,6 +82,7 @@ const NATIVE_HTML = `<section id="native-prose">
 <ul><li>Bullet</li></ul><ol><li>Number</li></ol>
 <code>Code</code><button>Control</button>
 <input placeholder="Placeholder"><dialog>Dialog</dialog>
+<input type="checkbox"><input type="radio">
 </section>`
 
 const HARNESS_HTML = `<!doctype html>
@@ -676,7 +677,7 @@ test.skipIf(!hasChromium)(
                 listPadding: element.matches('ul, ol')
                   ? style.paddingInlineStart
                   : '',
-                placeholder: element.matches('input')
+                placeholder: element.matches('input[placeholder]')
                   ? getComputedStyle(element, '::placeholder').color
                   : '',
               }

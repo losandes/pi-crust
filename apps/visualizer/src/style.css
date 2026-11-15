@@ -95,6 +95,8 @@
   figure,
   ul,
   ol,
+  input[type="checkbox"],
+  input[type="radio"],
   dialog {
     margin: revert;
   }
