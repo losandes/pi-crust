@@ -62,6 +62,7 @@ import type { TRoots, TTreeSnapshot } from '../../../workspace'
 import { activityCatalogue } from './activity-catalogue'
 import { liveAgent } from './execute-agent-live'
 import { extractJson } from './extract-json'
+import { listAnnotatingHandoffs } from './list-annotating-handoffs'
 import { envelopeHistoryPath } from './read-envelope'
 /**
  * What a gate said about the LAST attempt, appended to this one's prompt.
@@ -432,6 +433,12 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     output_document:
       handoffDocument(agent.writes, run.repoRoot, run.contextHandoffDir) ??
       resolve(run.contextHandoffDir),
+    annotating_handoffs: listAnnotatingHandoffs({
+      activities: run.cfg.activities,
+      except: agent.name,
+      repoRoot: run.repoRoot,
+      handoffDir: run.contextHandoffDir,
+    }),
     // Named, never hardcoded: a prompt says "load every skill listed here",
     // and the config decides what that list contains.
     //

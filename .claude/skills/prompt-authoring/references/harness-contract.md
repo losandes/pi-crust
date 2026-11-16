@@ -29,6 +29,7 @@ The consequence for editing: a shipped prompt is used by every stamped repositor
 | `previous_envelopes`  | Every upstream envelope, each labelled with its Activity — identical to the above when there is one upstream |
 | `context_handoff_dir` | The absolute handoff directory for this run                                                                  |
 | `output_document`     | Where this Activity's own document goes, derived from its `writes`                                           |
+| `annotating_handoffs` | Each Activity whose succession resolves to `annotates`, as `- <activity>: <handoff document>`, or `(none)`   |
 | `skills`              | The skills primed for this agent, or a sentence saying none were pre-loaded                                  |
 | `changed_files`       | The working tree's changed and untracked paths, or `(none)`                                                  |
 | `change_base`         | What the call is about when it is not the working tree                                                       |

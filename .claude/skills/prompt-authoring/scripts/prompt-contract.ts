@@ -49,6 +49,7 @@ const SUPPORTED_VARIABLES = [
   'previous_envelopes',
   'context_handoff_dir',
   'output_document',
+  'annotating_handoffs',
   'skills',
   'changed_files',
   'change_base',

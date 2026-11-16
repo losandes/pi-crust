@@ -693,6 +693,59 @@ test(
   },
 )
 
+for (const hasReviewer of [true, false]) {
+  test(
+    [
+      'given use-cases/execute-agent::executeAgent',
+      `when the loaded registry ${hasReviewer ? 'contains a reviewer' : 'has no annotating handoffs'}`,
+      'it should render the annotating handoff list from that registry',
+    ].join(', '),
+    async () => {
+      // given
+      const repoRoot = aRepo()
+      const cfg = hasReviewer
+        ? crustConfigSchema.parse({
+            defaults: { protected_files: [] },
+            agents: aConfig().agents,
+            activities: [
+              {
+                name: 'reviewer',
+                output: 'reviewOutput',
+                writes: ['{handoff}/verdict.md'],
+                prompt_engineering: { system: 's.md', user: 'u.md' },
+              },
+            ],
+          })
+        : aConfig()
+      const { run } = aRun(repoRoot, { cfg })
+      const renders: Record<string, string>[] = []
+      const { ports } = fakePorts({
+        render: (templatePath, variables) => {
+          // biome-ignore lint/plugin/no-array-mutation: recording what was rendered is the test
+          renders.push({ ...variables })
+          return `rendered:${templatePath}`
+        },
+      })
+
+      try {
+        // when
+        await executeAgent(run, anActivityRun(), aCall(), ports)
+
+        // then
+        expect(renders[0]?.annotating_handoffs).toBe(
+          hasReviewer
+            ? `- reviewer: ${run.contextHandoffDir}/verdict.md`
+            : '(none)',
+        )
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
+
 test(
   [
     'given use-cases/execute-agent::executeAgent',
