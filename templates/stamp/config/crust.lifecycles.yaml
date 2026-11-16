@@ -20,16 +20,13 @@ lifecycles:
     stages:
       - name: diagnose
         strategy: serial
-        activities: [diagnose]
-      - name: plan
-        strategy: serial
-        activities: [plan]
+        activities: [diagnose, plan]
       - name: review-plan
         strategy: concurrent
         activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
-        activities: [test-tdd, build]
+        activities: [build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
@@ -49,13 +46,30 @@ lifecycles:
         strategy: serial
         activities: [plan, build]
 
-  - name: deliver
+  - name: gh-issue
     description: >-
-      The engineering lifecycle: build, test, and review.
+      Analyze a topic, plan the work, and open a github issue.
     stages:
+      - name: discover
+        strategy: serial
+        activities: [identify]
+      - name: file
+        strategy: serial
+        activities: [gh-issue]
+
+  - name: ship
+    description: >-
+      An e2e engineering lifecycle: identify, plan, build, and review.
+    stages:
+      - name: discover
+        strategy: serial
+        activities: [identify, plan]
+      - name: review-plan
+        strategy: concurrent
+        activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
-        activities: [build, test]
+        activities: [build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]
@@ -63,44 +77,33 @@ lifecycles:
         strategy: serial
         activities: [gh-pull-request]
 
-  - name: discover
+  - name: ship-to-outcome
     description: >-
-      The product lifecycle: identify, conceptualize, plan.
+      An e2e engineering lifecycle to launch after you already identified the outcome: plan, build, and review.
     stages:
       - name: discover
         strategy: serial
-        activities: [identify, conceptualize, plan]
-      - name: review-plan
-        strategy: concurrent
-        activities: [plan-comprehension, plan-readiness]
-
-  - name: gh-issue
-    description: >-
-      Analyze a topic, plan the work, and open a github issue.
-    stages:
-      - name: discover
-        strategy: serial
-        activities: [identify, plan]
-      - name: review-plan
-        strategy: concurrent
-        activities: [plan-comprehension, plan-readiness]
-      - name: file
-        strategy: serial
-        activities: [gh-issue]
-
-  - name: ship
-    description: >-
-      The engineering lifecycle: plan, build, and review.
-    stages:
-      - name: discover
-        strategy: serial
-        activities: [identify, plan]
+        activities: [plan]
       - name: review-plan
         strategy: concurrent
         activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
-        activities: [build, test]
+        activities: [build]
+      - name: accept
+        strategy: concurrent
+        activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
+
+  - name: ship-to-plan
+    description: >-
+      An e2e engineering lifecycle to launch after you already identified the plan: build, and review.
+    stages:
+      - name: deliver
+        strategy: serial
+        activities: [build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]

@@ -34,7 +34,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
     "@types/bun": "1.4.2",
-    "buntap": "github:losandes/buntap",
+    "buntap": "github:losandes/buntap#0.2.2",
     "markdownlint-cli2": "^0.23.3",
     "typescript": "5.9.3"
   }
