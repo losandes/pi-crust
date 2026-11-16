@@ -3,13 +3,30 @@ import { useState } from 'react'
 import { ConfirmDialog } from '@/lib/_components'
 import type { TWriteResult } from '@/lib/api-client'
 import { readToken, writeToken } from '@/lib/api-client'
+import { cx } from '@/lib/cx'
 import { hrefFor } from '@/lib/router'
 import { sendConsult } from '../io/send-consult'
 import { sendMessage } from '../io/send-message'
 import { sendResume } from '../io/send-resume'
 import { sendSteer } from '../io/send-steer'
-import styles from './RunControls.module.css'
 import { SteerDialog } from './SteerDialog'
+
+const BUTTON =
+  'inline-flex max-w-full cursor-pointer items-center gap-2 rounded-full border-(length:--border-width) px-3.5 py-1.5 font-sans text-base enabled:hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none disabled:cursor-wait disabled:opacity-50'
+
+// The old `.actions button` selector outweighed the primary/danger/amend
+// colours. Keep the computed appearance, including amend's hover border.
+const ACTION = {
+  primary: 'border-border bg-panel-2 text-dim',
+  secondary: 'border-border bg-panel-2 text-dim',
+  danger: 'border-border bg-panel-2 text-dim',
+  amend: 'border-border bg-panel-2 text-dim enabled:hover:border-amber',
+} as const
+
+const LAYOUT = {
+  embedded: 'm-0',
+  standalone: 'mx-7 mt-0 mb-5',
+} as const
 
 /**
  * What a reader can DO to a run, from the page they are already watching.
@@ -155,11 +172,12 @@ export const RunControls = ({
 
   return (
     <section
-      className={
-        standalone ? `${styles.controls} ${styles.standalone}` : styles.controls
-      }
+      className={cx(
+        '@container min-w-0 rounded-2xl border-(length:--border-width) border-waiting/[calc(var(--edge-alpha)*100%)] [background:var(--surface)] px-4 py-3.5 shadow-(--shadow-panel) wrap-anywhere',
+        LAYOUT[standalone ? 'standalone' : 'embedded'],
+      )}
     >
-      <header className={styles.head}>
+      <header className="mb-2.5 text-base font-bold text-text">
         {running
           ? 'This run is working. You can reach it.'
           : waiting
@@ -174,7 +192,7 @@ export const RunControls = ({
       </header>
 
       <textarea
-        className={styles.text}
+        className="w-full resize-y rounded-lg border-(length:--border-width) border-border-soft bg-panel-3 px-3 py-2 font-sans text-base/normal text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
         value={text}
         rows={3}
         disabled={!(live || canConsult)}
@@ -194,13 +212,13 @@ export const RunControls = ({
         onChange={(event) => setText(event.target.value)}
       />
 
-      <div className={styles.actions}>
+      <div className="mt-2.5 flex flex-wrap gap-2">
         {live && running ? (
           <>
             <button
               type="button"
               disabled={busy}
-              className={styles.primary}
+              className={cx(BUTTON, ACTION.primary)}
               onClick={() =>
                 needsText('steer') ||
                 act(
@@ -215,6 +233,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
+              className={cx(BUTTON, ACTION.secondary)}
               onClick={() =>
                 needsText('queue it') ||
                 act(
@@ -235,7 +254,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
-              className={styles.danger}
+              className={cx(BUTTON, ACTION.danger)}
               onClick={() => setConfirmAbort(true)}
             >
               <X size={15} /> abort
@@ -246,7 +265,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
-              className={styles.primary}
+              className={cx(BUTTON, ACTION.primary)}
               onClick={() =>
                 act(
                   () => sendDecision(runId, 'approve', text, workspace),
@@ -259,6 +278,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
+              className={cx(BUTTON, ACTION.secondary)}
               onClick={() =>
                 needsText('answer') ||
                 act(
@@ -272,7 +292,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
-              className={styles.danger}
+              className={cx(BUTTON, ACTION.danger)}
               onClick={() =>
                 needsText('reject') ||
                 act(
@@ -294,7 +314,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
-              className={styles.primary}
+              className={cx(BUTTON, ACTION.primary)}
               title="Answers from the conversation it still remembers. Changes nothing."
               onClick={() =>
                 needsText('ask') ||
@@ -317,7 +337,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy}
-              className={styles.amend}
+              className={cx(BUTTON, ACTION.amend)}
               title="Lets this activity rewrite ITS OWN documents. Every other activity's stay read-only."
               onClick={() =>
                 needsText('amend') ||
@@ -341,7 +361,7 @@ export const RunControls = ({
               <button
                 type="button"
                 disabled={busy}
-                className={styles.primary}
+                className={cx(BUTTON, ACTION.primary)}
                 title={
                   text.trim() === ''
                     ? 'Re-launches the run exactly as it was started, skipping every Activity Run already recorded successful.'
@@ -368,7 +388,7 @@ export const RunControls = ({
             <button
               type="button"
               disabled={busy || replaying.length === 0}
-              className={styles.danger}
+              className={cx(BUTTON, ACTION.danger)}
               title="Re-runs this activity and every activity after it with your instruction."
               onClick={() => needsText('steer') || setSteering(true)}
             >
@@ -378,20 +398,22 @@ export const RunControls = ({
         ) : undefined}
       </div>
 
-      {done !== '' && <p className={styles.done}>{done}</p>}
+      {done !== '' && <p className="mt-2.5 mb-0 text-base text-ok">{done}</p>}
       {/*
         Only rendered after a successful branch: the id comes back in the
         response because the server mints it before the detached child has
         written a row, and this is the one place that id is worth a click.
       */}
       {branchRunId !== '' && (
-        <p className={styles.done}>
+        <p className="mt-2.5 mb-0 text-base text-ok">
           <a href={hrefFor(branchRunId, undefined, workspace)}>
             open the new run ({branchRunId})
           </a>
         </p>
       )}
-      {problem !== '' && <p className={styles.problem}>{problem}</p>}
+      {problem !== '' && (
+        <p className="mt-2.5 mb-0 text-base text-fail">{problem}</p>
+      )}
 
       {/*
         The token field appears only once something has been refused. Asking
@@ -399,17 +421,18 @@ export const RunControls = ({
         reading, and most sessions never write at all.
       */}
       {problem !== '' && (
-        <div className={styles.token}>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-faint">
           <KeyRound size={15} />
           <input
             type="password"
-            className={styles.tokenInput}
+            className="min-w-0 max-w-80 flex-1 rounded-lg border-(length:--border-width) border-border-soft bg-panel-3 px-2.5 py-1.5 font-mono text-base text-text"
             value={token}
             placeholder="CRUST_TOKEN"
             onChange={(event) => setToken(event.target.value)}
           />
           <button
             type="button"
+            className="cursor-pointer rounded-lg border-(length:--border-width) border-border bg-panel-2 px-3 py-1.5 font-sans text-base text-dim"
             onClick={() => {
               writeToken(token)
               setProblem('Token saved. Try that again.')

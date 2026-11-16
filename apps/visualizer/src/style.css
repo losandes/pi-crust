@@ -220,37 +220,3 @@ pre {
   color: var(--dim);
   font-size: 16px;
 }
-
-/* Tables. The architects produce them constantly — a comparison of candidate
-   approaches is a table — and until they rendered as one, reading a design
-   meant parsing pipes by eye. */
-.md-table {
-  width: 100%;
-  margin: 12px 0;
-  border-collapse: collapse;
-  font-size: 15px;
-  /* A long cell wraps rather than forcing the whole document sideways. */
-  table-layout: auto;
-}
-
-.md-table th,
-.md-table td {
-  padding: 7px 10px;
-  border: var(--border-width) solid var(--border-soft);
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-
-.md-table th {
-  background: var(--table-head);
-  font-weight: 600;
-  text-align: left;
-}
-
-/* Zebra striping, because the useful read of a comparison is across a row
-   and the eye loses the row at four columns. A solid per-theme colour, not
-   an alpha over the panel: the alpha version measured 1.016:1 in dark and
-   1.04:1 in high contrast, which is to say it was not there. */
-.md-table tbody tr:nth-child(even) {
-  background: var(--zebra);
-}

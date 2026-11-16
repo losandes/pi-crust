@@ -324,7 +324,12 @@ test(
     })
 
     // then
-    expect(sheets.length).toBeGreaterThan(5)
+    expect(sheets).toEqual(
+      expect.arrayContaining([
+        join(dir, 'style.css'),
+        join(dir, 'domains/themes/src/tokens.css'),
+      ]),
+    )
     expect([...new Set(used)]).toEqual([])
   },
 )

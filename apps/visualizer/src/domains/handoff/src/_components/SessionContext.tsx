@@ -13,6 +13,7 @@
 import { safeParseSettlement, settledOr } from '@typedefs/settlement'
 import { useMemo, useState } from 'react'
 import type { EventRow } from '@/domains/events'
+import { Prose } from '@/lib/_components'
 import { renderMarkdown } from '@/lib/markdown'
 import type { Envelope, Session } from '../typedefs/handoff'
 import type { TArtifact } from '../usecases/artifacts'
@@ -20,7 +21,9 @@ import { runArtifacts } from '../usecases/artifacts'
 import { useHandoff } from '../usecases/use-handoff'
 import { ArtifactList } from './ArtifactList'
 import { DocumentViewer } from './DocumentViewer'
-import styles from './SessionContext.module.css'
+
+const HEADING =
+  'mt-6 mb-2.5 flex items-center gap-2 text-xs font-semibold tracking-widest text-dim uppercase'
 
 /**
  * The prompt as it was given, not as the session row kept it.
@@ -78,7 +81,7 @@ export const SessionContext = ({
   )
 
   return (
-    <section className={styles.context}>
+    <section className="mx-7 mt-5 mb-8 min-w-0">
       <DocumentViewer
         artifact={viewing}
         runId={runId}
@@ -86,24 +89,22 @@ export const SessionContext = ({
         onClose={() => setViewing(undefined)}
       />
 
-      <h3 className={styles.head}>what was asked</h3>
+      <h3 className={HEADING}>what was asked</h3>
       {prompt === '' ? (
         <div className="faint">no prompt recorded</div>
       ) : (
         // Safe: renderMarkdown HTML-escapes all input before producing any
         // tag. This is a document a person wrote, but it arrives through the
         // same door as everything else.
-        <div
-          className={styles.prompt}
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown escapes its input
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(prompt) }}
-        />
+        <Prose html={renderMarkdown(prompt)} variant="handoff-prompt" />
       )}
 
-      <h3 className={styles.head}>
+      <h3 className={HEADING}>
         files
         {documents.length > 0 && (
-          <span className={styles.count}>{documents.length}</span>
+          <span className="rounded-full bg-panel-2 px-2 py-0.5 font-mono text-xs tracking-normal">
+            {documents.length}
+          </span>
         )}
       </h3>
       <ArtifactList artifacts={documents} onOpen={setViewing} />
