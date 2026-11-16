@@ -73,7 +73,7 @@ run = 'bunx bunt apps/visualizer {% if usage.coverage %}--coverage{% endif %} --
 
 # Runs all the tests
 [tasks.test]
-env = { BUNTAP_REPORTER = "nyan" }
+env = { BUNTAP_REPORTER = "nyan", CLAUDECODE = "1" }
 usage = 'flag "--coverage" help="collect coverage"'
 run = 'bunx bunt apps/visualizer lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
 
