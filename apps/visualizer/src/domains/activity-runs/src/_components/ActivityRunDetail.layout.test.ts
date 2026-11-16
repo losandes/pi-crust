@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { chromium, devices, type Page } from 'playwright'
 import {
+  settleTransitions,
   startHarnessServer,
   type TViewportTier,
   viewportWidths,
@@ -605,6 +606,7 @@ for (const { theme, scheme } of THEMES) {
                 ),
               ),
           )
+          await settleTransitions(page)
 
           // then
           expect(await styleDifferences(page, tab), `${theme}: ${tab}`).toEqual(

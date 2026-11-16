@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { chromium, devices, type Page } from 'playwright'
 import {
+  settleTransitions,
   startHarnessServer,
   type TViewportTier,
   viewportWidths,
@@ -101,8 +102,8 @@ const withTrace = async (
   }
 }
 
-const afterPaint = (page: Page) =>
-  page.evaluate(
+const afterPaint = async (page: Page) => {
+  await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
         requestAnimationFrame(() =>
@@ -110,6 +111,8 @@ const afterPaint = (page: Page) =>
         ),
       ),
   )
+  await settleTransitions(page)
+}
 
 for (const { tier, columns, below } of [
   { tier: 'base', columns: 1, below: false },

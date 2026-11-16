@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { chromium, devices, type Page } from 'playwright'
 import {
+  settleTransitions,
   startHarnessServer,
   type TViewportTier,
   viewportWidths,
@@ -122,6 +123,11 @@ const withComponents = async (
   }
 }
 
+const selectTheme = async (page: Page, theme: string) => {
+  await page.selectOption('#theme', theme)
+  await settleTransitions(page)
+}
+
 const expectLegacyPaint = async (page: Page) => {
   const comparisons = await page.evaluate(() => {
     // These are the former modules' computed winning declarations, including
@@ -223,7 +229,7 @@ for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
         ] as const) {
           // when
           await page.emulateMedia({ colorScheme: scheme })
-          await page.selectOption('#theme', theme)
+          await selectTheme(page, theme)
           // Wait for this opening's fetch, not the previous document's DOM.
           const loaded = page.waitForResponse((response) =>
             new URL(response.url()).pathname.includes('/handoff/'),
@@ -296,7 +302,7 @@ test.skipIf(!hasChromium)(
       ] as const) {
         // when
         await page.emulateMedia({ colorScheme: scheme })
-        await page.selectOption('#theme', theme)
+        await selectTheme(page, theme)
         await amend.hover()
         const paint = await amend.evaluate((element) => {
           const reference = document.createElement('span')

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { chromium, devices, type Page } from 'playwright'
 import {
+  settleTransitions,
   startHarnessServer,
   type TViewportTier,
   viewportWidths,
@@ -73,13 +74,15 @@ const withDashboard = async (
   }
 }
 
-const afterPaint = (page: Page) =>
-  page.evaluate(
+const afterPaint = async (page: Page) => {
+  await page.evaluate(
     () =>
       new Promise((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(resolve)),
       ),
   )
+  await settleTransitions(page)
+}
 
 // Issue #88, 1.4.1: the extra columns must not appear before md or xl.
 for (const { tier, columns, edge } of [
