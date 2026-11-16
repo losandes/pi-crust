@@ -92,6 +92,7 @@ const fakeAgentPorts = (
   savePrompt: (directory, name) => join(directory, name),
   snapshot: () => ({}),
   rev: () => '',
+  content: () => ({ status: 'ok', data: {} }),
 })
 
 const workflowEnvironment = () => {

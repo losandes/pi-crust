@@ -390,6 +390,7 @@ const portsFor = (response: (template: string) => TEnvelopeBase) => {
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
     rev: () => '',
+    content: () => ({ status: 'ok', data: {} }),
   }
 
   return {
@@ -409,7 +410,7 @@ test(
   [
     'given a build followed by a concurrent review Stage',
     'when both reviewers run through the real agent boundary',
-    'it should route both on the builder changed_files and preserve both verdicts for downstream consumers',
+    'it should use the working tree without a run start and preserve both verdicts for downstream consumers',
   ].join(', '),
   async () => {
     // given
@@ -452,8 +453,8 @@ test(
 
     // then
     expect(renders().map((one) => one.variables.changed_files)).toEqual([
-      'src/work.ts',
-      'src/work.ts',
+      'unrelated-working-tree.ts',
+      'unrelated-working-tree.ts',
     ])
     expect(
       renders().map(

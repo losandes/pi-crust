@@ -120,19 +120,16 @@ export type TAgentCall<TEnvelope extends TEnvelopeBase = TEnvelopeBase> =
      */
     committing?: boolean
     /**
-     * The paths this call is about, for `routing.skills`.
-     *
-     * Omitted, the working tree's uncommitted paths are used. A reviewer that
-     * runs after a commit must pass the set explicitly, or it would route
-     * against an empty change and load nothing.
+     * The paths this call presents and uses for `routing.skills`.
+     * Judges receive the run's net change, committed or not, unless a named
+     * scope overrides it. With no run change, use captured input paths when
+     * present; otherwise omission selects the uncommitted working tree.
      */
     changedPaths?: readonly string[]
     /**
-     * The ref or range this call is about, for the agent's own reading.
-     *
-     * Omitted, the agent is judging the working tree. Given, the work may be
-     * committed and absent from it, so the prompt tells the agent to read the
-     * range instead.
+     * Where to read this change: the named scope, or the run's start commit
+     * with a command that includes committed and uncommitted work. Omitted
+     * when no run change remains, describing the uncommitted working tree.
      */
     changeBase?: string
   }>

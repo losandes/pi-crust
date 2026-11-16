@@ -22,6 +22,7 @@ import type {
   TActivity,
   TActivityContext,
   TActivityRun,
+  TActivityRunHandle,
   TActivityRunStatus,
   TEnvelopeBase,
   TRun,
@@ -104,6 +105,7 @@ export const recordRequest = (
   run: TRun,
   prompt: string,
   extra: Readonly<Record<string, unknown>> = {},
+  onRecorded: (handle: TActivityRunHandle) => void = () => undefined,
 ): Promise<void> =>
   skipIfDone(
     run,
@@ -115,6 +117,7 @@ export const recordRequest = (
     }),
     (handle) => {
       handle.log({ input: prompt, ...extra })
+      onRecorded(handle)
     },
     () => Promise.resolve(undefined),
   )

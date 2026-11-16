@@ -114,6 +114,7 @@ const fakePorts = (
       calls.push({ op: 'snapshot' })
       return {}
     },
+    content: () => ({ status: 'ok', data: {} }),
     rev: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push({ op: 'rev' })

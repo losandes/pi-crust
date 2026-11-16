@@ -34,6 +34,7 @@ import {
 import { dataDirFromEnv } from '../../../../lib/system'
 import type { TAgentPorts, TDeliveryPorts } from '../../../activities'
 import {
+  liveAgent,
   requiredAgents,
   runnableActivities,
   terminalActivityFor,
@@ -47,6 +48,7 @@ import {
   plannedNames,
   unitsFrom,
 } from '../../../planning'
+import { recordRunStart } from '../../../policy'
 import { readRunState, runLink, visualizerIsUp } from '../../../trace'
 import { isRepo, rev, shortSha } from '../../../workspace'
 import { resolveDecisionAnswer } from '../data/resolve-decision-answer'
@@ -434,6 +436,11 @@ export const runWorkflow = async (
       baseline === ''
         ? { activities: wholeChain.join(' -> ') }
         : { activities: wholeChain.join(' -> '), baseline: shortSha(baseline) },
+      (handle) =>
+        recordRunStart(agentPorts ?? liveAgent)(
+          run,
+          handle.activityRun.activity_run_id,
+        ),
     )
 
     const units = unitsFrom(foldPlan, activities)

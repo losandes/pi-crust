@@ -784,6 +784,7 @@ test(
       savePrompt: (directory, name) => join(directory, name),
       snapshot: () => ({}),
       rev: () => '',
+      content: () => ({ status: 'ok', data: {} }),
     }
     const { ports } = fakePorts()
     const activity = ghPullRequestActivity(terminal, OPTIONS, ports, agentPorts)

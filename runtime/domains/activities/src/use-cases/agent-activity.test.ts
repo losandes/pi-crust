@@ -7,7 +7,7 @@
 
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -82,6 +82,7 @@ const fakePorts = (
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
     rev: () => '',
+    content: () => ({ status: 'ok', data: {} }),
     ...overrides,
     run: (request, hooks) => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
@@ -265,7 +266,7 @@ test(
     const handle = aHandle(anActivityRun())
     void ports
 
-    // when / then
+    // when, then
     await expect(activity.execute(ctx, handle)).rejects.toThrow(
       /'build' will not start/,
     )
@@ -337,7 +338,7 @@ test(
     process.chdir(repoRoot)
 
     try {
-      // when / then
+      // when, then
       await expect(activity.execute(aCtx(run), handle)).rejects.toThrow(
         /nothing changed since/,
       )
@@ -397,7 +398,7 @@ test(
     const run = aRun(repoRoot)
     const activity = agentActivity(anActivity(), OPTIONS)
 
-    // when / then
+    // when, then
     expect(() => activity.replay(aCtx(run))).toThrow(
       /cannot resume activityRun 'build'/,
     )
@@ -442,7 +443,7 @@ test(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     'when the output type judges a change and no --base was given',
-    "it should route on the previous activity's claimed changed_files",
+    'it should fall back to the working tree rather than the previous claim',
   ].join(', '),
   async () => {
     // given
@@ -478,6 +479,154 @@ test(
 
     // then
     expect(result.accepted).toBe(true)
-    expect(renders[0]?.changed_files).toBe('builder.ts')
+    expect(renders[0]?.changed_files).toBe('(none)')
+    expect(renders[0]?.change_base).toBe('(the uncommitted working tree)')
   },
 )
+
+for (const entry of [
+  {
+    name: 'a judge with a run change',
+    judge: true,
+    captured: false,
+    base: '',
+    changed: true,
+    expected: 'run.ts',
+    reads: 1,
+  },
+  {
+    name: 'a judge with no remaining run change',
+    judge: true,
+    captured: false,
+    base: '',
+    changed: false,
+    expected: 'working.ts',
+    reads: 1,
+  },
+  {
+    name: 'a judge with an explicit scope',
+    judge: true,
+    captured: false,
+    base: 'README.md',
+    changed: true,
+    expected: 'README.md',
+    reads: 0,
+  },
+  {
+    name: 'a non-judging Activity',
+    judge: false,
+    captured: false,
+    base: '',
+    changed: true,
+    expected: 'working.ts',
+    reads: 0,
+  },
+  {
+    name: 'a judge that also captures changes',
+    judge: true,
+    captured: true,
+    base: '',
+    changed: true,
+    expected: 'run.ts',
+    reads: 1,
+  },
+  {
+    name: 'a capturing judge with no remaining run change',
+    judge: true,
+    captured: true,
+    base: '',
+    changed: false,
+    expected: 'README.md',
+    reads: 1,
+  },
+  {
+    name: 'a capturing judge with an explicit scope',
+    judge: true,
+    captured: true,
+    base: 'README.md',
+    changed: true,
+    expected: 'README.md',
+    reads: 0,
+  },
+]) {
+  test(
+    [
+      `given ${entry.name}`,
+      'when choosing its review scope',
+      'it should prefer run content only for an unscoped judge and preserve the fallback',
+    ].join(', '),
+    async () => {
+      // given
+      const repoRoot = aRepo()
+      const original = aRun(repoRoot)
+      const run = {
+        ...original,
+        tracer: {
+          ...original.tracer,
+          eventsNamed: (_id: string, name: string) =>
+            name === 'run_start' ? [{ head: 'start-sha', tree: {} }] : [],
+        },
+      }
+      let renders: readonly Readonly<Record<string, string>>[] = []
+      let reads: readonly string[] = []
+      const { ports } = fakePorts({
+        changed: () => ['working.ts'],
+        content: (_roots, base) => {
+          reads = [...reads, base]
+          return {
+            status: 'ok',
+            data: entry.changed ? { 'run.ts': 'hash' } : {},
+          }
+        },
+        run: async () =>
+          aPiResult(
+            JSON.stringify({
+              ...aContextEnvelope(),
+              ...(entry.judge
+                ? { approved: true, findings: [], blocking: [] }
+                : {}),
+            }),
+          ),
+        render: (path, variables) => {
+          renders = [...renders, variables]
+          return path
+        },
+      })
+      const activity = agentActivity(
+        anActivity(
+          {
+            output: entry.judge ? 'reviewOutput' : 'genericOutput',
+            input: entry.captured ? 'changes' : 'upstream',
+          },
+          entry.judge ? reviewOutput : genericOutput,
+        ),
+        { ...OPTIONS, base: entry.base },
+        ports,
+      )
+      const cwd = process.cwd()
+      try {
+        process.chdir(repoRoot)
+        writeFileSync(join(repoRoot, 'README.md'), 'after\n')
+        // when
+        await activity.execute(
+          aCtx(run, { baseline: 'HEAD' }),
+          aHandle(anActivityRun()),
+        )
+        // then
+        expect(renders[0]?.changed_files).toBe(entry.expected)
+        expect(reads).toHaveLength(entry.reads)
+        expect(renders[0]?.change_base).toBe(
+          entry.base ||
+            (entry.judge && entry.changed
+              ? 'start-sha (HEAD when this run started). `changed_files` lists every file this run has changed since then, committed or not. Read each one with `git diff start-sha -- <path>`. A path that prints no diff is not tracked by git yet, or no longer exists: read the file itself.'
+              : '(the uncommitted working tree)'),
+        )
+      } finally {
+        process.chdir(cwd)
+        rmSync(repoRoot, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}

@@ -160,7 +160,7 @@ export type TActivity = Readonly<{
 
 /** Per-call-site knobs. `instance` disambiguates a repeated activity. */
 export type TActivityOptions = Readonly<{
-  /** the ref or range a judging Activity rules on; '' is the working tree */
+  /** Named scope overrides a judge's run change; '' uses that change, falling back to the working tree. */
   base: string
   /** 1 for the first occurrence; 2+ suffixes the activityRun name (`build_2`) */
   instance: number
