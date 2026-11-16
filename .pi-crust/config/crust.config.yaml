@@ -85,18 +85,18 @@ routing:
     - name: test
       when: ["**/*.ts", "**/*.tsx"]
       operation: test                  # lint | typecheck | build | test
-      argv: [bun, run, test:agent]     # argument list; bare binary names
+      argv: [mise, run, test:agent]    # argument list; bare binary names
       timeout_seconds: 600
 
     - name: lint
       when: ["**/*.ts", "**/*.tsx"]
       operation: lint
-      argv: [bun, run, lint]
-      with_changed_paths: true        # append matching paths
+      argv: [mise, run, lint]
+      with_changed_paths: true         # append matching paths
       timeout_seconds: 300
 
     - name: typecheck
       when: ["packages/api/**/*.ts"]
       operation: typecheck
       cwd: packages/api
-      argv: [bun, run, typecheck]
+      argv: [mise, run, typecheck]

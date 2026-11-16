@@ -25,7 +25,7 @@
     // list every transitively-imported file in its own `include`, which a
     // cross-package import defeats. The root tsconfig.json's bare
     // `tsc --noEmit` convenience silently checks none of this project's
-    // files as a result; `bun run typecheck:visualizer`
+    // files as a result; `mise run typecheck:visualizer`
     // (`tsc --noEmit -p apps/visualizer`) is unaffected and remains the
     // check that gates the repository.
 

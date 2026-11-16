@@ -9,8 +9,7 @@ description: Writes, reviews, and runs bun tests in this monorepo (*.test.ts, *.
 
 - Creating or changing any `*.test.ts` / `*.test.tsx` file
 - Asked to add tests, fix a failing test, or raise coverage
-- A review comment mentions test structure, `describe`, mocking, lifecycle hooks,
-  or given/when/then
+- A review comment mentions test structure, `describe`, mocking, lifecycle hooks, or given/when/then
 - Running the suite, or finishing test work before reporting it complete
 
 ## Do not use this skill for
@@ -18,15 +17,11 @@ description: Writes, reviews, and runs bun tests in this monorepo (*.test.ts, *.
 - Non-test source — use the `ts-functional-conventions` skill, whose rules differ
 - End-to-end, browser, load, or contract tests — see "Out of scope" below
 
-This skill contains **no rules of its own**. All rules live in the ADR, so the two can never
-disagree. Follow the steps in order.
+This skill contains **no rules of its own**. All rules live in the ADR, so the two can never disagree. Follow the steps in order.
 
 ## Step 1 — Read the rules (mandatory, first)
 
-Read [test-conventions.md](../adr/typescript/test-conventions.md)
-before writing or reviewing any test. It is the single source of truth for file naming,
-given/when/then structure, forbidden constructs, coverage targets, mocking policy,
-integration-test guards, and escalation.
+Read [test-conventions.md](../adr/typescript/test-conventions.md) before writing or reviewing any test. It is the single source of truth for file naming, given/when/then structure, forbidden constructs, coverage targets, mocking policy, integration-test guards, and escalation.
 
 Do not proceed from memory — read it.
 
@@ -61,13 +56,13 @@ Then match the nearest conforming test in the project you are in — the Step 3 
 
 ## Step 3 — Run the tests
 
-The command is the project's, not this skill's. Look in `package.json` scripts before inventing one and choose a test run appropriate for LLMs. When a script is not found in a package.json, use `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test --verbose --bail` as your default.
+The command is the project's, not this skill's. Look in the project's task definitions — `package.json` scripts, or a task runner's file such as `mise.toml` — before inventing one and choose a test run appropriate for LLMs. When neither defines one, use `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test --verbose --bail` as your default.
 
-| Situation | Command |
-|---|---|
-| Validating what you just wrote | the project's test script, scoped to the package you changed |
-| Narrowing to one file | `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test <path> --verbose --bail` |
-| Checking coverage | the project's coverage script |
+| Situation                      | Command                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
+| Validating what you just wrote | the project's test script, scoped to the package you changed                                  |
+| Narrowing to one file          | `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test <path> --verbose --bail` |
+| Checking coverage              | the project's coverage script                                                                 |
 
 Logging is the thing to watch: an unsilenced suite can produce thousands of lines of output, which costs context and hides the failure. If the project has a quiet variant, use it.
 

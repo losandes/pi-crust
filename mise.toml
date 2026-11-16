@@ -5,6 +5,10 @@
 # because nothing else in the repository pins them. bun is NOT named here —
 # see [settings] below.
 
+# ──────────────────────────────────────────────────────────────────────────────
+# SETTINGS
+# ──────────────────────────────────────────────────────────────────────────────
+
 # mise.toml
 monorepo_root = true
 
@@ -25,15 +29,106 @@ just = "1.59.0"
 idiomatic_version_file_enable_tools = ["bun"]
 experimental = true
 
+# ──────────────────────────────────────────────────────────────────────────────
+# DEPENDENCIES
+# ──────────────────────────────────────────────────────────────────────────────
+
 [deps.bun]
 auto = true
 run = "bun install --frozen-lockfile"
 
 [hooks]
-enter = "mise install --quiet --monorepo"
+enter = [
+  "mise install --quiet --monorepo",
+  "mise deps install --quiet --monorepo",
+]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ENVVARS
+# ──────────────────────────────────────────────────────────────────────────────
 
 [env]
-# --- Mode (both REQUIRED) ---------------------------------------------------
+# --- Mode (both REQUIRED) -----------------------------------------------------
 # 'cicd' | 'localhost' | 'development' | 'test' | 'staging' | 'production'
 NODE_ENV = { default = "localhost" }
 MODE = { default = "{{ env.NODE_ENV }}" }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TASKS
+# ──────────────────────────────────────────────────────────────────────────────
+
+# --- TESTS --------------------------------------------------------------------
+
+# Runs backend tests
+[tasks."test:be"]
+env = { BUNTAP_REPORTER = "nyan" }
+usage = 'flag "--coverage" help="collect coverage"'
+run = 'bunx bunt lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
+
+# Runs frontend tests
+[tasks."test:fe"]
+env = { BUNTAP_REPORTER = "nyan" }
+usage = 'flag "--coverage" help="collect coverage"'
+run = 'bunx bunt apps/visualizer {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
+
+# Runs all the tests
+[tasks.test]
+env = { BUNTAP_REPORTER = "nyan" }
+usage = 'flag "--coverage" help="collect coverage"'
+run = 'bunx bunt apps/visualizer lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
+
+# Runs the tests with coverage for both backend and frontend
+# Enahances the coverage output via buntap, so the agent receives what it needs
+# to improve coverage without receiving all the noise from standard coverage reports
+[tasks."test:agent"]
+env = { RUN_INTEGRATION_TESTS = "true", CLAUDECODE = "1" }
+run = "bunx bunt apps/visualizer lib runtime scripts --coverage --parallel | bunx buntap --agent --no-color"
+
+# CI tests use buntap instead of bunt/buntap
+[tasks."test:raw"]
+env = { RUN_INTEGRATION_TESTS = "true", CLAUDECODE = "1" }
+run = "bun test apps/visualizer lib runtime scripts --coverage --parallel"
+
+# --- BUILD --------------------------------------------------------------------
+
+[tasks.build]
+run = "bun run --cwd apps/visualizer build"
+
+# --- LINTING ------------------------------------------------------------------
+
+# Lints the project files
+# Add `--fix` to automatically fix linting issues
+[tasks.lint]
+run = "bunx biome check apps lib runtime scripts templates"
+
+# --- TYPECHECK ----------------------------------------------------------------
+
+[tasks."typecheck:runtime"]
+run = "bun x tsc --noEmit -p runtime"
+
+[tasks."typecheck:harness"]
+run = "bun scripts/typecheck-harness.ts"
+
+[tasks."typecheck:visualizer"]
+run = "bun x tsc --noEmit -p apps/visualizer"
+
+[tasks.typecheck]
+run = [
+  { task = "typecheck:runtime" },
+  { task = "typecheck:harness" },
+  { task = "typecheck:visualizer" }
+]
+
+# --- CHECK --------------------------------------------------------------------
+
+[tasks."check:install"]
+run = "bun scripts/check-install.ts"
+
+[tasks.check]
+run = [
+  { task = "lint" },
+  { task = "typecheck" },
+  { task = "test:agent" },
+  { task = "build" },
+  { task = "check:install" }
+]
