@@ -41,7 +41,7 @@ import {
   type TPendingConsult,
 } from '@/domains/narration'
 import { RunControls } from '@/domains/run-controls'
-import { DetailSection, StatChip, StatusChip } from '@/lib/_components'
+import { DetailSection, Prose, StatChip, StatusChip } from '@/lib/_components'
 import { cx } from '@/lib/cx'
 import { fmtClock, payloadOk, ts } from '@/lib/format'
 import { highlightJson, highlightJsonText } from '@/lib/markdown'
@@ -759,13 +759,7 @@ export const ActivityRunDetail = ({
                         {rawView.has(panel.id) ? (
                           <pre className={styles.promptRaw}>{panel.text}</pre>
                         ) : (
-                          // Safe: renderMarkdown escapes ALL input before
-                          // emitting its own tags.
-                          <div
-                            className="md"
-                            // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown escapes its input
-                            dangerouslySetInnerHTML={{ __html: panel.html }}
-                          />
+                          <Prose html={panel.html} variant="default" />
                         )}
                       </div>
                     )}

@@ -48,6 +48,7 @@ const COLOR_UTILITIES = {
   green: 'text-green bg-green border-green',
   red: 'text-red bg-red border-red',
   blue: 'text-blue bg-blue border-blue',
+  'on-blue': 'text-on-blue bg-on-blue border-on-blue',
   amber: 'text-amber bg-amber border-amber',
   purple: 'text-purple bg-purple border-purple',
   cyan: 'text-cyan bg-cyan border-cyan',
@@ -114,7 +115,7 @@ ${COLOR_PROBES}
 </section>
 <button id="utility-control" class="font-sans">Utility control</button>
 ${THEME_PROBES}
-<div class="md">
+<div id="rendered-prose">
   <h1>Heading</h1>
   <ul><li>Bullet</li></ul>
   <ol><li>Number</li></ol>
@@ -134,9 +135,43 @@ ${THEME_PROBES}
 <script type="module">
 import '/src/style.css'
 import { applyCustomThemes, applyTheme } from '/src/domains/themes/index.ts'
-import { DetailSection, StatusChip } from '/src/lib/_components/index.ts'
-import narration from '/src/domains/narration/src/_components/NarrationPane.module.css'
-import decision from '/src/domains/decisions/src/_components/DecisionRequest.module.css'
+import { DetailSection, Prose, StatusChip } from '/src/lib/_components/index.ts'
+import { NarrationPane } from '/src/domains/narration/index.ts'
+import { DecisionLedger, DecisionRequest } from '/src/domains/decisions/index.ts'
+import { renderMarkdown } from '/src/lib/markdown/index.ts'
+import { createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import { renderToStaticMarkup } from 'react-dom/server'
+const narrationProps = {
+  events: [], agent: 'builder', activityRunStatus: 'success', runId: 'fixture', runStatus: 'success',
+  consults: [{ at: '2026-01-01', question: 'Question ' + 'long'.repeat(100), mode: 'consult', answer: '\\x60\\x60\\x60json\\n{"ok":true}\\n\\x60\\x60\\x60', amended: ['answer'], restored: ['other'] }],
+  pending: { mode: 'consult', question: 'Still waiting' },
+  envelope: { payload_json: JSON.stringify({ summary: 'Its final answer' }) },
+}
+const narration = document.createElement('div')
+narration.innerHTML = renderToStaticMarkup(createElement(NarrationPane, narrationProps))
+if (location.search === '?surfaces') {
+  const surface = document.createElement('main')
+  surface.id = 'migration-surfaces'
+  surface.className = '@container min-w-0'
+  document.body.append(surface)
+  const prose = '# Waiting for you\\n\\nParagraph with **emphasis** and \\x60inline code\\x60.\\n\\n## More\\n\\n### Details\\n\\n#### Small heading\\n\\n- Bullet\\n\\n1. Number\\n\\n> Quoted\\n\\n---\\n\\n\\x60\\x60\\x60json\\n{"long":"' + 'long'.repeat(100) + '"}\\n\\x60\\x60\\x60\\n\\n| First | Second |\\n| --- | --- |\\n| One | Two |\\n| Three | Four |'
+  const wrap = (id, component) => createElement('div', { id, key: id }, component)
+  createRoot(surface).render(createElement('div', {}, [
+    wrap('narration-surface', createElement(NarrationPane, narrationProps)),
+    wrap('failed-narration', createElement(NarrationPane, { ...narrationProps, activityRunStatus: 'fail' })),
+    wrap('ledger-surface', createElement(DecisionLedger, { ledger: {
+      total: 5,
+      questions: ['escalated', 'open', 'decided'].map(outcome => ({ outcome, question: outcome + ' question', provisional_answer: outcome === 'open' ? '' : 'A defensible answer', consequential: true, beyond_this_run: true })),
+      decisions: [{ decision: 'Decision', rationale: 'Evidence' }],
+      assumptions: [{ assumption: 'Assumption', invalidated_by: 'Counterexample' }],
+    } })),
+    wrap('inline-request', createElement(DecisionRequest, { runId: 'fixture', status: 'waiting' })),
+    wrap('standalone-request', createElement(DecisionRequest, { runId: 'fixture', status: 'waiting', standalone: true })),
+    wrap('default-prose', createElement(Prose, { html: renderMarkdown(prose) })),
+    wrap('compact-prose', createElement(Prose, { html: renderMarkdown(prose), variant: 'compact' })),
+  ]))
+}
 applyCustomThemes(document, [${JSON.stringify(registeredTheme)}])
 applyTheme(document.documentElement, 'dark', window.matchMedia)
 document.getElementById('theme-choice').addEventListener('change', (event) => {
@@ -150,8 +185,9 @@ const classes = {
   'detail-section-body': [detailSection.props.children[1].props.className],
   spinner: [runningChip.props.className],
   'spinner-icon': [runningChip.props.children[0].props.className],
-  'narration-radius-code': [narration.code],
-  'decision-radius-body': [decision.body],
+  'narration-radius-code': [narration.querySelector('pre').className],
+  'decision-radius-body': [Prose({ html: '', variant: 'compact' }).props.className],
+  'rendered-prose': [Prose({ html: '', variant: 'default' }).props.className],
 }
 for (const [id, names] of Object.entries(classes)) {
   document.getElementById(id).className = names.join(' ')
@@ -160,7 +196,10 @@ document.documentElement.setAttribute('data-ready', 'true')
 </script>
 </body></html>`
 
-const withStyles = async (check: (page: Page) => Promise<void>) => {
+const withStyles = async (
+  check: (page: Page) => Promise<void>,
+  surfaces = false,
+) => {
   const { server, base } = await startHarnessServer()
   try {
     const browser = await chromium.launch()
@@ -175,11 +214,37 @@ const withStyles = async (check: (page: Page) => Promise<void>) => {
       // Leave time for browser/server teardown before Bun's test timeout.
       page.setDefaultTimeout(8_000)
       page.setDefaultNavigationTimeout(8_000)
-      await page.route('**/__styles__/index.html', (route) =>
-        route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+      await page.route('**/api/**', (route) =>
+        route.fulfill({
+          json: {
+            present: true,
+            markdown: '# Waiting for you\n\nPlease decide.\n\n- One\n- Two',
+          },
+        }),
       )
-      await page.goto(`${base}/__styles__/index.html`)
+      await page.route(
+        /\/__styles__\/index\.html(?:\?surfaces)?$/,
+        async (route) =>
+          route.fulfill({
+            contentType: 'text/html',
+            body: await server.transformIndexHtml(
+              '/__styles__/index.html',
+              HARNESS_HTML,
+            ),
+          }),
+      )
+      await page.goto(
+        `${base}/__styles__/index.html${surfaces ? '?surfaces' : ''}`,
+      )
       await page.waitForSelector('[data-ready="true"]')
+      if (surfaces) {
+        await page.locator('#standalone-request section').waitFor()
+        await page
+          .locator('body > :not(#migration-surfaces):not(#theme-choice)')
+          .evaluateAll((elements) => {
+            for (const element of elements) element.remove()
+          })
+      }
       await check(page)
     } finally {
       await browser.close()
@@ -315,9 +380,9 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
         // then
         expect(radii).toEqual({
           'legacy-radius': legacySmall,
-          'narration-radius-code': ['0px', '3px', '3px', '0px'],
-          'decision-radius-code': legacySmall,
-          'decision-radius-pre': legacySmall,
+          'narration-radius-code': ['0px', '4px', '4px', '0px'],
+          'decision-radius-code': utilitySmall,
+          'decision-radius-pre': utilitySmall,
           'legacy-radius-four': utilitySmall,
           'utility-radius-small': utilitySmall,
           'utility-radius-top': ['4px', '4px', '0px', '0px'],
@@ -363,6 +428,231 @@ test.skipIf(!hasChromium)(
   },
   20_000,
 )
+
+for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
+  test.skipIf(!hasChromium)(
+    [
+      `given narration, decisions and both Prose variants under ${theme}`,
+      'when the real components render across the named viewport tiers',
+      'it should preserve semantic colours, reading faces, grouping and markdown without horizontal overflow',
+    ].join(', '),
+    async () => {
+      // given
+      await withStyles(async (page) => {
+        await page.emulateMedia({ colorScheme: 'light' })
+        await page.selectOption('#theme-choice', theme)
+
+        // when
+        const appearance = await page.evaluate(() => {
+          const canvas = document.createElement('canvas').getContext('2d')
+          if (!canvas) throw new Error('Missing colour normalization canvas')
+          const rgba = (value: string) => {
+            canvas.clearRect(0, 0, 1, 1)
+            // biome-ignore lint/plugin/no-object-mutation: the browser canvas exposes colour normalization through a setter.
+            canvas.fillStyle = value
+            canvas.fillRect(0, 0, 1, 1)
+            const pixels = canvas.getImageData(0, 0, 1, 1).data
+            return Array.from(pixels, (channel, index) =>
+              index < 3
+                ? Math.round((channel * (pixels[3] ?? 0)) / 255)
+                : channel,
+            )
+          }
+          const cases = [
+            [
+              '#narration-surface article',
+              'background-color',
+              'background:var(--blue)',
+            ],
+            ['#narration-surface article', 'color', 'color:var(--on-blue)'],
+            [
+              '#narration-surface article',
+              'font-family',
+              'font-family:var(--card-sans)',
+            ],
+            [
+              '#narration-surface article > span',
+              'font-family',
+              'font-family:var(--mono)',
+            ],
+            [
+              '#narration-surface pre',
+              'background-color',
+              'background:transparent',
+            ],
+            [
+              '#narration-surface pre',
+              'font-family',
+              'font-family:var(--mono)',
+            ],
+            ['#narration-surface pre code', 'font-size', 'font:inherit'],
+            [
+              '#narration-surface [class*="border-l-ok"]',
+              'background-color',
+              'background:rgb(var(--ok-rgb)/.07)',
+            ],
+            [
+              '#failed-narration [class*="border-l-fail"]',
+              'background-color',
+              'background:rgb(var(--fail-rgb)/.07)',
+            ],
+            [
+              '#ledger-surface article',
+              'background-color',
+              'background:rgb(var(--waiting-rgb)/.07)',
+            ],
+            [
+              '#ledger-surface article',
+              'border-left-color',
+              'border-left:3px solid var(--waiting)',
+            ],
+            [
+              '#ledger-surface article > header > span',
+              'color',
+              'color:var(--waiting)',
+            ],
+            [
+              '#ledger-surface section:first-child article:nth-of-type(2)',
+              'border-left-color',
+              'border-left:3px solid var(--warn)',
+            ],
+            [
+              '#ledger-surface section:first-child article:nth-of-type(3)',
+              'border-left-color',
+              'border-left:3px solid rgb(var(--ok-rgb)/.7)',
+            ],
+            [
+              '#inline-request section',
+              'background-color',
+              'background:transparent',
+            ],
+            [
+              '#inline-request section',
+              'border-left-color',
+              'border-left:3px solid var(--waiting)',
+            ],
+            ['#inline-request h1', 'color', 'color:var(--waiting)'],
+            ['#standalone-request h1', 'color', 'color:var(--waiting)'],
+            [
+              '#default-prose > div',
+              'font-family',
+              'font-family:var(--card-sans)',
+            ],
+            ['#default-prose > div', 'color', 'color:var(--text)'],
+            ['#default-prose h1', 'font-weight', 'font-weight:bold'],
+            ['#default-prose blockquote', 'color', 'color:var(--dim)'],
+            [
+              '#default-prose pre',
+              'background-color',
+              'background:var(--panel-3)',
+            ],
+            ['#default-prose pre', 'white-space', 'white-space:pre'],
+            [
+              '#default-prose pre code',
+              'background-color',
+              'background:transparent',
+            ],
+            [
+              '#compact-prose > div',
+              'font-family',
+              'font-family:var(--card-sans)',
+            ],
+            ['#compact-prose > div', 'color', 'color:var(--text)'],
+            ['#compact-prose h1', 'color', 'color:var(--waiting)'],
+            [
+              '#compact-prose pre',
+              'background-color',
+              'background:transparent',
+            ],
+            ['#compact-prose blockquote', 'color', 'color:var(--text)'],
+            [
+              '#default-prose th',
+              'background-color',
+              'background:var(--table-head)',
+            ],
+            [
+              '#compact-prose th',
+              'background-color',
+              'background:var(--table-head)',
+            ],
+            [
+              '#default-prose tbody tr:nth-child(even)',
+              'background-color',
+              'background:var(--zebra)',
+            ],
+            [
+              '#compact-prose tbody tr:nth-child(even)',
+              'background-color',
+              'background:var(--zebra)',
+            ],
+          ]
+          return cases.flatMap(([selector, property, css]) => {
+            if (!(selector && property && css))
+              throw new Error('Incomplete appearance case')
+            const element = document.querySelector(selector)
+            if (!element)
+              throw new Error(`Missing migrated element: ${selector}`)
+            const reference = document.createElement(element.tagName)
+            reference.setAttribute('style', css)
+            element.after(reference)
+            try {
+              const actual =
+                getComputedStyle(element).getPropertyValue(property)
+              const expected =
+                getComputedStyle(reference).getPropertyValue(property)
+              const matches = property.endsWith('color')
+                ? rgba(actual).every(
+                    (channel, index) =>
+                      Math.abs(channel - (rgba(expected)[index] ?? -255)) <= 1,
+                  )
+                : actual === expected
+              return matches ? [] : [{ selector, property, actual, expected }]
+            } finally {
+              reference.remove()
+            }
+          })
+        })
+
+        // then
+        expect(appearance).toEqual([])
+        const sizes = await page
+          .locator('#default-prose > div, #compact-prose > div')
+          .evaluateAll((elements) =>
+            elements.map((element) =>
+              Number.parseFloat(getComputedStyle(element).fontSize),
+            ),
+          )
+        expect(sizes).toEqual([16, 14])
+        for (const tier of Object.keys(
+          viewportWidths,
+        ) as (keyof typeof viewportWidths)[]) {
+          await page.setViewportSize({
+            width: viewportWidths[tier],
+            height: devices['iPhone SE'].viewport.height,
+          })
+          const geometry = await page.evaluate(() => ({
+            width: document.documentElement.scrollWidth,
+            available: document.documentElement.clientWidth,
+          }))
+          expect(geometry.width, `${theme}: ${tier}`).toBeLessThanOrEqual(
+            geometry.available,
+          )
+        }
+        for (const id of ['default-prose', 'compact-prose']) {
+          const markers = await page
+            .locator(`#${id} ul, #${id} ol`)
+            .evaluateAll((elements) =>
+              elements.map(
+                (element) => getComputedStyle(element).listStyleType,
+              ),
+            )
+          expect(markers).toEqual(['disc', 'decimal'])
+        }
+      }, true)
+    },
+    30_000,
+  )
+}
 
 const fontCases = [
   {
@@ -583,12 +873,12 @@ test.skipIf(!hasChromium)(
     await withStyles(async (page) => {
       // when
       const markers = await page
-        .locator('.md ul, .md ol, #preflight-list')
+        .locator('#rendered-prose ul, #rendered-prose ol, #preflight-list')
         .evaluateAll((elements) =>
           elements.map((element) => getComputedStyle(element).listStyleType),
         )
       const headingWeight = await page
-        .locator('.md h1')
+        .locator('#rendered-prose h1')
         .evaluate((element) => getComputedStyle(element).fontWeight)
       const animations = await page
         .locator('[data-animation]')

@@ -34,7 +34,7 @@ const tones = {
 } as const
 ```
 
-A component is either fully authored with utilities or fully authored with its stylesheet, never both. Migrate a component as a unit rather than retaining a stylesheet for selected declarations. Global theme tokens, keyframes and rendered-prose rules remain shared styling infrastructure.
+A component is either fully authored with utilities or fully authored with its stylesheet, never both. Migrate a component as a unit rather than retaining a stylesheet for selected declarations. Global theme tokens and keyframes remain shared styling infrastructure. Rendered markdown is styled by one shared component written with Tailwind descendant variants on its root element, rather than global rendered-prose rules.
 
 Application-owned keyframes are global and uniquely named with an application-specific prefix. CSS Modules must reference them with `global(...)` so the compiler does not rewrite a reference to a local name with no matching keyframes. Do not use Tailwind's `animate-pulse` or `animate-spin` utilities; their framework-owned keyframe names must not select an application animation accidentally.
 
