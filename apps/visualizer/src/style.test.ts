@@ -102,13 +102,11 @@ ${NATIVE_HTML}
 </div>
 ${COLOR_PROBES}
 <section id="radius-probes">
-  <span id="legacy-radius" data-radius style="border-radius:var(--radius-sm, 3px)">Legacy fallback</span>
   <pre id="narration-radius-code" data-radius>Code</pre>
   <div id="decision-radius-body">
     <code id="decision-radius-code" data-radius>Code</code>
     <pre id="decision-radius-pre" data-radius>Code block</pre>
   </div>
-  <span id="legacy-radius-four" data-radius style="border-radius:var(--radius-sm, 4px)">Other fallback</span>
   <span id="utility-radius-small" data-radius class="rounded-sm">Small utility</span>
   <span id="utility-radius-top" data-radius class="rounded-t-sm">Top utility</span>
   <span id="utility-radius-medium" data-radius class="rounded-md">Medium utility</span>
@@ -349,14 +347,13 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
 
   test.skipIf(!hasChromium)(
     [
-      `given legacy radius fallbacks under the ${theme} theme`,
-      'when CSS Modules render beside Tailwind radius utilities at the xl tier',
-      'it should preserve per-declaration fallbacks and the default utility scale',
+      `given Tailwind radius utilities under the ${theme} theme`,
+      'when they render beside migrated prose at the xl tier',
+      'it should use the default utility radius scale',
     ].join(', '),
     async () => {
-      // given — requirement 1.7.2 includes both existing small-radius fallbacks
+      // given — utility and prose radii no longer need CSS Module compatibility.
       await withStyles(async (page) => {
-        const legacySmall = ['3px', '3px', '3px', '3px']
         const utilitySmall = ['4px', '4px', '4px', '4px']
         await page.emulateMedia({ colorScheme: 'light' })
         await page.selectOption('#theme-choice', theme)
@@ -383,11 +380,9 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
 
         // then
         expect(radii).toEqual({
-          'legacy-radius': legacySmall,
           'narration-radius-code': ['0px', '4px', '4px', '0px'],
           'decision-radius-code': utilitySmall,
           'decision-radius-pre': utilitySmall,
-          'legacy-radius-four': utilitySmall,
           'utility-radius-small': utilitySmall,
           'utility-radius-top': ['4px', '4px', '0px', '0px'],
           'utility-radius-medium': ['6px', '6px', '6px', '6px'],
