@@ -71,6 +71,48 @@ const checkPrompt = (
   }
 }
 
+for (const { name, text, exitCode, rule } of [
+  {
+    name: 'missing Task',
+    text: withReport('```json\n{}\n```').replace('## Task\n\n', ''),
+    exitCode: 1,
+    rule: 'missing-section',
+  },
+  {
+    name: 'missing JSON example',
+    text: withReport('Return JSON.'),
+    exitCode: 1,
+    rule: 'no-report-schema',
+  },
+  {
+    name: 'all required sections and JSON',
+    text: withReport('```json\n{}\n```'),
+    exitCode: 0,
+    rule: '',
+  },
+]) {
+  test(
+    [
+      `given revise.md with ${name}`,
+      'when the prompt checker runs',
+      'it should enforce the user-prompt contract',
+    ].join(', '),
+    () => {
+      // given
+      const relativePath = 'runtime/prompt-engineering/build/revise.md'
+
+      // when
+      const actual = checkPrompt(text, { relativePath })
+
+      // then
+      expect(actual.exitCode).toBe(exitCode)
+      if (rule === '') expect(actual.stdout).toContain('violations=0')
+      else expect(actual.stdout).toContain(`[${rule}]`)
+      expect(actual.stderr).toBe('')
+    },
+  )
+}
+
 for (const extension of [
   'ts',
   'tsx',

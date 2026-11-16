@@ -172,6 +172,8 @@ export type TActivityOptions = Readonly<{
    * way nobody reading the registry could predict.
    */
   committing: boolean
+  /** the review findings this call site sends the Activity back to answer; [] everywhere but the revise loop */
+  blockingFindings: readonly string[]
 }>
 
 export const DEFAULT_ACTIVITY_OPTIONS: TActivityOptions = {
@@ -180,6 +182,7 @@ export const DEFAULT_ACTIVITY_OPTIONS: TActivityOptions = {
   base: '',
   instance: 1,
   committing: true,
+  blockingFindings: [],
 }
 
 /** `build`, `build_2`, `build_3` … so a composed chain can repeat a activity. */

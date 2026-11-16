@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type {
   TActivity,
   TActivityContext,
@@ -569,9 +569,10 @@ test(
     )
 
     // then
-    const revisions = renders()
-      .filter((one) => one.path === shippedPrompts('build').user)
-      .slice(1)
+    const revisions = renders().filter(
+      (one) =>
+        one.path === join(dirname(shippedPrompts('build').user), 'revise.md'),
+    )
     const prompts = requests()
       .filter((one) => one.model === 'fixture/build')
       .slice(1)

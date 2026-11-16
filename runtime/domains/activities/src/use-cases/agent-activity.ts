@@ -159,6 +159,7 @@ export const agentActivity = (
           upstream: ctx.upstream,
           cohort: ctx.cohort,
           feedback: ctx.feedback,
+          blockingFindings: options.blockingFindings,
           committing: config.commit && options.committing,
           ...(changedPaths === undefined ? {} : { changedPaths }),
           ...(envelopeJudges(spec) && options.base !== ''

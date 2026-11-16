@@ -11,7 +11,7 @@ import {
 } from '../../../../lib/contracts'
 import { isFile } from '../../../../lib/system'
 import { registryFaults } from '../../../activities'
-import { resolvePromptPath } from '../../../agents'
+import { resolvePromptPath, revisePromptReference } from '../../../agents'
 import { loadLifecycles } from '../../../planning'
 
 /*
@@ -65,6 +65,37 @@ const shippedConfig = (): TPiCrustConfig => {
       ...registry.terminal,
     ],
   })
+}
+
+for (const [name, directory] of [
+  ['build', 'build'],
+  ['test', 'test'],
+  ['test-tdd', 'test'],
+  ['plan', 'plan'],
+]) {
+  test(
+    [
+      `given the shipped ${name} Activity`,
+      'when resolving its revise prompt without a configuration key',
+      'it should select the shipped revise file beside user',
+    ].join(', '),
+    () => {
+      // given
+      const activity = shippedConfig().activities.find(
+        (one) => one.name === name,
+      )
+      if (activity === undefined)
+        throw new Error(`missing shipped Activity ${name}`)
+
+      // when
+      const reference = revisePromptReference(activity.prompt_engineering)
+
+      // then
+      expect(activity.prompt_engineering.revise).toBeUndefined()
+      expect(reference).toBe(`prompt-engineering/${directory}/revise.md`)
+      expect(isFile(resolvePromptPath(reference))).toBe(true)
+    },
+  )
 }
 
 /**

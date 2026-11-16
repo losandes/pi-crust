@@ -129,10 +129,11 @@ for (const status of ['success', 'fail'] as const) {
         .filter((one) => one.model === 'fixture/build')
         .at(-1)
       // The rendered variables come first; the round's findings are appended
-      // after them as the feedback block.
+      // after them as the review findings block.
       const [rendered = '{}', feedback = ''] = (restarted?.prompt ?? '').split(
-        '\n\n## What failed last time',
+        '\n\n## Blocking findings from review',
       )
+      expect(restarted?.prompt).not.toContain('## What failed last time')
       const variables = JSON.parse(rendered)
       const input = contextEnvelopeSchema.parse(
         JSON.parse(variables.previous_envelope ?? '{}'),

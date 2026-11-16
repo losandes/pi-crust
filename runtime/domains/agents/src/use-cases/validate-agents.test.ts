@@ -1,4 +1,7 @@
 import { expect, test } from 'bun:test'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TPiCrustConfig } from '../../../../lib/contracts'
 import { crustConfigSchema } from '../../../../lib/contracts'
 import { validateAgents } from './validate-agents'
@@ -33,6 +36,54 @@ const configWith = (
       ...agent,
     })),
   })
+
+for (const revise of ['missing', 'directory', 'present', 'absent'] as const) {
+  test(
+    [
+      `given an agent with a ${revise} revise prompt`,
+      'when validating its prompt references',
+      'it should require only an explicitly configured revise file',
+    ].join(', '),
+    () => {
+      // given
+      const root = mkdtempSync(join(tmpdir(), 'crust-validate-revise-'))
+      try {
+        const user = join(root, 'user.md')
+        const reference =
+          revise === 'directory' ? root : join(root, 'revise.md')
+        writeFileSync(user, 'user', { flag: 'wx' })
+        if (revise === 'present')
+          writeFileSync(reference, 'revise', { flag: 'wx' })
+        const cfg = configWith([
+          {
+            name: 'build',
+            prompt_engineering: {
+              system: user,
+              user,
+              ...(revise === 'absent' ? {} : { revise: reference }),
+            },
+          },
+        ])
+        const validate = () =>
+          validateAgents(cfg, ['build'], () => ({
+            provider: 'test',
+            modelId: 'test',
+          }))
+
+        // when, then
+        if (revise === 'missing' || revise === 'directory') {
+          expect(validate).toThrow(
+            `agent 'build': revise prompt not found: ${reference} (looked in ${reference})`,
+          )
+        } else {
+          expect(validate).not.toThrow()
+        }
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 const problemsFrom = (
   cfg: TPiCrustConfig,

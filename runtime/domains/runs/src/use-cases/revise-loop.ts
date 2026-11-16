@@ -529,7 +529,7 @@ export const runReviseLoop = (
     }
     const revising = reviseActivity(
       reviser,
-      params.options,
+      { ...params.options, blockingFindings: blocking },
       params.agentPorts,
       name,
     )
@@ -558,11 +558,10 @@ export const runReviseLoop = (
       start: {
         ...state.ctx,
         /*
-         * The findings travel in the prompt, the way a gate's violations do.
-         * Without them the round is the first attempt again, at the same
-         * price and with the same result.
+         * Findings travel in the reviser's options. Feedback carries gate
+         * violations only, so a revise round selects its own prompt.
          */
-        feedback: blocking,
+        feedback: [],
       },
       ledger,
       cause: reviseCause(attempt),

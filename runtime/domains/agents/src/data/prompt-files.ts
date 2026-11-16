@@ -16,7 +16,8 @@
 import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ensureDir, readText, writeText } from '../../../../lib/system'
+import type { TPromptEngineering } from '../../../../lib/contracts'
+import { ensureDir, isFile, readText, writeText } from '../../../../lib/system'
 
 /** The runtime directory inside the pi-crust package. */
 const packageRoot = (): string =>
@@ -49,6 +50,12 @@ export const resolveReference = (reference: string): string => {
 
 /** The prompt-shaped name for the same resolution. */
 export const resolvePromptPath = resolveReference
+
+export const revisePromptReference = (prompts: TPromptEngineering): string => {
+  if (prompts.revise !== undefined) return prompts.revise
+  const besideUser = join(dirname(prompts.user), 'revise.md')
+  return isFile(resolveReference(besideUser)) ? besideUser : prompts.user
+}
 
 export const render = (
   templatePath: string,

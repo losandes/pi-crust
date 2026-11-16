@@ -109,6 +109,8 @@ export type TAgentCall<TEnvelope extends TEnvelopeBase = TEnvelopeBase> =
      * attempt knows what the first got wrong.
      */
     feedback?: readonly string[]
+    /** the review findings this call answers; [] outside a revise round */
+    blockingFindings: readonly string[]
     /**
      * Whether this Activity is going to have its change committed.
      *

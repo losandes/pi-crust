@@ -67,6 +67,7 @@ const ENVELOPE_SOURCE = 'runtime/lib/contracts/src/envelope.ts'
 const REQUIRED_SECTIONS: Readonly<Record<string, readonly string[]>> = {
   'system.md': ['## Purpose'],
   'user.md': ['## Variables', '## Intake', '## Task', '## Report'],
+  'revise.md': ['## Variables', '## Intake', '## Task', '## Report'],
 }
 
 /**
@@ -270,7 +271,9 @@ const structuralFindings = (
 
   const reportIndex = text.indexOf('\n## Report')
   const reportFindings: readonly Finding[] =
-    isScaffold || basename !== 'user.md' || reportIndex === -1
+    isScaffold ||
+    (basename !== 'user.md' && basename !== 'revise.md') ||
+    reportIndex === -1
       ? []
       : text.slice(reportIndex).includes('```json')
         ? []
