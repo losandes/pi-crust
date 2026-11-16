@@ -1,12 +1,13 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
   buildProductionCss,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
-  startHarnessServer,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const HARNESS_HTML = `<!doctype html>
@@ -64,19 +65,21 @@ document.documentElement.setAttribute('data-ready', 'true')
 // omitted by the production scanner (issue #86, requirements 1.2.2–1.2.3).
 const productionCss = browserTestsEnabled ? await buildProductionCss() : ''
 
-const withComponents = async (check: (page: Page) => Promise<void>) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await launchChromium()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths.xl,
-          height: phoneViewport.height,
-        },
-        colorScheme: 'dark',
-        reducedMotion: 'no-preference',
-      })
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withComponents = (check: (page: Page) => Promise<void>) => {
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths.xl,
+        height: phoneViewport.height,
+      },
+      colorScheme: 'dark',
+      reducedMotion: 'no-preference',
+    },
+    async (page, { server, base }) => {
       // Only frontend modules run; no request can reach the observe API or DB.
       await page.route('**/api/**', (route) => route.abort())
       await page.route('**/__shared__/index.html', async (route) =>
@@ -98,12 +101,8 @@ const withComponents = async (check: (page: Page) => Promise<void>) => {
       expect(productionCss).not.toBe('')
       await page.addStyleTag({ content: productionCss })
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 test.skipIf(!browserTestsEnabled)(

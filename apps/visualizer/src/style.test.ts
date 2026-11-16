@@ -1,14 +1,15 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
   buildProductionCss,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
   settleTransitions,
-  startHarnessServer,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const registeredTheme = {
@@ -167,22 +168,20 @@ document.documentElement.setAttribute('data-ready', 'true')
 </script>
 </body></html>`
 
-const withStyles = async (
-  check: (page: Page) => Promise<void>,
-  surfaces = false,
-) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await launchChromium()
-    try {
-      const context = await browser.newContext({
-        viewport: {
-          width: viewportWidths.xl,
-          height: phoneViewport.height,
-        },
-      })
-      const page = await context.newPage()
-      // Leave time for browser/server teardown before Bun's test timeout.
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withStyles = (check: (page: Page) => Promise<void>, surfaces = false) => {
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths.xl,
+        height: phoneViewport.height,
+      },
+    },
+    async (page, { server, base }) => {
+      // Leave time for context teardown before Bun's test timeout.
       page.setDefaultTimeout(8_000)
       page.setDefaultNavigationTimeout(8_000)
       await page.route('**/api/**', (route) =>
@@ -217,12 +216,8 @@ const withStyles = async (
           })
       }
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const readColorProbes = (page: Page) =>
@@ -783,90 +778,91 @@ test.skipIf(!browserTestsEnabled)(
     // given — requirements 1.1.2–1.1.4, 1.3.1–1.3.3 and target state 2.1
     const css = await buildProductionCss()
     expect(css).not.toBe('')
-    const browser = await launchChromium()
-    try {
-      const page = await browser.newPage({
+    await withSuitePage(suite)(
+      {
         viewport: {
           width: viewportWidths.xl,
           height: phoneViewport.height,
         },
-      })
-      // No development server or stylesheet can mask a production-build gap.
-      await page.setContent(`<!doctype html>
+      },
+      async (page) => {
+        // No development server or stylesheet can mask a production-build gap.
+        await page.setContent(`<!doctype html>
 <html data-theme="dark"><body>${COLOR_PROBES}${THEME_PROBES}</body></html>`)
-      await page.addStyleTag({ content: css })
-      await page.addStyleTag({ content: registeredTheme.css })
-      const dark = await readColorProbes(page)
+        await page.addStyleTag({ content: css })
+        await page.addStyleTag({ content: registeredTheme.css })
+        const dark = await readColorProbes(page)
 
-      // when
-      await page.locator('html').evaluate((element) => {
-        element.setAttribute('data-theme', 'light')
-      })
-      await settleTransitions(page)
-      const light = await readColorProbes(page)
-      await page.locator('html').evaluate((element) => {
-        element.setAttribute('data-theme', 'high-contrast')
-      })
-      await settleTransitions(page)
-      const registered = await readColorProbes(page)
-      await page.evaluate((cases) => {
-        for (const { selectors, variable, replacement } of cases) {
-          for (const element of document.querySelectorAll(selectors)) {
-            const original = element.getAttribute('style') ?? ''
-            element.setAttribute(
-              'style',
-              `${original};${variable}:var(${replacement})`,
-            )
-          }
-        }
-      }, fontCases)
-      const utility = await page
-        .locator('#utility, #reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => {
-            const style = getComputedStyle(element)
-            return {
-              color: style.color,
-              background: style.backgroundColor,
-              border: style.borderColor,
-              font: style.fontFamily,
+        // when
+        await page.locator('html').evaluate((element) => {
+          element.setAttribute('data-theme', 'light')
+        })
+        await settleTransitions(page)
+        const light = await readColorProbes(page)
+        await page.locator('html').evaluate((element) => {
+          element.setAttribute('data-theme', 'high-contrast')
+        })
+        await settleTransitions(page)
+        const registered = await readColorProbes(page)
+        await page.evaluate((cases) => {
+          for (const { selectors, variable, replacement } of cases) {
+            for (const element of document.querySelectorAll(selectors)) {
+              const original = element.getAttribute('style') ?? ''
+              element.setAttribute(
+                'style',
+                `${original};${variable}:var(${replacement})`,
+              )
             }
-          }),
-        )
-      const scoped = await page
-        .locator('#scoped, #scoped-reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => getComputedStyle(element).color),
-        )
-      const fonts = await page
-        .locator('#card-font, #card-reference, #mono-font, #mono-reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => getComputedStyle(element).fontFamily),
-        )
-      const softFill = await page
-        .locator('#soft-fill, #soft-fill-reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => getComputedStyle(element).backgroundColor),
-        )
+          }
+        }, fontCases)
+        const utility = await page
+          .locator('#utility, #reference')
+          .evaluateAll((elements) =>
+            elements.map((element) => {
+              const style = getComputedStyle(element)
+              return {
+                color: style.color,
+                background: style.backgroundColor,
+                border: style.borderColor,
+                font: style.fontFamily,
+              }
+            }),
+          )
+        const scoped = await page
+          .locator('#scoped, #scoped-reference')
+          .evaluateAll((elements) =>
+            elements.map((element) => getComputedStyle(element).color),
+          )
+        const fonts = await page
+          .locator('#card-font, #card-reference, #mono-font, #mono-reference')
+          .evaluateAll((elements) =>
+            elements.map((element) => getComputedStyle(element).fontFamily),
+          )
+        const softFill = await page
+          .locator('#soft-fill, #soft-fill-reference')
+          .evaluateAll((elements) =>
+            elements.map(
+              (element) => getComputedStyle(element).backgroundColor,
+            ),
+          )
 
-      // then
-      expect(dark.actual).toEqual(dark.expected)
-      expect(light.actual).toEqual(light.expected)
-      expect(light.actual).not.toEqual(dark.actual)
-      expect(registered.actual).toEqual(registered.expected)
-      expect(registered.actual).not.toEqual(light.actual)
-      expect(utility).toHaveLength(2)
-      expect(utility[0]).toEqual(utility[1])
-      expect(scoped).toHaveLength(2)
-      expect(scoped[0]).toBe(scoped[1])
-      expect(fonts).toHaveLength(4)
-      expect(fonts[0]).toBe(fonts[1])
-      expect(fonts[2]).toBe(fonts[3])
-      expect(softFill).toHaveLength(2)
-      expect(softFill[0]).toBe(softFill[1])
-    } finally {
-      await browser.close()
-    }
+        // then
+        expect(dark.actual).toEqual(dark.expected)
+        expect(light.actual).toEqual(light.expected)
+        expect(light.actual).not.toEqual(dark.actual)
+        expect(registered.actual).toEqual(registered.expected)
+        expect(registered.actual).not.toEqual(light.actual)
+        expect(utility).toHaveLength(2)
+        expect(utility[0]).toEqual(utility[1])
+        expect(scoped).toHaveLength(2)
+        expect(scoped[0]).toBe(scoped[1])
+        expect(fonts).toHaveLength(4)
+        expect(fonts[0]).toBe(fonts[1])
+        expect(fonts[2]).toBe(fonts[3])
+        expect(softFill).toHaveLength(2)
+        expect(softFill[0]).toBe(softFill[1])
+      },
+    )
   },
   30_000,
 )

@@ -1,12 +1,13 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
-  startHarnessServer,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const HARNESS_HTML = `<!doctype html>
@@ -19,24 +20,26 @@ const TRACE = 'main > div'
 const WATERFALL = `${TRACE} > div:nth-child(2)`
 const RUNNING_BLOCK = 'button[title^="build — running"]'
 
-const withTrace = async (
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withTrace = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
   status = 'waiting',
   state: 'populated' | 'error' | 'empty' | 'loading' = 'populated',
 ) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await launchChromium()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: phoneViewport.height,
-        },
-        colorScheme: 'dark',
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      colorScheme: 'dark',
+      reducedMotion: 'reduce',
+    },
+    async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
       page.setDefaultNavigationTimeout(10_000)
       await page.route('**/api/**', (route) => route.abort())
@@ -73,12 +76,8 @@ const withTrace = async (
       }
       await page.evaluate(() => document.fonts.ready)
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 for (const { tier, columns, below } of [

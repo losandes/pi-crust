@@ -1,14 +1,15 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
   buildProductionCss,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
   settleTransitions,
-  startHarnessServer,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const registeredTheme = {
@@ -48,19 +49,21 @@ flushSync(() => createRoot(document.getElementById('app')).render(
 
 const productionCss = browserTestsEnabled ? await buildProductionCss() : ''
 
-const withShell = async (check: (page: Page) => Promise<void>) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await launchChromium()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths.xl,
-          height: phoneViewport.height,
-        },
-        colorScheme: 'dark',
-        reducedMotion: 'no-preference',
-      })
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withShell = (check: (page: Page) => Promise<void>) => {
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths.xl,
+        height: phoneViewport.height,
+      },
+      colorScheme: 'dark',
+      reducedMotion: 'no-preference',
+    },
+    async (page, { server, base }) => {
       // This harness mounts only the chrome; no observe API or database runs.
       await page.route('**/api/**', (route) => route.abort())
       await page.route('**/api/themes*', (route) =>
@@ -97,12 +100,8 @@ const withShell = async (check: (page: Page) => Promise<void>) => {
       })
       await page.evaluate(() => document.fonts.ready)
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 for (const route of [

@@ -118,9 +118,17 @@ for file in "${FILES[@]}"; do
       "'describe' is forbidden; put the subject in the 'given' line instead"
   done < <(grep -nE '(^|[^.[:alnum:]_])describe[[:space:]]*\(' "$file")
 
+  # One exception, from the record: an afterAll that closes a process the
+  # file started once at module scope, marked by a `// shared-process: <reason>`
+  # comment on the line directly above it. Every other hook is reported.
   while IFS=: read -r lineno match; do
-    [[ -n "${lineno:-}" ]] && report "$rel" "$lineno" "no-lifecycle-hooks" \
-      "lifecycle hooks create shared mutable state; build inputs inside each test"
+    [[ -z "${lineno:-}" ]] && continue
+    if [[ "$match" =~ (^|[^.[:alnum:]_])afterAll[[:space:]]*\( ]] && ((lineno > 1)) &&
+      sed -n "$((lineno - 1))p" "$file" | grep -qE '^[[:space:]]*// shared-process:[[:space:]]*[^[:space:]]'; then
+      continue
+    fi
+    report "$rel" "$lineno" "no-lifecycle-hooks" \
+      "lifecycle hooks create shared mutable state; build inputs inside each test (an afterAll closing a module-scope process needs a '// shared-process: <reason>' line above it)"
   done < <(grep -nE '(^|[^.[:alnum:]_])(beforeEach|afterEach|beforeAll|afterAll)[[:space:]]*\(' "$file")
 
   while IFS=: read -r lineno _; do

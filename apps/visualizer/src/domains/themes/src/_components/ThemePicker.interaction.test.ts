@@ -1,9 +1,10 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
-  launchChromium,
-  startHarnessServer,
+  closeBrowserSuite,
+  openBrowserSuite,
+  withSuitePage,
 } from '@/lib/testing'
 import { THEME_STORAGE_KEY } from '../state/theme-store'
 
@@ -32,7 +33,11 @@ const TWELVE_THEMES = [
   { name: 'mono', label: 'Mono', builtin: false, css: '' },
 ]
 
-const withPage = async (
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withPage = (
   themes: readonly {
     name: string
     label: string
@@ -41,32 +46,22 @@ const withPage = async (
   }[],
   run: (page: Page, base: string) => Promise<void>,
 ) => {
-  // Each call owns its browser and server, keeping teardown inside the
-  // caller's existing 20s budget rather than a separate 5s hook budget.
-  // Fresh browser storage prevents one theme choice leaking into another test.
-  const { server, base } = await startHarnessServer()
-  try {
-    const activeBrowser = await launchChromium()
-    try {
-      const page = await activeBrowser.newPage()
-      await page.route('**/__diag__/index.html', (route) =>
-        route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
-      )
-      await page.route('**/api/themes*', (route) =>
-        route.fulfill({
-          contentType: 'application/json',
-          body: JSON.stringify({ themes }),
-        }),
-      )
-      await page.goto(`${base}/__diag__/index.html`)
-      await page.waitForSelector('#picker button')
-      await run(page, base)
-    } finally {
-      await activeBrowser.close()
-    }
-  } finally {
-    await server.close()
-  }
+  // Each call gets a fresh browser context, so one theme choice in storage
+  // cannot leak into another call.
+  return withSuitePage(suite)({}, async (page, { base }) => {
+    await page.route('**/__diag__/index.html', (route) =>
+      route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+    )
+    await page.route('**/api/themes*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ themes }),
+      }),
+    )
+    await page.goto(`${base}/__diag__/index.html`)
+    await page.waitForSelector('#picker button')
+    await run(page, base)
+  })
 }
 
 test.skipIf(!browserTestsEnabled)(

@@ -1,12 +1,13 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
-  startHarnessServer,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const HARNESS_HTML = `<!doctype html>
@@ -16,24 +17,26 @@ const HARNESS_HTML = `<!doctype html>
 
 const CARDS = 'main a[href*="dashboard-"]'
 
-const withDashboard = async (
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withDashboard = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
   touch = false,
 ) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await launchChromium()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: phoneViewport.height,
-        },
-        hasTouch: touch,
-        colorScheme: 'dark',
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      hasTouch: touch,
+      colorScheme: 'dark',
+      reducedMotion: 'reduce',
+    },
+    async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
       page.setDefaultNavigationTimeout(10_000)
       // The harness supplies fetch; abort anything unexpected before the API proxy.
@@ -59,12 +62,8 @@ const withDashboard = async (
       )
       await page.evaluate(() => document.fonts.ready)
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const afterPaint = (page: Page) =>

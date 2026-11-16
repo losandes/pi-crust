@@ -1,7 +1,14 @@
-export { browserTestsEnabled, launchChromium } from './src/browser'
+export {
+  browserTestsEnabled,
+  closeBrowserSuite,
+  launchChromium,
+  openBrowserSuite,
+  type TBrowserSuite,
+  withSuitePage,
+} from './src/browser'
 export { startHarnessServer } from './src/harness-server'
 export {
-  canLaunch,
+  hasExecutable,
   integrationEnabled,
   integrationTestsEnabled,
 } from './src/integration'

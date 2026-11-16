@@ -1,12 +1,13 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import type { Locator, Page } from 'playwright'
 import {
   browserTestsEnabled,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
-  startHarnessServer,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 /*
@@ -21,22 +22,23 @@ const HARNESS_HTML = `<!doctype html>
 <script type="module" src="/src/domains/sessions/src/_components/__fixtures__/session-card-harness.tsx"></script>
 </body></html>`
 
-const withCards = async <T>(
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withCards = <T>(
   tier: TViewportTier,
   check: (page: Page) => Promise<T>,
 ) => {
-  // Keep browser and server teardown inside each test's existing 20s budget.
-  const { server, base } = await startHarnessServer()
-  try {
-    const activeBrowser = await launchChromium()
-    try {
-      const page = await activeBrowser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: phoneViewport.height,
-        },
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      reducedMotion: 'reduce',
+    },
+    async (page, { base }) => {
       page.setDefaultTimeout(5_000)
       page.setDefaultNavigationTimeout(10_000)
       await page.route('**/api/**', (route) => route.abort())
@@ -48,12 +50,8 @@ const withCards = async <T>(
       await page.waitForSelector('#multi a')
       await page.evaluate(() => document.fonts.ready)
       return await check(page)
-    } finally {
-      await activeBrowser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const statsClipped = (variant: 'single' | 'multi', tier: TViewportTier) =>

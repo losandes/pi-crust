@@ -1,14 +1,15 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
-  launchChromium,
+  closeBrowserSuite,
+  openBrowserSuite,
   phoneViewport,
   settleTransitions,
-  startHarnessServer,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const registeredTheme = {
@@ -74,21 +75,23 @@ function Fixture() {
 createRoot(document.getElementById('root')).render(h(Fixture))
 </script></body></html>`
 
-const withComponents = async (
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withComponents = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
 ) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await launchChromium()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: phoneViewport.height,
-        },
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      reducedMotion: 'reduce',
+    },
+    async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
       // Every API request is intercepted: no live run or database is touched.
       await page.route('**/api/**', (route) =>
@@ -109,12 +112,8 @@ const withComponents = async (
       await page.locator('#artifacts [role="button"]').first().waitFor()
       await page.evaluate(() => document.fonts.ready)
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const selectTheme = async (page: Page, theme: string) => {

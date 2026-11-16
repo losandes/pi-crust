@@ -1,9 +1,9 @@
-import { expect, test } from 'bun:test'
-import type { Browser, BrowserContext, Page } from 'playwright'
+import { afterAll, expect, test } from 'bun:test'
+import type { BrowserContext, Page } from 'playwright'
 import {
   browserTestsEnabled,
-  launchChromium,
-  startHarnessServer,
+  closeBrowserSuite,
+  openBrowserSuite,
 } from '@/lib/testing'
 import type { SessionSummary } from '../typedefs/session'
 
@@ -79,42 +79,41 @@ const ARCHIVED_SESSION: SessionSummary = session({
 
 const ACTION_TIMEOUT_MS = 8_000
 
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
 /**
  * One attempt at mounting the fixture and handing it to `run`, bounded so a
  * hung page fails fast enough for a retry rather than burning the whole
  * test's timeout.
  */
 const attemptPage = async (
-  activeBrowser: Browser,
+  context: BrowserContext,
   base: string,
   run: (page: Page, base: string) => Promise<void>,
 ) => {
-  const context: BrowserContext = await activeBrowser.newContext()
-  try {
-    const page = await context.newPage()
-    page.setDefaultTimeout(ACTION_TIMEOUT_MS)
-    page.setDefaultNavigationTimeout(ACTION_TIMEOUT_MS)
-    await page.route('**/__diag__/index.html', (route) =>
-      route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
-    )
-    // Registered FIRST: Playwright matches the most recently registered route
-    // first, so this catches every other /api/* call (the per-card events
-    // poll) before it reaches a real server that isn't running.
-    await page.route('**/api/**', (route) => route.fulfill({ json: [] }))
-    await page.route('**/api/sessions*', (route) => {
-      const url = new URL(route.request().url())
-      const sessions =
-        url.searchParams.get('include_archived') === '1'
-          ? [...BASE_SESSIONS, ARCHIVED_SESSION]
-          : BASE_SESSIONS
-      return route.fulfill({ json: sessions })
-    })
-    await page.goto(`${base}/__diag__/index.html`)
-    await page.waitForSelector('a[href*="run-1"]')
-    await run(page, base)
-  } finally {
-    await context.close()
-  }
+  const page = await context.newPage()
+  page.setDefaultTimeout(ACTION_TIMEOUT_MS)
+  page.setDefaultNavigationTimeout(ACTION_TIMEOUT_MS)
+  await page.route('**/__diag__/index.html', (route) =>
+    route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+  )
+  // Registered FIRST: Playwright matches the most recently registered route
+  // first, so this catches every other /api/* call (the per-card events
+  // poll) before it reaches a real server that isn't running.
+  await page.route('**/api/**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/sessions*', (route) => {
+    const url = new URL(route.request().url())
+    const sessions =
+      url.searchParams.get('include_archived') === '1'
+        ? [...BASE_SESSIONS, ARCHIVED_SESSION]
+        : BASE_SESSIONS
+    return route.fulfill({ json: sessions })
+  })
+  await page.goto(`${base}/__diag__/index.html`)
+  await page.waitForSelector('a[href*="run-1"]')
+  await run(page, base)
 }
 
 /**
@@ -137,35 +136,33 @@ const withTimeout = <T>(
   ])
 
 /**
- * Each test owns its server and browser, so teardown shares the existing
- * 30s test budget instead of a separate 5s hook budget. Retain one retry
- * with a fresh browser, closing each attempt before starting the next.
+ * The file shares one server and browser; each attempt gets its own context.
+ * Retain one retry with a fresh context, closing each attempt before starting
+ * the next.
  */
 const withPage = async (run: (page: Page, base: string) => Promise<void>) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    let lastError: unknown
-    for (const attempt of [1, 2]) {
-      const activeBrowser = await launchChromium()
-
-      // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung browser into one retry rather than failing the test on resource contention outside this file's control
-      try {
-        await withTimeout(
-          attemptPage(activeBrowser, base, run),
-          12_000,
-          `withPage attempt ${attempt}`,
-        )
-        return
-      } catch (cause) {
-        lastError = cause
-      } finally {
-        await activeBrowser.close()
-      }
-    }
-    throw lastError
-  } finally {
-    await server.close()
+  if (suite === undefined) {
+    throw new Error('the browser suite is not open: browser tests are disabled')
   }
+  let lastError: unknown
+  for (const attempt of [1, 2]) {
+    const context = await suite.browser.newContext()
+
+    // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung page into one retry rather than failing the test on resource contention outside this file's control
+    try {
+      await withTimeout(
+        attemptPage(context, suite.base, run),
+        12_000,
+        `withPage attempt ${attempt}`,
+      )
+      return
+    } catch (cause) {
+      lastError = cause
+    } finally {
+      await context.close()
+    }
+  }
+  throw lastError
 }
 
 const cardCount = (page: Page) => page.locator('a[href*="run-"]').count()
