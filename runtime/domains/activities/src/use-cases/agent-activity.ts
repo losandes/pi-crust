@@ -29,13 +29,12 @@ import {
   activityRunName,
   activityRunParams,
   baseRefLabel,
-  buildOutput,
   changeCapture,
   changeSetEmpty,
   envelopeAccepted,
   envelopeJudges,
-  narrowEnvelope,
 } from '../../../../lib/contracts'
+import { runChange, runChangeBase } from '../../../policy'
 import {
   captureChanges,
   changesAsEnvelope,
@@ -50,25 +49,9 @@ export const DOCUMENT_NOTES =
   'Read diff_path in full before writing. Document only what the diff shows, ' +
   'then copy the write-up into app_docs/ as your task describes.'
 
-/** What the previous activity says it changed — what a reviewer should route on. */
-const claimedPaths = (ctx: TActivityContext): readonly string[] | undefined => {
-  const claimed = narrowEnvelope(buildOutput, ctx.previous)?.changed_files
-
-  return claimed !== undefined && claimed.length > 0 ? claimed : undefined
-}
-
-/**
- * What a judging Activity routes on: the named change when there is one.
- *
- * Without `--scope` this is the chain's own claim. With one, the work may be
- * committed and absent from the working tree, so the paths come from the ref
- * or range the developer named instead.
- */
-const judgedPaths = (
-  ctx: TActivityContext,
-  base: string,
-): readonly string[] | undefined =>
-  base === '' ? claimedPaths(ctx) : selectedPaths(base)
+/** The named scope overrides the run's change; absent both, use the working tree. */
+const judgedPaths = (base: string): readonly string[] | undefined =>
+  base === '' ? undefined : selectedPaths(base)
 
 /**
  * The change this run has made since its own baseline, as an envelope.
@@ -143,12 +126,17 @@ export const agentActivity = (
         captured === undefined
           ? ctx.previous
           : changesAsEnvelope(captured, DOCUMENT_NOTES)
+      const change =
+        envelopeJudges(spec) && options.base === ''
+          ? runChange(ports)(ctx.run)
+          : undefined
       const changedPaths =
-        captured === undefined
+        change?.paths ??
+        (captured === undefined
           ? envelopeJudges(spec)
-            ? judgedPaths(ctx, options.base)
+            ? judgedPaths(options.base)
             : undefined
-          : [...captured.files, ...captured.untracked]
+          : [...captured.files, ...captured.untracked])
       const envelope = await callAgent(
         ctx.run,
         handle,
@@ -162,9 +150,11 @@ export const agentActivity = (
           blockingFindings: options.blockingFindings,
           committing: config.commit && options.committing,
           ...(changedPaths === undefined ? {} : { changedPaths }),
-          ...(envelopeJudges(spec) && options.base !== ''
-            ? { changeBase: options.base }
-            : {}),
+          ...(change === undefined
+            ? envelopeJudges(spec) && options.base !== ''
+              ? { changeBase: options.base }
+              : {}
+            : { changeBase: runChangeBase(change.head) }),
         },
         ports,
       )

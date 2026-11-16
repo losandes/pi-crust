@@ -7,6 +7,7 @@ export {
 } from './src/use-cases/activity-registry'
 export { agentActivity } from './src/use-cases/agent-activity'
 export type { TAgentPorts } from './src/use-cases/execute-agent'
+export { liveAgent } from './src/use-cases/execute-agent'
 export type {
   TDeliveryPorts,
   TTerminalActivity,

@@ -68,7 +68,7 @@ just crust run "the gateway" --activities code-review --scope apps/gateway      
 just crust verify --scope 'lib/**/*.ts'                              # a glob
 ```
 
-Omit it and they read the uncommitted working tree, as they always have. `--base` is the old name and still works; it became `--scope` when a directory stopped being the base of anything. A ref wins when a branch and a directory share a name.
+Omit it and the judging Activities are given everything their run has changed since it started, committed or not; when the run has changed nothing they read the uncommitted working tree, as `just crust verify` always does. `--base` is the old name and still works; it became `--scope` when a directory stopped being the base of anything. A ref wins when a branch and a directory share a name.
 
 A path scope changes what rule 12 means: every file in scope must be covered by a `routing.checks` rule, not merely the files that changed. Pointing the checks at a directory and getting a pass tells you the directory conforms, which is the point of pointing them there.
 

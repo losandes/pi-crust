@@ -6,6 +6,7 @@
  */
 
 import { join, resolve } from 'node:path'
+import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
 import {
   errorMessage,
   safeParseSettlement,
@@ -155,6 +156,7 @@ export type TAgentPorts = Readonly<{
   savePrompt: (directory: string, name: string, content: string) => string
   /** the working tree's own fingerprint; the real implementation reads disk */
   snapshot: (roots: TRoots) => TTreeSnapshot
+  content: (roots: TRoots, base: string) => TSettlement<TTreeSnapshot>
   /**
    * HEAD's revision; '' when the process cwd is not (yet) a git repository.
    * The real implementation reads the process cwd.
@@ -388,9 +390,8 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     activityRunId: activityRun.activity_run_id,
   })
 
-  // What this agent is being asked to reason about, as paths. A caller that
-  // already knows (a reviewer handed the builder's envelope) says so; otherwise
-  // it is whatever the working tree currently has uncommitted.
+  // Judges receive the run's change or the named scope; absent a run change,
+  // use the uncommitted working tree. This one list also selects skills.
   const changedPaths =
     call.changedPaths ??
     [...ports.changed(), ...ports.untracked()].toSorted().filter(Boolean)

@@ -35,6 +35,19 @@ export {
   matchingSkills,
   unmatchedPaths,
 } from './src/use-cases/route-by-path'
+export type {
+  TRunChange,
+  TRunChangePorts,
+  TRunStart,
+} from './src/use-cases/run-change'
+export {
+  RUN_START,
+  recordRunStart,
+  runChange,
+  runChangeBase,
+  runStartIn,
+  runStartSchema,
+} from './src/use-cases/run-change'
 export {
   NOTHING_DECLARED,
   NOTHING_MATCHED,

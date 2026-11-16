@@ -13,6 +13,7 @@ import {
   changedFiles,
   isRepo,
   rev,
+  snapshotContent,
   snapshotTree,
   untrackedFiles,
 } from '../../../workspace'
@@ -27,5 +28,6 @@ export const liveAgent: TAgentPorts = {
   savePrompt: (directory, name, content) =>
     savePrompt(directory, name, content),
   snapshot: (roots) => snapshotTree(roots),
+  content: snapshotContent,
   rev: (ref) => (isRepo() ? rev(ref) : ''),
 }

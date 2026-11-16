@@ -446,6 +446,7 @@ test(
       savePrompt: (directory, name) => join(directory, name),
       snapshot: () => ({}),
       rev: () => '',
+      content: () => ({ status: 'ok', data: {} }),
     }
     const cwd = process.cwd()
     const environment = {

@@ -105,6 +105,7 @@ const fixtureWith = (
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
     rev: () => '',
+    content: () => ({ status: 'ok', data: {} }),
   }
   silenceTerminal()
   return {

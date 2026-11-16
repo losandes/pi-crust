@@ -190,6 +190,7 @@ export const portsFor = (
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
     rev: () => '',
+    content: () => ({ status: 'ok', data: {} }),
   }
   return { ports, requests: () => requests, renders: () => renders }
 }
