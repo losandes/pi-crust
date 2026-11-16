@@ -19,6 +19,97 @@ const PROMPT_DIR = join(__dirname)
 const readPrompt = (activity: string): string =>
   readFileSync(join(PROMPT_DIR, activity, 'user.md'), 'utf8')
 
+test(
+  [
+    'given gh-issue/user.md',
+    'when its variables are read',
+    'it should render annotating handoffs before intake',
+  ].join(', '),
+  () => {
+    // given
+    const text = readPrompt('gh-issue')
+
+    // when
+    const variable = text.indexOf(
+      '### annotating_handoffs\n\n{{annotating_handoffs}}',
+    )
+
+    // then
+    expect(variable).toBeGreaterThan(-1)
+    expect(variable).toBeLessThan(text.indexOf('## Intake'))
+  },
+)
+
+test(
+  [
+    'given gh-issue/user.md',
+    'when the handoff-copying instruction is read',
+    'it should exclude annotating reports without changing their files',
+  ].join(', '),
+  () => {
+    // given
+    const text = readPrompt('gh-issue')
+
+    // when
+    const bullet = text.slice(
+      text.indexOf('When the chain produced handoff documents'),
+      text.indexOf('Only when nothing ran before you'),
+    )
+
+    // then
+    expect(bullet).toContain('every document listed in `annotating_handoffs`')
+    expect(bullet).toContain('do not copy, quote, summarise or restate')
+    expect(bullet).toContain('do not add a line saying a review took place')
+    expect(bullet).toContain('Leave the listed files where they are')
+  },
+)
+
+test(
+  [
+    'given gh-issue/user.md',
+    'when the own-words fallback is read',
+    'it should apply after exclusions without sourcing annotating reports',
+  ].join(', '),
+  () => {
+    // given
+    const text = readPrompt('gh-issue')
+
+    // when
+    const bullet = text.slice(
+      text.indexOf('Only when nothing ran before you'),
+      text.indexOf('5. Create the issue'),
+    )
+
+    // then
+    expect(bullet).toContain('after the exclusions above')
+    expect(bullet).toContain(
+      'Nothing an Activity named in `annotating_handoffs` reported is a source for it',
+    )
+  },
+)
+
+test(
+  [
+    'given gh-issue/system.md',
+    'when its exclusion and fallback instructions are read',
+    'it should omit annotations entirely even when they are all the upstream documents',
+  ].join(', '),
+  () => {
+    // given
+    const text = readFileSync(join(PROMPT_DIR, 'gh-issue', 'system.md'), 'utf8')
+
+    // when
+    const excludesAnnotations = text.includes('stays out of the issue entirely')
+    const allowsFallback = text.includes(
+      'every upstream document is one of those exceptions',
+    )
+
+    // then
+    expect(excludesAnnotations).toBe(true)
+    expect(allowsFallback).toBe(true)
+  },
+)
+
 const HEADING = '## Carry the request forward'
 
 const extractSection = (text: string): string => {
@@ -229,7 +320,7 @@ test(
   [
     'given gh-issue/user.md',
     'when read',
-    'it should still require every upstream handoff document copied verbatim, in order, under its own heading, and still forbid summarising or rewording (1.2.2)',
+    'it should still require every carried upstream handoff document copied verbatim, in order, under its own heading, and still forbid summarising or rewording (1.2.2)',
   ].join(', '),
   () => {
     // given

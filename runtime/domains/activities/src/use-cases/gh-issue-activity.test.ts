@@ -8,8 +8,10 @@ import {
   DEFAULT_ATTEMPTS,
   lifecyclesFileSchema,
 } from '../../../../lib/contracts'
+import { render } from '../../../agents'
 import { loadLifecycles } from '../../../planning'
 import { resolveActivities, resolvedNamed } from './activity-registry'
+import { listAnnotatingHandoffs } from './list-annotating-handoffs'
 import { offeredActivities, runnableActivities } from './resolve-activities'
 
 /**
@@ -48,6 +50,69 @@ const shippedConfig = (): TPiCrustConfig => {
     agents: [...registry.activities, ...registry.planners],
   })
 }
+
+test(
+  [
+    'given the shipped Activity roster',
+    'when annotating handoffs are listed for gh-issue',
+    'it should include both implicit plan reviewers and the other annotating reviewers in registry order',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = shippedConfig()
+
+    // when
+    const actual = listAnnotatingHandoffs({
+      activities: cfg.activities,
+      except: 'gh-issue',
+      repoRoot: '/repo',
+      handoffDir: '/repo/.pi-crust/data/sessions/run/context_handoff',
+    })
+
+    // then
+    expect(actual).toBe(
+      [
+        '- code-review: .pi-crust/data/sessions/run/context_handoff/code_review.md',
+        '- outcome-review: .pi-crust/data/sessions/run/context_handoff/outcome_review.md',
+        '- plan-comprehension: .pi-crust/data/sessions/run/context_handoff/plan_comprehension.md',
+        '- plan-readiness: .pi-crust/data/sessions/run/context_handoff/plan_readiness.md',
+      ].join('\n'),
+    )
+  },
+)
+
+test(
+  [
+    'given the shipped gh-issue user prompt and Activity roster',
+    'when its annotating handoffs variable is rendered',
+    'it should name both plan review documents without leaving the placeholder',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = shippedConfig()
+    const activity = cfg.activities.find((one) => one.name === 'gh-issue')
+    const annotatingHandoffs = listAnnotatingHandoffs({
+      activities: cfg.activities,
+      except: 'gh-issue',
+      repoRoot: '/repo',
+      handoffDir: '/repo/.pi-crust/data/sessions/run/context_handoff',
+    })
+
+    // when
+    const actual = render(activity?.prompt_engineering?.user ?? '', {
+      annotating_handoffs: annotatingHandoffs,
+    })
+
+    // then
+    expect(actual).toContain(
+      '- plan-comprehension: .pi-crust/data/sessions/run/context_handoff/plan_comprehension.md',
+    )
+    expect(actual).toContain(
+      '- plan-readiness: .pi-crust/data/sessions/run/context_handoff/plan_readiness.md',
+    )
+    expect(actual).not.toContain('{{annotating_handoffs}}')
+  },
+)
 
 test(
   [

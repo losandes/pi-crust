@@ -113,6 +113,29 @@ for (const { name, text, exitCode, rule } of [
   )
 }
 
+test(
+  [
+    'given a user prompt with the annotating_handoffs variable',
+    'when the prompt contract checker runs',
+    'it should accept the engine-supplied variable',
+  ].join(', '),
+  () => {
+    // given
+    const prompt = withReport('```json\n{}\n```').replace(
+      '## Variables\n',
+      '## Variables\n\n{{annotating_handoffs}}\n',
+    )
+
+    // when
+    const actual = checkPrompt(prompt)
+
+    // then
+    expect(actual.exitCode).toBe(0)
+    expect(actual.stdout).toContain('violations=0')
+    expect(actual.stderr).toBe('')
+  },
+)
+
 for (const extension of [
   'ts',
   'tsx',
