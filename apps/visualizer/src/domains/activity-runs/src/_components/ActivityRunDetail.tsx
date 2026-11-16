@@ -42,6 +42,7 @@ import {
 } from '@/domains/narration'
 import { RunControls } from '@/domains/run-controls'
 import { DetailSection, StatChip, StatusChip } from '@/lib/_components'
+import { cx } from '@/lib/cx'
 import { fmtClock, payloadOk, ts } from '@/lib/format'
 import { highlightJson, highlightJsonText } from '@/lib/markdown'
 import { modelIcon, modelName } from '@/lib/models'
@@ -58,19 +59,126 @@ import {
 import { byStart, startedAfter } from '../usecases/order'
 import { usePrompts } from '../usecases/use-prompts'
 import { warningsFor } from '../usecases/warnings'
-import styles from './ActivityRunDetail.module.css'
 import { TreeWarnings } from './TreeWarnings'
+
+const styles = {
+  detail:
+    '@container mx-4 mb-7 rounded-2xl border-(length:--border-width) border-border-soft bg-surface sm:mx-7',
+  head: 'flex flex-wrap items-center gap-5 rounded-t-lg border-b-(length:--border-width) border-border bg-panel-2 px-4.5 py-3.5',
+  main: 'flex min-w-0 flex-wrap items-center gap-3.5 wrap-anywhere',
+  name: 'text-xl leading-normal font-bold',
+  tags: 'ml-auto flex min-w-0 flex-wrap items-center gap-2.5',
+  tag: 'inline-flex max-w-full flex-wrap items-baseline gap-2 rounded-full border-(length:--border-width) border-border-soft bg-panel-3 px-3 py-0.5 text-base wrap-anywhere',
+  tagK: 'text-faint',
+  tagV: 'text-text',
+  close:
+    'cursor-pointer rounded-md border-(length:--border-width) border-border bg-transparent px-2.5 py-1 font-mono text-base/[normal] text-dim hover:border-dim hover:text-text',
+  desc: 'm-0 text-dim',
+  request: 'm-0 whitespace-pre-wrap text-text wrap-anywhere',
+  cfg: 'flex flex-col gap-2',
+  cfgRow: 'flex min-w-0 flex-wrap items-baseline gap-3 @sm:flex-nowrap',
+  cfgK: 'min-w-28 shrink-0 text-faint',
+  cfgV: 'min-w-0 text-text wrap-anywhere',
+  cfgModelIcon: 'size-4 shrink-0 object-contain',
+  cfgChips: 'inline-flex min-w-0 flex-wrap gap-1.5',
+  cfgChip:
+    'inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border-(length:--border-width) border-border-soft bg-panel-2/60 px-3 py-0.5 font-mono text-base wrap-anywhere',
+  cfgIcon: 'shrink-0 text-faint',
+  error: '!mx-4.5 !mt-3.5 !mb-0',
+  tabs: 'flex flex-wrap gap-0.5 border-b-(length:--border-width) border-border px-4.5',
+  tab: 'inline-flex cursor-pointer items-center gap-2 border-0 border-b-2 border-b-transparent bg-transparent px-3.5 py-2 font-sans text-[0.86rem] leading-normal text-faint hover:text-dim',
+  on: '!border-b-accent !text-text',
+  badge:
+    'min-w-5 rounded-full bg-waiting/18 px-1.5 text-center text-[0.72rem] font-bold text-waiting',
+  hidden: 'hidden',
+  chat: 'px-4.5 pt-4 pb-5',
+  // The legacy row already has one column; only its height changed at 1100px.
+  // Keep that column, but let variable-length content grow at either size.
+  chatCols: 'mb-4.5 grid min-h-96 grid-cols-1 gap-5 @3xl:min-h-128',
+  chatCol:
+    'flex min-h-0 min-w-0 flex-col rounded-xl border-(length:--border-width) border-border-soft bg-surface shadow-(--shadow-panel)',
+  colHead:
+    'm-0 shrink-0 rounded-t-xl border-b-(length:--border-width) border-border-soft bg-panel-3/60 px-3.5 py-2 text-[0.72rem] font-semibold tracking-[0.08em] text-faint uppercase',
+  colBody: 'min-h-0 flex-1 px-3.5 py-3',
+  colBodyFlush: 'flex min-h-0 min-w-0 flex-1 flex-col',
+  events: 'px-4.5 pt-4 pb-5',
+  context: 'px-4.5 pt-4 pb-5',
+  col: '',
+  promptPanel:
+    'mb-2.5 rounded-lg border-(length:--border-width) border-border-soft bg-panel-3',
+  promptHead:
+    'flex w-full cursor-pointer flex-wrap items-baseline gap-3 rounded-t-lg border-0 bg-transparent px-3.5 py-2 text-left text-base/[normal] text-text hover:bg-panel-2 [&>.dim]:ml-auto',
+  chev: 'shrink-0 text-faint',
+  promptTitle: 'font-bold',
+  promptBody:
+    'max-h-[60vh] overflow-auto border-t-(length:--border-width) border-border-soft px-3.5 pt-3 pb-3.5',
+  promptTools:
+    'mb-3 flex gap-2 [&>button]:cursor-pointer [&>button]:rounded-md [&>button]:border-(length:--border-width) [&>button]:border-border-soft [&>button]:bg-transparent [&>button]:px-3 [&>button]:py-0.5 [&>button]:font-mono [&>button]:text-base/[normal] [&>button]:text-dim',
+  active: '!border-border !bg-panel-2 !text-text',
+  promptRaw: '!max-h-none !border-0 !bg-transparent !p-0',
+  gate: 'group/gate mb-2.5 rounded-lg border-(length:--border-width) border-border-soft border-l-3 bg-panel-3 px-3.5 py-2.5 [&.passed]:border-l-green [&.failed]:border-l-red',
+  gateLine: 'flex flex-wrap items-baseline gap-3',
+  gateToggle:
+    'w-full cursor-pointer border-0 bg-transparent p-0 text-left text-base/[normal] text-text',
+  gateMark: 'group-[.passed]/gate:text-green group-[.failed]/gate:text-red',
+  gateChecks: 'mt-2.5 border-t-(length:--border-width) border-border-soft pt-2',
+  gateCheck: 'group/check flex flex-wrap items-baseline gap-2.5 py-1',
+  checkMark: 'group-[.passed]/check:text-green group-[.failed]/check:text-red',
+  checkItem: 'min-w-0 font-mono wrap-anywhere',
+  checkNote: 'whitespace-pre-wrap wrap-anywhere',
+  checkNoteBlock: 'mt-1 mb-1.5 ml-6 max-h-[30vh] basis-full overflow-auto',
+  tagFail: '!border-fail/55 [&>span:last-child]:text-red',
+  gateName: 'font-bold text-text wrap-anywhere',
+  gateTime: 'ml-auto',
+  violations: 'mt-2 mb-0.5 list-disc pl-6 text-red wrap-anywhere',
+  usage:
+    'w-full max-w-104 border-collapse text-base [&_th]:border-b-(length:--border-width) [&_th]:border-border-soft [&_th]:pt-0 [&_th]:pb-1.5 [&_th]:text-sm [&_th]:leading-normal [&_th]:font-normal [&_th]:tracking-[0.06em] [&_th]:uppercase [&_td]:py-1',
+  usageK:
+    'text-left text-dim group-[.nested]:pl-4.5 group-[.nested]:text-faint group-[.total]:text-text',
+  usageN: 'text-right font-mono text-text group-[.nested]:text-faint',
+  usageC: 'text-right font-mono text-green group-[.nested]:text-faint',
+  nested: 'group nested',
+  total:
+    'group total [&>td]:border-t-(length:--border-width) [&>td]:border-border-soft [&>td]:pt-2 [&>td]:font-bold',
+  // Issue #90 §1.4.2 requires unchanged type: retain 15px as 0.9375rem, not a rounded text step.
+  usageNote: 'mt-2.5 mb-0 text-[0.9375rem]',
+  output: 'mb-3.5 [&>pre]:max-h-[40vh] [&>pre]:overflow-auto',
+  outputLine: 'mb-2 flex flex-wrap items-baseline gap-3',
+  outputType: 'font-bold text-purple',
+  outputValid: '[&.passed]:text-green [&.failed]:text-red',
+  pass: 'passed',
+  fail: 'failed',
+  event: 'border-b-(length:--border-width) border-border-soft',
+  eventRow:
+    'flex w-full cursor-pointer flex-wrap items-baseline gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-2 text-left font-mono text-base/[normal] text-text hover:bg-panel-2 @3xl:flex-nowrap',
+  open: '!bg-panel-2',
+  eventTime: 'shrink-0 tabular-nums',
+  eventType: 'shrink-0 @3xl:min-w-32',
+  eventName: 'min-w-0 truncate',
+  eventExtra: 'ml-auto inline-flex flex-wrap gap-3.5 @3xl:shrink-0',
+  payloadPanel:
+    'mt-1.5 mb-3.5 rounded-lg border-(length:--border-width) border-border bg-panel-3 px-4 py-3.5 [&_h4]:mt-3.5 [&_h4]:mb-1.5 [&_h4]:text-base [&_h4]:font-bold [&_h4]:tracking-[0.06em] [&_h4]:text-dim [&_h4]:lowercase [&_h4:first-of-type]:mt-0',
+  payloadMeta: 'mb-2.5 flex flex-wrap items-baseline gap-4',
+  // Issue #90 §1.4.2 requires unchanged type: retain 17px as 1.0625rem, not a rounded text step.
+  payloadTool: 'text-[1.0625rem] font-bold text-cyan',
+  payloadPre:
+    '!max-h-[42vh] overflow-auto !rounded-lg !border-(length:--border-width) !border-border-soft !bg-bg/55 !px-3 !py-2.5',
+  documents: 'mt-3.5',
+  documentsHead:
+    'mt-0 mb-2 text-xs leading-normal font-semibold tracking-[0.08em] text-dim uppercase',
+  highlights: 'overflow-auto px-4.5 pt-4 pb-5',
+} as const
 
 const NUM = new Intl.NumberFormat('en-US')
 
 const TYPE_CLASS: Readonly<Record<string, string>> = {
-  gate_fail: 't-red',
-  error: 't-red',
-  gate_pass: 't-green',
-  tool_call: 't-cyan',
-  handoff: 't-violet',
-  agent_start: 't-purple',
-  agent_end: 't-green',
+  gate_fail: 'text-red',
+  error: 'text-red',
+  gate_pass: 'text-green',
+  tool_call: 'text-cyan',
+  handoff: 'text-violet',
+  agent_start: 'text-purple',
+  agent_end: 'text-green',
 }
 
 /** A set of open ids, with the toggle every section in here needs. */
@@ -324,7 +432,7 @@ export const ActivityRunDetail = ({
       </header>
 
       {activityRun.error && (
-        <div className={`error-bar ${styles.error}`}>{activityRun.error}</div>
+        <div className={cx('error-bar', styles.error)}>{activityRun.error}</div>
       )}
 
       <DocumentViewer
@@ -339,9 +447,7 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'chat'}
-          className={
-            active === 'chat' ? `${styles.tab} ${styles.on}` : styles.tab
-          }
+          className={cx(styles.tab, active === 'chat' && styles.on)}
           onClick={show('chat')}
         >
           <MessageSquareText size={16} strokeWidth={2} /> chat
@@ -350,9 +456,7 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'highlights'}
-          className={
-            active === 'highlights' ? `${styles.tab} ${styles.on}` : styles.tab
-          }
+          className={cx(styles.tab, active === 'highlights' && styles.on)}
           onClick={show('highlights')}
         >
           <Scale size={16} strokeWidth={2} /> highlights
@@ -372,9 +476,7 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'context'}
-          className={
-            active === 'context' ? `${styles.tab} ${styles.on}` : styles.tab
-          }
+          className={cx(styles.tab, active === 'context' && styles.on)}
           onClick={show('context')}
         >
           <SlidersHorizontal size={16} strokeWidth={2} /> context
@@ -383,9 +485,7 @@ export const ActivityRunDetail = ({
           type="button"
           role="tab"
           aria-selected={active === 'events'}
-          className={
-            active === 'events' ? `${styles.tab} ${styles.on}` : styles.tab
-          }
+          className={cx(styles.tab, active === 'events' && styles.on)}
           onClick={show('events')}
         >
           <Activity size={16} strokeWidth={2} /> events (
@@ -421,7 +521,7 @@ export const ActivityRunDetail = ({
                   />
                 </div>
               ) : (
-                <div className={`${styles.colBody} faint`}>
+                <div className={cx(styles.colBody, 'faint')}>
                   this activity ran code, not an agent
                 </div>
               )}
@@ -470,7 +570,10 @@ export const ActivityRunDetail = ({
         )}
       </div>
 
-      <div className={active === 'context' ? styles.context : styles.hidden}>
+      <div
+        data-testid="activity-run-context"
+        className={active === 'context' ? styles.context : styles.hidden}
+      >
         <div className={styles.col}>
           {ask !== undefined && (
             <DetailSection
@@ -560,7 +663,7 @@ export const ActivityRunDetail = ({
                         ))}
                       </span>
                     ) : (
-                      <span className={`${styles.cfgV} dim`}>none</span>
+                      <span className={cx(styles.cfgV, 'dim')}>none</span>
                     )}
                   </div>
                 )}
@@ -687,7 +790,10 @@ export const ActivityRunDetail = ({
               return (
                 <div
                   key={gate.id}
-                  className={`${styles.gate} ${gate.passed ? styles.pass : styles.fail}`}
+                  className={cx(
+                    styles.gate,
+                    gate.passed ? styles.pass : styles.fail,
+                  )}
                 >
                   {checks === undefined ? (
                     <>
@@ -712,7 +818,7 @@ export const ActivityRunDetail = ({
                     <>
                       <button
                         type="button"
-                        className={`${styles.gateLine} ${styles.gateToggle}`}
+                        className={cx(styles.gateLine, styles.gateToggle)}
                         onClick={() => openGates.toggle(gate.id)}
                       >
                         <span className={styles.chev}>
@@ -726,7 +832,7 @@ export const ActivityRunDetail = ({
                           className={
                             gate.passed
                               ? styles.tag
-                              : `${styles.tag} ${styles.tagFail}`
+                              : cx(styles.tag, styles.tagFail)
                           }
                         >
                           <span className={styles.tagK}>checks</span>
@@ -748,7 +854,10 @@ export const ActivityRunDetail = ({
                           {checks.map((check) => (
                             <div
                               key={`${gate.id}-${check.item}`}
-                              className={`${styles.gateCheck} ${check.ok ? styles.pass : styles.fail}`}
+                              className={cx(
+                                styles.gateCheck,
+                                check.ok ? styles.pass : styles.fail,
+                              )}
                             >
                               <span className={styles.checkMark}>
                                 {check.ok ? '✓' : '✗'}
@@ -766,7 +875,7 @@ export const ActivityRunDetail = ({
                                   {check.note}
                                 </pre>
                               ) : check.note ? (
-                                <span className={`${styles.checkNote} dim`}>
+                                <span className={cx(styles.checkNote, 'dim')}>
                                   {check.note}
                                 </span>
                               ) : undefined}
@@ -822,7 +931,7 @@ export const ActivityRunDetail = ({
                 </tbody>
               </table>
               {usage.partial && (
-                <p className={`faint ${styles.usageNote}`}>
+                <p className={cx('faint', styles.usageNote)}>
                   this run predates the per-component breakdown — only the total
                   was recorded
                 </p>
@@ -856,7 +965,10 @@ export const ActivityRunDetail = ({
                     <span className={styles.tagV}>{envelope.agent ?? '—'}</span>
                   </span>
                   <span
-                    className={`${styles.outputValid} ${envelope.valid ? styles.pass : styles.fail}`}
+                    className={cx(
+                      styles.outputValid,
+                      envelope.valid ? styles.pass : styles.fail,
+                    )}
                   >
                     {envelope.valid ? 'valid' : 'invalid'}
                   </span>
@@ -874,7 +986,10 @@ export const ActivityRunDetail = ({
         </div>
       </div>
 
-      <div className={active === 'events' ? styles.events : styles.hidden}>
+      <div
+        data-testid="activity-run-events"
+        className={active === 'events' ? styles.events : styles.hidden}
+      >
         <div className={styles.col}>
           {activityRunEvents.length === 0 && (
             <div className="faint">no events</div>
@@ -888,26 +1003,28 @@ export const ActivityRunDetail = ({
               <div key={event.event_id} className={styles.event}>
                 <button
                   type="button"
-                  className={
-                    open ? `${styles.eventRow} ${styles.open}` : styles.eventRow
-                  }
+                  className={cx(styles.eventRow, open && styles.open)}
                   onClick={() => openEvents.toggle(event.event_id)}
                 >
-                  <span className={`${styles.eventTime} dim`}>
+                  <span className={cx(styles.eventTime, 'dim')}>
                     {fmtClock(event.started_at)}
                   </span>
                   <span
-                    className={`${styles.eventType} ${TYPE_CLASS[event.type ?? ''] ?? ''}`}
+                    className={cx(
+                      styles.eventType,
+                      TYPE_CLASS[event.type ?? ''],
+                    )}
                   >
                     {event.type}
                   </span>
                   <span
-                    className={
-                      event.type === 'tool_call' &&
-                      payloadOk(event.payload_json)
-                        ? styles.eventName
-                        : `${styles.eventName} t-red`
-                    }
+                    className={cx(
+                      styles.eventName,
+                      !(
+                        event.type === 'tool_call' &&
+                        payloadOk(event.payload_json)
+                      ) && 'text-red',
+                    )}
                     title={eventLabel(event)}
                   >
                     {eventLabel(event)}
@@ -959,7 +1076,7 @@ export const ActivityRunDetail = ({
                             {call.tool}
                           </span>
                           {call.ok === false && (
-                            <span className="t-red">failed</span>
+                            <span className="text-red">failed</span>
                           )}
                           {call.duration_ms != null && (
                             <StatChip

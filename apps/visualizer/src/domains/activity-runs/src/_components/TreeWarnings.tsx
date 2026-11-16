@@ -8,9 +8,9 @@
  * in their own repository while the run worked.
  */
 import { TriangleAlert } from 'lucide-react'
+import { cx } from '@/lib/cx'
 import type { TTreeWarning } from '../usecases/warnings'
 import { warningExplanation, warningTitle } from '../usecases/warnings'
-import styles from './TreeWarnings.module.css'
 
 const KINDS: readonly TTreeWarning['kind'][] = [
   'unexpected',
@@ -39,45 +39,50 @@ export const TreeWarnings = ({
 
   return (
     <div
-      className={
-        standalone ? `${styles.panel} ${styles.standalone}` : styles.panel
-      }
+      className={cx(
+        'my-3 flex min-w-0 flex-col gap-4 rounded-lg border-(length:--border-width) border-border-soft border-l-3 border-l-amber bg-panel-2 px-4 py-3.5 wrap-anywhere',
+        standalone && 'mx-7 mt-5',
+      )}
     >
       {KINDS.map((kind) => {
         const group = warnings.filter((warning) => warning.kind === kind)
         if (group.length === 0) return undefined
 
         return (
-          <section key={kind} className={styles.group}>
-            <h5 className={styles.head}>
-              <TriangleAlert
-                className={styles.icon}
-                size={16}
-                strokeWidth={2}
-              />
+          <section key={kind} className="flex min-w-0 flex-col gap-2">
+            <h5 className="m-0 flex items-center gap-2 text-base font-bold tracking-[0.05em] text-amber lowercase">
+              <TriangleAlert className="shrink-0" size={16} strokeWidth={2} />
               {warningTitle(kind)}
             </h5>
             {group.map((warning, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: two warnings in one group can be identical in stage, Activity Runs and paths and differ only in their note, so position is the only identity they have; the list is rebuilt whole and never reorders
-              <div key={index} className={styles.entry}>
-                <span className={styles.who}>
+              <div key={index} className="flex min-w-0 flex-col gap-1">
+                {/* Issue #90 §1.4.2 requires unchanged type: retain 15px as 0.9375rem, not a rounded text step. */}
+                <span className="text-[0.9375rem] font-semibold">
                   {warning.activities.join(', ')}
                   <span className="dim"> ({warning.stage})</span>
                 </span>
-                <ul className={styles.paths}>
+                <ul className="m-0 list-disc pl-4.5">
                   {warning.paths.map((path, pathIndex) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: a warning records one entry per match, so the same path legitimately appears twice; position is the only identity these lines have, and the list never reorders
-                    <li key={pathIndex} className={styles.path}>
+                    <li
+                      // biome-ignore lint/suspicious/noArrayIndexKey: a warning records one entry per match, so the same path legitimately appears twice; position is the only identity these lines have, and the list never reorders
+                      key={pathIndex}
+                      className="font-mono text-sm leading-normal"
+                    >
                       {path}
                     </li>
                   ))}
                 </ul>
                 {warning.note !== '' && (
-                  <p className={`${styles.note} dim`}>{warning.note}</p>
+                  <p className="m-0 text-sm leading-normal text-dim">
+                    {warning.note}
+                  </p>
                 )}
               </div>
             ))}
-            <p className={styles.explain}>{warningExplanation(kind)}</p>
+            <p className="m-0 text-sm leading-normal text-dim">
+              {warningExplanation(kind)}
+            </p>
           </section>
         )
       })}
