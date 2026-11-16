@@ -276,6 +276,50 @@ for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
 
 test.skipIf(!hasChromium)(
   [
+    'given the amend action at the xl tier',
+    'when hovered under each supported theme',
+    'it should retain the legacy neutral border colour',
+  ].join(', '),
+  async () => {
+    // given
+    await withComponents('xl', async (page) => {
+      const amend = page.locator('#success').getByRole('button', {
+        name: "amend this activity's document",
+        exact: true,
+      })
+      for (const { theme, scheme } of [
+        { theme: 'dark', scheme: 'dark' },
+        { theme: 'light', scheme: 'light' },
+        { theme: 'auto', scheme: 'dark' },
+        { theme: 'auto', scheme: 'light' },
+        { theme: 'high-contrast', scheme: 'dark' },
+      ] as const) {
+        // when
+        await page.emulateMedia({ colorScheme: scheme })
+        await page.selectOption('#theme', theme)
+        await amend.hover()
+        const paint = await amend.evaluate((element) => {
+          const reference = document.createElement('span')
+          reference.style.setProperty('color', 'var(--border)')
+          element.after(reference)
+          const result = {
+            actual: getComputedStyle(element).borderTopColor,
+            expected: getComputedStyle(reference).color,
+          }
+          reference.remove()
+          return result
+        })
+
+        // then
+        expect(paint.actual, `${theme}: ${scheme}`).toBe(paint.expected)
+      }
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!hasChromium)(
+  [
     'given handoff and run dialogs in a narrow parent at the xl tier',
     'when opened and dismissed using only the keyboard',
     'it should expose the same actions and restore focus without submitting a write',

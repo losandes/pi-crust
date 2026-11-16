@@ -14,13 +14,13 @@ import { SteerDialog } from './SteerDialog'
 const BUTTON =
   'inline-flex max-w-full cursor-pointer items-center gap-2 rounded-full border-(length:--border-width) px-3.5 py-1.5 font-sans text-base enabled:hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none disabled:cursor-wait disabled:opacity-50'
 
-// The old `.actions button` selector outweighed the primary/danger/amend
-// colours. Keep the computed appearance, including amend's hover border.
+// The old `.actions button` rules outweighed the primary/danger/amend
+// colours; their hover rule also kept amend's border neutral.
 const ACTION = {
   primary: 'border-border bg-panel-2 text-dim',
   secondary: 'border-border bg-panel-2 text-dim',
   danger: 'border-border bg-panel-2 text-dim',
-  amend: 'border-border bg-panel-2 text-dim enabled:hover:border-amber',
+  amend: 'border-border bg-panel-2 text-dim',
 } as const
 
 const LAYOUT = {
