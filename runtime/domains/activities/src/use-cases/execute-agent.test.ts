@@ -12,7 +12,7 @@
 
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -38,6 +38,7 @@ import {
   callAgent,
   executeAgent,
   feedbackBlock,
+  findingsBlock,
   JSON_FIX_ATTEMPTS,
 } from './execute-agent'
 
@@ -236,6 +237,7 @@ const aCall = (overrides: Readonly<Partial<TAgentCall>> = {}): TAgentCall => ({
   outputType: genericOutput,
   prompt: 'build the thing',
   committing: true,
+  blockingFindings: [],
   ...overrides,
 })
 
@@ -301,6 +303,98 @@ test(
     expect(attempt).toBe(JSON_FIX_ATTEMPTS + 1)
   },
 )
+
+test(
+  [
+    'given no review findings',
+    'when rendering the findings block',
+    'it should render nothing',
+  ].join(', '),
+  () => {
+    // given
+    const findings: readonly string[] = []
+
+    // when
+    const actual = findingsBlock(findings)
+
+    // then
+    expect(actual).toBe('')
+  },
+)
+
+test(
+  [
+    'given two review findings',
+    'when rendering the findings block',
+    'it should attribute them to review and require one answer per finding',
+  ].join(', '),
+  () => {
+    // given
+    const findings = ['first finding', 'second finding']
+
+    // when
+    const actual = findingsBlock(findings)
+
+    // then
+    expect(actual).toBe(
+      '\n\n## Blocking findings from review\n\n' +
+        'The review of your work raised these blocking findings:\n\n' +
+        '- first finding\n- second finding\n\n' +
+        "Give every finding exactly one answer: fix it, or dispute it in `disputes` with evidence a third party can re-check. A finding that one of this repository's declared checks decides may not be disputed. Fix it.",
+    )
+  },
+)
+
+for (const revising of [true, false]) {
+  test(
+    [
+      `given an agent with a revise override and findings ${revising}`,
+      'when executeAgent sends its prompt',
+      'it should select the revise override only for a revise round',
+    ].join(', '),
+    async () => {
+      // given
+      const repoRoot = aRepo()
+      const { run } = aRun(repoRoot, {
+        cfg: aConfig({
+          prompt_engineering: { system: 's.md', user: 'u.md', revise: 'r.md' },
+        }),
+      })
+      const requests: string[] = []
+      const { ports, calls } = fakePorts({
+        run: (request) => {
+          // biome-ignore lint/plugin/no-array-mutation: recording what was sent is the test
+          requests.push(request.prompt)
+          return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
+        },
+      })
+      const findings = revising ? ['first finding', 'second finding'] : []
+      try {
+        // when
+        await executeAgent(
+          run,
+          anActivityRun(),
+          aCall({ blockingFindings: findings }),
+          ports,
+        )
+
+        // then
+        expect(
+          calls
+            .filter((one) => one.op === 'render')
+            .map((one) => one.templatePath),
+        ).toEqual(['s.md', revising ? 'r.md' : 'u.md'])
+        expect(requests[0]).toBe(
+          `rendered:${revising ? 'r.md' : 'u.md'}${findingsBlock(findings)}`,
+        )
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 test(
   [

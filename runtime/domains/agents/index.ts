@@ -12,6 +12,7 @@ export {
   render,
   resolvePromptPath,
   resolveReference,
+  revisePromptReference,
   savePrompt,
 } from './src/data/prompt-files'
 export { appendSteering, readSteering } from './src/data/steering'

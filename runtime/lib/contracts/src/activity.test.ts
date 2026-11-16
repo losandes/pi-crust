@@ -11,6 +11,7 @@ import {
   PLANNER_NAMES,
   plannerConfigSchema,
   plannerFaults,
+  promptEngineeringSchema,
   TERMINAL_NAMES,
   terminalConfigSchema,
   terminalFaults,
@@ -42,6 +43,30 @@ const shippedFile = () =>
   )
 
 const shippedActivities = () => shippedFile().activities
+
+for (const revise of [undefined, 'custom/revise.md']) {
+  test(
+    [
+      `given prompt configuration with revise ${String(revise)}`,
+      'when parsed',
+      'it should preserve the optional revise reference',
+    ].join(', '),
+    () => {
+      // given
+      const prompts = {
+        system: 'system.md',
+        user: 'user.md',
+        ...(revise === undefined ? {} : { revise }),
+      }
+
+      // when
+      const actual = promptEngineeringSchema.parse(prompts)
+
+      // then
+      expect(actual.revise).toBe(revise)
+    },
+  )
+}
 
 for (const { name, schema } of [
   { name: 'activity', schema: activityConfigSchema },

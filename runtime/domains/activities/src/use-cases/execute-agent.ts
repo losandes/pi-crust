@@ -17,6 +17,7 @@ import type {
   TAgentConfig,
   TEnvelopeBase,
   TEnvelopeSpec,
+  TPromptEngineering,
   TRun,
   TTreeWarning,
 } from '../../../../lib/contracts'
@@ -41,6 +42,7 @@ import {
   mergeUsage,
   readSteering,
   resolveReference,
+  revisePromptReference,
 } from '../../../agents'
 import { resolveAgent } from '../../../config'
 import { steeringAppliedEvent, steeringBlock } from '../../../handoff'
@@ -78,6 +80,49 @@ export const feedbackBlock = (violations: readonly string[]): string =>
       `${violations.map((one) => `- ${one}`).join('\n')}\n\n` +
       'Fix every one of them. They are checked again, the same way, when ' +
       'you are done.'
+
+export const findingsBlock = (findings: readonly string[]): string =>
+  findings.length === 0
+    ? ''
+    : '\n\n## Blocking findings from review\n\n' +
+      'The review of your work raised these blocking findings:\n\n' +
+      `${findings.map((one) => `- ${one}`).join('\n')}\n\n` +
+      'Give every finding exactly one answer: fix it, or dispute it in `disputes` ' +
+      'with evidence a third party can re-check. A finding that one of this ' +
+      "repository's declared checks decides may not be disputed. Fix it."
+
+export type TUserMessage = Readonly<{
+  prompts: TPromptEngineering
+  variables: Readonly<Record<string, string>>
+  /** the developer's standing instructions; '' when there are none */
+  steering: string
+  /** gate violations from the last attempt; [] on a first attempt */
+  feedback: readonly string[]
+  /** review findings this round answers; [] outside a revise round */
+  blockingFindings: readonly string[]
+}>
+
+export type TUserMessagePorts = Readonly<{
+  render: TAgentPorts['render']
+  reviseReference: (prompts: TPromptEngineering) => string
+}>
+
+export const userMessage =
+  (ports: TUserMessagePorts) =>
+  (message: TUserMessage): string => {
+    const revising =
+      message.feedback.length === 0 && message.blockingFindings.length > 0
+    const reference = revising
+      ? ports.reviseReference(message.prompts)
+      : message.prompts.user
+    return (
+      ports.render(reference, message.variables) +
+      steeringBlock(message.steering) +
+      (revising
+        ? findingsBlock(message.blockingFindings)
+        : feedbackBlock(message.feedback))
+    )
+  }
 
 /** continue-with-correction attempts for malformed JSON */
 export const JSON_FIX_ATTEMPTS = 2
@@ -434,9 +479,16 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * onward has to hear it, so no prompt gets a say in whether it does.
    */
   const steering = readSteering(run.contextHandoffDir)
-  const userText = `${ports.render(agent.prompt_engineering.user, variables)}${steeringBlock(
+  const userText = userMessage({
+    render: ports.render,
+    reviseReference: revisePromptReference,
+  })({
+    prompts: agent.prompt_engineering,
+    variables,
     steering,
-  )}${feedbackBlock(call.feedback ?? [])}`
+    feedback: call.feedback ?? [],
+    blockingFindings: call.blockingFindings,
+  })
   ports.savePrompt(join(agentDir, 'prompts'), 'system.md', systemText)
   ports.savePrompt(join(agentDir, 'prompts'), 'user.md', userText)
 

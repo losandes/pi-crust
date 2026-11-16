@@ -50,6 +50,8 @@ export const promptEngineeringSchema = z.object({
   system: z.string(),
   /** path to user.md */
   user: z.string(),
+  /** path to the revise-round prompt; absent means "resolve it beside `user`" */
+  revise: z.string().optional(),
 })
 export type TPromptEngineering = Readonly<
   z.infer<typeof promptEngineeringSchema>

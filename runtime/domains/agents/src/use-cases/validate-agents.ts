@@ -43,6 +43,9 @@ const problemsForAgent = (
     [
       ['system', agent.prompt_engineering.system],
       ['user', agent.prompt_engineering.user],
+      ...(agent.prompt_engineering.revise === undefined
+        ? []
+        : [['revise', agent.prompt_engineering.revise] as const]),
     ] as const
   ).flatMap(([label, ref]) =>
     isFile(resolvePromptPath(ref))

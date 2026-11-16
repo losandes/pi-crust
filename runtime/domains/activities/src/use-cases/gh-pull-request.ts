@@ -464,6 +464,7 @@ export const ghPullRequestActivity = (
                 upstream: ctx.upstream,
                 cohort: ctx.cohort,
                 feedback: ctx.feedback,
+                blockingFindings: [],
                 committing: false,
               },
               agentPorts,
