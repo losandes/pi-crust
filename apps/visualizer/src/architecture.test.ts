@@ -17,6 +17,28 @@ import { join } from 'node:path'
 
 const SRC = join(import.meta.dir)
 
+// Protect utility-authored component styling from unlayered CSS Module regressions.
+test(
+  [
+    'given apps/visualizer/src',
+    'when every file beneath it is listed',
+    'it should contain no CSS Module, since component styling is authored as utility classes',
+  ].join(', '),
+  () => {
+    // given
+    const entries = readdirSync(SRC, { recursive: true, withFileTypes: true })
+
+    // when
+    const modules = entries
+      .filter((entry) => entry.isFile())
+      .filter((entry) => /\.module\.css$/.test(entry.name))
+      .map((entry) => join(entry.parentPath, entry.name))
+
+    // then
+    expect(modules).toEqual([])
+  },
+)
+
 const DOMAIN_LAYERS = ['_components', 'io', 'state', 'typedefs', 'usecases']
 
 /** The dependency graph the gh-72 plan's section 2.2 declares, domain → the

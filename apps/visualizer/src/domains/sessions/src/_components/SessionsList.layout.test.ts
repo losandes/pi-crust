@@ -251,6 +251,46 @@ for (const { tier, status, inline } of [
   )
 }
 
+for (const tier of ['base', 'md', 'xl'] as const) {
+  for (const { theme, scheme } of [
+    { theme: 'Dark', scheme: 'dark' },
+    { theme: 'Light', scheme: 'light' },
+    { theme: 'Auto', scheme: 'dark' },
+    { theme: 'Auto', scheme: 'light' },
+    { theme: 'High contrast', scheme: 'dark' },
+  ] as const) {
+    test.skipIf(!hasChromium)(
+      [
+        `given the whole dashboard at the ${tier} tier under ${theme} (${scheme})`,
+        'when its cards, filters and app shell render',
+        'it should keep the document within the viewport',
+      ].join(', '),
+      async () => {
+        // given
+        await withDashboard(tier, async (page) => {
+          // when
+          await page.emulateMedia({ colorScheme: scheme })
+          await page.getByRole('button', { name: /^Theme:/ }).click()
+          await page.getByRole('option', { name: theme, exact: true }).click()
+          await afterPaint(page)
+          const layout = await page.evaluate(() => ({
+            document: document.documentElement.scrollWidth,
+            viewport: window.innerWidth,
+          }))
+
+          // then — issue #93 protects the whole page across runtime themes.
+          expect(await page.locator(CARDS).count()).toBe(4)
+          expect(
+            layout.document,
+            `${tier}: ${theme}: ${scheme}`,
+          ).toBeLessThanOrEqual(layout.viewport + 1)
+        })
+      },
+      30_000,
+    )
+  }
+}
+
 const TYPE = ['font-family', 'font-size', 'font-weight', 'line-height']
 const PAINT = [
   'color',

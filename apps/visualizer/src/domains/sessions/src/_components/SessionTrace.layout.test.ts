@@ -186,6 +186,49 @@ for (const { tier, columns, below } of [
   )
 }
 
+for (const tier of ['base', 'md', 'xl'] as const) {
+  for (const { theme, scheme } of THEMES) {
+    test.skipIf(!hasChromium)(
+      [
+        `given the whole trace page at the ${tier} tier under ${theme} (${scheme})`,
+        'when its activity-run detail panel is opened and every tab is selected',
+        'it should keep the document within the viewport',
+      ].join(', '),
+      async () => {
+        // given — keep the shell, waterfall, notices and run controls mounted.
+        await withTrace(tier, async (page) => {
+          await page.emulateMedia({ colorScheme: scheme })
+          await page.getByRole('button', { name: /^Theme:/ }).click()
+          await page.getByRole('option', { name: theme, exact: true }).click()
+          await page.locator(RUNNING_BLOCK).click()
+          await page.getByRole('tablist', { name: 'activity detail' }).waitFor()
+
+          for (const tab of ['chat', 'highlights', 'context', 'events']) {
+            // when
+            const button = page.getByRole('tab', {
+              name: new RegExp(`^${tab}\\b`),
+            })
+            await button.click()
+            await afterPaint(page)
+            const layout = await page.evaluate(() => ({
+              document: document.documentElement.scrollWidth,
+              viewport: window.innerWidth,
+            }))
+
+            // then — issue #93 measures the whole page, not an isolated panel.
+            expect(await button.getAttribute('aria-selected')).toBe('true')
+            expect(
+              layout.document,
+              `${tier}: ${theme}: ${scheme}: ${tab}`,
+            ).toBeLessThanOrEqual(layout.viewport + 1)
+          }
+        })
+      },
+      30_000,
+    )
+  }
+}
+
 const TYPE = ['font-family', 'font-size', 'font-weight', 'line-height']
 const BORDER = ['border-top-color', 'border-top-width', 'border-top-style']
 
