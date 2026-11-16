@@ -9,6 +9,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { integrationTestsEnabled } from '../src/lib/testing'
 import {
   dedupe,
   discover,
@@ -249,7 +250,7 @@ test(
   [
     'given server/workspaces::dedupe',
     'when two trees name the same database through different spellings \u2014 a direct path and a symlink to it',
-    'it should collapse them by REAL path, so a pooled store is one workspace rather than one per tree that points at it (1.7.5)',
+    'it should collapse them by REAL path, so a pooled store is one workspace rather than one per tree that points at it',
   ].join(', '),
   () => {
     // given
@@ -266,7 +267,7 @@ test(
     // when
     const actual = dedupe(found)
 
-    // then — the first entry's own spelling is kept
+    // then — the first entry's own spelling is kept (1.7.5)
     expect(actual).toEqual([{ label: 'primary', dbPath: realDb, root }])
   },
 )
@@ -581,7 +582,7 @@ test(
   },
 )
 
-test(
+test.skipIf(!integrationTestsEnabled)(
   [
     'given server/workspaces::worktreePaths',
     'when the root is a real git repository with linked worktrees',
@@ -621,7 +622,7 @@ test(
   },
 )
 
-test(
+test.skipIf(!integrationTestsEnabled)(
   [
     'given server/workspaces::discover',
     'when a linked worktree holds a database at the same offset',
@@ -670,7 +671,7 @@ test(
   },
 )
 
-test(
+test.skipIf(!integrationTestsEnabled)(
   [
     'given server/workspaces::discover',
     'when the database sits outside the repository it was found under',

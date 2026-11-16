@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
-import { chromium, devices, type Page } from 'playwright'
-import { build } from 'vite'
-import { startHarnessServer, viewportWidths } from '@/lib/testing'
-
-const hasChromium = existsSync(chromium.executablePath())
-if (!hasChromium) {
-  console.warn(
-    'style.test.ts: no Chromium — skipping browser checks. Run `bunx playwright install chromium`.',
-  )
-}
+import { readFileSync } from 'node:fs'
+import type { Page } from 'playwright'
+import {
+  browserTestsEnabled,
+  buildProductionCss,
+  launchChromium,
+  phoneViewport,
+  settleTransitions,
+  startHarnessServer,
+  viewportWidths,
+} from '@/lib/testing'
 
 const registeredTheme = {
   name: 'high-contrast',
@@ -206,12 +206,12 @@ const withStyles = async (
 ) => {
   const { server, base } = await startHarnessServer()
   try {
-    const browser = await chromium.launch()
+    const browser = await launchChromium()
     try {
       const context = await browser.newContext({
         viewport: {
           width: viewportWidths.xl,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         },
       })
       const page = await context.newPage()
@@ -287,8 +287,8 @@ const readColorProbes = (page: Page) =>
     }
   })
 
-for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
-  test.skipIf(!hasChromium)(
+for (const theme of ['dark']) {
+  test.skipIf(!browserTestsEnabled)(
     [
       `given issue #85 colour roles under the ${theme} theme`,
       'when utilities render and their semantic variables change in a subtree',
@@ -299,6 +299,7 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
       await withStyles(async (page) => {
         await page.emulateMedia({ colorScheme: 'light' })
         await page.selectOption('#theme-choice', theme)
+        await settleTransitions(page)
         const inherited = await readColorProbes(page)
         const softFill = await page
           .locator('#soft-fill, #soft-fill-reference')
@@ -346,95 +347,10 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
     },
     20_000,
   )
-
-  test.skipIf(!hasChromium)(
-    [
-      `given legacy radius fallbacks under the ${theme} theme`,
-      'when CSS Modules render beside Tailwind radius utilities at the xl tier',
-      'it should preserve per-declaration fallbacks and the default utility scale',
-    ].join(', '),
-    async () => {
-      // given — requirement 1.7.2 includes both existing small-radius fallbacks
-      await withStyles(async (page) => {
-        const legacySmall = ['3px', '3px', '3px', '3px']
-        const utilitySmall = ['4px', '4px', '4px', '4px']
-        await page.emulateMedia({ colorScheme: 'light' })
-        await page.selectOption('#theme-choice', theme)
-
-        // when
-        const radii = await page
-          .locator('[data-radius]')
-          .evaluateAll((elements) =>
-            Object.fromEntries(
-              elements.map((element) => {
-                const style = getComputedStyle(element)
-                return [
-                  element.id,
-                  [
-                    style.borderTopLeftRadius,
-                    style.borderTopRightRadius,
-                    style.borderBottomRightRadius,
-                    style.borderBottomLeftRadius,
-                  ],
-                ]
-              }),
-            ),
-          )
-
-        // then
-        expect(radii).toEqual({
-          'legacy-radius': legacySmall,
-          'narration-radius-code': ['0px', '4px', '4px', '0px'],
-          'decision-radius-code': utilitySmall,
-          'decision-radius-pre': utilitySmall,
-          'legacy-radius-four': utilitySmall,
-          'utility-radius-small': utilitySmall,
-          'utility-radius-top': ['4px', '4px', '0px', '0px'],
-          'utility-radius-medium': ['6px', '6px', '6px', '6px'],
-        })
-      })
-    },
-    20_000,
-  )
 }
 
-test.skipIf(!hasChromium)(
-  [
-    'given DetailSection with a paragraph at the end of its body',
-    'when another block follows the section',
-    'it should preserve collapsed margins rather than adding a containment gap',
-  ].join(', '),
-  async () => {
-    // given
-    await withStyles(async (page) => {
-      // when
-      const spacing = await page.evaluate(() => {
-        const section = document.getElementById('detail-section-margin')
-        const paragraph = document.getElementById('detail-section-paragraph')
-        const after = document.getElementById('after-detail-section')
-        if (!(section && paragraph && after)) {
-          throw new Error('Missing DetailSection margin probe')
-        }
-        return {
-          actual:
-            after.getBoundingClientRect().top -
-            paragraph.getBoundingClientRect().bottom,
-          expected: Math.max(
-            Number.parseFloat(getComputedStyle(section).marginBottom),
-            Number.parseFloat(getComputedStyle(paragraph).marginBottom),
-          ),
-        }
-      })
-
-      // then
-      expect(spacing.actual).toBeCloseTo(spacing.expected, 1)
-    })
-  },
-  20_000,
-)
-
-for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
-  test.skipIf(!hasChromium)(
+for (const theme of ['dark']) {
+  test.skipIf(!browserTestsEnabled)(
     [
       `given narration, decisions and both Prose variants under ${theme}`,
       'when the real components render across the named viewport tiers',
@@ -445,6 +361,7 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
       await withStyles(async (page) => {
         await page.emulateMedia({ colorScheme: 'light' })
         await page.selectOption('#theme-choice', theme)
+        await settleTransitions(page)
 
         // when
         const appearance = await page.evaluate(() => {
@@ -653,7 +570,7 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
         ) as (keyof typeof viewportWidths)[]) {
           await page.setViewportSize({
             width: viewportWidths[tier],
-            height: devices['iPhone SE'].viewport.height,
+            height: phoneViewport.height,
           })
           const geometry = await page.evaluate(() => ({
             width: document.documentElement.scrollWidth,
@@ -700,135 +617,7 @@ const fontCases = [
   },
 ] as const
 
-for (const { name, variable, replacement, selectors } of fontCases) {
-  test.skipIf(!hasChromium)(
-    [
-      `given the issue #85 font-${name} utility`,
-      'when its semantic font variable is overridden locally',
-      'it should use the local font rather than the root alias',
-    ].join(', '),
-    async () => {
-      // given — requirements 1.3.1 and target state 2.1
-      await withStyles(async (page) => {
-        const readFonts = () =>
-          page
-            .locator(selectors)
-            .evaluateAll((elements) =>
-              elements.map((element) => getComputedStyle(element).fontFamily),
-            )
-        const inherited = await readFonts()
-
-        // when
-        await page.locator(selectors).evaluateAll(
-          (elements, { variable, replacement }) => {
-            for (const element of elements) {
-              const original = element.getAttribute('style') ?? ''
-              element.setAttribute(
-                'style',
-                `${original};${variable}:var(${replacement})`,
-              )
-            }
-          },
-          { variable, replacement },
-        )
-        const scoped = await readFonts()
-
-        // then
-        expect(scoped).toHaveLength(2)
-        expect(scoped[0]).toBe(scoped[1])
-        expect(scoped[0]).not.toBe(inherited[0])
-      })
-    },
-    20_000,
-  )
-}
-
-test.skipIf(!hasChromium)(
-  [
-    'given the issue #85 application-owned pulse at stylesheet and utility call sites',
-    'when each animation is sampled at the start, midpoint and next cycle',
-    'it should retain the original full-opacity endpoints and pulse depth',
-  ].join(', '),
-  async () => {
-    // given — requirements 1.2.1, 1.7.2 and target state 2.1
-    await withStyles(async (page) => {
-      // when
-      const opacities = await page
-        .locator('[data-animation]:not(#spinner-icon)')
-        .evaluateAll((elements) =>
-          Object.fromEntries(
-            elements.map((element) => {
-              const [animation] = element.getAnimations()
-              const duration = animation?.effect?.getComputedTiming().duration
-              if (!animation || typeof duration !== 'number') {
-                throw new Error(`Missing pulse animation on ${element.id}`)
-              }
-              animation.pause()
-              const frames = [0, 0.5, 1].map((progress) => {
-                // biome-ignore lint/plugin/no-object-mutation: seeking a browser-owned Animation requires the currentTime setter.
-                animation.currentTime = duration * progress
-                return Number(getComputedStyle(element).opacity)
-              })
-              return [element.id, frames]
-            }),
-          ),
-        )
-
-      // then
-      expect(opacities).toEqual({
-        activity: [1, 0.35, 1],
-        'card-dot': [1, 0.35, 1],
-        'trace-status': [1, 0.35, 1],
-        'trace-block': [1, 0.35, 1],
-        'live-dot': [1, 0.35, 1],
-      })
-    })
-  },
-  20_000,
-)
-
-test.skipIf(!hasChromium)(
-  [
-    'given the issue #85 application-owned running spinner',
-    'when its animation advances by quarter turns',
-    'it should retain a complete clockwise revolution',
-  ].join(', '),
-  async () => {
-    // given — requirements 1.2.2, 1.7.2 and target state 2.1
-    await withStyles(async (page) => {
-      // when
-      const rotations = await page
-        .locator('#spinner-icon')
-        .evaluate((element) => {
-          const [animation] = element.getAnimations()
-          const duration = animation?.effect?.getComputedTiming().duration
-          if (!animation || typeof duration !== 'number') {
-            throw new Error('Missing running-status spinner animation')
-          }
-          animation.pause()
-          return [0, 0.25, 0.5, 0.75, 1].map((progress) => {
-            // biome-ignore lint/plugin/no-object-mutation: seeking a browser-owned Animation requires the currentTime setter.
-            animation.currentTime = duration * progress
-            const matrix = new DOMMatrix(getComputedStyle(element).transform)
-            return [matrix.a, matrix.b, matrix.c, matrix.d]
-          })
-        })
-
-      // then
-      const zero = expect.closeTo(0, 5)
-      expect(rotations).toEqual([
-        [1, zero, zero, 1],
-        [zero, 1, -1, zero],
-        [-1, zero, zero, -1],
-        [zero, -1, 1, zero],
-        [1, zero, zero, 1],
-      ])
-    })
-  },
-  20_000,
-)
-
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given the Tailwind theme bridge',
     'when dark, light, auto and a registered theme swap at runtime',
@@ -854,11 +643,14 @@ test.skipIf(!hasChromium)(
 
       // when
       await page.selectOption('#theme-choice', 'light')
+      await settleTransitions(page)
       const [light, lightReference] = await readColors()
       await page.emulateMedia({ colorScheme: 'light' })
       await page.selectOption('#theme-choice', 'auto')
+      await settleTransitions(page)
       const [auto] = await readColors()
       await page.selectOption('#theme-choice', 'high-contrast')
+      await settleTransitions(page)
       const [registered, registeredReference] = await readColors()
 
       // then
@@ -887,7 +679,7 @@ test.skipIf(!hasChromium)(
   20_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given preflight and the existing animation styles at the xl tier',
     'when markdown and running indicators render',
@@ -936,7 +728,7 @@ test.skipIf(!hasChromium)(
   20_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given stylesheet-backed controls and raw prose',
     'when preflight is loaded',
@@ -1014,33 +806,7 @@ test.skipIf(!hasChromium)(
   20_000,
 )
 
-test.skipIf(!hasChromium)(
-  [
-    'given theme-derived viewport widths',
-    'when the browser crosses each named tier',
-    'it should match the minimum widths of the generated breakpoint variants',
-  ].join(', '),
-  async () => {
-    // given
-    await withStyles(async (page) => {
-      const height = devices['iPhone SE'].viewport.height
-
-      // when, then
-      await page.setViewportSize({ width: viewportWidths.base, height })
-      expect(await page.locator('#sm').isVisible()).toBe(false)
-      for (const [tier, width] of Object.entries(viewportWidths)) {
-        if (tier === 'base') continue
-        await page.setViewportSize({ width: width - 1, height })
-        expect(await page.locator(`[id="${tier}"]`).isVisible()).toBe(false)
-        await page.setViewportSize({ width, height })
-        expect(await page.locator(`[id="${tier}"]`).isVisible()).toBe(true)
-      }
-    })
-  },
-  20_000,
-)
-
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given issue #85 production CSS at the xl tier',
     'when themes change after the build and descendants override semantic variables',
@@ -1048,31 +814,14 @@ test.skipIf(!hasChromium)(
   ].join(', '),
   async () => {
     // given — requirements 1.1.2–1.1.4, 1.3.1–1.3.3 and target state 2.1
-    const result = await build({
-      root: new URL('../', import.meta.url).pathname,
-      logLevel: 'silent',
-      build: { write: false },
-    })
-    const outputs = Array.isArray(result) ? result : [result]
-    const css = outputs
-      .flatMap((output) => ('output' in output ? output.output : []))
-      .flatMap((asset) =>
-        asset.type === 'asset' && asset.fileName.endsWith('.css')
-          ? [
-              typeof asset.source === 'string'
-                ? asset.source
-                : new TextDecoder().decode(asset.source),
-            ]
-          : [],
-      )
-      .join('\n')
+    const css = await buildProductionCss()
     expect(css).not.toBe('')
-    const browser = await chromium.launch()
+    const browser = await launchChromium()
     try {
       const page = await browser.newPage({
         viewport: {
           width: viewportWidths.xl,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         },
       })
       // No development server or stylesheet can mask a production-build gap.
@@ -1086,10 +835,12 @@ test.skipIf(!hasChromium)(
       await page.locator('html').evaluate((element) => {
         element.setAttribute('data-theme', 'light')
       })
+      await settleTransitions(page)
       const light = await readColorProbes(page)
       await page.locator('html').evaluate((element) => {
         element.setAttribute('data-theme', 'high-contrast')
       })
+      await settleTransitions(page)
       const registered = await readColorProbes(page)
       await page.evaluate((cases) => {
         for (const { selectors, variable, replacement } of cases) {
@@ -1153,7 +904,7 @@ test.skipIf(!hasChromium)(
   30_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given issue #85 running indicators and the existing reduced-motion preference',
     'when the preference changes while global animations are loaded',

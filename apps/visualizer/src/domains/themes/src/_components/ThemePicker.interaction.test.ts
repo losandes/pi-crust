@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
 import type { Page } from 'playwright'
-import { chromium } from 'playwright'
-import { startHarnessServer } from '@/lib/testing'
+import {
+  browserTestsEnabled,
+  launchChromium,
+  startHarnessServer,
+} from '@/lib/testing'
 import { THEME_STORAGE_KEY } from '../state/theme-store'
 
 const HARNESS_HTML = `<!doctype html>
@@ -30,19 +32,6 @@ const TWELVE_THEMES = [
   { name: 'mono', label: 'Mono', builtin: false, css: '' },
 ]
 
-/*
- * Playwright's Chromium is a ~99MB download and is not vendored. On a machine
- * without it this says so and skips, rather than failing a verification
- * command AGENTS.md tells people to run on a fresh clone. A skip is a check
- * not run, not a check that passed.
- */
-const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
-if (!CHROMIUM_AVAILABLE) {
-  console.warn(
-    'ThemePicker.interaction.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
-
 const withPage = async (
   themes: readonly {
     name: string
@@ -57,7 +46,7 @@ const withPage = async (
   // Fresh browser storage prevents one theme choice leaking into another test.
   const { server, base } = await startHarnessServer()
   try {
-    const activeBrowser = await chromium.launch()
+    const activeBrowser = await launchChromium()
     try {
       const page = await activeBrowser.newPage()
       await page.route('**/__diag__/index.html', (route) =>
@@ -80,7 +69,7 @@ const withPage = async (
   }
 }
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a theme picker with three or twelve registered themes',
     'when measuring the closed trigger',
@@ -112,7 +101,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given twelve registered themes',
     'when clicking the picker trigger',
@@ -139,7 +128,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open theme picker',
     'when choosing a theme row',
@@ -171,7 +160,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open theme picker with the default preference',
     'when pressing ArrowDown and ArrowUp',
@@ -204,7 +193,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open theme picker',
     'when pressing Escape',
@@ -239,7 +228,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a stored theme preference',
     'when applying a known theme and then one with no mapped icon',
@@ -290,7 +279,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a theme picker with a stored named preference',
     'when opening the list',
@@ -353,7 +342,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given two different registered theme lists',
     'when opening each picker',

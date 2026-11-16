@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { devices } from 'playwright'
-import { viewportWidths } from './viewport-widths'
+import { integrationTestsEnabled } from './integration'
+import { phoneViewport, viewportWidths } from './viewport-widths'
 
 test(
   [
@@ -20,21 +20,21 @@ test(
   },
 )
 
-test(
+test.skipIf(!integrationTestsEnabled)(
   [
     'given the base viewport tier',
     'when its width is read',
     'it should use the Playwright small-phone descriptor',
   ].join(', '),
-  () => {
+  async () => {
     // given
-    const phone = devices['iPhone SE']
+    const phone = (await import('playwright')).devices['iPhone SE']
 
     // when
-    const width = viewportWidths.base
+    const viewport = phoneViewport
 
     // then
-    expect(width).toBe(phone.viewport.width)
+    expect(viewport).toEqual<typeof phone.viewport>(phone.viewport)
   },
 )
 

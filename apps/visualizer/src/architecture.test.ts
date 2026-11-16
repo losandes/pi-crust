@@ -417,3 +417,62 @@ test(
     expect(names).not.toContain('zustand')
   },
 )
+
+test(
+  [
+    'given visualizer tests and the browser testing helpers',
+    'when their static imports are inspected',
+    'it should load Playwright and Vite only through dynamic imports',
+  ].join(', '),
+  () => {
+    // given
+    const files = [
+      ...sourceFiles(SRC),
+      ...sourceFiles(join(SRC, '..', 'server')),
+    ].filter(
+      (file) =>
+        /\.test\.tsx?$/.test(file) ||
+        file.startsWith(join(SRC, 'lib', 'testing')),
+    )
+    const staticValueImport =
+      /^\s*import\s+(?!type\b)(?:[^'"]*?\s+from\s*)?['"](?:playwright|vite)['"]/m
+
+    // when
+    const offenders = files.filter((file) =>
+      staticValueImport.test(readFileSync(file, 'utf8')),
+    )
+
+    // then
+    expect(offenders).toEqual([])
+  },
+)
+
+test(
+  [
+    'given tests importing a browser, harness server or production CSS builder',
+    'when their test declarations are inspected',
+    'it should gate every test on browserTestsEnabled',
+  ].join(', '),
+  () => {
+    // given
+    const files = [
+      ...sourceFiles(SRC),
+      ...sourceFiles(join(SRC, '..', 'server')),
+    ].filter((file) => /\.test\.tsx?$/.test(file))
+    const gatedDeclaration = ['test', '.skipIf(!browserTestsEnabled)('].join('')
+    const browserImport =
+      /import\s*\{[^}]*\b(?:launchChromium|startHarnessServer|buildProductionCss)\b[^}]*\}\s*from\s*['"][^'"]+['"]/m
+
+    // when
+    const offenders = files.flatMap((file) => {
+      const source = readFileSync(file, 'utf8')
+      if (!browserImport.test(source)) return []
+      return [...source.matchAll(/^\s*(?:test|it)(?=\s*[.(])[^\n]*/gm)]
+        .filter((match) => !match[0].trimStart().startsWith(gatedDeclaration))
+        .map((match) => `${file}: ${match[0].trim()}`)
+    })
+
+    // then
+    expect(offenders).toEqual([])
+  },
+)

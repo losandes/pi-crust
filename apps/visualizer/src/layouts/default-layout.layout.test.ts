@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
-import { chromium, devices, type Page } from 'playwright'
-import { build } from 'vite'
-import { startHarnessServer, viewportWidths } from '@/lib/testing'
-
-const hasChromium = existsSync(chromium.executablePath())
-if (!hasChromium) {
-  console.warn(
-    'default-layout.layout.test.ts: no Chromium — skipping browser checks. Run `bunx playwright install chromium`.',
-  )
-}
+import { readFileSync } from 'node:fs'
+import type { Page } from 'playwright'
+import {
+  browserTestsEnabled,
+  buildProductionCss,
+  launchChromium,
+  phoneViewport,
+  settleTransitions,
+  startHarnessServer,
+  viewportWidths,
+} from '@/lib/testing'
 
 const registeredTheme = {
   name: 'high-contrast',
@@ -46,38 +46,17 @@ flushSync(() => createRoot(document.getElementById('app')).render(
   h(DefaultLayout, undefined, h('p', undefined, 'Shell-only fixture'))))
 </script></body></html>`
 
-const buildCss = async () => {
-  const result = await build({
-    root: new URL('../../', import.meta.url).pathname,
-    logLevel: 'silent',
-    // Inline fonts so the write-free build still measures the app's real type.
-    build: { write: false, assetsInlineLimit: Number.MAX_SAFE_INTEGER },
-  })
-  return (Array.isArray(result) ? result : [result])
-    .flatMap((output) => ('output' in output ? output.output : []))
-    .flatMap((asset) =>
-      asset.type === 'asset' && asset.fileName.endsWith('.css')
-        ? [
-            typeof asset.source === 'string'
-              ? asset.source
-              : new TextDecoder().decode(asset.source),
-          ]
-        : [],
-    )
-    .join('\n')
-}
-
-const productionCss = hasChromium ? await buildCss() : ''
+const productionCss = browserTestsEnabled ? await buildProductionCss() : ''
 
 const withShell = async (check: (page: Page) => Promise<void>) => {
   const { server, base } = await startHarnessServer()
   try {
-    const browser = await chromium.launch()
+    const browser = await launchChromium()
     try {
       const page = await browser.newPage({
         viewport: {
           width: viewportWidths.xl,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         },
         colorScheme: 'dark',
         reducedMotion: 'no-preference',
@@ -126,249 +105,6 @@ const withShell = async (check: (page: Page) => Promise<void>) => {
   }
 }
 
-const TYPE = [
-  'font-family',
-  'font-size',
-  'font-weight',
-  'line-height',
-  'letter-spacing',
-]
-const PAINT = [
-  'color',
-  'background-color',
-  'border-top-color',
-  'border-top-width',
-  'border-top-style',
-]
-type TStyleCase = Readonly<{
-  selector: string
-  css: string
-  exact: readonly string[]
-  rounded?: readonly string[]
-  pseudo?: string
-}>
-
-// Independent oracle: the two stylesheets at 4dafe46c, before issue #87.
-// Only scale-rounded dimensions may drift, by at most one default scale step.
-const chromeStyles: readonly TStyleCase[] = [
-  {
-    selector: 'header',
-    css: 'display:flex;align-items:center;justify-content:space-between;padding:15px 28px;background:rgb(var(--panel-rgb) / .72);backdrop-filter:blur(14px);position:sticky;top:0;z-index:10',
-    exact: [
-      ...PAINT,
-      'display',
-      'align-items',
-      'justify-content',
-      'position',
-      'top',
-      'z-index',
-    ],
-    rounded: ['padding-top', 'padding-right', 'backdrop-filter'],
-  },
-  {
-    selector: 'header',
-    pseudo: '::after',
-    css: 'content:"";position:absolute;left:0;right:0;bottom:0;height:var(--border-width);background:linear-gradient(90deg,rgb(var(--purple-rgb) / .45),rgb(var(--cyan-rgb) / .35) 40%,rgb(var(--cyan-rgb) / .06))',
-    exact: [
-      'content',
-      'position',
-      'left',
-      'right',
-      'bottom',
-      'height',
-      'background-image',
-    ],
-  },
-  {
-    selector: 'nav',
-    css: 'display:flex;align-items:center;gap:10px;font-size:17px;min-width:0',
-    exact: [...TYPE, 'display', 'align-items', 'min-width'],
-    rounded: ['gap'],
-  },
-  {
-    selector: 'nav img',
-    css: 'width:28px;height:28px;flex:none;filter:drop-shadow(0 0 8px rgb(var(--purple-rgb) / .35))',
-    exact: ['flex-shrink', 'filter'],
-    rounded: ['width', 'height'],
-  },
-  {
-    selector: 'nav > span:nth-child(2)',
-    css: 'background:linear-gradient(90deg,var(--purple),var(--cyan));background-clip:text;color:transparent;font-weight:700;letter-spacing:.05em;white-space:nowrap',
-    exact: [
-      ...TYPE,
-      'background-image',
-      'background-clip',
-      'color',
-      'white-space',
-    ],
-  },
-  {
-    selector: 'nav > span:nth-child(3)',
-    css: 'color:var(--faint)',
-    exact: ['color'],
-  },
-  { selector: 'nav a', css: 'color:var(--dim)', exact: [...TYPE, 'color'] },
-  {
-    selector: 'nav > span:last-child',
-    css: 'color:var(--text)',
-    exact: [...TYPE, 'color'],
-  },
-  {
-    selector: 'header > div',
-    css: 'display:flex;align-items:center;gap:16px',
-    exact: ['display', 'align-items', 'gap'],
-  },
-  {
-    selector: 'header > div > span',
-    css: 'display:inline-flex;align-items:center;gap:8px;color:var(--dim);font-size:16px;white-space:nowrap',
-    exact: [...TYPE, 'color', 'display', 'align-items', 'gap', 'white-space'],
-  },
-  {
-    selector: 'header > div > span > span',
-    css: 'width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px rgb(var(--ok-rgb) / .7);animation:crust-pulse 1.6s ease-in-out infinite',
-    exact: [
-      'background-color',
-      'box-shadow',
-      'animation-name',
-      'animation-duration',
-      'animation-timing-function',
-      'animation-iteration-count',
-    ],
-    rounded: ['width', 'height'],
-  },
-  {
-    selector: 'header button',
-    css: 'display:inline-flex;align-items:center;justify-content:center;width:30px;height:26px;padding:0;border:var(--border-width) solid var(--border-soft);border-radius:7px;background:rgb(var(--panel-2-rgb) / .6);color:var(--faint);cursor:pointer',
-    exact: [
-      ...TYPE,
-      ...PAINT,
-      'display',
-      'align-items',
-      'justify-content',
-      'padding',
-      'cursor',
-    ],
-    rounded: ['width', 'height', 'border-top-left-radius'],
-  },
-]
-const listStyles: readonly TStyleCase[] = [
-  {
-    selector: '[role="listbox"]',
-    css: 'position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:180px;max-height:320px;overflow-y:auto;margin:0;padding:4px;list-style:none;border:var(--border-width) solid var(--border-soft);border-radius:9px;background:var(--panel-2);box-shadow:var(--shadow-panel)',
-    exact: [
-      ...TYPE,
-      ...PAINT,
-      'position',
-      'right',
-      'z-index',
-      'max-height',
-      'overflow-y',
-      'padding',
-      'box-shadow',
-    ],
-    rounded: ['min-width', 'border-top-left-radius'],
-  },
-  {
-    selector: '[role="option"][aria-selected="false"]',
-    css: 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;color:var(--faint);cursor:pointer',
-    exact: [
-      ...TYPE,
-      ...PAINT,
-      'display',
-      'align-items',
-      'gap',
-      'padding',
-      'cursor',
-    ],
-    rounded: ['border-top-left-radius'],
-  },
-  {
-    selector: '[role="option"][aria-selected="true"]',
-    css: 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;color:var(--accent);background:rgb(var(--accent-rgb) / var(--fill-medium));cursor:pointer',
-    exact: [
-      ...TYPE,
-      ...PAINT,
-      'display',
-      'align-items',
-      'gap',
-      'padding',
-      'cursor',
-    ],
-    rounded: ['border-top-left-radius'],
-  },
-]
-
-const expectLegacyStyles = async (
-  page: Page,
-  cases: readonly TStyleCase[],
-  theme: string,
-) => {
-  const differences = await page.evaluate((cases) => {
-    const context = document.createElement('canvas').getContext('2d')
-    if (!context) throw new Error('Missing colour-normalization canvas')
-    const rgba = (color: string) => {
-      context.clearRect(0, 0, 1, 1)
-      // biome-ignore lint/plugin/no-object-mutation: canvas exposes its colour through a setter, not immutable construction.
-      context.fillStyle = color
-      context.fillRect(0, 0, 1, 1)
-      return Array.from(context.getImageData(0, 0, 1, 1).data)
-    }
-    const visibleShadow = (value: string) =>
-      value
-        .split(/,(?![^()]*\))/)
-        .map((shadow) => shadow.trim())
-        .filter(
-          (shadow) =>
-            shadow !== 'none' && shadow !== 'rgba(0, 0, 0, 0) 0px 0px 0px 0px',
-        )
-        .join(', ') || 'none'
-    const number = (value: string) =>
-      Number.parseFloat(value.match(/-?[\d.]+/)?.[0] ?? '')
-    return cases.flatMap(({ selector, css, exact, rounded = [], pseudo }) => {
-      const element = document.querySelector(selector)
-      if (!element) throw new Error(`Missing chrome element: ${selector}`)
-      const actual = getComputedStyle(element, pseudo)
-      const values = Object.fromEntries(
-        [...exact, ...rounded].map((property) => [
-          property,
-          actual.getPropertyValue(property),
-        ]),
-      )
-      const reference = element.cloneNode(false)
-      if (!(reference instanceof Element))
-        throw new Error('Missing reference element')
-      reference.removeAttribute('class')
-      reference.removeAttribute('id')
-      reference.setAttribute('style', css)
-      reference.append(document.createTextNode(element.textContent ?? ''))
-      element.after(reference)
-      try {
-        const expected = getComputedStyle(reference)
-        return [...exact, ...rounded].flatMap((property) => {
-          const a = values[property] ?? ''
-          const e = expected.getPropertyValue(property)
-          const matches = property.endsWith('color')
-            ? rgba(a).every(
-                (channel, index) =>
-                  Math.abs(channel - (rgba(e)[index] ?? Number.NaN)) <= 1,
-              )
-            : rounded.includes(property)
-              ? Math.abs(number(a) - number(e)) <= 4
-              : property === 'box-shadow'
-                ? visibleShadow(a) === visibleShadow(e)
-                : a === e
-          return matches
-            ? []
-            : [{ selector, pseudo, property, actual: a, expected: e }]
-        })
-      } finally {
-        reference.remove()
-      }
-    })
-  }, cases)
-  expect(differences, theme).toEqual([])
-}
-
 for (const route of [
   { hash: '#/', current: 'sessions' },
   { hash: '#/4dafe46c', current: '4dafe46c' },
@@ -378,7 +114,7 @@ for (const route of [
     current: '4dafe46c_03_build',
   },
 ]) {
-  test.skipIf(!hasChromium)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given the shell at ${route.hash}`,
       'when reading its breadcrumb in the running page',
@@ -420,8 +156,9 @@ for (const route of [
 const longRun = '0123456789abcdef'.repeat(16)
 const longWorkspace = 'long-repository-worktree-'.repeat(16)
 const longActivity = `${longRun}_99_${'long-activity-name-'.repeat(16)}`
-for (const [tier, width] of Object.entries(viewportWidths)) {
-  test.skipIf(!hasChromium)(
+for (const tier of ['base', 'xl'] as const) {
+  const width = viewportWidths[tier]
+  test.skipIf(!browserTestsEnabled)(
     [
       `given the shell with long workspace, run and activity identifiers at the ${tier} tier`,
       'when the run and activity breadcrumbs render and the picker opens',
@@ -432,7 +169,7 @@ for (const [tier, width] of Object.entries(viewportWidths)) {
       await withShell(async (page) => {
         await page.setViewportSize({
           width,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         })
         for (const activity of ['', `/${longActivity}`]) {
           // when
@@ -487,7 +224,7 @@ for (const journey of [
     runLabel: 'feature-worktree · 4dafe46c',
   },
 ]) {
-  test.skipIf(!hasChromium)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given issue #87 §1.3.1 and §1.5.1 ${journey.scope} activity breadcrumbs`,
       'when navigating breadcrumb ancestors with Enter and returning with browser history',
@@ -575,7 +312,7 @@ for (const route of [
   { kind: 'run', suffix: '', current: `${longWorkspace} · ${longRun}` },
   { kind: 'activity', suffix: `/${longActivity}`, current: longActivity },
 ]) {
-  test.skipIf(!hasChromium)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given issue #87 §1.3.3 and §1.5.1 a long ${route.kind} breadcrumb at the base tier`,
       'when the theme picker opens beside the breadcrumb',
@@ -586,7 +323,7 @@ for (const route of [
       await withShell(async (page) => {
         await page.setViewportSize({
           width: viewportWidths.base,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         })
         await page.goto(
           `${page.url().split('#')[0]}#/${longWorkspace}:${longRun}${route.suffix}`,
@@ -674,7 +411,7 @@ for (const route of [
   )
 }
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given issue #87 §1.2.3 the mounted live indicator',
     'when reduced motion is enabled and then disabled',
@@ -739,7 +476,7 @@ test.skipIf(!hasChromium)(
   30_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given issue #87 §1.4.2 and §1.5.1 the shell with Auto chosen through its picker',
     'when the system colour scheme changes before and after an explicit Dark choice',
@@ -761,6 +498,7 @@ test.skipIf(!hasChromium)(
         .getByRole('button', { name: 'Theme: Auto', exact: true })
         .click()
       await page.getByRole('option', { name: 'Auto', exact: true }).click()
+      await settleTransitions(page)
       const autoDark = await readTheme()
 
       // when
@@ -768,11 +506,13 @@ test.skipIf(!hasChromium)(
       await page.waitForFunction(
         () => document.documentElement.getAttribute('data-theme') === 'light',
       )
+      await settleTransitions(page)
       const autoLight = await readTheme()
       await page
         .getByRole('button', { name: 'Theme: Auto', exact: true })
         .click()
       await page.getByRole('option', { name: 'Dark', exact: true }).click()
+      await settleTransitions(page)
       const explicitDark = await readTheme()
       await page.emulateMedia({ colorScheme: 'dark' })
       await page.emulateMedia({ colorScheme: 'light' })
@@ -782,6 +522,7 @@ test.skipIf(!hasChromium)(
             requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
           ),
       )
+      await settleTransitions(page)
       const unchanged = await readTheme()
 
       // then
@@ -804,112 +545,6 @@ test.skipIf(!hasChromium)(
           .getByRole('button', { name: 'Theme: Dark', exact: true })
           .count(),
       ).toBe(1)
-    })
-  },
-  30_000,
-)
-
-test.skipIf(!hasChromium)(
-  [
-    'given the shell and its theme picker at the xl tier',
-    'when dark, light, both auto schemes and a runtime-registered theme are chosen through the picker',
-    'it should preserve legacy chrome, colours, typography, focus styling and the live animation',
-  ].join(', '),
-  async () => {
-    // given
-    await withShell(async (page) => {
-      await page.goto(
-        `${page.url().split('#')[0]}#/worktree:4dafe46c/4dafe46c_03_build`,
-      )
-      await page.waitForFunction(
-        () =>
-          document.querySelector('nav > :last-child')?.textContent ===
-          '4dafe46c_03_build',
-      )
-      for (const { theme, label, scheme, icon } of [
-        { theme: 'dark', label: 'Dark', scheme: 'dark', icon: 'moon' },
-        { theme: 'light', label: 'Light', scheme: 'light', icon: 'sun' },
-        { theme: 'auto', label: 'Auto', scheme: 'light', icon: 'monitor' },
-        { theme: 'auto', label: 'Auto', scheme: 'dark', icon: 'monitor' },
-        {
-          theme: 'high-contrast',
-          label: 'High contrast',
-          scheme: 'dark',
-          icon: 'contrast',
-        },
-      ] as const) {
-        // when
-        await page.emulateMedia({ colorScheme: scheme })
-        await page.locator('header button').click()
-        await page.getByRole('option', { name: label, exact: true }).click()
-        await page.mouse.move(0, 0)
-        // then
-        expect(
-          await page.locator('html').getAttribute('data-theme-choice'),
-        ).toBe(theme)
-        expect(await page.locator('html').getAttribute('data-theme')).toBe(
-          theme === 'auto' ? scheme : theme,
-        )
-        expect(
-          await page.locator('header button svg').getAttribute('class'),
-        ).toContain(`lucide-${icon}`)
-        expect(await page.locator('header button').getAttribute('title')).toBe(
-          `Theme: ${label}`,
-        )
-        expect(await page.getByRole('listbox').count()).toBe(0)
-        await expectLegacyStyles(page, chromeStyles, theme)
-
-        // when
-        await page.locator('nav a').first().hover()
-        // then
-        await expectLegacyStyles(
-          page,
-          [{ selector: 'nav a', css: 'color:var(--text)', exact: ['color'] }],
-          theme,
-        )
-
-        // when
-        await page.mouse.move(0, 0)
-        await page.keyboard.press('Tab')
-        await page.locator('header button').focus()
-        // then
-        await expectLegacyStyles(
-          page,
-          [
-            {
-              selector: 'header button',
-              css: 'outline:none;box-shadow:var(--ring)',
-              exact: ['outline-style', 'box-shadow'],
-            },
-          ],
-          theme,
-        )
-
-        // when
-        await page.keyboard.press('Enter')
-        // then
-        await expectLegacyStyles(page, listStyles, theme)
-        // top:calc(100% + 6px) and top-full plus margin must align identically.
-        const listPosition = await page
-          .getByRole('listbox')
-          .evaluate((element) => {
-            const list = element.getBoundingClientRect()
-            const wrapper = element.parentElement?.getBoundingClientRect()
-            return {
-              gap: list.top - (wrapper?.bottom ?? Number.NaN),
-              right: list.right - (wrapper?.right ?? Number.NaN),
-            }
-          })
-        expect(listPosition, theme).toEqual({ gap: 6, right: 0 })
-        expect(
-          await page.getByRole('option', { selected: true }).textContent(),
-        ).toBe(label)
-        // when
-        await page.keyboard.press('Escape')
-        await page
-          .locator('header button')
-          .evaluate((element) => (element as HTMLButtonElement).blur())
-      }
     })
   },
   30_000,

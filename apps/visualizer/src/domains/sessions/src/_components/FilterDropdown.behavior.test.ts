@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
 import type { Browser, BrowserContext, Page } from 'playwright'
-import { chromium } from 'playwright'
-import { startHarnessServer } from '@/lib/testing'
+import {
+  browserTestsEnabled,
+  launchChromium,
+  startHarnessServer,
+} from '@/lib/testing'
 import type { SessionSummary } from '../typedefs/session'
 
 const HARNESS_HTML = `<!doctype html>
@@ -75,19 +77,6 @@ const ARCHIVED_SESSION: SessionSummary = session({
   archived: 1,
 })
 
-/*
- * Playwright's Chromium is a ~99MB download and is not vendored. On a machine
- * without it this says so and skips, rather than failing a verification
- * command AGENTS.md tells people to run on a fresh clone. A skip is a check
- * not run, not a check that passed.
- */
-const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
-if (!CHROMIUM_AVAILABLE) {
-  console.warn(
-    'FilterDropdown.behavior.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
-
 const ACTION_TIMEOUT_MS = 8_000
 
 /**
@@ -157,7 +146,7 @@ const withPage = async (run: (page: Page, base: string) => Promise<void>) => {
   try {
     let lastError: unknown
     for (const attempt of [1, 2]) {
-      const activeBrowser = await chromium.launch()
+      const activeBrowser = await launchChromium()
 
       // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung browser into one retry rather than failing the test on resource contention outside this file's control
       try {
@@ -191,7 +180,7 @@ const waitFor = async (check: () => Promise<boolean>, timeoutMs = 3000) => {
   }
 }
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given active and archived sessions',
     'when the state panel selects archived sessions',
@@ -214,7 +203,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given sessions from two trees',
     'when selecting one tree option',
@@ -239,7 +228,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open tree filter panel',
     'when clicking the background',
@@ -266,7 +255,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open tree filter panel with two options',
     'when typing in the search box',
@@ -300,7 +289,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a selected tree filter',
     'when reloading the same page',

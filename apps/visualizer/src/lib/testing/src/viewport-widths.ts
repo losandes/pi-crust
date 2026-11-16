@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { devices } from 'playwright'
 
 const theme = readFileSync(
   createRequire(import.meta.url).resolve('tailwindcss/theme.css'),
@@ -18,9 +17,11 @@ const breakpointInPixels = (tier: string): number => {
   return Number(rem) * 16
 }
 
+export const phoneViewport = { width: 320, height: 568 } as const
+
 /** Browser-test widths: a small phone, then each default Tailwind tier. */
 export const viewportWidths = {
-  base: devices['iPhone SE'].viewport.width,
+  base: phoneViewport.width,
   sm: breakpointInPixels('sm'),
   md: breakpointInPixels('md'),
   lg: breakpointInPixels('lg'),

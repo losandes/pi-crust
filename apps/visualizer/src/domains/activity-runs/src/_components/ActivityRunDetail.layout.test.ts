@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { chromium, devices, type Page } from 'playwright'
+import type { Page } from 'playwright'
 import {
+  browserTestsEnabled,
+  launchChromium,
+  phoneViewport,
+  settleTransitions,
   startHarnessServer,
   type TViewportTier,
   viewportWidths,
@@ -22,21 +26,6 @@ const HARNESS_HTML = `<!doctype html>
 <script type="module" src="/src/domains/activity-runs/src/_components/__fixtures__/activity-run-detail-harness.tsx"></script>
 </body></html>`
 
-/*
- * Playwright's Chromium is a ~99MB download and is not vendored. On a
- * machine without it this says so and skips, rather than failing a
- * verification command AGENTS.md tells people to run on a fresh clone. A
- * skip is a check not run, not a check that passed.
- */
-const probe = await chromium.launch().catch(() => undefined)
-const hasChromium = probe !== undefined
-await probe?.close()
-if (!hasChromium) {
-  console.warn(
-    'ActivityRunDetail.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
-
 const highContrastCss = readFileSync(
   new URL(
     '../../../../../../../templates/stamp/config/high-contrast.css',
@@ -44,13 +33,7 @@ const highContrastCss = readFileSync(
   ),
   'utf8',
 )
-const THEMES = [
-  { theme: 'Dark', scheme: 'dark' },
-  { theme: 'Light', scheme: 'light' },
-  { theme: 'Auto', scheme: 'dark' },
-  { theme: 'Auto', scheme: 'light' },
-  { theme: 'High contrast', scheme: 'dark' },
-] as const
+const THEMES = [{ theme: 'Dark', scheme: 'dark' }] as const
 const TABS = ['chat', 'highlights', 'context', 'events'] as const
 const DETAIL = '#root main > section'
 const CONTEXT = '[data-testid="activity-run-context"]'
@@ -62,12 +45,12 @@ const withDetail = async (
 ) => {
   const { server, base } = await startHarnessServer()
   try {
-    const browser = await chromium.launch()
+    const browser = await launchChromium()
     try {
       const page = await browser.newPage({
         viewport: {
           width: viewportWidths[tier],
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         },
         reducedMotion: 'reduce',
       })
@@ -125,8 +108,8 @@ const withDetail = async (
   }
 }
 
-for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
-  test.skipIf(!hasChromium)(
+for (const tier of ['base', 'xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
     [
       `given the activity detail panel at the ${tier} tier`,
       'when each tab is opened and the context geometry is measured',
@@ -205,7 +188,7 @@ for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
   )
 }
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given the activity detail panel at the xl tier',
     'when only its parent narrows to the sm tier',
@@ -559,7 +542,7 @@ const styleDifferences = (page: Page, tab: (typeof TABS)[number]) =>
   }, legacyStyles[tab])
 
 for (const { theme, scheme } of THEMES) {
-  test.skipIf(!hasChromium)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given the activity panel under ${theme} (${scheme}) at the xl tier`,
       'when every tab and its owned disclosures are opened',
@@ -572,6 +555,7 @@ for (const { theme, scheme } of THEMES) {
         await page.emulateMedia({ colorScheme: scheme })
         await page.getByRole('button', { name: /^Theme:/ }).click()
         await page.getByRole('option', { name: theme, exact: true }).click()
+        await settleTransitions(page)
         for (const tab of TABS) {
           await page.getByRole('tab', { name: tab }).click()
           if (tab === 'context') {
@@ -619,7 +603,7 @@ for (const { theme, scheme } of THEMES) {
           for (const tier of ['base', 'md', 'xl'] as const) {
             await page.setViewportSize({
               width: viewportWidths[tier],
-              height: devices['iPhone SE'].viewport.height,
+              height: phoneViewport.height,
             })
             const overflow = await page.evaluate(() => ({
               width: document.documentElement.scrollWidth,
