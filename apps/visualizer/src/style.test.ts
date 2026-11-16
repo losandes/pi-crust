@@ -153,13 +153,17 @@ narration.innerHTML = renderToStaticMarkup(createElement(NarrationPane, narratio
 if (location.search === '?surfaces') {
   const surface = document.createElement('main')
   surface.id = 'migration-surfaces'
-  surface.className = '@container min-w-0'
+  surface.className = 'min-w-0'
   document.body.append(surface)
   const prose = '# Waiting for you\\n\\nParagraph with **emphasis** and \\x60inline code\\x60.\\n\\n## More\\n\\n### Details\\n\\n#### Small heading\\n\\n- Bullet\\n\\n1. Number\\n\\n> Quoted\\n\\n---\\n\\n\\x60\\x60\\x60json\\n{"long":"' + 'long'.repeat(100) + '"}\\n\\x60\\x60\\x60\\n\\n| First | Second |\\n| --- | --- |\\n| One | Two |\\n| Three | Four |'
   const wrap = (id, component) => createElement('div', { id, key: id }, component)
   createRoot(surface).render(createElement('div', {}, [
     wrap('narration-surface', createElement(NarrationPane, narrationProps)),
     wrap('failed-narration', createElement(NarrationPane, { ...narrationProps, activityRunStatus: 'fail' })),
+    wrap('open-narration', createElement(NarrationPane, {
+      ...narrationProps,
+      consults: [{ ...narrationProps.consults[0], answer: '\\x60\\x60\\x60json\\n{"pending":true}' }],
+    })),
     wrap('ledger-surface', createElement(DecisionLedger, { ledger: {
       total: 5,
       questions: ['escalated', 'open', 'decided'].map(outcome => ({ outcome, question: outcome + ' question', provisional_answer: outcome === 'open' ? '' : 'A defensible answer', consequential: true, beyond_this_run: true })),
@@ -459,6 +463,27 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
             )
           }
           const cases = [
+            ['#standalone-request section', 'margin-left', 'margin-left:28px'],
+            [
+              '#standalone-request section',
+              'margin-right',
+              'margin-right:28px',
+            ],
+            [
+              '#open-narration pre',
+              'border-left-style',
+              'border-left-style:dashed',
+            ],
+            [
+              '#open-narration pre',
+              'border-left-width',
+              'border-left-width:3px',
+            ],
+            [
+              '#narration-surface pre',
+              'border-left-width',
+              'border-left-width:0px',
+            ],
             [
               '#narration-surface article',
               'background-color',

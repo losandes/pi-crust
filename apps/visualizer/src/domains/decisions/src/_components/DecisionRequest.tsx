@@ -19,7 +19,7 @@ import { fetchDecisionRequest } from '../io/fetch-decision-request'
 
 const VARIANT = {
   inline: 'mb-3',
-  standalone: 'mx-4 mt-5 mb-3 @sm:mx-7',
+  standalone: 'mx-7 mt-5 mb-3',
 } as const
 
 export const DecisionRequest = ({
