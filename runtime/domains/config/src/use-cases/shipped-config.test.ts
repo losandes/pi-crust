@@ -267,7 +267,6 @@ test(
     ])
     expect(stagesOf('bugfix')).toEqual([
       'diagnose',
-      'plan',
       'review-plan',
       'deliver',
       'accept',
@@ -300,7 +299,6 @@ test(
       'plan-comprehension',
       'plan-readiness',
       'build',
-      'test',
       'outcome-review',
       'code-review',
       'gh-pull-request',
@@ -312,7 +310,7 @@ test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
     'when a shipped stage is serial',
-    'it should be allowed to hold a sequence, which is why there are three of them',
+    'it should be allowed to hold a sequence',
   ].join(', '),
   () => {
     // given
@@ -321,15 +319,15 @@ test(
     // when
     const actual = loadLifecycles(given, shippedConfig())
     const ship = actual.find((one) => one.name === 'ship')
-    const deliver = ship?.stages.find((one) => one.name === 'deliver')
+    const discover = ship?.stages.find((one) => one.name === 'discover')
 
     // then
-    expect(deliver?.strategy).toBe('serial')
-    expect(deliver?.activities).toEqual(['build', 'test'])
+    expect(discover?.strategy).toBe('serial')
+    expect(discover?.activities).toEqual(['identify', 'plan'])
   },
 )
 
-for (const name of ['ship', 'bugfix', 'discover', 'gh-issue']) {
+for (const name of ['ship', 'bugfix', 'ship-to-outcome']) {
   test(
     [
       'given the shipped lifecycle and Activity registries',

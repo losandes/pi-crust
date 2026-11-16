@@ -38,3 +38,6 @@ process.env.CRUST_DB = join(
   `crust-test-no-db-${process.pid}`,
   'crust.db',
 )
+
+// biome-ignore lint/plugin/no-object-mutation: React reads IS_REACT_ACT_ENVIRONMENT as a global, not an env var, and without it every act() call warns
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })

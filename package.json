@@ -4,24 +4,12 @@
   "description": "Run a structured SDLC of autonomous, specialist AI agents in your repo",
   "type": "module",
   "scripts": {
-    "// LINT": "==============================LINT==============================",
-    "lint": "biome check apps lib runtime scripts templates",
-    "lint:fix": "biome check apps lib runtime scripts templates --fix",
-    "// BUILD": "=============================BUILD=============================",
-    "build": "bun run --cwd apps/visualizer build",
-    "// TEST": "==============================TEST==============================",
-    "test": "bunt apps/visualizer lib runtime scripts --parallel | buntap --nyan",
-    "test:agent": "RUN_INTEGRATION_TESTS=true CLAUDECODE=1 bunt apps/visualizer lib runtime scripts --coverage --parallel | buntap --agent",
-    "test:ci": "RUN_INTEGRATION_TESTS=true CLAUDECODE=1 bun test apps/visualizer lib runtime scripts --coverage --parallel",
-    "// TYPECHECK": "=======================TYPECHECK===========================",
-    "typecheck": "bun run typecheck:runtime && bun run typecheck:harness && bun run typecheck:visualizer",
-    "typecheck:runtime": "bun x tsc --noEmit -p runtime",
-    "typecheck:harness": "bun scripts/typecheck-harness.ts",
-    "typecheck:visualizer": "bun x tsc --noEmit -p apps/visualizer",
-    "// CHECK": "=============================CHECK=============================",
-    "check": "bun run lint && bun run typecheck && bun run test:agent && bun run build && bun run check:install && bun run check:stdout",
-    "check:install": "bun scripts/check-install.ts",
-    "check:stdout": "bash scripts/check-stdout.sh"
+    "build": "mise run build",
+    "check": "mise run check",
+    "lint": "mise run lint",
+    "test": "mise run test",
+    "test:agent": "mise run test:agent",
+    "typecheck": "mise run typecheck"
   },
   "packageManager": "bun@1.4.4",
   "engines": {
@@ -34,7 +22,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
     "@types/bun": "1.4.2",
-    "buntap": "github:losandes/buntap#0.2.2",
+    "buntap": "github:losandes/buntap#0.3.0",
     "markdownlint-cli2": "^0.23.3",
     "typescript": "5.9.3"
   }

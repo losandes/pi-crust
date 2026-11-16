@@ -57,4 +57,4 @@ jobs:
       # so typecheck:harness reports that it did not check
       # harness-engineering/ and the build carries that gap knowingly.
       - name: Check the code
-        run: bun run check
+        run: mise run check

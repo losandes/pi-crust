@@ -25,7 +25,7 @@
    * Excluded HERE is not unchecked. `scripts/typecheck-harness.ts` runs the
    * same compiler over that directory against the pi actually installed on
    * the machine, which is the only version whose API the extensions will
-   * ever meet. Run it with `bun run typecheck`. `data` is runtime output.
+   * ever meet. Run it with `mise run typecheck`. `data` is runtime output.
    */
   "exclude": ["node_modules", "data", "harness-engineering"],
   "compilerOptions": {
