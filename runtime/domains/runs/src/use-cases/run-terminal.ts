@@ -31,6 +31,8 @@ export type TRunTerminalParams = Readonly<{
   activity: TTerminalActivity
   ctx: TActivityContext
   accepted: boolean
+  reason?: string
+  rejectedBy?: string
 }>
 
 export type TTerminalOutcome =
@@ -132,14 +134,6 @@ export const runTerminal = async (
   params: TRunTerminalParams,
 ): Promise<TTerminalOutcome> => {
   const { run, activity, ctx, accepted } = params
-  if (!accepted) {
-    recordCancelled(
-      run,
-      activity,
-      'the run was not accepted — a activity did not meet its own criterion',
-    )
-    return { kind: 'settled' }
-  }
   // Like finish, judge the persisted trace, including earlier processes.
   const previous = run.tracer.activityRunsFor(run.runId)
   if (
@@ -151,6 +145,38 @@ export const runTerminal = async (
   ) {
     recordCancelled(run, activity, 'a counted activity run in this run failed')
     return { kind: 'settled' }
+  }
+  if (params.rejectedBy !== undefined) {
+    recordCancelled(
+      run,
+      activity,
+      `the person rejected the run — ${params.rejectedBy}`,
+    )
+    return { kind: 'settled' }
+  }
+  if (!accepted) {
+    const reason: TGateReason = {
+      kind: 'acceptance',
+      activity: activity.name,
+      detail: params.reason ?? 'The run did not meet its acceptance criterion.',
+    }
+    const request = writeDecisionRequest(
+      run.contextHandoffDir,
+      reason,
+      run.runId,
+      resumeInvocation(process.argv, run.runId),
+    )
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: '',
+      type: 'log',
+      name: 'human_gate_open',
+      payload: { ...reason, opened_at: nowIso(), request },
+    })
+    run.console.note(
+      `${activity.name}: waiting for acceptance — ${reason.detail} — ${request}`,
+    )
+    return { kind: 'waiting', request }
   }
   previous
     .filter((row) => retryableTerminal(activity, row))

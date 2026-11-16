@@ -64,7 +64,9 @@ const sameSecret = (given: string, expected: string): boolean => {
 }
 
 /** Undefined when the caller may write; a Response saying why when they may not. */
-export const refuseUnlessAuthorised = (req: Request): Response | undefined => {
+export const refuseUnlessAuthorised = (
+  req: Readonly<Request>,
+): Response | undefined => {
   const expected = (process.env.CRUST_TOKEN ?? '').trim()
   if (expected === '') {
     return json(
@@ -225,6 +227,15 @@ export const recordDecision = (
         : `${text}\n`
   const path = join(handoff, 'decision-answer.md')
   writeFileSync(path, body, 'utf8')
+  writeFileSync(
+    join(handoff, 'decision-answer.json'),
+    `${JSON.stringify({
+      verb: action,
+      at: new Date().toISOString(),
+      from,
+    })}\n`,
+    'utf8',
+  )
   return path
 }
 

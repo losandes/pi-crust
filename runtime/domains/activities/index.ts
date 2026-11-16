@@ -7,7 +7,10 @@ export {
 } from './src/use-cases/activity-registry'
 export { agentActivity } from './src/use-cases/agent-activity'
 export type { TAgentPorts } from './src/use-cases/execute-agent'
-export type { TTerminalActivity } from './src/use-cases/gh-pull-request'
+export type {
+  TDeliveryPorts,
+  TTerminalActivity,
+} from './src/use-cases/gh-pull-request'
 export {
   readEnvelope,
   readHistoryEnvelope,
