@@ -12,9 +12,15 @@
  * the sentence that follows them.
  */
 import { useEffect, useState } from 'react'
+import { Prose } from '@/lib/_components'
+import { cx } from '@/lib/cx'
 import { renderMarkdown } from '@/lib/markdown'
 import { fetchDecisionRequest } from '../io/fetch-decision-request'
-import styles from './DecisionRequest.module.css'
+
+const VARIANT = {
+  inline: 'mb-3',
+  standalone: 'mx-7 mt-5 mb-3',
+} as const
 
 export const DecisionRequest = ({
   runId,
@@ -60,21 +66,20 @@ export const DecisionRequest = ({
 
   return (
     <section
-      className={
-        standalone ? `${styles.request} ${styles.standalone}` : styles.request
-      }
+      className={cx(
+        'min-w-0 rounded-md border-(length:--border-width) border-waiting/[calc(var(--edge-alpha)*100%)] border-l-3 border-l-waiting bg-transparent px-4 py-3.5 shadow-[0_0_--spacing(4.5)_rgb(var(--waiting-rgb)/0.14)]',
+        VARIANT[standalone ? 'standalone' : 'inline'],
+      )}
       aria-label="what this run is asking"
     >
-      <h2 className={styles.heading}>
-        <span className={styles.marker} aria-hidden="true" />
+      <h2 className="mt-0 mb-2.5 flex items-center gap-2 text-sm font-semibold tracking-wide text-waiting lowercase">
+        <span
+          className="size-2 shrink-0 rounded-full bg-waiting"
+          aria-hidden="true"
+        />
         it is asking you
       </h2>
-      {/* Safe: renderMarkdown escapes ALL input before emitting its own tags. */}
-      <div
-        className={styles.body}
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: renderMarkdown escapes its input
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown) }}
-      />
+      <Prose html={renderMarkdown(markdown)} variant="compact" />
     </section>
   )
 }

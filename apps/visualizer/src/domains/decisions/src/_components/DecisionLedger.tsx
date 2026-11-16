@@ -12,7 +12,26 @@
  * the least likely to need a response today.
  */
 import type { TActivityRunLedger, TQuestionOutcome } from '../usecases/ledger'
-import styles from './DecisionLedger.module.css'
+
+const styles = {
+  ledger: 'flex min-w-0 flex-col gap-4 wrap-anywhere',
+  empty: 'py-3 text-sm text-faint',
+  group: 'flex flex-col gap-2',
+  groupHead: 'm-0 text-xs font-semibold tracking-wider text-faint uppercase',
+  card: 'rounded-sm border-(length:--border-width) border-border border-l-3 bg-panel-2/60 px-3 py-2.5 font-card',
+  escalated:
+    'border-l-waiting bg-waiting/7 [&_header>span:first-child]:text-waiting',
+  open: 'border-l-warn [&_header>span:first-child]:text-warn',
+  decided: 'border-l-ok/70',
+  cardHead: 'mb-1.5 flex flex-wrap items-center gap-1.5',
+  outcome: 'text-xs font-semibold tracking-wider text-dim uppercase',
+  flag: 'rounded-full border-(length:--border-width) border-border px-1.5 py-0 text-xs text-faint',
+  question: 'm-0 text-sm/normal text-text',
+  answer: 'mt-1.5 mb-0 text-sm/normal text-dim',
+  because: 'mt-1.5 mb-0 text-sm/normal text-dim',
+  noAnswer: 'mt-1.5 mb-0 text-sm text-warn italic',
+  becauseKey: 'text-xs tracking-wider text-faint uppercase',
+} as const
 
 const OUTCOME_LABEL: Readonly<Record<TQuestionOutcome, string>> = {
   decided: 'it decided',

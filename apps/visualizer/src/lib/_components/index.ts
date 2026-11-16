@@ -1,3 +1,4 @@
+export { Prose } from './src/atoms/Prose'
 export type { TStatKind } from './src/atoms/StatChip'
 export { StatChip } from './src/atoms/StatChip'
 export { StatusChip } from './src/atoms/StatusChip'

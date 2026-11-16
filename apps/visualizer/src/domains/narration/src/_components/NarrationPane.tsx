@@ -16,7 +16,38 @@ import {
   type TTurn,
   turnsOf,
 } from '../usecases/narration'
-import styles from './NarrationPane.module.css'
+
+const styles = {
+  pane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
+  scroller: 'min-h-0 flex-1 overflow-y-auto overscroll-contain',
+  narration: 'flex min-w-0 flex-col px-4.5 py-3.5',
+  turn: 'relative mb-2.5 rounded-sm border-(length:--border-width) border-border border-l-3 bg-panel-2/60 px-3 py-2.5 text-left font-card text-inherit',
+  turnMark: 'mb-1.5 block font-mono text-sm text-faint',
+  thinking:
+    'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-dim wrap-anywhere',
+  text: 'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-text wrap-anywhere',
+  segment: 'mt-0 mb-1.5 last:mb-0',
+  // Preserve the computed transparent fill and absent left border of the
+  // legacy rgb(var(--panel-3)) / rgb(var(--accent)) declarations.
+  code: 'my-1.5! overflow-x-auto! rounded-l-none! rounded-r-sm! border-l-0! bg-transparent! px-2.5! py-2! font-mono! text-xs! leading-normal! whitespace-pre! [tab-size:2] [&_code]:[font:inherit]',
+  codeOpen: 'border-l-3! [border-left-style:dashed]!',
+  jump: 'absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 cursor-pointer items-center gap-2 rounded-full border-(length:--border-width) border-accent/[calc(var(--edge-alpha)*100%)] bg-panel-2 px-3.5 py-1.5 text-sm text-accent focus-visible:shadow-(--ring) focus-visible:outline-none',
+  final:
+    'mb-2.5 rounded-sm border-(length:--border-width) px-3 py-2.5 font-card',
+  finalOk:
+    'border-ok/[calc(var(--edge-alpha)*100%)] border-l-3 border-l-ok bg-ok/7 [&>span]:text-ok',
+  finalFail:
+    'border-fail/[calc(var(--edge-alpha)*100%)] border-l-3 border-l-fail bg-fail/7 [&>span]:text-fail',
+  finalKey: 'text-xs font-semibold tracking-wider uppercase',
+  finalText: 'mt-1 mb-0 text-sm/normal text-text',
+  asked:
+    'relative my-2.5 block rounded-sm bg-blue px-3 py-2.5 font-card text-on-blue',
+  askedMark: 'mb-1 block font-mono text-xs tracking-wider uppercase opacity-85',
+  askedText: 'm-0 leading-normal whitespace-pre-wrap wrap-anywhere',
+  amended: 'mt-0 mb-2.5 text-xs text-amber',
+  reverted: 'mt-0 mb-2.5 text-xs text-red',
+  awaiting: 'italic opacity-70',
+} as const
 
 /** The one sentence a activity ends on, out of its envelope. */
 const summaryOf = (envelope: Envelope | undefined): string => {
