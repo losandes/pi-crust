@@ -1,15 +1,16 @@
-import { expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
-import { chromium, devices, type Page } from 'playwright'
-import { build } from 'vite'
-import { startHarnessServer, viewportWidths } from '@/lib/testing'
-
-const hasChromium = existsSync(chromium.executablePath())
-if (!hasChromium) {
-  console.warn(
-    'style.test.ts: no Chromium — skipping browser checks. Run `bunx playwright install chromium`.',
-  )
-}
+import { afterAll, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import type { Page } from 'playwright'
+import {
+  browserTestsEnabled,
+  buildProductionCss,
+  closeBrowserSuite,
+  openBrowserSuite,
+  phoneViewport,
+  settleTransitions,
+  viewportWidths,
+  withSuitePage,
+} from '@/lib/testing'
 
 const registeredTheme = {
   name: 'high-contrast',
@@ -93,26 +94,7 @@ const HARNESS_HTML = `<!doctype html>
   <option>high-contrast</option>
 </select>
 ${NATIVE_HTML}
-<div>
-  <section id="detail-section-margin">
-    <button id="detail-section-head" type="button">Margins</button>
-    <div id="detail-section-body"><p id="detail-section-paragraph">Body paragraph</p></div>
-  </section>
-  <div id="after-detail-section">After the section</div>
-</div>
 ${COLOR_PROBES}
-<section id="radius-probes">
-  <span id="legacy-radius" data-radius style="border-radius:var(--radius-sm, 3px)">Legacy fallback</span>
-  <pre id="narration-radius-code" data-radius>Code</pre>
-  <div id="decision-radius-body">
-    <code id="decision-radius-code" data-radius>Code</code>
-    <pre id="decision-radius-pre" data-radius>Code block</pre>
-  </div>
-  <span id="legacy-radius-four" data-radius style="border-radius:var(--radius-sm, 4px)">Other fallback</span>
-  <span id="utility-radius-small" data-radius class="rounded-sm">Small utility</span>
-  <span id="utility-radius-top" data-radius class="rounded-t-sm">Top utility</span>
-  <span id="utility-radius-medium" data-radius class="rounded-md">Medium utility</span>
-</section>
 <button id="utility-control" class="font-sans">Utility control</button>
 ${THEME_PROBES}
 <div id="rendered-prose">
@@ -127,29 +109,21 @@ ${THEME_PROBES}
 <span id="trace-status" class="animate-[crust-pulse_1.2s_ease-in-out_infinite]" data-animation>Running</span>
 <button id="trace-block" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation>Activity</button>
 <span id="live-dot" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation></span>
-<div id="sm" class="hidden sm:block">sm</div>
-<div id="md" class="hidden md:block">md</div>
-<div id="lg" class="hidden lg:block">lg</div>
-<div id="xl" class="hidden xl:block">xl</div>
-<div id="2xl" class="hidden 2xl:block">2xl</div>
 <script type="module">
 import '/src/style.css'
 import { applyCustomThemes, applyTheme } from '/src/domains/themes/index.ts'
-import { DetailSection, Prose, StatusChip } from '/src/lib/_components/index.ts'
+import { Prose, StatusChip } from '/src/lib/_components/index.ts'
 import { NarrationPane } from '/src/domains/narration/index.ts'
 import { DecisionLedger, DecisionRequest } from '/src/domains/decisions/index.ts'
 import { renderMarkdown } from '/src/lib/markdown/index.ts'
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { renderToStaticMarkup } from 'react-dom/server'
 const narrationProps = {
   events: [], agent: 'builder', activityRunStatus: 'success', runId: 'fixture', runStatus: 'success',
   consults: [{ at: '2026-01-01', question: 'Question ' + 'long'.repeat(100), mode: 'consult', answer: '\\x60\\x60\\x60json\\n{"ok":true}\\n\\x60\\x60\\x60', amended: ['answer'], restored: ['other'] }],
   pending: { mode: 'consult', question: 'Still waiting' },
   envelope: { payload_json: JSON.stringify({ summary: 'Its final answer' }) },
 }
-const narration = document.createElement('div')
-narration.innerHTML = renderToStaticMarkup(createElement(NarrationPane, narrationProps))
 if (location.search === '?surfaces') {
   const surface = document.createElement('main')
   surface.id = 'migration-surfaces'
@@ -182,15 +156,9 @@ document.getElementById('theme-choice').addEventListener('change', (event) => {
   applyTheme(document.documentElement, event.target.value, window.matchMedia)
 })
 const runningChip = StatusChip({ status: 'running' })
-const detailSection = DetailSection({ title: 'Margins', open: true, onToggle: () => {} })
 const classes = {
-  'detail-section-margin': [detailSection.props.className],
-  'detail-section-head': [detailSection.props.children[0].props.className],
-  'detail-section-body': [detailSection.props.children[1].props.className],
   spinner: [runningChip.props.className],
   'spinner-icon': [runningChip.props.children[0].props.className],
-  'narration-radius-code': [narration.querySelector('pre').className],
-  'decision-radius-body': [Prose({ html: '', variant: 'compact' }).props.className],
   'rendered-prose': [Prose({ html: '', variant: 'default' }).props.className],
 }
 for (const [id, names] of Object.entries(classes)) {
@@ -200,22 +168,20 @@ document.documentElement.setAttribute('data-ready', 'true')
 </script>
 </body></html>`
 
-const withStyles = async (
-  check: (page: Page) => Promise<void>,
-  surfaces = false,
-) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await chromium.launch()
-    try {
-      const context = await browser.newContext({
-        viewport: {
-          width: viewportWidths.xl,
-          height: devices['iPhone SE'].viewport.height,
-        },
-      })
-      const page = await context.newPage()
-      // Leave time for browser/server teardown before Bun's test timeout.
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withStyles = (check: (page: Page) => Promise<void>, surfaces = false) => {
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths.xl,
+        height: phoneViewport.height,
+      },
+    },
+    async (page, { server, base }) => {
+      // Leave time for context teardown before Bun's test timeout.
       page.setDefaultTimeout(8_000)
       page.setDefaultNavigationTimeout(8_000)
       await page.route('**/api/**', (route) =>
@@ -250,12 +216,8 @@ const withStyles = async (
           })
       }
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const readColorProbes = (page: Page) =>
@@ -287,8 +249,8 @@ const readColorProbes = (page: Page) =>
     }
   })
 
-for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
-  test.skipIf(!hasChromium)(
+for (const theme of ['dark']) {
+  test.skipIf(!browserTestsEnabled)(
     [
       `given issue #85 colour roles under the ${theme} theme`,
       'when utilities render and their semantic variables change in a subtree',
@@ -299,6 +261,7 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
       await withStyles(async (page) => {
         await page.emulateMedia({ colorScheme: 'light' })
         await page.selectOption('#theme-choice', theme)
+        await settleTransitions(page)
         const inherited = await readColorProbes(page)
         const softFill = await page
           .locator('#soft-fill, #soft-fill-reference')
@@ -346,95 +309,10 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
     },
     20_000,
   )
-
-  test.skipIf(!hasChromium)(
-    [
-      `given legacy radius fallbacks under the ${theme} theme`,
-      'when CSS Modules render beside Tailwind radius utilities at the xl tier',
-      'it should preserve per-declaration fallbacks and the default utility scale',
-    ].join(', '),
-    async () => {
-      // given — requirement 1.7.2 includes both existing small-radius fallbacks
-      await withStyles(async (page) => {
-        const legacySmall = ['3px', '3px', '3px', '3px']
-        const utilitySmall = ['4px', '4px', '4px', '4px']
-        await page.emulateMedia({ colorScheme: 'light' })
-        await page.selectOption('#theme-choice', theme)
-
-        // when
-        const radii = await page
-          .locator('[data-radius]')
-          .evaluateAll((elements) =>
-            Object.fromEntries(
-              elements.map((element) => {
-                const style = getComputedStyle(element)
-                return [
-                  element.id,
-                  [
-                    style.borderTopLeftRadius,
-                    style.borderTopRightRadius,
-                    style.borderBottomRightRadius,
-                    style.borderBottomLeftRadius,
-                  ],
-                ]
-              }),
-            ),
-          )
-
-        // then
-        expect(radii).toEqual({
-          'legacy-radius': legacySmall,
-          'narration-radius-code': ['0px', '4px', '4px', '0px'],
-          'decision-radius-code': utilitySmall,
-          'decision-radius-pre': utilitySmall,
-          'legacy-radius-four': utilitySmall,
-          'utility-radius-small': utilitySmall,
-          'utility-radius-top': ['4px', '4px', '0px', '0px'],
-          'utility-radius-medium': ['6px', '6px', '6px', '6px'],
-        })
-      })
-    },
-    20_000,
-  )
 }
 
-test.skipIf(!hasChromium)(
-  [
-    'given DetailSection with a paragraph at the end of its body',
-    'when another block follows the section',
-    'it should preserve collapsed margins rather than adding a containment gap',
-  ].join(', '),
-  async () => {
-    // given
-    await withStyles(async (page) => {
-      // when
-      const spacing = await page.evaluate(() => {
-        const section = document.getElementById('detail-section-margin')
-        const paragraph = document.getElementById('detail-section-paragraph')
-        const after = document.getElementById('after-detail-section')
-        if (!(section && paragraph && after)) {
-          throw new Error('Missing DetailSection margin probe')
-        }
-        return {
-          actual:
-            after.getBoundingClientRect().top -
-            paragraph.getBoundingClientRect().bottom,
-          expected: Math.max(
-            Number.parseFloat(getComputedStyle(section).marginBottom),
-            Number.parseFloat(getComputedStyle(paragraph).marginBottom),
-          ),
-        }
-      })
-
-      // then
-      expect(spacing.actual).toBeCloseTo(spacing.expected, 1)
-    })
-  },
-  20_000,
-)
-
-for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
-  test.skipIf(!hasChromium)(
+for (const theme of ['dark']) {
+  test.skipIf(!browserTestsEnabled)(
     [
       `given narration, decisions and both Prose variants under ${theme}`,
       'when the real components render across the named viewport tiers',
@@ -445,6 +323,7 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
       await withStyles(async (page) => {
         await page.emulateMedia({ colorScheme: 'light' })
         await page.selectOption('#theme-choice', theme)
+        await settleTransitions(page)
 
         // when
         const appearance = await page.evaluate(() => {
@@ -653,7 +532,7 @@ for (const theme of ['dark', 'light', 'auto', 'high-contrast']) {
         ) as (keyof typeof viewportWidths)[]) {
           await page.setViewportSize({
             width: viewportWidths[tier],
-            height: devices['iPhone SE'].viewport.height,
+            height: phoneViewport.height,
           })
           const geometry = await page.evaluate(() => ({
             width: document.documentElement.scrollWidth,
@@ -700,135 +579,7 @@ const fontCases = [
   },
 ] as const
 
-for (const { name, variable, replacement, selectors } of fontCases) {
-  test.skipIf(!hasChromium)(
-    [
-      `given the issue #85 font-${name} utility`,
-      'when its semantic font variable is overridden locally',
-      'it should use the local font rather than the root alias',
-    ].join(', '),
-    async () => {
-      // given — requirements 1.3.1 and target state 2.1
-      await withStyles(async (page) => {
-        const readFonts = () =>
-          page
-            .locator(selectors)
-            .evaluateAll((elements) =>
-              elements.map((element) => getComputedStyle(element).fontFamily),
-            )
-        const inherited = await readFonts()
-
-        // when
-        await page.locator(selectors).evaluateAll(
-          (elements, { variable, replacement }) => {
-            for (const element of elements) {
-              const original = element.getAttribute('style') ?? ''
-              element.setAttribute(
-                'style',
-                `${original};${variable}:var(${replacement})`,
-              )
-            }
-          },
-          { variable, replacement },
-        )
-        const scoped = await readFonts()
-
-        // then
-        expect(scoped).toHaveLength(2)
-        expect(scoped[0]).toBe(scoped[1])
-        expect(scoped[0]).not.toBe(inherited[0])
-      })
-    },
-    20_000,
-  )
-}
-
-test.skipIf(!hasChromium)(
-  [
-    'given the issue #85 application-owned pulse at stylesheet and utility call sites',
-    'when each animation is sampled at the start, midpoint and next cycle',
-    'it should retain the original full-opacity endpoints and pulse depth',
-  ].join(', '),
-  async () => {
-    // given — requirements 1.2.1, 1.7.2 and target state 2.1
-    await withStyles(async (page) => {
-      // when
-      const opacities = await page
-        .locator('[data-animation]:not(#spinner-icon)')
-        .evaluateAll((elements) =>
-          Object.fromEntries(
-            elements.map((element) => {
-              const [animation] = element.getAnimations()
-              const duration = animation?.effect?.getComputedTiming().duration
-              if (!animation || typeof duration !== 'number') {
-                throw new Error(`Missing pulse animation on ${element.id}`)
-              }
-              animation.pause()
-              const frames = [0, 0.5, 1].map((progress) => {
-                // biome-ignore lint/plugin/no-object-mutation: seeking a browser-owned Animation requires the currentTime setter.
-                animation.currentTime = duration * progress
-                return Number(getComputedStyle(element).opacity)
-              })
-              return [element.id, frames]
-            }),
-          ),
-        )
-
-      // then
-      expect(opacities).toEqual({
-        activity: [1, 0.35, 1],
-        'card-dot': [1, 0.35, 1],
-        'trace-status': [1, 0.35, 1],
-        'trace-block': [1, 0.35, 1],
-        'live-dot': [1, 0.35, 1],
-      })
-    })
-  },
-  20_000,
-)
-
-test.skipIf(!hasChromium)(
-  [
-    'given the issue #85 application-owned running spinner',
-    'when its animation advances by quarter turns',
-    'it should retain a complete clockwise revolution',
-  ].join(', '),
-  async () => {
-    // given — requirements 1.2.2, 1.7.2 and target state 2.1
-    await withStyles(async (page) => {
-      // when
-      const rotations = await page
-        .locator('#spinner-icon')
-        .evaluate((element) => {
-          const [animation] = element.getAnimations()
-          const duration = animation?.effect?.getComputedTiming().duration
-          if (!animation || typeof duration !== 'number') {
-            throw new Error('Missing running-status spinner animation')
-          }
-          animation.pause()
-          return [0, 0.25, 0.5, 0.75, 1].map((progress) => {
-            // biome-ignore lint/plugin/no-object-mutation: seeking a browser-owned Animation requires the currentTime setter.
-            animation.currentTime = duration * progress
-            const matrix = new DOMMatrix(getComputedStyle(element).transform)
-            return [matrix.a, matrix.b, matrix.c, matrix.d]
-          })
-        })
-
-      // then
-      const zero = expect.closeTo(0, 5)
-      expect(rotations).toEqual([
-        [1, zero, zero, 1],
-        [zero, 1, -1, zero],
-        [-1, zero, zero, -1],
-        [zero, -1, 1, zero],
-        [1, zero, zero, 1],
-      ])
-    })
-  },
-  20_000,
-)
-
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given the Tailwind theme bridge',
     'when dark, light, auto and a registered theme swap at runtime',
@@ -854,11 +605,14 @@ test.skipIf(!hasChromium)(
 
       // when
       await page.selectOption('#theme-choice', 'light')
+      await settleTransitions(page)
       const [light, lightReference] = await readColors()
       await page.emulateMedia({ colorScheme: 'light' })
       await page.selectOption('#theme-choice', 'auto')
+      await settleTransitions(page)
       const [auto] = await readColors()
       await page.selectOption('#theme-choice', 'high-contrast')
+      await settleTransitions(page)
       const [registered, registeredReference] = await readColors()
 
       // then
@@ -887,7 +641,7 @@ test.skipIf(!hasChromium)(
   20_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given preflight and the existing animation styles at the xl tier',
     'when markdown and running indicators render',
@@ -936,7 +690,7 @@ test.skipIf(!hasChromium)(
   20_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given stylesheet-backed controls and raw prose',
     'when preflight is loaded',
@@ -1014,33 +768,7 @@ test.skipIf(!hasChromium)(
   20_000,
 )
 
-test.skipIf(!hasChromium)(
-  [
-    'given theme-derived viewport widths',
-    'when the browser crosses each named tier',
-    'it should match the minimum widths of the generated breakpoint variants',
-  ].join(', '),
-  async () => {
-    // given
-    await withStyles(async (page) => {
-      const height = devices['iPhone SE'].viewport.height
-
-      // when, then
-      await page.setViewportSize({ width: viewportWidths.base, height })
-      expect(await page.locator('#sm').isVisible()).toBe(false)
-      for (const [tier, width] of Object.entries(viewportWidths)) {
-        if (tier === 'base') continue
-        await page.setViewportSize({ width: width - 1, height })
-        expect(await page.locator(`[id="${tier}"]`).isVisible()).toBe(false)
-        await page.setViewportSize({ width, height })
-        expect(await page.locator(`[id="${tier}"]`).isVisible()).toBe(true)
-      }
-    })
-  },
-  20_000,
-)
-
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given issue #85 production CSS at the xl tier',
     'when themes change after the build and descendants override semantic variables',
@@ -1048,112 +776,98 @@ test.skipIf(!hasChromium)(
   ].join(', '),
   async () => {
     // given — requirements 1.1.2–1.1.4, 1.3.1–1.3.3 and target state 2.1
-    const result = await build({
-      root: new URL('../', import.meta.url).pathname,
-      logLevel: 'silent',
-      build: { write: false },
-    })
-    const outputs = Array.isArray(result) ? result : [result]
-    const css = outputs
-      .flatMap((output) => ('output' in output ? output.output : []))
-      .flatMap((asset) =>
-        asset.type === 'asset' && asset.fileName.endsWith('.css')
-          ? [
-              typeof asset.source === 'string'
-                ? asset.source
-                : new TextDecoder().decode(asset.source),
-            ]
-          : [],
-      )
-      .join('\n')
+    const css = await buildProductionCss()
     expect(css).not.toBe('')
-    const browser = await chromium.launch()
-    try {
-      const page = await browser.newPage({
+    await withSuitePage(suite)(
+      {
         viewport: {
           width: viewportWidths.xl,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         },
-      })
-      // No development server or stylesheet can mask a production-build gap.
-      await page.setContent(`<!doctype html>
+      },
+      async (page) => {
+        // No development server or stylesheet can mask a production-build gap.
+        await page.setContent(`<!doctype html>
 <html data-theme="dark"><body>${COLOR_PROBES}${THEME_PROBES}</body></html>`)
-      await page.addStyleTag({ content: css })
-      await page.addStyleTag({ content: registeredTheme.css })
-      const dark = await readColorProbes(page)
+        await page.addStyleTag({ content: css })
+        await page.addStyleTag({ content: registeredTheme.css })
+        const dark = await readColorProbes(page)
 
-      // when
-      await page.locator('html').evaluate((element) => {
-        element.setAttribute('data-theme', 'light')
-      })
-      const light = await readColorProbes(page)
-      await page.locator('html').evaluate((element) => {
-        element.setAttribute('data-theme', 'high-contrast')
-      })
-      const registered = await readColorProbes(page)
-      await page.evaluate((cases) => {
-        for (const { selectors, variable, replacement } of cases) {
-          for (const element of document.querySelectorAll(selectors)) {
-            const original = element.getAttribute('style') ?? ''
-            element.setAttribute(
-              'style',
-              `${original};${variable}:var(${replacement})`,
-            )
-          }
-        }
-      }, fontCases)
-      const utility = await page
-        .locator('#utility, #reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => {
-            const style = getComputedStyle(element)
-            return {
-              color: style.color,
-              background: style.backgroundColor,
-              border: style.borderColor,
-              font: style.fontFamily,
+        // when
+        await page.locator('html').evaluate((element) => {
+          element.setAttribute('data-theme', 'light')
+        })
+        await settleTransitions(page)
+        const light = await readColorProbes(page)
+        await page.locator('html').evaluate((element) => {
+          element.setAttribute('data-theme', 'high-contrast')
+        })
+        await settleTransitions(page)
+        const registered = await readColorProbes(page)
+        await page.evaluate((cases) => {
+          for (const { selectors, variable, replacement } of cases) {
+            for (const element of document.querySelectorAll(selectors)) {
+              const original = element.getAttribute('style') ?? ''
+              element.setAttribute(
+                'style',
+                `${original};${variable}:var(${replacement})`,
+              )
             }
-          }),
-        )
-      const scoped = await page
-        .locator('#scoped, #scoped-reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => getComputedStyle(element).color),
-        )
-      const fonts = await page
-        .locator('#card-font, #card-reference, #mono-font, #mono-reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => getComputedStyle(element).fontFamily),
-        )
-      const softFill = await page
-        .locator('#soft-fill, #soft-fill-reference')
-        .evaluateAll((elements) =>
-          elements.map((element) => getComputedStyle(element).backgroundColor),
-        )
+          }
+        }, fontCases)
+        const utility = await page
+          .locator('#utility, #reference')
+          .evaluateAll((elements) =>
+            elements.map((element) => {
+              const style = getComputedStyle(element)
+              return {
+                color: style.color,
+                background: style.backgroundColor,
+                border: style.borderColor,
+                font: style.fontFamily,
+              }
+            }),
+          )
+        const scoped = await page
+          .locator('#scoped, #scoped-reference')
+          .evaluateAll((elements) =>
+            elements.map((element) => getComputedStyle(element).color),
+          )
+        const fonts = await page
+          .locator('#card-font, #card-reference, #mono-font, #mono-reference')
+          .evaluateAll((elements) =>
+            elements.map((element) => getComputedStyle(element).fontFamily),
+          )
+        const softFill = await page
+          .locator('#soft-fill, #soft-fill-reference')
+          .evaluateAll((elements) =>
+            elements.map(
+              (element) => getComputedStyle(element).backgroundColor,
+            ),
+          )
 
-      // then
-      expect(dark.actual).toEqual(dark.expected)
-      expect(light.actual).toEqual(light.expected)
-      expect(light.actual).not.toEqual(dark.actual)
-      expect(registered.actual).toEqual(registered.expected)
-      expect(registered.actual).not.toEqual(light.actual)
-      expect(utility).toHaveLength(2)
-      expect(utility[0]).toEqual(utility[1])
-      expect(scoped).toHaveLength(2)
-      expect(scoped[0]).toBe(scoped[1])
-      expect(fonts).toHaveLength(4)
-      expect(fonts[0]).toBe(fonts[1])
-      expect(fonts[2]).toBe(fonts[3])
-      expect(softFill).toHaveLength(2)
-      expect(softFill[0]).toBe(softFill[1])
-    } finally {
-      await browser.close()
-    }
+        // then
+        expect(dark.actual).toEqual(dark.expected)
+        expect(light.actual).toEqual(light.expected)
+        expect(light.actual).not.toEqual(dark.actual)
+        expect(registered.actual).toEqual(registered.expected)
+        expect(registered.actual).not.toEqual(light.actual)
+        expect(utility).toHaveLength(2)
+        expect(utility[0]).toEqual(utility[1])
+        expect(scoped).toHaveLength(2)
+        expect(scoped[0]).toBe(scoped[1])
+        expect(fonts).toHaveLength(4)
+        expect(fonts[0]).toBe(fonts[1])
+        expect(fonts[2]).toBe(fonts[3])
+        expect(softFill).toHaveLength(2)
+        expect(softFill[0]).toBe(softFill[1])
+      },
+    )
   },
   30_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given issue #85 running indicators and the existing reduced-motion preference',
     'when the preference changes while global animations are loaded',

@@ -40,6 +40,7 @@ test([
 - Use the test harness built into bun
 - Run tests in claude mode with logs turned off to save tokens (e.g. `pnpm test:claude` or `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test src/domains/books/src/data/ --verbose --bail`)
 - Never use beforeEach or afterEach - that breaks functional programming rules (shared state)
+- Never use beforeAll either, and use afterAll only for one purpose: closing an expensive process, such as a browser or a dev server, that the test file started once at module scope. Each test must still reach that process through a handle it opens and closes itself, such as its own browser context, so no test can see another's state. Starting such a process for every test costs more than the test does, and when files run in parallel that cost becomes timeouts. Put a `// shared-process: <reason>` comment on the line directly above the afterAll; the checker accepts no other lifecycle hook
 - Ensure tests are deterministic and can run in any order
 - Test inputs and outputs, not implementation details
 - NEVER test logging calls

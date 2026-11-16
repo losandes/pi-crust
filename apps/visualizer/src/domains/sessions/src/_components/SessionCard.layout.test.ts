@@ -1,9 +1,13 @@
-import { expect, test } from 'bun:test'
-import { chromium, devices, type Locator, type Page } from 'playwright'
+import { afterAll, expect, test } from 'bun:test'
+import type { Locator, Page } from 'playwright'
 import {
-  startHarnessServer,
+  browserTestsEnabled,
+  closeBrowserSuite,
+  openBrowserSuite,
+  phoneViewport,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 /*
@@ -18,37 +22,23 @@ const HARNESS_HTML = `<!doctype html>
 <script type="module" src="/src/domains/sessions/src/_components/__fixtures__/session-card-harness.tsx"></script>
 </body></html>`
 
-/*
- * Playwright's Chromium is a ~99MB download and is not vendored. On a machine
- * without it this says so and skips, rather than failing a verification
- * command AGENTS.md tells people to run on a fresh clone. A skip is a check
- * not run, not a check that passed.
- */
-const probe = await chromium.launch().catch(() => undefined)
-const CHROMIUM_AVAILABLE = probe !== undefined
-await probe?.close()
-if (!CHROMIUM_AVAILABLE) {
-  console.warn(
-    'SessionCard.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
 
-const withCards = async <T>(
+const withCards = <T>(
   tier: TViewportTier,
   check: (page: Page) => Promise<T>,
 ) => {
-  // Keep browser and server teardown inside each test's existing 20s budget.
-  const { server, base } = await startHarnessServer()
-  try {
-    const activeBrowser = await chromium.launch()
-    try {
-      const page = await activeBrowser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: devices['iPhone SE'].viewport.height,
-        },
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      reducedMotion: 'reduce',
+    },
+    async (page, { base }) => {
       page.setDefaultTimeout(5_000)
       page.setDefaultNavigationTimeout(10_000)
       await page.route('**/api/**', (route) => route.abort())
@@ -60,12 +50,8 @@ const withCards = async <T>(
       await page.waitForSelector('#multi a')
       await page.evaluate(() => document.fonts.ready)
       return await check(page)
-    } finally {
-      await activeBrowser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const statsClipped = (variant: 'single' | 'multi', tier: TViewportTier) =>
@@ -95,7 +81,7 @@ const statsClipped = (variant: 'single' | 'multi', tier: TViewportTier) =>
 
 for (const tier of ['base', 'xl'] as const) {
   for (const variant of ['single', 'multi'] as const) {
-    test.skipIf(!CHROMIUM_AVAILABLE)(
+    test.skipIf(!browserTestsEnabled)(
       [
         `given a ${variant}-workspace card at the ${tier} tier`,
         'when measuring the stats row in a viewport-wide harness',
@@ -148,7 +134,7 @@ const cardLayout = async (card: Locator) => {
 }
 
 for (const variant of ['single', 'multi'] as const) {
-  test.skipIf(!CHROMIUM_AVAILABLE)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given issue #88's ${variant}-workspace card at the xl tier`,
       'when its parent narrows before the viewport changes to base',
@@ -170,7 +156,7 @@ for (const variant of ['single', 'multi'] as const) {
         const narrowAtXl = await cardLayout(card)
         await page.setViewportSize({
           width: viewportWidths.base,
-          height: devices['iPhone SE'].viewport.height,
+          height: phoneViewport.height,
         })
         const narrowAtBase = await cardLayout(card)
 

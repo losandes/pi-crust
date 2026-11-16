@@ -1,4 +1,4 @@
-import { createServer, type ViteDevServer } from 'vite'
+import type { ViteDevServer } from 'vite'
 
 /*
  * The browser-driven harness files used to each name a fixed port, which made
@@ -19,17 +19,20 @@ import { createServer, type ViteDevServer } from 'vite'
  */
 const listeningPort = (httpServer: ViteDevServer['httpServer']): number => {
   const address = httpServer?.address()
-  return typeof address === 'object' && address !== null ? address.port : 0
+  return address && typeof address === 'object' ? address.port : 0
 }
 
 /**
  * A listening Vite dev server rooted at `apps/visualizer`, on a port the OS
  * chose, with the base URL to reach it. The caller closes it.
  */
-export const startHarnessServer = async (): Promise<{
+export const startHarnessServer = async (
+  options: Readonly<{ apiTarget?: string }> = {},
+): Promise<{
   server: ViteDevServer
   base: string
 }> => {
+  const { createServer } = await import('vite')
   const server = await createServer({
     root: new URL('../../../../', import.meta.url).pathname,
     server: {
@@ -37,6 +40,13 @@ export const startHarnessServer = async (): Promise<{
       port: 0,
       strictPort: false,
       hmr: false,
+      ...(options.apiTarget
+        ? {
+            proxy: {
+              '/api': { target: options.apiTarget, changeOrigin: true },
+            },
+          }
+        : {}),
     },
     logLevel: 'silent',
   })

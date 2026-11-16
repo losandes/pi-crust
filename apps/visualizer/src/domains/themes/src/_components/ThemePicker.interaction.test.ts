@@ -1,8 +1,11 @@
-import { expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { afterAll, expect, test } from 'bun:test'
 import type { Page } from 'playwright'
-import { chromium } from 'playwright'
-import { startHarnessServer } from '@/lib/testing'
+import {
+  browserTestsEnabled,
+  closeBrowserSuite,
+  openBrowserSuite,
+  withSuitePage,
+} from '@/lib/testing'
 import { THEME_STORAGE_KEY } from '../state/theme-store'
 
 const HARNESS_HTML = `<!doctype html>
@@ -30,20 +33,11 @@ const TWELVE_THEMES = [
   { name: 'mono', label: 'Mono', builtin: false, css: '' },
 ]
 
-/*
- * Playwright's Chromium is a ~99MB download and is not vendored. On a machine
- * without it this says so and skips, rather than failing a verification
- * command AGENTS.md tells people to run on a fresh clone. A skip is a check
- * not run, not a check that passed.
- */
-const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
-if (!CHROMIUM_AVAILABLE) {
-  console.warn(
-    'ThemePicker.interaction.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
 
-const withPage = async (
+const withPage = (
   themes: readonly {
     name: string
     label: string
@@ -52,35 +46,25 @@ const withPage = async (
   }[],
   run: (page: Page, base: string) => Promise<void>,
 ) => {
-  // Each call owns its browser and server, keeping teardown inside the
-  // caller's existing 20s budget rather than a separate 5s hook budget.
-  // Fresh browser storage prevents one theme choice leaking into another test.
-  const { server, base } = await startHarnessServer()
-  try {
-    const activeBrowser = await chromium.launch()
-    try {
-      const page = await activeBrowser.newPage()
-      await page.route('**/__diag__/index.html', (route) =>
-        route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
-      )
-      await page.route('**/api/themes*', (route) =>
-        route.fulfill({
-          contentType: 'application/json',
-          body: JSON.stringify({ themes }),
-        }),
-      )
-      await page.goto(`${base}/__diag__/index.html`)
-      await page.waitForSelector('#picker button')
-      await run(page, base)
-    } finally {
-      await activeBrowser.close()
-    }
-  } finally {
-    await server.close()
-  }
+  // Each call gets a fresh browser context, so one theme choice in storage
+  // cannot leak into another call.
+  return withSuitePage(suite)({}, async (page, { base }) => {
+    await page.route('**/__diag__/index.html', (route) =>
+      route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+    )
+    await page.route('**/api/themes*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ themes }),
+      }),
+    )
+    await page.goto(`${base}/__diag__/index.html`)
+    await page.waitForSelector('#picker button')
+    await run(page, base)
+  })
 }
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a theme picker with three or twelve registered themes',
     'when measuring the closed trigger',
@@ -112,7 +96,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given twelve registered themes',
     'when clicking the picker trigger',
@@ -139,7 +123,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open theme picker',
     'when choosing a theme row',
@@ -171,7 +155,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open theme picker with the default preference',
     'when pressing ArrowDown and ArrowUp',
@@ -204,7 +188,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open theme picker',
     'when pressing Escape',
@@ -239,7 +223,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a stored theme preference',
     'when applying a known theme and then one with no mapped icon',
@@ -290,7 +274,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a theme picker with a stored named preference',
     'when opening the list',
@@ -353,7 +337,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   20_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given two different registered theme lists',
     'when opening each picker',

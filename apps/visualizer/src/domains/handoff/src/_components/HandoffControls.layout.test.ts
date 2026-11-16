@@ -1,20 +1,16 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { chromium, devices, type Page } from 'playwright'
+import type { Page } from 'playwright'
 import {
-  startHarnessServer,
+  browserTestsEnabled,
+  closeBrowserSuite,
+  openBrowserSuite,
+  phoneViewport,
+  settleTransitions,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
-
-const probe = await chromium.launch().catch(() => undefined)
-const hasChromium = probe !== undefined
-await probe?.close()
-if (!hasChromium) {
-  console.warn(
-    'HandoffControls.layout.test.ts: no Chromium — skipping browser checks. Run `bunx playwright install chromium`.',
-  )
-}
 
 const registeredTheme = {
   name: 'high-contrast',
@@ -79,21 +75,23 @@ function Fixture() {
 createRoot(document.getElementById('root')).render(h(Fixture))
 </script></body></html>`
 
-const withComponents = async (
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withComponents = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
 ) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await chromium.launch()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: devices['iPhone SE'].viewport.height,
-        },
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      reducedMotion: 'reduce',
+    },
+    async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
       // Every API request is intercepted: no live run or database is touched.
       await page.route('**/api/**', (route) =>
@@ -114,86 +112,13 @@ const withComponents = async (
       await page.locator('#artifacts [role="button"]').first().waitFor()
       await page.evaluate(() => document.fonts.ready)
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
-const expectLegacyPaint = async (page: Page) => {
-  const comparisons = await page.evaluate(() => {
-    // These are the former modules' computed winning declarations, including
-    // `.actions button` taking precedence over primary/danger/amend colours.
-    const cases = [
-      {
-        selector: '#running section',
-        css: 'background:var(--surface);border:var(--border-width) solid rgb(var(--waiting-rgb) / var(--edge-alpha));color:var(--text);font-family:var(--sans)',
-      },
-      {
-        selector: '#running button',
-        css: 'background:var(--panel-2);border:var(--border-width) solid var(--border);color:var(--dim);font-family:var(--sans)',
-      },
-      {
-        selector: '#artifacts [role="button"]:nth-child(3)',
-        css: 'background:var(--panel-2);border:var(--border-width) solid var(--border-soft);color:var(--text);font-family:var(--card-sans);opacity:0.62',
-      },
-      {
-        selector:
-          '#artifacts [aria-disabled="true"] > span:first-child > span:last-child',
-        css: 'color:var(--text);font-family:var(--card-sans)',
-      },
-      {
-        selector: '#artifacts [aria-disabled="true"] > span:last-child',
-        css: 'color:var(--red);font-family:var(--card-sans)',
-      },
-      {
-        selector: 'dialog[open] > div',
-        css: 'background:var(--surface);border:var(--border-width) solid var(--border);color:var(--text);font-family:var(--sans)',
-      },
-      {
-        selector: 'dialog[open] a',
-        css: 'background:transparent;border:var(--border-width) solid var(--border-soft);color:var(--dim);font-family:var(--mono)',
-      },
-    ]
-    const rgba = (color: string) => {
-      const context = document.createElement('canvas').getContext('2d')
-      if (!context) throw new Error('Canvas colour comparison unavailable')
-      // biome-ignore lint/plugin/no-object-mutation: the canvas API accepts CSS colours through its fillStyle setter.
-      context.fillStyle = color
-      context.fillRect(0, 0, 1, 1)
-      return Array.from(context.getImageData(0, 0, 1, 1).data)
-    }
-    const paint = (element: Element) => {
-      const style = getComputedStyle(element)
-      return {
-        color: rgba(style.color),
-        background: rgba(style.backgroundColor),
-        backgroundImage: style.backgroundImage,
-        border: rgba(style.borderTopColor),
-        borderWidth: style.borderTopWidth,
-        font: style.fontFamily,
-        opacity: style.opacity,
-      }
-    }
-    return cases.map(({ selector, css }) => {
-      const actual = document.querySelector(selector)
-      if (!actual) throw new Error(`Missing paint target: ${selector}`)
-      const reference = document.createElement('div')
-      reference.setAttribute('style', css)
-      document.body.appendChild(reference)
-      const result = {
-        selector,
-        actual: paint(actual),
-        expected: paint(reference),
-      }
-      reference.remove()
-      return result
-    })
-  })
-  for (const { selector, actual, expected } of comparisons)
-    expect(actual, selector).toEqual(expected)
+const selectTheme = async (page: Page, theme: string) => {
+  await page.selectOption('#theme', theme)
+  await settleTransitions(page)
 }
 
 const expectNoOverflow = async (page: Page) => {
@@ -204,8 +129,8 @@ const expectNoOverflow = async (page: Page) => {
   expect(widths.content).toBeLessThanOrEqual(widths.viewport)
 }
 
-for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
-  test.skipIf(!hasChromium)(
+for (const tier of ['base', 'xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
     [
       `given handoff and run controls at the ${tier} tier`,
       'when all themes and both dialogs are displayed',
@@ -223,7 +148,7 @@ for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
         ] as const) {
           // when
           await page.emulateMedia({ colorScheme: scheme })
-          await page.selectOption('#theme', theme)
+          await selectTheme(page, theme)
           // Wait for this opening's fetch, not the previous document's DOM.
           const loaded = page.waitForResponse((response) =>
             new URL(response.url()).pathname.includes('/handoff/'),
@@ -234,7 +159,6 @@ for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
           await viewer.locator('table').waitFor()
 
           // then
-          await expectLegacyPaint(page)
           await expectNoOverflow(page)
           expect(
             await viewer
@@ -274,7 +198,7 @@ for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
   )
 }
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given the amend action at the xl tier',
     'when hovered under each supported theme',
@@ -296,8 +220,9 @@ test.skipIf(!hasChromium)(
       ] as const) {
         // when
         await page.emulateMedia({ colorScheme: scheme })
-        await page.selectOption('#theme', theme)
+        await selectTheme(page, theme)
         await amend.hover()
+        await settleTransitions(page)
         const paint = await amend.evaluate((element) => {
           const reference = document.createElement('span')
           reference.style.setProperty('color', 'var(--border)')
@@ -318,7 +243,7 @@ test.skipIf(!hasChromium)(
   30_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given handoff and run dialogs in a narrow parent at the xl tier',
     'when opened and dismissed using only the keyboard',

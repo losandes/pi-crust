@@ -9,20 +9,16 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { chromium, devices, type Page } from 'playwright'
-import { createServer } from 'vite'
-import { viewportWidths } from '@/lib/testing'
+import type { Page } from 'playwright'
+import {
+  browserTestsEnabled,
+  launchChromium,
+  phoneViewport,
+  startHarnessServer,
+  viewportWidths,
+} from '@/lib/testing'
 import { createTracer } from '../../../../../../../runtime/domains/trace'
 import { insertActivityRun } from '../../../../../server/trace-db-fixture.test'
-
-const probe = await chromium.launch().catch(() => undefined)
-const hasChromium = probe !== undefined
-await probe?.close()
-if (!hasChromium) {
-  console.warn(
-    'RunControls.http.test.ts: no Chromium — skipping browser checks. Run `bunx playwright install chromium`.',
-  )
-}
 
 const waitForAddress = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -74,7 +70,7 @@ const submit = async (
   return response.json()
 }
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given the running visualizer and an isolated trace database',
     'when every run-control action is submitted through the browser',
@@ -187,28 +183,16 @@ test.skipIf(!hasChromium)(
     )
     try {
       const address = await waitForAddress(api.stdout.getReader())
-      const frontend = await createServer({
-        root: new URL('../../../../../', import.meta.url).pathname,
-        logLevel: 'silent',
-        server: {
-          host: '127.0.0.1',
-          port: 0,
-          hmr: false,
-          proxy: { '/api': { target: address, changeOrigin: true } },
-        },
+      const { server: frontend, base } = await startHarnessServer({
+        apiTarget: address,
       })
       try {
-        await frontend.listen()
-        const bound = frontend.httpServer?.address()
-        if (!bound || typeof bound === 'string')
-          throw new Error('No frontend address')
-        const base = `http://127.0.0.1:${bound.port}`
-        const browser = await chromium.launch()
+        const browser = await launchChromium()
         try {
           const page = await browser.newPage({
             viewport: {
               width: viewportWidths.xl,
-              height: devices['iPhone SE'].viewport.height,
+              height: phoneViewport.height,
             },
           })
           page.setDefaultTimeout(10_000)
@@ -222,7 +206,7 @@ test.skipIf(!hasChromium)(
           for (const tier of ['base', 'xl'] as const) {
             await page.setViewportSize({
               width: viewportWidths[tier],
-              height: devices['iPhone SE'].viewport.height,
+              height: phoneViewport.height,
             })
             for (const theme of ['Dark', 'Light', 'Auto', 'High contrast']) {
               await openRun('running')
@@ -246,9 +230,7 @@ test.skipIf(!hasChromium)(
                 .filter({ hasText: 'A real handoff file.' })
               await viewer.waitFor()
               const panel = await viewer.locator(':scope > div').boundingBox()
-              expect(panel?.height).toBeLessThanOrEqual(
-                devices['iPhone SE'].viewport.height,
-              )
+              expect(panel?.height).toBeLessThanOrEqual(phoneViewport.height)
               await page.keyboard.press('Escape')
               await openRun('failed', true)
               await typeInstruction(
@@ -268,7 +250,7 @@ test.skipIf(!hasChromium)(
           }
           await page.setViewportSize({
             width: viewportWidths.xl,
-            height: devices['iPhone SE'].viewport.height,
+            height: phoneViewport.height,
           })
 
           // when — message actions reach the actual inbox on disk.

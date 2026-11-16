@@ -15,7 +15,9 @@ A compatibility block in `@layer base` preserves the browser typography, prose s
 
 Author components with Tailwind utilities, following the portable [CSS conventions](../../.claude/skills/adr/css/README.md). Existing components remain on their CSS Modules until migrated as a unit: do not mix a component's stylesheet with utility styling. Compose conditional classes with `@/lib/cx`.
 
-Browser tests import `viewportWidths` from `@/lib/testing` and refer to widths by tier: `base`, `sm`, `md`, `lg`, `xl` and `2xl`. The helper reads Tailwind's default `--breakpoint-*` values and takes the base width from Playwright's small-phone device descriptor; do not repeat viewport dimensions in tests.
+Browser tests import `viewportWidths` from `@/lib/testing` and refer to widths by tier: `base`, `sm`, `md`, `lg`, `xl` and `2xl`. The helper reads Tailwind's default `--breakpoint-*` values and takes the base width from the `phoneViewport` constant, checked against Playwright's small-phone device descriptor by an integration test; do not repeat viewport dimensions in tests.
+
+Integration tests run only under `RUN_INTEGRATION_TESTS=true`. The root `test:agent` and `test:ci` scripts set it; `test` does not. These integrations are the browser-driven tests, the git-repository tests in `server/workspaces.test.ts`, and the Playwright viewport-descriptor check. From the repository root, run `CLAUDECODE=1 bun test apps/visualizer` for the fast suite or `RUN_INTEGRATION_TESTS=true CLAUDECODE=1 bun test <path>` for a scoped integration run. Browser tests also require Chromium: run `bunx playwright install chromium` from `apps/visualizer` if it is unavailable.
 
 ## What it reads, and what it can change
 

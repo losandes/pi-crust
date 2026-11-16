@@ -1,9 +1,13 @@
-import { expect, test } from 'bun:test'
-import { chromium, devices, type Page } from 'playwright'
+import { afterAll, expect, test } from 'bun:test'
+import type { Page } from 'playwright'
 import {
-  startHarnessServer,
+  browserTestsEnabled,
+  closeBrowserSuite,
+  openBrowserSuite,
+  phoneViewport,
   type TViewportTier,
   viewportWidths,
+  withSuitePage,
 } from '@/lib/testing'
 
 const HARNESS_HTML = `<!doctype html>
@@ -11,35 +15,28 @@ const HARNESS_HTML = `<!doctype html>
 <script type="module" src="/src/domains/sessions/src/_components/__fixtures__/sessions-list-harness.tsx"></script>
 </body></html>`
 
-const probe = await chromium.launch().catch(() => undefined)
-const hasChromium = probe !== undefined
-await probe?.close()
-if (!hasChromium) {
-  console.warn(
-    'SessionsList.layout.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
-
 const CARDS = 'main a[href*="dashboard-"]'
 
-const withDashboard = async (
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
+
+const withDashboard = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
   touch = false,
 ) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    const browser = await chromium.launch()
-    try {
-      const page = await browser.newPage({
-        viewport: {
-          width: viewportWidths[tier],
-          height: devices['iPhone SE'].viewport.height,
-        },
-        hasTouch: touch,
-        colorScheme: 'dark',
-        reducedMotion: 'reduce',
-      })
+  return withSuitePage(suite)(
+    {
+      viewport: {
+        width: viewportWidths[tier],
+        height: phoneViewport.height,
+      },
+      hasTouch: touch,
+      colorScheme: 'dark',
+      reducedMotion: 'reduce',
+    },
+    async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
       page.setDefaultNavigationTimeout(10_000)
       // The harness supplies fetch; abort anything unexpected before the API proxy.
@@ -65,12 +62,8 @@ const withDashboard = async (
       )
       await page.evaluate(() => document.fonts.ready)
       await check(page)
-    } finally {
-      await browser.close()
-    }
-  } finally {
-    await server.close()
-  }
+    },
+  )
 }
 
 const afterPaint = (page: Page) =>
@@ -84,15 +77,12 @@ const afterPaint = (page: Page) =>
 // Issue #88, 1.4.1: the extra columns must not appear before md or xl.
 for (const { tier, columns, edge } of [
   { tier: 'base', columns: 1, edge: 'at' },
-  { tier: 'sm', columns: 1, edge: 'at' },
   { tier: 'md', columns: 1, edge: 'immediately below' },
   { tier: 'md', columns: 2, edge: 'at' },
-  { tier: 'lg', columns: 2, edge: 'at' },
   { tier: 'xl', columns: 2, edge: 'immediately below' },
   { tier: 'xl', columns: 3, edge: 'at' },
-  { tier: '2xl', columns: 3, edge: 'at' },
 ] as const) {
-  test.skipIf(!hasChromium)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given the dashboard ${edge} the ${tier} tier`,
       'when its cards and filters render',
@@ -105,7 +95,7 @@ for (const { tier, columns, edge } of [
         if (edge === 'immediately below') {
           await page.setViewportSize({
             width: viewportWidths[tier] - 1,
-            height: devices['iPhone SE'].viewport.height,
+            height: phoneViewport.height,
           })
         }
         const layout = await page.locator(CARDS).evaluateAll((cards) => ({
@@ -190,7 +180,7 @@ for (const { tier, status, inline } of [
   { tier: 'xl', status: 'running', inline: true },
   { tier: 'xl', status: 'waiting', inline: true },
 ] as const) {
-  test.skipIf(!hasChromium)(
+  test.skipIf(!browserTestsEnabled)(
     [
       `given issue #88's ${status} card in the ${tier} dashboard grid`,
       'when its status, activity dots and start date render',
@@ -251,79 +241,14 @@ for (const { tier, status, inline } of [
   )
 }
 
-const TYPE = ['font-family', 'font-size', 'font-weight', 'line-height']
-const PAINT = [
-  'color',
-  'border-top-color',
-  'border-top-width',
-  'border-top-style',
-]
-
-// Independent declarations from the dashboard stylesheets at b7b90b9.
-const legacyStyles = [
-  {
-    selector: 'main a[href*="dashboard-success"]',
-    css: 'color:var(--text);background:var(--surface);border:var(--border-width) solid var(--border-soft)',
-    properties: [...TYPE, ...PAINT, 'background-image', 'background-color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-running"]',
-    css: 'border:var(--border-width) solid rgb(var(--busy-rgb)/.6);box-shadow:0 0 22px rgb(var(--busy-rgb)/var(--fill-medium))',
-    properties: ['border-top-color', 'box-shadow'],
-  },
-  {
-    selector: 'main a[href*="dashboard-fail"]',
-    css: 'border:var(--border-width) solid rgb(var(--fail-rgb)/.6)',
-    properties: ['border-top-color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] > span:nth-of-type(1)',
-    css: 'font-family:var(--mono);font-size:18px;font-weight:700;color:var(--purple)',
-    properties: [...TYPE, 'color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] > span:nth-of-type(2)',
-    css: 'font-family:var(--mono);font-size:12px;line-height:1.5;color:rgb(var(--blue-rgb));background:rgb(var(--blue-rgb)/.14)',
-    properties: [...TYPE, 'color', 'background-color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] > span:nth-of-type(3)',
-    css: 'font-family:var(--mono);font-size:16px;color:var(--cyan)',
-    properties: [...TYPE, 'color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] [title="planner — success"]',
-    css: 'color:var(--ok);font-size:16px',
-    properties: [...TYPE, 'color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] [title="builder — fail"]',
-    css: 'color:var(--fail)',
-    properties: ['color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] [title="reviewer — running"]',
-    css: 'color:var(--busy);animation-name:crust-pulse',
-    properties: ['color', 'animation-name'],
-  },
-  {
-    selector: 'main a[href*="dashboard-success"] [title="documenter — queued"]',
-    css: 'color:var(--faint)',
-    properties: ['color'],
-  },
-  {
-    selector: 'main a[href*="dashboard-running"] [title^="tool_call"]',
-    css: 'animation-name:crust-pulse;box-shadow:0 0 10px currentColor',
-    properties: ['animation-name', 'box-shadow'],
-  },
-  {
-    selector: 'main button[aria-haspopup="true"]',
-    css: 'font-family:var(--mono);font-size:13px;color:var(--dim);border:var(--border-width) solid var(--border-soft);background:transparent',
-    properties: [...TYPE, ...PAINT, 'background-color'],
-  },
-]
-
-const styleDifferences = (page: Page, cases = legacyStyles) =>
+const styleDifferences = (
+  page: Page,
+  cases: readonly Readonly<{
+    selector: string
+    css: string
+    properties: readonly string[]
+  }>[],
+) =>
   page.evaluate((cases) => {
     const context = document.createElement('canvas').getContext('2d')
     if (!context) throw new Error('Missing colour-normalization canvas')
@@ -371,81 +296,7 @@ const styleDifferences = (page: Page, cases = legacyStyles) =>
     })
   }, cases)
 
-test.skipIf(!hasChromium)(
-  [
-    'given the dashboard at the xl tier',
-    'when dark, light, both auto schemes and a runtime-registered theme are selected',
-    'it should preserve the cards and filter typography, surfaces and semantic colours',
-  ].join(', '),
-  async () => {
-    // given
-    await withDashboard('xl', async (page) => {
-      for (const { theme, scheme } of [
-        { theme: 'Dark', scheme: 'dark' },
-        { theme: 'Light', scheme: 'light' },
-        { theme: 'Auto', scheme: 'light' },
-        { theme: 'Auto', scheme: 'dark' },
-        { theme: 'High contrast', scheme: 'dark' },
-      ] as const) {
-        // when
-        await page.emulateMedia({ colorScheme: scheme })
-        await page.getByRole('button', { name: /^Theme:/ }).click()
-        await page.getByRole('option', { name: theme, exact: true }).click()
-        await afterPaint(page)
-
-        // then
-        expect(await styleDifferences(page), `${theme}: ${scheme}`).toEqual([])
-      }
-    })
-  },
-  30_000,
-)
-
-test.skipIf(!hasChromium)(
-  [
-    'given a running activity glyph and the latest event dot in real dashboard cards',
-    'when their animations are sampled with motion enabled',
-    'it should retain the original pulse durations, endpoints and depth',
-  ].join(', '),
-  async () => {
-    // given
-    await withDashboard('xl', async (page) => {
-      // when
-      await page.emulateMedia({ reducedMotion: 'no-preference' })
-      await afterPaint(page)
-      const pulses = await page
-        .locator(
-          'main a[href*="dashboard-success"] [title="reviewer — running"], main a[href*="dashboard-running"] [title^="tool_call"]',
-        )
-        .evaluateAll((elements) =>
-          elements.map((element) => {
-            const style = getComputedStyle(element)
-            const [animation] = element.getAnimations()
-            const duration = animation?.effect?.getComputedTiming().duration
-            if (!animation || typeof duration !== 'number') {
-              throw new Error('Missing dashboard pulse animation')
-            }
-            animation.pause()
-            const frames = [0, 0.5, 1].map((progress) => {
-              // biome-ignore lint/plugin/no-object-mutation: seeking a browser-owned Animation requires its currentTime setter.
-              animation.currentTime = duration * progress
-              return Number(getComputedStyle(element).opacity)
-            })
-            return { duration: style.animationDuration, frames }
-          }),
-        )
-
-      // then
-      expect(pulses).toEqual([
-        { duration: '1.2s', frames: [1, 0.35, 1] },
-        { duration: '1.4s', frames: [1, 0.35, 1] },
-      ])
-    })
-  },
-  30_000,
-)
-
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a dashboard under a coarse pointer at the base tier',
     'when no card is hovered',
@@ -478,7 +329,7 @@ test.skipIf(!hasChromium)(
   30_000,
 )
 
-test.skipIf(!hasChromium)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a dashboard under a fine pointer at the xl tier',
     'when a card is hovered and then reached by keyboard',

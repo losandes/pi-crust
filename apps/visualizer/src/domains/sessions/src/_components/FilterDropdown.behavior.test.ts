@@ -1,8 +1,10 @@
-import { expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
-import type { Browser, BrowserContext, Page } from 'playwright'
-import { chromium } from 'playwright'
-import { startHarnessServer } from '@/lib/testing'
+import { afterAll, expect, test } from 'bun:test'
+import type { BrowserContext, Page } from 'playwright'
+import {
+  browserTestsEnabled,
+  closeBrowserSuite,
+  openBrowserSuite,
+} from '@/lib/testing'
 import type { SessionSummary } from '../typedefs/session'
 
 const HARNESS_HTML = `<!doctype html>
@@ -75,20 +77,11 @@ const ARCHIVED_SESSION: SessionSummary = session({
   archived: 1,
 })
 
-/*
- * Playwright's Chromium is a ~99MB download and is not vendored. On a machine
- * without it this says so and skips, rather than failing a verification
- * command AGENTS.md tells people to run on a fresh clone. A skip is a check
- * not run, not a check that passed.
- */
-const CHROMIUM_AVAILABLE = existsSync(chromium.executablePath())
-if (!CHROMIUM_AVAILABLE) {
-  console.warn(
-    'FilterDropdown.behavior.test.ts: no Chromium — skipping. Run `bunx playwright install chromium`.',
-  )
-}
-
 const ACTION_TIMEOUT_MS = 8_000
+
+const suite = browserTestsEnabled ? await openBrowserSuite() : undefined
+// shared-process: one browser and dev server per file; each test opens its own context
+afterAll(() => closeBrowserSuite(suite), 30_000)
 
 /**
  * One attempt at mounting the fixture and handing it to `run`, bounded so a
@@ -96,36 +89,31 @@ const ACTION_TIMEOUT_MS = 8_000
  * test's timeout.
  */
 const attemptPage = async (
-  activeBrowser: Browser,
+  context: BrowserContext,
   base: string,
   run: (page: Page, base: string) => Promise<void>,
 ) => {
-  const context: BrowserContext = await activeBrowser.newContext()
-  try {
-    const page = await context.newPage()
-    page.setDefaultTimeout(ACTION_TIMEOUT_MS)
-    page.setDefaultNavigationTimeout(ACTION_TIMEOUT_MS)
-    await page.route('**/__diag__/index.html', (route) =>
-      route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
-    )
-    // Registered FIRST: Playwright matches the most recently registered route
-    // first, so this catches every other /api/* call (the per-card events
-    // poll) before it reaches a real server that isn't running.
-    await page.route('**/api/**', (route) => route.fulfill({ json: [] }))
-    await page.route('**/api/sessions*', (route) => {
-      const url = new URL(route.request().url())
-      const sessions =
-        url.searchParams.get('include_archived') === '1'
-          ? [...BASE_SESSIONS, ARCHIVED_SESSION]
-          : BASE_SESSIONS
-      return route.fulfill({ json: sessions })
-    })
-    await page.goto(`${base}/__diag__/index.html`)
-    await page.waitForSelector('a[href*="run-1"]')
-    await run(page, base)
-  } finally {
-    await context.close()
-  }
+  const page = await context.newPage()
+  page.setDefaultTimeout(ACTION_TIMEOUT_MS)
+  page.setDefaultNavigationTimeout(ACTION_TIMEOUT_MS)
+  await page.route('**/__diag__/index.html', (route) =>
+    route.fulfill({ contentType: 'text/html', body: HARNESS_HTML }),
+  )
+  // Registered FIRST: Playwright matches the most recently registered route
+  // first, so this catches every other /api/* call (the per-card events
+  // poll) before it reaches a real server that isn't running.
+  await page.route('**/api/**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/sessions*', (route) => {
+    const url = new URL(route.request().url())
+    const sessions =
+      url.searchParams.get('include_archived') === '1'
+        ? [...BASE_SESSIONS, ARCHIVED_SESSION]
+        : BASE_SESSIONS
+    return route.fulfill({ json: sessions })
+  })
+  await page.goto(`${base}/__diag__/index.html`)
+  await page.waitForSelector('a[href*="run-1"]')
+  await run(page, base)
 }
 
 /**
@@ -148,35 +136,33 @@ const withTimeout = <T>(
   ])
 
 /**
- * Each test owns its server and browser, so teardown shares the existing
- * 30s test budget instead of a separate 5s hook budget. Retain one retry
- * with a fresh browser, closing each attempt before starting the next.
+ * The file shares one server and browser; each attempt gets its own context.
+ * Retain one retry with a fresh context, closing each attempt before starting
+ * the next.
  */
 const withPage = async (run: (page: Page, base: string) => Promise<void>) => {
-  const { server, base } = await startHarnessServer()
-  try {
-    let lastError: unknown
-    for (const attempt of [1, 2]) {
-      const activeBrowser = await chromium.launch()
-
-      // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung browser into one retry rather than failing the test on resource contention outside this file's control
-      try {
-        await withTimeout(
-          attemptPage(activeBrowser, base, run),
-          12_000,
-          `withPage attempt ${attempt}`,
-        )
-        return
-      } catch (cause) {
-        lastError = cause
-      } finally {
-        await activeBrowser.close()
-      }
-    }
-    throw lastError
-  } finally {
-    await server.close()
+  if (suite === undefined) {
+    throw new Error('the browser suite is not open: browser tests are disabled')
   }
+  let lastError: unknown
+  for (const attempt of [1, 2]) {
+    const context = await suite.browser.newContext()
+
+    // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a torn-down or hung page into one retry rather than failing the test on resource contention outside this file's control
+    try {
+      await withTimeout(
+        attemptPage(context, suite.base, run),
+        12_000,
+        `withPage attempt ${attempt}`,
+      )
+      return
+    } catch (cause) {
+      lastError = cause
+    } finally {
+      await context.close()
+    }
+  }
+  throw lastError
 }
 
 const cardCount = (page: Page) => page.locator('a[href*="run-"]').count()
@@ -191,7 +177,7 @@ const waitFor = async (check: () => Promise<boolean>, timeoutMs = 3000) => {
   }
 }
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given active and archived sessions',
     'when the state panel selects archived sessions',
@@ -214,7 +200,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given sessions from two trees',
     'when selecting one tree option',
@@ -239,7 +225,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open tree filter panel',
     'when clicking the background',
@@ -266,7 +252,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given an open tree filter panel with two options',
     'when typing in the search box',
@@ -300,7 +286,7 @@ test.skipIf(!CHROMIUM_AVAILABLE)(
   30_000,
 )
 
-test.skipIf(!CHROMIUM_AVAILABLE)(
+test.skipIf(!browserTestsEnabled)(
   [
     'given a selected tree filter',
     'when reloading the same page',
