@@ -244,7 +244,7 @@ test(
   [
     'given use-cases/load-lifecycles::loadLifecycles',
     'when the shipped lifecycles are read',
-    'it should review the plan between discovery and filing the issue',
+    'it should file the issue directly after identifying the topic',
   ].join(', '),
   () => {
     // given
@@ -266,12 +266,7 @@ test(
       {
         name: 'discover',
         strategy: 'serial',
-        activities: ['identify', 'plan'],
-      },
-      {
-        name: 'review-plan',
-        strategy: 'concurrent',
-        activities: ['plan-comprehension', 'plan-readiness'],
+        activities: ['identify'],
       },
       { name: 'file', strategy: 'serial', activities: ['gh-issue'] },
     ])
@@ -295,10 +290,9 @@ test(
 
     // then
     expect(stagesOf('bugfix')).toEqual([
-      ['diagnose'],
-      ['plan'],
+      ['diagnose', 'plan'],
       ['plan-comprehension', 'plan-readiness'],
-      ['test-tdd', 'build'],
+      ['build'],
       ['outcome-review', 'code-review'],
       ['gh-pull-request'],
     ])

@@ -345,7 +345,7 @@ test(
 )
 
 for (const { name, writer } of [
-  { name: 'ship', writer: 'test' },
+  { name: 'ship', writer: 'build' },
   { name: 'bugfix', writer: 'build' },
 ]) {
   test(
