@@ -20,16 +20,10 @@ lifecycles:
     stages:
       - name: diagnose
         strategy: serial
-        activities: [diagnose]
-      - name: plan
-        strategy: serial
-        activities: [plan]
+        activities: [diagnose, plan]
       - name: review-plan
         strategy: concurrent
         activities: [plan-comprehension, plan-readiness]
-      - name: register
-        strategy: serial
-        activities: [gh-issue]
       - name: deliver
         strategy: serial
         activities: [build]
@@ -56,6 +50,12 @@ lifecycles:
     description: >-
       The engineering lifecycle: build, test, and review.
     stages:
+      - name: discover
+        strategy: serial
+        activities: [plan]
+      - name: review-plan
+        strategy: concurrent
+        activities: [plan-comprehension, plan-readiness]
       - name: deliver
         strategy: serial
         activities: [build]
@@ -66,16 +66,19 @@ lifecycles:
         strategy: serial
         activities: [gh-pull-request]
 
-  - name: discover
+  - name: just-deliver
     description: >-
-      The product lifecycle: identify, conceptualize, plan.
+      The engineering lifecycle: build, test, and review.
     stages:
-      - name: discover
+      - name: deliver
         strategy: serial
-        activities: [identify, conceptualize, plan]
-      - name: review-plan
+        activities: [build]
+      - name: accept
         strategy: concurrent
-        activities: [plan-comprehension, plan-readiness]
+        activities: [outcome-review, code-review]
+      - name: push
+        strategy: serial
+        activities: [gh-pull-request]
 
   - name: gh-issue
     description: >-
@@ -83,10 +86,7 @@ lifecycles:
     stages:
       - name: discover
         strategy: serial
-        activities: [identify, plan]
-      - name: review-plan
-        strategy: concurrent
-        activities: [plan-comprehension, plan-readiness]
+        activities: [identify]
       - name: file
         strategy: serial
         activities: [gh-issue]
