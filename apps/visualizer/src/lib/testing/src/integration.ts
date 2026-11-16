@@ -4,6 +4,16 @@ export const integrationEnabled = (
 
 export const integrationTestsEnabled = integrationEnabled(process.env)
 
+export const reportUnavailableBrowser =
+  (warn: (message: string) => void) =>
+  (enabled: boolean, available: boolean): void => {
+    if (enabled && !available) {
+      warn(
+        'No Chromium — skipping browser tests. Run `bunx playwright install chromium` from apps/visualizer.',
+      )
+    }
+  }
+
 export const canLaunch =
   (launch: () => Promise<Readonly<{ close: () => Promise<void> }>>) =>
   (): Promise<boolean> =>

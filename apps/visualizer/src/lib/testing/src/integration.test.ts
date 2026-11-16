@@ -1,5 +1,9 @@
-import { expect, test } from 'bun:test'
-import { canLaunch, integrationEnabled } from './integration'
+import { expect, mock, test } from 'bun:test'
+import {
+  canLaunch,
+  integrationEnabled,
+  reportUnavailableBrowser,
+} from './integration'
 
 for (const { name, env, expected } of [
   {
@@ -41,21 +45,15 @@ test(
   ].join(', '),
   async () => {
     // given
-    let closed = false
-    const launch = () =>
-      Promise.resolve({
-        close: () => {
-          closed = true
-          return Promise.resolve()
-        },
-      })
+    const close = mock(() => Promise.resolve())
+    const launch = () => Promise.resolve({ close })
 
     // when
     const actual = await canLaunch(launch)()
 
     // then
     expect(actual).toBe(true)
-    expect(closed).toBe(true)
+    expect(close).toHaveBeenCalledTimes(1)
   },
 )
 
@@ -76,3 +74,36 @@ test(
     expect(actual).toBe(false)
   },
 )
+
+for (const { enabled, available, expected } of [
+  { enabled: false, available: false, expected: [] },
+  { enabled: false, available: true, expected: [] },
+  { enabled: true, available: true, expected: [] },
+  {
+    enabled: true,
+    available: false,
+    expected: [
+      'No Chromium — skipping browser tests. Run `bunx playwright install chromium` from apps/visualizer.',
+    ],
+  },
+]) {
+  test(
+    [
+      `given integration enabled=${enabled} and browser available=${available}`,
+      'when browser availability is reported',
+      expected.length > 0
+        ? 'it should emit the Chromium installation diagnostic'
+        : 'it should emit no diagnostic',
+    ].join(', '),
+    () => {
+      // given
+      const warn = mock((message: string) => message)
+
+      // when
+      reportUnavailableBrowser(warn)(enabled, available)
+
+      // then
+      expect(warn.mock.calls.map(([message]) => message)).toEqual(expected)
+    },
+  )
+}

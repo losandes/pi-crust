@@ -93,26 +93,7 @@ const HARNESS_HTML = `<!doctype html>
   <option>high-contrast</option>
 </select>
 ${NATIVE_HTML}
-<div>
-  <section id="detail-section-margin">
-    <button id="detail-section-head" type="button">Margins</button>
-    <div id="detail-section-body"><p id="detail-section-paragraph">Body paragraph</p></div>
-  </section>
-  <div id="after-detail-section">After the section</div>
-</div>
 ${COLOR_PROBES}
-<section id="radius-probes">
-  <span id="legacy-radius" data-radius style="border-radius:var(--radius-sm, 3px)">Legacy fallback</span>
-  <pre id="narration-radius-code" data-radius>Code</pre>
-  <div id="decision-radius-body">
-    <code id="decision-radius-code" data-radius>Code</code>
-    <pre id="decision-radius-pre" data-radius>Code block</pre>
-  </div>
-  <span id="legacy-radius-four" data-radius style="border-radius:var(--radius-sm, 4px)">Other fallback</span>
-  <span id="utility-radius-small" data-radius class="rounded-sm">Small utility</span>
-  <span id="utility-radius-top" data-radius class="rounded-t-sm">Top utility</span>
-  <span id="utility-radius-medium" data-radius class="rounded-md">Medium utility</span>
-</section>
 <button id="utility-control" class="font-sans">Utility control</button>
 ${THEME_PROBES}
 <div id="rendered-prose">
@@ -127,29 +108,21 @@ ${THEME_PROBES}
 <span id="trace-status" class="animate-[crust-pulse_1.2s_ease-in-out_infinite]" data-animation>Running</span>
 <button id="trace-block" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation>Activity</button>
 <span id="live-dot" class="animate-[crust-pulse_1.6s_ease-in-out_infinite]" data-animation></span>
-<div id="sm" class="hidden sm:block">sm</div>
-<div id="md" class="hidden md:block">md</div>
-<div id="lg" class="hidden lg:block">lg</div>
-<div id="xl" class="hidden xl:block">xl</div>
-<div id="2xl" class="hidden 2xl:block">2xl</div>
 <script type="module">
 import '/src/style.css'
 import { applyCustomThemes, applyTheme } from '/src/domains/themes/index.ts'
-import { DetailSection, Prose, StatusChip } from '/src/lib/_components/index.ts'
+import { Prose, StatusChip } from '/src/lib/_components/index.ts'
 import { NarrationPane } from '/src/domains/narration/index.ts'
 import { DecisionLedger, DecisionRequest } from '/src/domains/decisions/index.ts'
 import { renderMarkdown } from '/src/lib/markdown/index.ts'
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { renderToStaticMarkup } from 'react-dom/server'
 const narrationProps = {
   events: [], agent: 'builder', activityRunStatus: 'success', runId: 'fixture', runStatus: 'success',
   consults: [{ at: '2026-01-01', question: 'Question ' + 'long'.repeat(100), mode: 'consult', answer: '\\x60\\x60\\x60json\\n{"ok":true}\\n\\x60\\x60\\x60', amended: ['answer'], restored: ['other'] }],
   pending: { mode: 'consult', question: 'Still waiting' },
   envelope: { payload_json: JSON.stringify({ summary: 'Its final answer' }) },
 }
-const narration = document.createElement('div')
-narration.innerHTML = renderToStaticMarkup(createElement(NarrationPane, narrationProps))
 if (location.search === '?surfaces') {
   const surface = document.createElement('main')
   surface.id = 'migration-surfaces'
@@ -182,15 +155,9 @@ document.getElementById('theme-choice').addEventListener('change', (event) => {
   applyTheme(document.documentElement, event.target.value, window.matchMedia)
 })
 const runningChip = StatusChip({ status: 'running' })
-const detailSection = DetailSection({ title: 'Margins', open: true, onToggle: () => {} })
 const classes = {
-  'detail-section-margin': [detailSection.props.className],
-  'detail-section-head': [detailSection.props.children[0].props.className],
-  'detail-section-body': [detailSection.props.children[1].props.className],
   spinner: [runningChip.props.className],
   'spinner-icon': [runningChip.props.children[0].props.className],
-  'narration-radius-code': [narration.querySelector('pre').className],
-  'decision-radius-body': [Prose({ html: '', variant: 'compact' }).props.className],
   'rendered-prose': [Prose({ html: '', variant: 'default' }).props.className],
 }
 for (const [id, names] of Object.entries(classes)) {
