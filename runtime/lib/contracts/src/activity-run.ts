@@ -22,11 +22,11 @@ export const ACTIVITY_RUN_STATUSES = [
   'fail',
   'waiting',
   /*
-   * Was successful; has been replaced by a later run of the same activity.
+   * No longer decides the run; its history and diagnostics remain readable.
    *
-   * Not 'fail' — the activity did its job and the record of what it decided is
-   * still worth reading. Resume keys off `success`, so this is also what
-   * makes a steered activity run again instead of being skipped.
+   * A failed or running row is replaced by a later running, successful,
+   * failed, or waiting attempt of the exact same instance name. Gate retries,
+   * waiting resumes, and steering also mark the attempts they replace.
    */
   'superseded',
   /*

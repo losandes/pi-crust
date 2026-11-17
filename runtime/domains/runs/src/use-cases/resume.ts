@@ -26,6 +26,7 @@ import type {
 } from '../../../../lib/contracts'
 import { latestLogPayload, readRunState } from '../../../trace'
 import { runActivityRun } from './run-activity-run'
+import { supersedeReplacedAttempts } from './supersede-replaced-attempts'
 
 /** Event name a code activityRun files its verdict under, for replay. */
 export const STEP_RESULT_EVENT = 'step_result'
@@ -99,6 +100,7 @@ export const skipIfDone = <TResult>(
   if (!run.claimResume(params.name)) {
     return runActivityRun(run)(params, (handle) => {
       supersedeWaiting(run, params.name)
+      supersedeReplacedAttempts(run)
       return body(handle)
     })
   }

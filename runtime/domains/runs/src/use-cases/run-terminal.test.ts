@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type {
   TActivityContext,
   TActivityRun,
+  TEventPayload,
   TGateReport,
   TRun,
 } from '../../../../lib/contracts'
@@ -14,7 +15,7 @@ import { terminalOutput } from '../../../../testing/terminal-capture'
 import type { TTerminalActivity } from '../../../activities'
 import { readRunState } from '../../../trace'
 import { outstandingCommits } from './deliver'
-import { runTerminal } from './run-terminal'
+import { CANCELLED_BY_FAILURE, runTerminal } from './run-terminal'
 import {
   deliveryFixture,
   gitIn,
@@ -26,6 +27,7 @@ import {
 /** Every row and event the fake run recorded, so a test can read what was filed. */
 const runIn = (
   countedRuns: readonly TActivityRun[] = [],
+  cancellations: readonly TEventPayload[] = [],
 ): Readonly<{
   run: TRun
   rows: TActivityRun[]
@@ -80,7 +82,8 @@ const runIn = (
         // biome-ignore lint/plugin/no-array-mutation: recording what was filed is the test
         rows.push(row)
       },
-      eventsNamed: () => [],
+      eventsNamed: (_runId: string, name: string) =>
+        name === 'terminal_cancelled' ? cancellations : [],
       sessionFinish: () => undefined,
       gateRow: (row: TActivityRun, name: string, report: TGateReport) => {
         gates = [...gates, { id: row.activity_run_id, name, report }]
@@ -413,7 +416,7 @@ const previousRow = (
   ended_at: undefined,
 })
 
-for (const status of ['fail', 'waiting'] as const) {
+for (const status of ['fail', 'waiting', 'cancelled'] as const) {
   test(
     [
       `given the terminal Activity's earlier ${status} row`,
@@ -423,7 +426,10 @@ for (const status of ['fail', 'waiting'] as const) {
     async () => {
       // given
       const earlier = previousRow('gh-pull-request', status)
-      using fixture = runIn([earlier])
+      using fixture = runIn(
+        [earlier],
+        [{ activity: 'gh-pull-request', reason: CANCELLED_BY_FAILURE }],
+      )
       let delivered = 0
       const activity = terminalActivity(() => {
         delivered += 1
@@ -465,7 +471,7 @@ for (const status of ['fail', 'waiting'] as const) {
 for (const given of [
   { status: 'fail' as const, accepted: true, otherFailed: true },
   { status: 'waiting' as const, accepted: false, otherFailed: true },
-  { status: 'cancelled' as const, accepted: true, otherFailed: false },
+  { status: 'cancelled' as const, accepted: true, otherFailed: true },
 ]) {
   test(
     [
@@ -476,10 +482,10 @@ for (const given of [
     async () => {
       // given
       const earlier = previousRow('gh-pull-request', given.status)
-      using fixture = runIn([
-        earlier,
-        ...(given.otherFailed ? [previousRow('build', 'fail')] : []),
-      ])
+      using fixture = runIn(
+        [earlier, ...(given.otherFailed ? [previousRow('build', 'fail')] : [])],
+        [{ activity: 'gh-pull-request', reason: CANCELLED_BY_FAILURE }],
+      )
       const activity = terminalActivity(() => {
         throw new Error('delivery must not run')
       })
@@ -502,6 +508,122 @@ for (const given of [
       ).toBe(false)
       expect(earlier.status).toBe(given.status)
       expect(fixture.gates).toEqual([])
+    },
+  )
+}
+
+for (const scenario of [
+  {
+    name: 'recorded rejection',
+    reason: 'the person rejected the run — alice',
+    accepted: true,
+    rejectedBy: undefined,
+    otherActivity: false,
+    delivered: false,
+    outcome: 'settled',
+  },
+  {
+    name: 'unknown recorded reason',
+    reason: 'the run was not accepted',
+    accepted: true,
+    rejectedBy: undefined,
+    otherActivity: false,
+    delivered: false,
+    outcome: 'settled',
+  },
+  {
+    name: 'current rejection',
+    reason: CANCELLED_BY_FAILURE,
+    accepted: true,
+    rejectedBy: 'alice',
+    otherActivity: false,
+    delivered: false,
+    outcome: 'settled',
+  },
+  {
+    name: 'acceptance still owed',
+    reason: CANCELLED_BY_FAILURE,
+    accepted: false,
+    rejectedBy: undefined,
+    otherActivity: false,
+    delivered: false,
+    outcome: 'waiting',
+  },
+  {
+    name: 'another terminal rejected',
+    reason: 'the person rejected the run — alice',
+    accepted: true,
+    rejectedBy: undefined,
+    otherActivity: true,
+    delivered: true,
+    outcome: 'settled',
+  },
+  {
+    name: 'no recorded cancellation event',
+    reason: undefined,
+    accepted: true,
+    rejectedBy: undefined,
+    otherActivity: false,
+    delivered: true,
+    outcome: 'settled',
+  },
+] as const) {
+  test(
+    [
+      `given an earlier cancelled delivery and ${scenario.name}`,
+      'when terminal delivery is considered again',
+      'it should recover only failure cancellations after acceptance without rejection',
+    ].join(', '),
+    async () => {
+      // given
+      const earlier = previousRow('gh-pull-request', 'cancelled')
+      using fixture = runIn(
+        [earlier],
+        scenario.reason === undefined
+          ? []
+          : [
+              { activity: 'gh-pull-request', reason: CANCELLED_BY_FAILURE },
+              {
+                activity: scenario.otherActivity
+                  ? 'another-terminal'
+                  : 'gh-pull-request',
+                reason: scenario.reason,
+              },
+            ],
+      )
+      let delivered = 0
+      const activity = terminalActivity(() => {
+        delivered += 1
+        return Promise.resolve({
+          action: 'created',
+          url: 'https://example.test/pull/166',
+          reason: '',
+          recoverable: false,
+          fallback: false,
+        })
+      })
+
+      // when
+      const actual = await runTerminal({
+        run: fixture.run,
+        activity,
+        ctx,
+        accepted: scenario.accepted,
+        ...(scenario.rejectedBy === undefined
+          ? {}
+          : { rejectedBy: scenario.rejectedBy }),
+      })
+
+      // then
+      expect(actual.kind).toBe(scenario.outcome)
+      expect(delivered).toBe(scenario.delivered ? 1 : 0)
+      expect(fixture.rows.some((row) => row.status === 'superseded')).toBe(
+        scenario.delivered,
+      )
+      if (scenario.outcome !== 'waiting')
+        expect(fixture.rows.at(-1)?.status).toBe(
+          scenario.delivered ? 'success' : 'cancelled',
+        )
     },
   )
 }

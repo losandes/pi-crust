@@ -89,6 +89,7 @@ const acceptanceFixture = (
           ),
   )
   let refused = false
+  let created = 0
   const delivery: TDeliveryPorts = {
     isRepo: () => true,
     branch: () => 'topic',
@@ -103,7 +104,10 @@ const acceptanceFixture = (
       authenticated: () => true,
       whoami: () => 'tester',
       find: () => '',
-      create: () => 'https://github.com/example/repo/pull/119',
+      create: () => {
+        created += 1
+        return 'https://github.com/example/repo/pull/119'
+      },
       update: () => '',
     },
   }
@@ -138,6 +142,7 @@ const acceptanceFixture = (
     config,
     execute,
     requests,
+    created: () => created,
     refuseCommit: () =>
       refuseBuildCommit(
         createRun({
@@ -311,6 +316,14 @@ for (const surface of ['cli', 'web'] as const) {
               .eventsNamed(fixture.runId, 'terminal_cancelled')
               .at(-1)?.reason,
           ).toContain('person rejected')
+          expect(await fixture.execute(true)).toBe(EXIT.FAILED)
+          expect(fixture.created()).toBe(0)
+          expect(
+            fixture
+              .rows()
+              .filter((row) => row.params.name === 'gh-pull-request')
+              .map((row) => row.status),
+          ).toEqual(['cancelled', 'cancelled'])
         } else {
           expect(
             fixture.run.tracer
