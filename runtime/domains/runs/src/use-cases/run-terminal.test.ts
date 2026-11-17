@@ -9,6 +9,7 @@ import type {
   TRun,
 } from '../../../../lib/contracts'
 import { activityRunParams } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { terminalOutput } from '../../../../testing/terminal-capture'
 import type { TTerminalActivity } from '../../../activities'
 import { readRunState } from '../../../trace'
@@ -505,7 +506,7 @@ for (const given of [
   )
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a commit git refused earlier and an operator who removed the hook',
     'when accepted terminal delivery starts',
@@ -549,7 +550,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given an unaccepted run with a refused commit whose hook is now repaired',
     'when runTerminal reaches delivery',
@@ -587,7 +588,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a commit still refused after its one retry at delivery',
     'when runTerminal reaches delivery',
@@ -674,7 +675,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a failed delivery gate',
     'when runTerminal settles it',

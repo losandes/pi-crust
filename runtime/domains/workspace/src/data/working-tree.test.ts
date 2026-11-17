@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { snapshotTree } from './working-tree'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
@@ -22,7 +23,7 @@ const aRepo = (): string => {
   return dir
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/working-tree::snapshotTree',
     'when the workspace equals the VCS root',
@@ -43,15 +44,16 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/working-tree::snapshotTree',
     'when the workspace is nested one level inside the VCS root',
     'it should report a path INSIDE the workspace relative to the workspace, and a path ABOVE it as absolute',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — `git diff HEAD --numstat` and `git ls-files --others
+     * Given — `git diff HEAD --numstat` and `git ls-files --others
      * --exclude-standard` both print paths relative to the VCS root
      * regardless of cwd (1.2.1). A workspace one level below it must not
      * have those strings misread as workspace-relative — the defect this

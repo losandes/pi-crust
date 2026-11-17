@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activityRunParams, crustConfigSchema } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { createTracer } from '../../../trace'
 import { createRun } from './create-run'
 
@@ -41,7 +42,7 @@ const inDir = <TResult>(dir: string, body: () => TResult): TResult => {
   }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/create-run::createRun',
     'when the workspace is itself the VCS root',
@@ -65,7 +66,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/create-run::createRun',
     'when the workspace is one package nested inside a larger git repository',
@@ -114,7 +115,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/create-run::createRun',
     'when the VCS root is read after the run was created, from a different cwd',

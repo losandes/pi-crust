@@ -12,9 +12,9 @@
  *     could still rewrite the code it was reviewing.
  *
  * So permission is verified the way every other claim in this system is — after
- * the fact, against the repo itself. `snapshotTree()` fingerprints the working
- * tree's change-set before an agent runs; `enforcePermissions()` compares it
- * afterwards and REPORTS what changed outside the allowlist.
+ * the fact, against snapshots supplied by the caller. `enforcePermissions()`
+ * compares the before and after change-sets and REPORTS what changed outside
+ * the allowlist; it never reads the tree or HEAD itself.
  *
  * Comparing change-sets, rather than watching for writes, is what catches the
  * `git checkout` case: a path that was modified before the agent ran and is
@@ -46,7 +46,6 @@ import type {
   TRun,
 } from '../../../../lib/contracts'
 import type { TTreeSnapshot } from '../../../workspace'
-import { isRepo, rev, snapshotTree } from '../../../workspace'
 /** Every path whose state differs — appeared, vanished, or was rewritten. */
 export const changedPaths = (
   before: TTreeSnapshot,
@@ -256,22 +255,31 @@ export type TRepoBefore = Readonly<{
   committing: boolean
 }>
 
+/** Where the repository is after an Activity touched it. */
+export type TRepoAfter = Readonly<{
+  tree: TTreeSnapshot
+  /** HEAD after the Activity ran; '' outside a repository */
+  head: string
+}>
+
 /**
  * A commit nobody authorised, reported like any other breach.
  *
  * Not rolled back. Resetting history under a developer is a bigger harm than
  * the commit was, and the commit is recoverable by whoever reads the report.
  */
-export const commitBreach = (before: TRepoBefore): readonly string[] => {
-  if (before.committing || before.head === '' || !isRepo()) {
+export const commitBreach = (
+  before: TRepoBefore,
+  after: TRepoAfter,
+): readonly string[] => {
+  if (before.committing || before.head === '' || after.head === '') {
     return []
   }
-  const head = rev('HEAD')
 
-  return head === before.head
+  return after.head === before.head
     ? []
     : [
-        `HEAD moved from ${before.head.slice(0, 7)} to ${head.slice(0, 7)} — ` +
+        `HEAD moved from ${before.head.slice(0, 7)} to ${after.head.slice(0, 7)} — ` +
           "this activity was not committing, and committing is the engine's " +
           'to do. Left in history; undo it yourself if it is wrong.',
       ]
@@ -319,6 +327,7 @@ export const enforcePermissions = (
   run: TRun,
   agent: TAgentConfig,
   repoBefore: TRepoBefore,
+  repoAfter: TRepoAfter,
   /*
    * The agents running alongside this one, when a Stage claimed concurrency.
    *
@@ -340,10 +349,7 @@ export const enforcePermissions = (
   siblings: readonly TAgentConfig[] = [],
 ): TPermissionReport => {
   const before = repoBefore.tree
-  const after = snapshotTree({
-    workspaceRoot: run.repoRoot,
-    vcsRoot: run.vcsRoot,
-  })
+  const after = repoAfter.tree
   const touched = changedPaths(before, after)
   const resolveFor = (one: TAgentConfig): readonly string[] =>
     resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)
@@ -372,7 +378,7 @@ export const enforcePermissions = (
         ),
     ),
     scope: scopeOf(agent, run.cfg),
-    committed: commitBreach(repoBefore),
+    committed: commitBreach(repoBefore, repoAfter),
     dirtyBefore: Object.keys(before).toSorted(),
   }
 }

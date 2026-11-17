@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { terminalOutput } from '../../../../testing/terminal-capture'
 import { observedPayload, PATHS_TOUCHED } from '../../../policy'
 import {
@@ -136,7 +137,7 @@ const inRepo = <TResult>(dir: string, body: () => TResult): TResult => {
   }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a refused commit with a multi-line message',
     'when the hook is removed and refused work is retried',
@@ -181,7 +182,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a commit whose hook still refuses at delivery',
     'when recommitRefused makes its one retry',
@@ -207,7 +208,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given no refused commit in a real run',
     'when recommitRefused is called',
@@ -232,7 +233,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given an Activity with no outstanding warning',
     'when its observed work is committed',
@@ -255,7 +256,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a refused commit the operator subsequently committed by hand',
     'when commitActivity finds nothing left to commit',
@@ -286,7 +287,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given an older refusal without a commit_refused message event',
     'when recommitRefused lands the work',
@@ -317,7 +318,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given distinct refused Activity instances in trace order',
     'when recommitRefused retries them',
@@ -368,7 +369,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given issue #125 requirement 1.3.3 and two refused attempts for the same Activity',
     'when delivery retries after the hook is removed',
@@ -425,7 +426,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given issue #125 requirement 1.3.3 and unrelated work the operator already staged',
     'when delivery retries the refused Activity commit',
@@ -461,7 +462,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/deliver::commitActivity',
     'when an Activity that declared commit has changed the tree',
@@ -498,7 +499,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/deliver::commitActivity',
     'when the tree holds a change no Activity was observed to make',
@@ -536,7 +537,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/deliver::commitActivity',
     'when the Activity changed no tracked file',
@@ -582,7 +583,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/deliver::commitActivity',
     'when git refuses the commit — a hook exiting non-zero, standing in for an unlocked signing agent',
@@ -612,7 +613,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/deliver::commitActivity',
     'when git refuses the commit',
@@ -646,7 +647,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/deliver::commitActivity',
     'when git refuses the commit',

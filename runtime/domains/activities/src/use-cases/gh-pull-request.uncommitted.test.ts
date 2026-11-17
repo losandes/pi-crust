@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { liveDelivery } from './gh-pull-request'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
@@ -30,7 +31,7 @@ const aRepo = (): string => {
   return dir
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/gh-pull-request::liveDelivery.uncommitted',
     'when the working tree has no changed or untracked paths',
@@ -54,7 +55,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/gh-pull-request::liveDelivery.uncommitted',
     'when a tracked file was staged after being modified and a new file was never staged',

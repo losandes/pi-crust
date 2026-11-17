@@ -9,6 +9,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   branchExists,
   changedFiles,
@@ -50,7 +51,7 @@ const aRepo = (): string => {
   return dir
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitPaths',
     'when an Activity already staged a tracked file’s removal with `git rm`',
@@ -80,7 +81,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitPaths',
     'when an Activity removed a tracked file with plain `rm`, not `git rm`',
@@ -108,7 +109,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitPaths',
     'when the touched paths mix an untracked new file with a path git has never heard of',
@@ -137,7 +138,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitPaths',
     'when every supplied path is unknown to git',
@@ -162,7 +163,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitPaths',
     'when a touched path is addressed by its ABSOLUTE spelling, above the directory commitPaths is given as cwd',
@@ -208,7 +209,7 @@ const aRepoWithRemote = (): Readonly<{ dir: string; bare: string }> => {
   return { dir, bare }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::remoteExists',
     'when the remote was registered',
@@ -224,7 +225,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::upstreamBase',
     'when the remote-tracking ref exists',
@@ -243,7 +244,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::upstreamBase',
     'when neither the remote-tracking ref nor the local branch resolves',
@@ -261,7 +262,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitsAhead',
     'when the branch has commits the base does not',
@@ -283,7 +284,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::commitsAhead',
     'when the branch equals the base',
@@ -302,7 +303,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::pushBranch',
     'when pushing a branch ahead of the remote',
@@ -328,7 +329,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::createBranch',
     'when a new branch is created from the current HEAD',
@@ -347,7 +348,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::branchExists',
     'when the named branch was created',
@@ -366,7 +367,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::branchExists',
     'when no branch by that name exists',
@@ -384,7 +385,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::stageAll',
     'when the working tree has an unstaged change',
@@ -404,7 +405,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::changedFiles',
     'when a new file is staged',
@@ -428,7 +429,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::diffFilesBetween',
     'when two commits are compared non-symmetrically',
@@ -450,7 +451,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/git::filesUnder',
     'when a pathspec names a directory of tracked files',
@@ -487,7 +488,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a pre-commit hook that waits longer than the injected bound',
     'when commitPaths times out the commit',
@@ -519,7 +520,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a local remote and a pre-push hook that waits longer than the injected bound',
     'when pushBranch times out the push',

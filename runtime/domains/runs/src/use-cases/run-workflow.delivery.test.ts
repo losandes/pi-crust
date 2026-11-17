@@ -7,6 +7,7 @@ import {
   type TPiCrustConfig,
   type TStage,
 } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { readRunState } from '../../../trace'
 import { gateFixture, portsFor, work } from './human-gate-fixture.test'
 import { deliveryFixture, refuseBuildCommit } from './run-terminal-fixture.test'
@@ -154,7 +155,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given successful work replayed from a run whose commit is still refused',
     'when runWorkflow reaches its terminal Activity',

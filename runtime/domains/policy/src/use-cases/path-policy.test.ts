@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crustConfigSchema, renderWarnings } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import type {
   TGoverned,
   TPathSettings,
@@ -103,8 +104,9 @@ test(
     'it should still be protected, because `*` does not cross a slash',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — a single star stops at a slash and a double star crosses one,
+     * A single star stops at a slash and a double star crosses one,
      * so the shipped list needs both spellings of an env file: one for the
      * repository root, one for every directory below it. An env file turns
      * up wherever a service lives, not only at the top.
@@ -138,8 +140,9 @@ test(
     'it should warn on the read and block the write',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — reading a generated file is ordinary work; writing one
+     * Reading a generated file is ordinary work; writing one
      * produces work that is not in the repository, so no diff, no review and
      * no commit will ever show it.
      */
@@ -172,8 +175,9 @@ test(
     'it should be ungoverned, even though git ignores it',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — the run's record of itself is gitignored by design, and it is
+     * The run's record of itself is gitignored by design, and it is
      * where handoff documents, envelopes, prompts and raw output land. The
      * same exemption `writes:` already makes, for the same reason.
      */
@@ -199,7 +203,8 @@ test(
     'it should be matched the way the policy spells it, from the root',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = repoRelative('/repo', '/repo/src/server.ts')
 
     // then
@@ -284,15 +289,16 @@ const governing = (dir: string) => {
     })
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::governToolCall',
     'when an agent asks to read a protected file',
     'it should refuse the call before it runs, and record why',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — this is the only check in the system that happens BEFORE the
+     * This is the only check in the system that happens BEFORE the
      * call. The post-hoc one cannot see `.env` at all: `snapshotTree` is a
      * diff plus untracked files, so a gitignored path never appears in it.
      */
@@ -317,15 +323,16 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::governToolCall',
     'when a shell command names a protected file',
     'it should refuse what it can see, and mark it as the best effort it is',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — `bash` is covered best-effort only. `cat .env` is matched;
+     * `bash` is covered best-effort only. `cat .env` is matched;
      * `grep -r KEY .` and `env > dump` are not, which is why a team that
      * must not leak a path should not give that Activity bash at all.
      */
@@ -341,7 +348,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy-run::armPolicy',
     'when a call is armed',
@@ -388,7 +395,8 @@ test(
     'it should load the shipped defaults, which fail closed',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = crustConfigSchema.parse({})
 
     // then
@@ -421,15 +429,16 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::governToolCall',
     'when an agent writes a gitignored file, and when it reads one',
     'it should block the write, let the read happen, and record both',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — reading a generated file is ordinary work. Writing one
+     * Reading a generated file is ordinary work. Writing one
      * produces work that is not in the repository, so no diff, no review and
      * no commit will ever show it.
      */
@@ -447,15 +456,16 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::governToolCall',
     'when an agent writes its own handoff document under data_dir',
     'it should be left alone, because that is where its work belongs',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — the run's record of itself is gitignored by design, and it is
+     * The run's record of itself is gitignored by design, and it is
      * where handoff documents, envelopes, prompts and raw output land. The
      * same exemption `writes:` already makes, for the same reason.
      */
@@ -474,7 +484,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::governToolCall',
     'when an agent writes an ordinary source file',
@@ -501,8 +511,9 @@ test(
     'it should carry the whole record and drop what it cannot read',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — the record of a refusal is worth less than the refusal, which
+     * The record of a refusal is worth less than the refusal, which
      * already happened inside the harness. A half-written line must not fail
      * an Activity Run that was otherwise fine.
      */
@@ -588,15 +599,16 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::decidePath',
     'when --handoff relocated the directory outside data_dir, and it is gitignored',
     'it should be ungoverned, the same exemption data_dir already gets',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — a relocated handoff directory may still be gitignored, and
+     * A relocated handoff directory may still be gitignored, and
      * without this exemption `ignored.write` would refuse an agent's own
      * document.
      */
@@ -623,7 +635,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy::decidePath',
     'when the same gitignored path is OUTSIDE the handoff directory',
@@ -657,15 +669,16 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy-run::settingsFor',
     'when data_dir resolves OUTSIDE the repository, a pooled store (issue #24, 1.9.2)',
     'it should leave an agent writing into its own session directory ungoverned, exactly as it is when data_dir sits inside the repository',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — a pooled store the repository does not contain, named in
+     * A pooled store the repository does not contain, named in
      * `protected_files` as a team protecting a shared store would name it.
      * `protected.write` is `block`, so this call is refused unless the
      * `data_dir` exemption fires first — that is what makes the assertions
@@ -720,7 +733,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/path-policy-run::settingsFor',
     'when data_dir resolves OUTSIDE the repository, a pooled store (issue #24, 1.9.2)',

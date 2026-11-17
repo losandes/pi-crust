@@ -17,6 +17,7 @@ import {
   reviewOutputSchema,
 } from '../../../../lib/contracts'
 import { fakeActivity, runWithTracer } from '../../../../testing/fake-activity'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -381,7 +382,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given --resume with a sub-chain that starts after earlier Activities',
     'when the next Activity executes through runWorkflow',

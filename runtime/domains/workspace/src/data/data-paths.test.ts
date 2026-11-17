@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   primaryWorktree,
   resolveConfiguredPath,
@@ -97,7 +98,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/data-paths::primaryWorktree',
     'when run inside the main clone itself',
@@ -115,7 +116,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/data-paths::primaryWorktree',
     'when run inside a linked worktree',
@@ -135,7 +136,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/data-paths::resolveConfiguredPath',
     'when the value contains {primary_worktree} and the tree is a linked worktree',
@@ -160,7 +161,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given data/data-paths::primaryWorktree',
     'when the tree is a bare clone',
@@ -174,6 +175,7 @@ test(
     git(bare, 'init', '-q', '--bare', '-b', 'main')
 
     // when / then
+    // then
     expect(() => primaryWorktree(bare)).toThrow(/bare/i)
   },
 )
