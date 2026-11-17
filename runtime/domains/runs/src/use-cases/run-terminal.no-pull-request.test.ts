@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { readRunState } from '../../../trace'
 import { finish, finishWaiting } from './run-activity-run'
 import { runTerminal } from './run-terminal'
@@ -23,7 +24,7 @@ const refused = () =>
     fallback: false,
   })
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a real run with successful build work',
     'when terminal delivery refuses because the branch is not ahead',
@@ -49,7 +50,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a real run with successful build work',
     'when terminal delivery refuses because the branch is not ahead',
@@ -84,7 +85,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a real run with successful build work',
     'when terminal delivery creates a pull request',
@@ -119,7 +120,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given ebc4454a: build succeeded but its pre-commit hook refused the commit',
     'when terminal delivery retries while that hook still refuses',
@@ -164,7 +165,7 @@ test(
 )
 
 for (const cause of ['uncommitted', 'forge'] as const) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given a real run waiting on ${cause}`,
       'when a second process resumes after the operator clears the blocker without an answer file',

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { EXIT } from '../lib/contracts'
+import { SKIP_INTEGRATION } from '../testing/integration'
 
 for (const recipe of ['operator', 'triage']) {
   for (const flags of [
@@ -10,7 +11,7 @@ for (const recipe of ['operator', 'triage']) {
     ['-m=build=@high'],
     ['--model='],
   ]) {
-    test(
+    test.skipIf(SKIP_INTEGRATION)(
       [
         `given stages/${recipe}'s CLI`,
         `when ${flags.join(' ')} is defined`,

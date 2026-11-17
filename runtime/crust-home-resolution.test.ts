@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SKIP_INTEGRATION } from './testing/integration'
 
 /*
  * Issue #24, stage 2 (1.6.1, 1.6.2, 1.6.3, 1.6.4): a linked worktree that was
@@ -28,7 +29,9 @@ import { join } from 'node:path'
  * spawn's empty stdout as a broken resolution chain. A skip here is a check
  * that did not run, which the suite says out loud.
  */
-const integrationTest = test.skipIf(Bun.which('just') === null)
+const integrationTest = test.skipIf(
+  SKIP_INTEGRATION || Bun.which('just') === null,
+)
 
 const CRUST_JUST = join(import.meta.dir, 'crust.just')
 

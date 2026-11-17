@@ -47,6 +47,7 @@ import {
   EXIT,
 } from '../../../../lib/contracts'
 import { plain } from '../../../../lib/terminal'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -251,7 +252,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/run-workflow::pinBaseline',
     'when the chain names document and the workspace is a git repository',

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TRun } from '../../../../lib/contracts'
 import { changeCapture } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   captureChanges,
   changesAsEnvelope,
@@ -61,7 +62,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::resolveBase',
     'when the named ref does not exist in the repository',
@@ -80,7 +81,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::resolveBase',
     'when HEAD has commits ahead of the base ref',
@@ -103,7 +104,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::resolveBase',
     'when HEAD is on the base ref with uncommitted changes',
@@ -122,7 +123,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::resolveBase',
     'when HEAD is on the base ref with a clean tree and a parent commit',
@@ -144,7 +145,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::resolveBase',
     'when HEAD is on the base ref with a clean tree and no parent commit',
@@ -162,7 +163,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::captureChanges',
     'when the working tree has a tracked edit and an untracked file',
@@ -191,7 +192,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::captureChanges',
     'when nothing was marked for untracked inclusion',
@@ -218,7 +219,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::captureChanges',
     'when the diff is longer than maxDiffLines',
@@ -243,7 +244,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::changesAsEnvelope',
     'when a captured change set is wrapped for an agent',
@@ -272,7 +273,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/capture-changes::changesAsEnvelope',
     'when no notes are given',

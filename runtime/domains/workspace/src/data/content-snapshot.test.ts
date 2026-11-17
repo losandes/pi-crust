@@ -10,6 +10,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { ABSENT, snapshotContent } from './content-snapshot'
 import type { TRoots } from './roots'
 
@@ -81,7 +82,7 @@ const cases = [
 ]
 
 for (const entry of cases) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given ${entry.name}`,
       'when content is snapshotted against the start commit',
@@ -99,7 +100,7 @@ for (const entry of cases) {
   )
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a base that does not resolve',
     'when content is snapshotted',
@@ -115,7 +116,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a workspace nested below the VCS root',
     'when inside and outside paths change',
@@ -141,7 +142,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given unchanged content',
     'when read twice',
@@ -159,7 +160,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a previously snapshotted file',
     'when its bytes change without changing its line counts',

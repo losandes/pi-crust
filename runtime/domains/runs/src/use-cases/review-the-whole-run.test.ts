@@ -10,6 +10,7 @@ import {
   reviewOutputSchema,
 } from '../../../../lib/contracts'
 import { runWithTracer } from '../../../../testing/fake-activity'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -275,7 +276,7 @@ const scenarios: readonly TScenario[] = [
 ]
 
 for (const scenario of scenarios) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given @${scenario.tag} ${scenario.title}`,
       'when a judging Activity starts through the real agent boundary',

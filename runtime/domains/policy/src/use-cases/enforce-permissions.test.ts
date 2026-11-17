@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,6 +16,7 @@ import type {
   TRun,
 } from '../../../../lib/contracts'
 import { crustConfigSchema } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { commitPaths, snapshotTree } from '../../../workspace'
 import {
   alwaysWritable,
@@ -357,8 +359,9 @@ test(
     'it should be reported as a breach, like any other overstep',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — no prompt asks an agent to commit, but a prompt is advice.
+     * No prompt asks an agent to commit, but a prompt is advice.
      * Without this check `--commit false` would stop the engine while
      * leaving an agent free to commit with `bash`, and the run would be
      * reported as having made no commits while carrying one.
@@ -370,9 +373,11 @@ test(
     }
 
     // when
-    const actual = commitBreach(given)
+    const actual = commitBreach(given, { tree: {}, head: 'b'.repeat(40) })
+    const unchanged = commitBreach(given, { tree: {}, head: given.head })
 
-    // then — the real HEAD of this repository is not the fixture's
+    // then
+    expect(unchanged).toEqual([])
     expect(actual).toHaveLength(1)
     expect(actual[0]).toContain('HEAD moved from aaaaaaa')
     expect(actual[0]).toContain('was not committing')
@@ -390,7 +395,7 @@ test(
     const given = { tree: {}, head: 'a'.repeat(40), committing: true }
 
     // when
-    const actual = commitBreach(given)
+    const actual = commitBreach(given, { tree: {}, head: 'b'.repeat(40) })
 
     // then
     expect(actual).toEqual([])
@@ -408,7 +413,25 @@ test(
     const given = { tree: {}, head: '', committing: false }
 
     // when
-    const actual = commitBreach(given)
+    const actual = commitBreach(given, { tree: {}, head: 'b'.repeat(40) })
+
+    // then
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given use-cases/enforce-permissions::commitBreach',
+    'when the after snapshot has no history',
+    'it should report no commit breach outside a repository',
+  ].join(', '),
+  () => {
+    // given
+    const before = { tree: {}, head: 'a'.repeat(40), committing: false }
+
+    // when
+    const actual = commitBreach(before, { tree: {}, head: '' })
 
     // then
     expect(actual).toEqual([])
@@ -446,29 +469,36 @@ test(
     'it should report the overstep and leave the new content exactly as it is',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — this used to run `git checkout --` on the path, which has no
+     * This used to run `git checkout --` on the path, which has no
      * undo: the content was not in a commit, not in the index and not in a
      * stash. The guess about whose edit it was is wrong whenever a developer
      * is typing in the same tree, which is a supported way to work.
      */
-    const dir = aRepo()
-    const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
-    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
-    writeFileSync(join(dir, 'README.md'), 'changed while the run worked\n')
+    const dir = mkdtempSync(join(tmpdir(), 'crust-permissions-'))
+    try {
+      const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
+      const before = {}
+      const after = { 'README.md': '1,1' }
+      writeFileSync(join(dir, 'README.md'), 'changed while the run worked\n')
 
-    // when
-    const actual = enforcePermissions(
-      runIn(dir, cfg),
-      agentNamed(cfg, 'reviewer'),
-      { tree: before, head: '', committing: false },
-    )
+      // when
+      const actual = enforcePermissions(
+        runIn(dir, cfg),
+        agentNamed(cfg, 'reviewer'),
+        { tree: before, head: '', committing: false },
+        { tree: after, head: '' },
+      )
 
-    // then — named, and still on disk
-    expect(actual.overstepped).toEqual(['README.md'])
-    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toEqual(
-      'changed while the run worked\n',
-    )
+      // then — named, and still on disk
+      expect(actual.overstepped).toEqual(['README.md'])
+      expect(readFileSync(join(dir, 'README.md'), 'utf8')).toEqual(
+        'changed while the run worked\n',
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   },
 )
 
@@ -480,34 +510,41 @@ test(
   ].join(', '),
   () => {
     // given — an untracked file used to be unlinked on sight
-    const dir = aRepo()
-    const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
-    const before = snapshotTree({ workspaceRoot: dir, vcsRoot: dir })
-    writeFileSync(join(dir, 'notes.md'), 'mine\n')
+    const dir = mkdtempSync(join(tmpdir(), 'crust-permissions-'))
+    try {
+      const cfg = configWith([{ name: 'reviewer', writes: ['reviews/'] }])
+      const before = {}
+      const after = { 'notes.md': 'untracked' }
+      writeFileSync(join(dir, 'notes.md'), 'mine\n')
 
-    // when
-    const actual = enforcePermissions(
-      runIn(dir, cfg),
-      agentNamed(cfg, 'reviewer'),
-      { tree: before, head: '', committing: false },
-    )
+      // when
+      const actual = enforcePermissions(
+        runIn(dir, cfg),
+        agentNamed(cfg, 'reviewer'),
+        { tree: before, head: '', committing: false },
+        { tree: after, head: '' },
+      )
 
-    // then
-    expect(actual.overstepped).toEqual(['notes.md'])
-    expect(existsSync(join(dir, 'notes.md'))).toEqual(true)
-    expect(readFileSync(join(dir, 'notes.md'), 'utf8')).toEqual('mine\n')
+      // then
+      expect(actual.overstepped).toEqual(['notes.md'])
+      expect(existsSync(join(dir, 'notes.md'))).toEqual(true)
+      expect(readFileSync(join(dir, 'notes.md'), 'utf8')).toEqual('mine\n')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/enforce-permissions::enforcePermissions',
     'when a concurrent sibling declared the path that changed',
     'it should leave it out of what this Activity will commit',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — attribution between siblings is a question of WHERE, not WHEN:
+     * Attribution between siblings is a question of WHERE, not WHEN:
      * each one's diff contains the other's writes, and a commit scope built
      * from the window would carry a neighbour's half-written file.
      */
@@ -527,6 +564,7 @@ test(
       runIn(dir, cfg),
       agentNamed(cfg, 'reviewer'),
       { tree: before, head: '', committing: false },
+      { tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }), head: '' },
       [agentNamed(cfg, 'code-reviewer')],
     )
 
@@ -576,7 +614,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/enforce-permissions::enforcePermissions',
     'when --handoff relocated the directory outside data_dir, and an agent wrote there without declaring it',
@@ -599,11 +637,12 @@ test(
     writeFileSync(join(handoffDir, 'plan.md'), 'mine\n')
 
     // when
-    const actual = enforcePermissions(run, agentNamed(cfg, 'reviewer'), {
-      tree: before,
-      head: '',
-      committing: false,
-    })
+    const actual = enforcePermissions(
+      run,
+      agentNamed(cfg, 'reviewer'),
+      { tree: before, head: '', committing: false },
+      { tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }), head: '' },
+    )
 
     // then
     expect(actual.touched).toContain('specs/abc/plan.md')
@@ -611,7 +650,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/enforce-permissions::enforcePermissions',
     'when the same agent writes somewhere else in the repository it never declared',
@@ -633,27 +672,29 @@ test(
     writeFileSync(join(dir, 'notes.md'), 'undeclared\n')
 
     // when
-    const actual = enforcePermissions(run, agentNamed(cfg, 'reviewer'), {
-      tree: before,
-      head: '',
-      committing: false,
-    })
+    const actual = enforcePermissions(
+      run,
+      agentNamed(cfg, 'reviewer'),
+      { tree: before, head: '', committing: false },
+      { tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }), head: '' },
+    )
 
     // then
     expect(actual.overstepped).toEqual(['notes.md'])
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/enforce-permissions::enforcePermissions',
     'when the workspace is nested one level inside the VCS root and a file changes ABOVE it',
-    'it should snapshot, report, and commit it \u2014 covering 1.6.1 of specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md end to end',
+    'it should snapshot, report, and commit the path above the workspace',
   ].join(', '),
   () => {
+    // given
     /*
-     * given \u2014 the real layout that motivated this spec: a VCS root with a
-     * WORKSPACE nested one level below it (`_newstack`), and an Activity
+     * The real layout that motivated this spec: a VCS root with a
+     * WORKSPACE nested one level below the root (`_newstack`), and an Activity
      * that changed a file ABOVE the workspace \u2014 inside the repository, but
      * not inside the directory the agent was spawned to work in.
      */
@@ -682,14 +723,21 @@ test(
       ),
     } as unknown as TRun
 
-    // when \u2014 snapshotted and resolved
-    const actual = enforcePermissions(run, agentNamed(cfg, 'builder'), {
-      tree: before,
-      head: '',
-      committing: true,
-    })
+    // when — snapshotted and resolved
+    const actual = enforcePermissions(
+      run,
+      agentNamed(cfg, 'builder'),
+      { tree: before, head: '', committing: true },
+      {
+        tree: snapshotTree({
+          workspaceRoot: workspaceDir,
+          vcsRoot: vcsRootDir,
+        }),
+        head: '',
+      },
+    )
 
-    // then \u2014 reported as OUTSIDE the workspace: the normalised spelling of
+    // then — reported as OUTSIDE the workspace: the normalised spelling of
     // a path above it is absolute, which no workspace-relative `writes`
     // pattern could ever have meant
     const absoluteDockerfile = join(
@@ -716,7 +764,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/enforce-permissions::enforcePermissions',
     'when the workspace is nested inside the VCS root and `writes` names only a workspace-relative pattern',
@@ -725,8 +773,9 @@ test(
     "unaffected by the VCS root \u2014 unlike the `writes: ['*']` case covered above",
   ].join(', '),
   () => {
+    // given
     /*
-     * given \u2014 the same nested layout as 1.6.1, but an agent restricted to a
+     * The same nested layout as 1.6.1, but an agent restricted to a
      * workspace-relative pattern that would ALSO happen to match the VCS-root-
      * relative spelling of the changed file, if resolution were ever to drift
      * onto the wrong root. Config resolution (`writes`) must stay blind to
@@ -760,11 +809,18 @@ test(
     } as unknown as TRun
 
     // when
-    const actual = enforcePermissions(run, agentNamed(cfg, 'builder'), {
-      tree: before,
-      head: '',
-      committing: true,
-    })
+    const actual = enforcePermissions(
+      run,
+      agentNamed(cfg, 'builder'),
+      { tree: before, head: '', committing: true },
+      {
+        tree: snapshotTree({
+          workspaceRoot: workspaceDir,
+          vcsRoot: vcsRootDir,
+        }),
+        head: '',
+      },
+    )
 
     // then \u2014 touched (the engine still sees and can commit it), but NOT
     // permitted: a workspace-relative `writes` pattern cannot name a path

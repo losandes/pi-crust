@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import {
   chmodSync,
@@ -23,6 +23,7 @@ import {
   EXIT,
   WARNING_EVENT,
 } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -32,9 +33,6 @@ import { createTracer } from '../../../trace'
 import { createRun } from './create-run'
 import { runUnits } from './run-activities'
 import { finish } from './run-activity-run'
-
-beforeEach(silenceTerminal)
-afterEach(restoreTerminal)
 
 /** Where this run's events land, so a test can read what it recorded. */
 const EVENTS = new WeakMap<object, string>()
@@ -93,11 +91,11 @@ const eventsOf = (run: TRun): readonly Record<string, unknown>[] =>
     .filter(Boolean)
     .map((line) => JSON.parse(line) as Record<string, unknown>)
 
-/** A activity that records when it started and finished, so overlap is observable. */
+/** An Activity whose completion is controlled independently of wall-clock time. */
 const timedActivity = (
   name: string,
   log: string[],
-  delayMs: number,
+  completion: Readonly<{ wait?: Promise<void>; finish?: () => void }> = {},
 ): TActivity =>
   ({
     name,
@@ -105,7 +103,7 @@ const timedActivity = (
       name,
       kind: 'code',
       owner: 'quality',
-      description: `Run ${name} slowly enough to observe`,
+      description: `Run ${name} with observable start and completion`,
     }),
     requires: [],
     instance: name,
@@ -122,9 +120,10 @@ const timedActivity = (
        */
       // biome-ignore lint/plugin/no-array-mutation: recording interleaving is the test
       log.push(`${name}:start`)
-      await new Promise((settle) => setTimeout(settle, delayMs))
+      await completion.wait
       // biome-ignore lint/plugin/no-array-mutation: recording interleaving is the test
       log.push(`${name}:end`)
+      completion.finish?.()
 
       return { previous: { status: 'success' }, accepted: true }
     },
@@ -157,26 +156,32 @@ test(
     'it should start the second activity before the first has finished',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const given = [
-      unit('accept', 'concurrent', [
-        timedActivity('review', log, 40),
-        timedActivity('code-review', log, 5),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const completed = Promise.withResolvers<void>()
+      const given = [
+        unit('accept', 'concurrent', [
+          timedActivity('review', log, { wait: completed.promise }),
+          timedActivity('code-review', log, { finish: completed.resolve }),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then
-    expect(log).toEqual([
-      'review:start',
-      'code-review:start',
-      'code-review:end',
-      'review:end',
-    ])
+      // then
+      expect(log).toEqual([
+        'review:start',
+        'code-review:start',
+        'code-review:end',
+        'review:end',
+      ])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -187,21 +192,31 @@ test(
     'it should not start the second activity until the first has finished',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const given = [
-      unit('implement', 'serial', [
-        timedActivity('test', log, 20),
-        timedActivity('build', log, 1),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const given = [
+        unit('implement', 'serial', [
+          timedActivity('test', log),
+          timedActivity('build', log),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then
-    expect(log).toEqual(['test:start', 'test:end', 'build:start', 'build:end'])
+      // then
+      expect(log).toEqual([
+        'test:start',
+        'test:end',
+        'build:start',
+        'build:end',
+      ])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -212,28 +227,37 @@ test(
     'it should carry every activity it ran forward as upstream, in declaration order',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const given = [
-      unit('accept', 'concurrent', [
-        timedActivity('review', log, 20),
-        timedActivity('code-review', log, 1),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const given = [
+        unit('accept', 'concurrent', [
+          timedActivity('review', log),
+          timedActivity('code-review', log),
+        ]),
+      ]
 
-    // when
-    const actual = await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      const actual = await runUnits({
+        run,
+        units: given,
+        start: contextFor(run),
+      })
 
-    // then
-    expect(actual.upstream.map((one) => one.activity)).toEqual([
-      'review',
-      'code-review',
-    ])
-    expect(actual.outcomes.map((one) => one.activity)).toEqual([
-      'review',
-      'code-review',
-    ])
+      // then
+      expect(actual.upstream.map((one) => one.activity)).toEqual([
+        'review',
+        'code-review',
+      ])
+      expect(actual.outcomes.map((one) => one.activity)).toEqual([
+        'review',
+        'code-review',
+      ])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -244,32 +268,37 @@ test(
     'it should record what it did not reach as blocked, not as nothing at all',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const given = [
-      unit('design', 'serial', [timedActivity('plan', log, 1)]),
-      unit('implement', 'serial', [timedActivity('build', log, 1)]),
-      unit('accept', 'serial', [timedActivity('review', log, 1)]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const given = [
+        unit('design', 'serial', [timedActivity('plan', log)]),
+        unit('implement', 'serial', [timedActivity('build', log)]),
+        unit('accept', 'serial', [timedActivity('review', log)]),
+      ]
 
-    // when
-    await runUnits({
-      run,
-      units: given,
-      start: contextFor(run),
-      approveAfter: ['plan'],
-    })
+      // when
+      await runUnits({
+        run,
+        units: given,
+        start: contextFor(run),
+        approveAfter: ['plan'],
+      })
 
-    // then
-    expect(log).toEqual(['plan:start', 'plan:end'])
-    const blocked = eventsOf(run).find(
-      (event) => event.name === 'activities_blocked',
-    )
-    expect(blocked?.payload).toMatchObject({
-      activities: ['build', 'review'],
-      status: 'blocked',
-    })
+      // then
+      expect(log).toEqual(['plan:start', 'plan:end'])
+      const blocked = eventsOf(run).find(
+        (event) => event.name === 'activities_blocked',
+      )
+      expect(blocked?.payload).toMatchObject({
+        activities: ['build', 'review'],
+        status: 'blocked',
+      })
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -280,32 +309,38 @@ test(
     'it should let its siblings finish, then pause at the stage boundary',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const given = [
-      unit('accept', 'concurrent', [
-        timedActivity('review', log, 30),
-        timedActivity('code-review', log, 1),
-      ]),
-      unit('deliver', 'serial', [timedActivity('commit', log, 1)]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const completed = Promise.withResolvers<void>()
+      const given = [
+        unit('accept', 'concurrent', [
+          timedActivity('review', log, { wait: completed.promise }),
+          timedActivity('code-review', log, { finish: completed.resolve }),
+        ]),
+        unit('deliver', 'serial', [timedActivity('commit', log)]),
+      ]
 
-    // when
-    await runUnits({
-      run,
-      units: given,
-      start: contextFor(run),
-      approveAfter: ['code-review'],
-    })
+      // when
+      await runUnits({
+        run,
+        units: given,
+        start: contextFor(run),
+        approveAfter: ['code-review'],
+      })
 
-    // then
-    expect(log).toEqual([
-      'review:start',
-      'code-review:start',
-      'code-review:end',
-      'review:end',
-    ])
+      // then
+      expect(log).toEqual([
+        'review:start',
+        'code-review:start',
+        'code-review:end',
+        'review:end',
+      ])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -316,40 +351,45 @@ test(
     'it should pause after the whole stage, not after its first activity',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const given = [
-      {
-        stage: 'design',
-        strategy: 'serial' as const,
-        activities: [timedActivity('plan', log, 1)],
-        endsStage: false,
-      },
-      {
-        stage: 'design',
-        strategy: 'serial' as const,
-        activities: [timedActivity('design', log, 1)],
-        endsStage: true,
-      },
-      unit('implement', 'serial', [timedActivity('build', log, 1)]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const given = [
+        {
+          stage: 'design',
+          strategy: 'serial' as const,
+          activities: [timedActivity('plan', log)],
+          endsStage: false,
+        },
+        {
+          stage: 'design',
+          strategy: 'serial' as const,
+          activities: [timedActivity('design', log)],
+          endsStage: true,
+        },
+        unit('implement', 'serial', [timedActivity('build', log)]),
+      ]
 
-    // when
-    await runUnits({
-      run,
-      units: given,
-      start: contextFor(run),
-      approveAfter: ['stage:design'],
-    })
+      // when
+      await runUnits({
+        run,
+        units: given,
+        start: contextFor(run),
+        approveAfter: ['stage:design'],
+      })
 
-    // then
-    expect(log).toEqual([
-      'plan:start',
-      'plan:end',
-      'design:start',
-      'design:end',
-    ])
+      // then
+      expect(log).toEqual([
+        'plan:start',
+        'plan:end',
+        'design:start',
+        'design:end',
+      ])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -444,33 +484,39 @@ test(
     'it should run the Activity again as its own Activity Run, with the violations in hand',
   ].join(', '),
   async () => {
-    /*
-     * given — a gate-failure retry used to increment a column on the
-     * existing row, which is why a budget counting Activity Runs would have
-     * missed gate failures entirely: the case it most obviously governs.
-     */
-    const run = aRun()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', { runs, feedbackSeen, passOn: 2 }),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      /*
+       * A gate-failure retry used to increment a column on the
+       * existing row, which is why a budget counting Activity Runs would have
+       * missed gate failures entirely: the case it most obviously governs.
+       */
+      const run = aRun()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', { runs, feedbackSeen, passOn: 2 }),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then — two executions, two rows, and the second was told why
-    expect(runs).toEqual(['build', 'build'])
-    expect(feedbackSeen[1]).toEqual(['suite: exit 1'])
-    expect(
-      run.activityRuns().filter((one) => one.params.name === 'build'),
-    ).toHaveLength(2)
-    expect(run.activityRuns().map((one) => one.status)).toEqual([
-      'superseded',
-      'success',
-    ])
+      // then — two executions, two rows, and the second was told why
+      expect(runs).toEqual(['build', 'build'])
+      expect(feedbackSeen[1]).toEqual(['suite: exit 1'])
+      expect(
+        run.activityRuns().filter((one) => one.params.name === 'build'),
+      ).toHaveLength(2)
+      expect(run.activityRuns().map((one) => one.status)).toEqual([
+        'superseded',
+        'success',
+      ])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -481,23 +527,28 @@ test(
     'it should stop the run and report every cause the budget went on',
   ].join(', '),
   async () => {
-    // given — one number explains nothing to the person being asked
-    const run = aRun()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', { runs, feedbackSeen, passOn: 99, attempts: 2 }),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given — one number explains nothing to the person being asked
+      const run = aRun()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', { runs, feedbackSeen, passOn: 99, attempts: 2 }),
+        ]),
+      ]
 
-    // when
-    const actual = runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      const actual = runUnits({ run, units: given, start: contextFor(run) })
 
-    // then
-    expect(actual).rejects.toThrow(/has spent all 2 attempt\(s\) this run/)
-    await actual.catch(() => undefined)
-    expect(runs).toHaveLength(2)
+      // then
+      expect(actual).rejects.toThrow(/has spent all 2 attempt\(s\) this run/)
+      await actual.catch(() => undefined)
+      expect(runs).toHaveLength(2)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -508,31 +559,36 @@ test(
     'it should judge it at the stage boundary, once no sibling is still writing',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const log: string[] = []
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('accept', 'concurrent', [
-        gatedStep('build', { runs, feedbackSeen, passOn: 1 }),
-        timedActivity('review', log, 20),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const log: string[] = []
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('accept', 'concurrent', [
+          gatedStep('build', { runs, feedbackSeen, passOn: 1 }),
+          timedActivity('review', log),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then — the sibling had finished before the gate ran
-    const names = run.activityRuns().map((one) => one.params.name)
-    const gatePassed = eventsOf(run).findIndex(
-      (event) => event.name === 'checks' && event.type === 'gate_pass',
-    )
-    const siblingEnded = eventsOf(run).findIndex(
-      (event) => event.type === 'activity_run_end' && event.name === 'review',
-    )
-    expect(names).toEqual(['build', 'review'])
-    expect(gatePassed).toBeGreaterThan(siblingEnded)
+      // then — the sibling had finished before the gate ran
+      const names = run.activityRuns().map((one) => one.params.name)
+      const gatePassed = eventsOf(run).findIndex(
+        (event) => event.name === 'checks' && event.type === 'gate_pass',
+      )
+      const siblingEnded = eventsOf(run).findIndex(
+        (event) => event.type === 'activity_run_end' && event.name === 'review',
+      )
+      expect(names).toEqual(['build', 'review'])
+      expect(gatePassed).toBeGreaterThan(siblingEnded)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -571,313 +627,347 @@ const withFailingPreCommit = (dir: string): void => {
   })
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/run-activities::runUnits',
     "when the first Activity's commit fails and a second Activity follows",
     'it should keep running the chain, with both Activity Runs successful',
   ].join(', '),
   async () => {
-    /*
-     * given — a commit git refuses (an unlocked signing agent, a hook that
-     * exits non-zero) is a warning, never fatal: the work the first Activity
-     * did is real, and the second Activity has nothing to do with the commit.
-     */
-    const dir = aRepo()
-    withFailingPreCommit(dir)
-    const run = atRoot(aRun(), dir)
-    const firstRuns: string[] = []
-    const secondRuns: string[] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs: firstRuns,
-          feedbackSeen: [],
-          passOn: 1,
-          commit: true,
-          touches: ['README.md'],
-        }),
-      ]),
-      unit('accept', 'serial', [
-        gatedStep('review', {
-          runs: secondRuns,
-          feedbackSeen: [],
-          passOn: 1,
-        }),
-      ]),
-    ]
-    const was = process.cwd()
-    process.chdir(dir)
-
-    // when
-    let result: unknown
+    silenceTerminal()
     try {
-      writeFileSync(join(dir, 'README.md'), 'after\n')
-      result = await runUnits({ run, units: given, start: contextFor(run) })
+      // given
+      /*
+       * A commit git refuses (an unlocked signing agent, a hook that
+       * exits non-zero) is a warning, never fatal: the work the first Activity
+       * did is real, and the second Activity has nothing to do with the commit.
+       */
+      const dir = aRepo()
+      withFailingPreCommit(dir)
+      const run = atRoot(aRun(), dir)
+      const firstRuns: string[] = []
+      const secondRuns: string[] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs: firstRuns,
+            feedbackSeen: [],
+            passOn: 1,
+            commit: true,
+            touches: ['README.md'],
+          }),
+        ]),
+        unit('accept', 'serial', [
+          gatedStep('review', {
+            runs: secondRuns,
+            feedbackSeen: [],
+            passOn: 1,
+          }),
+        ]),
+      ]
+      const was = process.cwd()
+      process.chdir(dir)
+
+      // when
+      let result: unknown
+      try {
+        writeFileSync(join(dir, 'README.md'), 'after\n')
+        result = await runUnits({ run, units: given, start: contextFor(run) })
+      } finally {
+        process.chdir(was)
+      }
+
+      // then — the chain resolved, the second Activity ran, nothing was committed
+      expect(result).toBeDefined()
+      expect(firstRuns).toEqual(['build'])
+      expect(secondRuns).toEqual(['review'])
+      expect(
+        eventsOf(run).filter((event) => event.name === 'committed'),
+      ).toHaveLength(0)
+      expect(
+        eventsOf(run).filter(
+          (event) =>
+            event.name === 'tree_warning' &&
+            (event.payload as Readonly<{ kind?: string }>)?.kind ===
+              'uncommitted',
+        ),
+      ).toHaveLength(1)
+      const activityRuns = run.activityRuns()
+      expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
+
+      // then — the developer's actual complaint: `just crust run` exits 0
+      expect(
+        eventsOf(run).filter((event) => event.name === 'committed'),
+      ).toHaveLength(0)
+      expect(finish(run)).toBe(EXIT.SUCCESS)
     } finally {
-      process.chdir(was)
+      restoreTerminal()
     }
-
-    // then — the chain resolved, the second Activity ran, nothing was committed
-    expect(result).toBeDefined()
-    expect(firstRuns).toEqual(['build'])
-    expect(secondRuns).toEqual(['review'])
-    expect(
-      eventsOf(run).filter((event) => event.name === 'committed'),
-    ).toHaveLength(0)
-    expect(
-      eventsOf(run).filter(
-        (event) =>
-          event.name === 'tree_warning' &&
-          (event.payload as Readonly<{ kind?: string }>)?.kind ===
-            'uncommitted',
-      ),
-    ).toHaveLength(1)
-    const activityRuns = run.activityRuns()
-    expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
-
-    // then — the developer's actual complaint: `just crust run` exits 0
-    expect(
-      eventsOf(run).filter((event) => event.name === 'committed'),
-    ).toHaveLength(0)
-    expect(finish(run)).toBe(EXIT.SUCCESS)
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/run-activities::runUnits',
     'when the trace write that files the uncommitted warning itself throws',
     'it should keep running the chain, with both Activity Runs successful',
   ].join(', '),
   async () => {
-    /*
-     * given — the same refused commit, but this time the failure is not
-     * `commitPaths` (already settled) — it is filing the `uncommitted`
-     * warning that reports it, standing in for a trace database a
-     * concurrent run has locked past its own busy_timeout.
-     */
-    const dir = aRepo()
-    withFailingPreCommit(dir)
-    const run = atRoot(
-      aRun((tracer) => ({
-        ...tracer,
-        event: (input: TEventInput): string => {
-          if (input.name === WARNING_EVENT) {
-            throw new Error('database is locked')
-          }
-
-          return tracer.event(input)
-        },
-      })),
-      dir,
-    )
-    const firstRuns: string[] = []
-    const secondRuns: string[] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs: firstRuns,
-          feedbackSeen: [],
-          passOn: 1,
-          commit: true,
-          touches: ['README.md'],
-        }),
-      ]),
-      unit('accept', 'serial', [
-        gatedStep('review', {
-          runs: secondRuns,
-          feedbackSeen: [],
-          passOn: 1,
-        }),
-      ]),
-    ]
-    const was = process.cwd()
-    process.chdir(dir)
-
-    // when
-    let result: unknown
+    silenceTerminal()
     try {
-      writeFileSync(join(dir, 'README.md'), 'after\n')
-      result = await runUnits({ run, units: given, start: contextFor(run) })
-    } finally {
-      process.chdir(was)
-    }
+      // given
+      /*
+       * The same refused commit, but this time the failure is not
+       * `commitPaths` (already settled) — it is filing the `uncommitted`
+       * warning that reports it, standing in for a trace database a
+       * concurrent run has locked past its own busy_timeout.
+       */
+      const dir = aRepo()
+      withFailingPreCommit(dir)
+      const run = atRoot(
+        aRun((tracer) => ({
+          ...tracer,
+          event: (input: TEventInput): string => {
+            if (input.name === WARNING_EVENT) {
+              throw new Error('database is locked')
+            }
 
-    // then — the chain resolved despite the trace write throwing, the second
-    // Activity ran, and every Activity Run still reports success
-    expect(result).toBeDefined()
-    expect(firstRuns).toEqual(['build'])
-    expect(secondRuns).toEqual(['review'])
-    const activityRuns = run.activityRuns()
-    expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
-    expect(finish(run)).toBe(EXIT.SUCCESS)
+            return tracer.event(input)
+          },
+        })),
+        dir,
+      )
+      const firstRuns: string[] = []
+      const secondRuns: string[] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs: firstRuns,
+            feedbackSeen: [],
+            passOn: 1,
+            commit: true,
+            touches: ['README.md'],
+          }),
+        ]),
+        unit('accept', 'serial', [
+          gatedStep('review', {
+            runs: secondRuns,
+            feedbackSeen: [],
+            passOn: 1,
+          }),
+        ]),
+      ]
+      const was = process.cwd()
+      process.chdir(dir)
+
+      // when
+      let result: unknown
+      try {
+        writeFileSync(join(dir, 'README.md'), 'after\n')
+        result = await runUnits({ run, units: given, start: contextFor(run) })
+      } finally {
+        process.chdir(was)
+      }
+
+      // then — the chain resolved despite the trace write throwing, the second
+      // Activity ran, and every Activity Run still reports success
+      expect(result).toBeDefined()
+      expect(firstRuns).toEqual(['build'])
+      expect(secondRuns).toEqual(['review'])
+      const activityRuns = run.activityRuns()
+      expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
+      expect(finish(run)).toBe(EXIT.SUCCESS)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/run-activities::runUnits',
     'when an Activity declares commit and its gates pass',
     'it should land its own change, and only after the gate ruled',
   ].join(', '),
   async () => {
-    /*
-     * given — delivery is a property of the Activity, not a mode of the
-     * run: `--deliver branch|patch|commit` all committed the whole working
-     * tree at the END of the chain, so a large body of work arrived squashed
-     * whichever was chosen.
-     */
-    const dir = aRepo()
-    const run = atRoot(aRun(), dir)
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 2,
-          commit: true,
-          touches: ['README.md'],
-        }),
-      ]),
-    ]
-    const was = process.cwd()
-    process.chdir(dir)
-
-    // when — the first attempt fails its gate, the second passes
+    silenceTerminal()
     try {
-      writeFileSync(join(dir, 'README.md'), 'after\n')
-      await runUnits({ run, units: given, start: contextFor(run) })
-    } finally {
-      process.chdir(was)
-    }
+      // given
+      /*
+       * Delivery is a property of the Activity, not a mode of the
+       * run: `--deliver branch|patch|commit` all committed the whole working
+       * tree at the END of the chain, so a large body of work arrived squashed
+       * whichever was chosen.
+       */
+      const dir = aRepo()
+      const run = atRoot(aRun(), dir)
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 2,
+            commit: true,
+            touches: ['README.md'],
+          }),
+        ]),
+      ]
+      const was = process.cwd()
+      process.chdir(dir)
 
-    // then — one commit, after the retry, not one per attempt
-    const log = execFileSync('git', ['log', '--oneline'], {
-      cwd: dir,
-      encoding: 'utf8',
-    })
-      .trim()
-      .split('\n')
-    expect(runs).toHaveLength(2)
-    expect(log).toHaveLength(2)
-    expect(
-      eventsOf(run).filter((event) => event.name === 'committed'),
-    ).toHaveLength(1)
+      // when — the first attempt fails its gate, the second passes
+      try {
+        writeFileSync(join(dir, 'README.md'), 'after\n')
+        await runUnits({ run, units: given, start: contextFor(run) })
+      } finally {
+        process.chdir(was)
+      }
+
+      // then — one commit, after the retry, not one per attempt
+      const log = execFileSync('git', ['log', '--oneline'], {
+        cwd: dir,
+        encoding: 'utf8',
+      })
+        .trim()
+        .split('\n')
+      expect(runs).toHaveLength(2)
+      expect(log).toHaveLength(2)
+      expect(
+        eventsOf(run).filter((event) => event.name === 'committed'),
+      ).toHaveLength(1)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/run-activities::runUnits',
     'when a file was dirty before the run and no Activity touched it',
     'it should be left dirty and uncommitted, because it is not the run’s',
   ].join(', '),
   async () => {
-    /*
-     * given — `git add -A` swept every uncommitted file in the repository
-     * into the first Activity declaring `commit: true`, under a message
-     * describing something else. A developer who commits before every run
-     * never saw it; one who does not lost the ability to tell their work
-     * from the factory's.
-     */
-    const dir = aRepo()
-    const run = atRoot(aRun(), dir)
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          commit: true,
-          touches: ['src.ts'],
-        }),
-      ]),
-    ]
-    const was = process.cwd()
-    process.chdir(dir)
-
-    // when — the developer's own edit is in the tree the whole time
+    silenceTerminal()
     try {
-      writeFileSync(join(dir, 'README.md'), 'mine, in progress\n')
-      writeFileSync(join(dir, 'src.ts'), 'export const x = 1\n')
-      await runUnits({ run, units: given, start: contextFor(run) })
-    } finally {
-      process.chdir(was)
-    }
+      // given
+      /*
+       * `git add -A` swept every uncommitted file in the repository
+       * into the first Activity declaring `commit: true`, under a message
+       * describing something else. A developer who commits before every run
+       * never saw it; one who does not lost the ability to tell their work
+       * from the factory's.
+       */
+      const dir = aRepo()
+      const run = atRoot(aRun(), dir)
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            commit: true,
+            touches: ['src.ts'],
+          }),
+        ]),
+      ]
+      const was = process.cwd()
+      process.chdir(dir)
 
-    // then — committed what the Activity wrote, and nothing else
-    const committed = execFileSync(
-      'git',
-      ['show', '--name-only', '--pretty=format:', 'HEAD'],
-      { cwd: dir, encoding: 'utf8' },
-    ).trim()
-    const dirty = execFileSync('git', ['status', '--porcelain'], {
-      cwd: dir,
-      encoding: 'utf8',
-    })
-    expect(committed).toEqual('src.ts')
-    expect(dirty).toContain('README.md')
-    expect(readFileSync(join(dir, 'README.md'), 'utf8')).toEqual(
-      'mine, in progress\n',
-    )
+      // when — the developer's own edit is in the tree the whole time
+      try {
+        writeFileSync(join(dir, 'README.md'), 'mine, in progress\n')
+        writeFileSync(join(dir, 'src.ts'), 'export const x = 1\n')
+        await runUnits({ run, units: given, start: contextFor(run) })
+      } finally {
+        process.chdir(was)
+      }
+
+      // then — committed what the Activity wrote, and nothing else
+      const committed = execFileSync(
+        'git',
+        ['show', '--name-only', '--pretty=format:', 'HEAD'],
+        { cwd: dir, encoding: 'utf8' },
+      ).trim()
+      const dirty = execFileSync('git', ['status', '--porcelain'], {
+        cwd: dir,
+        encoding: 'utf8',
+      })
+      expect(committed).toEqual('src.ts')
+      expect(dirty).toContain('README.md')
+      expect(readFileSync(join(dir, 'README.md'), 'utf8')).toEqual(
+        'mine, in progress\n',
+      )
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/run-activities::runUnits',
     'when an Activity wrote to a file that was already dirty',
     'it should commit it, and say which paths went in',
   ].join(', '),
   async () => {
-    /*
-     * given — refusing any file that was dirty before the run sounds safer
-     * and is worse: a developer who starts a run to finish something they
-     * began by hand would watch the Activity's own work go uncommitted. An
-     * Activity may pull a dirty file into scope by WORKING on it; it may not
-     * pull one in by running near it.
-     */
-    const dir = aRepo()
-    const run = atRoot(aRun(), dir)
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          commit: true,
-          touches: ['README.md'],
-        }),
-      ]),
-    ]
-    const was = process.cwd()
-    process.chdir(dir)
-
-    // when
+    silenceTerminal()
     try {
-      writeFileSync(join(dir, 'README.md'), 'started by hand, finished here\n')
-      await runUnits({ run, units: given, start: contextFor(run) })
-    } finally {
-      process.chdir(was)
-    }
+      // given
+      /*
+       * Refusing any file that was dirty before the run sounds safer
+       * and is worse: a developer who starts a run to finish something they
+       * began by hand would watch the Activity's own work go uncommitted. An
+       * Activity may pull a dirty file into scope by WORKING on it; it may not
+       * pull one in by running near it.
+       */
+      const dir = aRepo()
+      const run = atRoot(aRun(), dir)
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            commit: true,
+            touches: ['README.md'],
+          }),
+        ]),
+      ]
+      const was = process.cwd()
+      process.chdir(dir)
 
-    // then
-    const committed = eventsOf(run).find((event) => event.name === 'committed')
-      ?.payload as Readonly<{ paths: readonly string[] }> | undefined
-    expect(
-      execFileSync('git', ['status', '--porcelain'], {
-        cwd: dir,
-        encoding: 'utf8',
-      }),
-    ).toEqual('')
-    expect(committed?.paths).toEqual(['README.md'])
+      // when
+      try {
+        writeFileSync(
+          join(dir, 'README.md'),
+          'started by hand, finished here\n',
+        )
+        await runUnits({ run, units: given, start: contextFor(run) })
+      } finally {
+        process.chdir(was)
+      }
+
+      // then
+      const committed = eventsOf(run).find(
+        (event) => event.name === 'committed',
+      )?.payload as Readonly<{ paths: readonly string[] }> | undefined
+      expect(
+        execFileSync('git', ['status', '--porcelain'], {
+          cwd: dir,
+          encoding: 'utf8',
+        }),
+      ).toEqual('')
+      expect(committed?.paths).toEqual(['README.md'])
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -888,38 +978,48 @@ test(
     'it should warn, spend no attempt, open no gate, and still succeed',
   ].join(', '),
   async () => {
-    /*
-     * given — the overwhelmingly common cause is a developer typing in their
-     * own repository while the run works. A run that halted every time
-     * somebody saved a file would be unusable in the tree they are in.
-     */
-    const run = aRun()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          touches: ['src/add.ts'],
-          claims: [],
-        }),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      /*
+       * The overwhelmingly common cause is a developer typing in their
+       * own repository while the run works. A run that halted every time
+       * somebody saved a file would be unusable in the tree they are in.
+       */
+      const run = aRun()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            touches: ['src/add.ts'],
+            claims: [],
+          }),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then
-    const warning = eventsOf(run).find((event) => event.name === 'tree_warning')
-      ?.payload as Readonly<{ paths: readonly string[]; kind: string }>
-    expect(warning).toMatchObject({ kind: 'unexpected', paths: ['src/add.ts'] })
-    expect(runs).toEqual(['build'])
-    expect(run.activityRuns().map((one) => one.status)).toEqual(['success'])
-    expect(
-      eventsOf(run).filter((event) => event.name === 'human_gate_open'),
-    ).toHaveLength(0)
+      // then
+      const warning = eventsOf(run).find(
+        (event) => event.name === 'tree_warning',
+      )?.payload as Readonly<{ paths: readonly string[]; kind: string }>
+      expect(warning).toMatchObject({
+        kind: 'unexpected',
+        paths: ['src/add.ts'],
+      })
+      expect(runs).toEqual(['build'])
+      expect(run.activityRuns().map((one) => one.status)).toEqual(['success'])
+      expect(
+        eventsOf(run).filter((event) => event.name === 'human_gate_open'),
+      ).toHaveLength(0)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -930,41 +1030,46 @@ test(
     'it should raise one warning for the Stage rather than one each',
   ].join(', '),
   async () => {
-    // given
-    const run = aRun()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('accept', 'concurrent', [
-        gatedStep('review', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          touches: ['notes.md'],
-          claims: [],
-        }),
-        gatedStep('code-review', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          touches: ['notes.md'],
-          claims: [],
-        }),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      const run = aRun()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('accept', 'concurrent', [
+          gatedStep('review', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            touches: ['notes.md'],
+            claims: [],
+          }),
+          gatedStep('code-review', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            touches: ['notes.md'],
+            claims: [],
+          }),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then
-    const warnings = eventsOf(run).filter(
-      (event) => event.name === 'tree_warning',
-    )
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]?.payload).toMatchObject({
-      paths: ['notes.md'],
-      activities: ['review', 'code-review'],
-    })
+      // then
+      const warnings = eventsOf(run).filter(
+        (event) => event.name === 'tree_warning',
+      )
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]?.payload).toMatchObject({
+        paths: ['notes.md'],
+        activities: ['review', 'code-review'],
+      })
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -975,42 +1080,48 @@ test(
     'it should still say so when the last Activity has finished',
   ].join(', '),
   async () => {
-    /*
-     * given — a warning raised by the second of nine Activities is a line in
-     * the middle of a long run, and nobody scrolls back to it.
-     */
-    const run = aRun()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const log: string[] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          touches: ['src/add.ts'],
-          claims: [],
-        }),
-      ]),
-      unit('accept', 'serial', [timedActivity('review', log, 1)]),
-    ]
+    silenceTerminal()
+    try {
+      // given
+      /*
+       * A warning raised by the second of nine Activities is a line in
+       * the middle of a long run, and nobody scrolls back to it.
+       */
+      const run = aRun()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const log: string[] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            touches: ['src/add.ts'],
+            claims: [],
+          }),
+        ]),
+        unit('accept', 'serial', [timedActivity('review', log)]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
-    run.console.sessionFinished(true, 0, 0, 'crust.db')
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
+      run.console.sessionFinished(true, 0, 0, 'crust.db')
 
-    // then
-    const printed = eventsOf(run)
-      .map((event) =>
-        String(
-          (event.payload as Readonly<{ message?: string }>)?.message ?? '',
-        ),
-      )
-      .join('\n')
-    expect(printed).toContain('1 unexplained change(s) during this run')
-    expect(printed).toContain('src/add.ts')
-    expect(printed).toContain('pi-crust cannot tell')
+      // then
+      const printed = eventsOf(run)
+        .map((event) =>
+          String(
+            (event.payload as Readonly<{ message?: string }>)?.message ?? '',
+          ),
+        )
+        .join('\n')
+      expect(printed).toContain('1 unexplained change(s) during this run')
+      expect(printed).toContain('src/add.ts')
+      expect(printed).toContain('pi-crust cannot tell')
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -1061,36 +1172,41 @@ test(
     'it should retry it for real, spending an attempt, until it passes (requirement 1.1.2)',
   ].join(', '),
   async () => {
-    // given — 'build' already succeeded in an earlier process, but the
-    // resumed envelope it replays back in fails the gate this time
-    const replay = resumedReplay()
-    const run = aRun(undefined, new Set(['build']))
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          replay: replay.fn,
-        }),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given — 'build' already succeeded in an earlier process, but the
+      // resumed envelope it replays back in fails the gate this time
+      const replay = resumedReplay()
+      const run = aRun(undefined, new Set(['build']))
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            replay: replay.fn,
+          }),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then — the replay fires once, the retry executes for real exactly
-    // once, and the fold completes with both rows on the record
-    expect(replay.calls()).toEqual(1)
-    expect(runs).toEqual(['build'])
-    expect(run.activityRuns().map((one) => one.params.name)).toEqual([
-      'build',
-      'build',
-    ])
-    expect(run.activityRuns()[0]?.activity_run_id).toContain('replayed')
-    expect(run.activityRuns()[1]?.status).toEqual('success')
+      // then — the replay fires once, the retry executes for real exactly
+      // once, and the fold completes with both rows on the record
+      expect(replay.calls()).toEqual(1)
+      expect(runs).toEqual(['build'])
+      expect(run.activityRuns().map((one) => one.params.name)).toEqual([
+        'build',
+        'build',
+      ])
+      expect(run.activityRuns()[0]?.activity_run_id).toContain('replayed')
+      expect(run.activityRuns()[1]?.status).toEqual('success')
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -1101,32 +1217,37 @@ test(
     'it should exhaust its attempts and stop the run (requirement 1.4.1)',
   ].join(', '),
   async () => {
-    // given — the replayed envelope fails, and so does every real retry
-    const replay = resumedReplay()
-    const run = aRun(undefined, new Set(['build']))
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 99,
-          attempts: 2,
-          replay: replay.fn,
-        }),
-      ]),
-    ]
+    silenceTerminal()
+    try {
+      // given — the replayed envelope fails, and so does every real retry
+      const replay = resumedReplay()
+      const run = aRun(undefined, new Set(['build']))
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 99,
+            attempts: 2,
+            replay: replay.fn,
+          }),
+        ]),
+      ]
 
-    // when
-    const actual = runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      const actual = runUnits({ run, units: given, start: contextFor(run) })
 
-    // then — the loop ends on the attempt ceiling rather than recursing
-    // forever on an unspent, never-advancing budget
-    await expect(actual).rejects.toThrow(/has no attempts left/)
-    await actual.catch(() => undefined)
-    expect(replay.calls()).toEqual(1)
-    expect(runs).toHaveLength(2)
+      // then — the loop ends on the attempt ceiling rather than recursing
+      // forever on an unspent, never-advancing budget
+      await expect(actual).rejects.toThrow(/has no attempts left/)
+      await actual.catch(() => undefined)
+      expect(replay.calls()).toEqual(1)
+      expect(runs).toHaveLength(2)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -1137,42 +1258,47 @@ test(
     'it should never upsert the replayed row to the trace (requirement 1.3.2)',
   ].join(', '),
   async () => {
-    // given — a tracer that records every id `activityRunUpsert` is asked
-    // to persist, so a phantom row for the replayed instance is visible
-    // the moment it is written rather than only inferred from a missing one
-    const upserted: string[] = []
-    const run = aRun(
-      (tracer) => ({
-        ...tracer,
-        activityRunUpsert: (activityRun) => {
-          // biome-ignore lint/plugin/no-array-mutation: recording every id is the test
-          upserted.push(activityRun.activity_run_id)
-          tracer.activityRunUpsert(activityRun)
-        },
-      }),
-      new Set(['build']),
-    )
-    const replay = resumedReplay()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 1,
-          replay: replay.fn,
+    silenceTerminal()
+    try {
+      // given — a tracer that records every id `activityRunUpsert` is asked
+      // to persist, so a phantom row for the replayed instance is visible
+      // the moment it is written rather than only inferred from a missing one
+      const upserted: string[] = []
+      const run = aRun(
+        (tracer) => ({
+          ...tracer,
+          activityRunUpsert: (activityRun) => {
+            // biome-ignore lint/plugin/no-array-mutation: recording every id is the test
+            upserted.push(activityRun.activity_run_id)
+            tracer.activityRunUpsert(activityRun)
+          },
         }),
-      ]),
-    ]
+        new Set(['build']),
+      )
+      const replay = resumedReplay()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 1,
+            replay: replay.fn,
+          }),
+        ]),
+      ]
 
-    // when
-    await runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      await runUnits({ run, units: given, start: contextFor(run) })
 
-    // then — the superseded write for the replayed row's own retry never
-    // reaches the trace; only the real row that replaced it does
-    expect(upserted.some((id) => id.includes('replayed'))).toBe(false)
-    expect(upserted.length).toBeGreaterThan(0)
+      // then — the superseded write for the replayed row's own retry never
+      // reaches the trace; only the real row that replaced it does
+      expect(upserted.some((id) => id.includes('replayed'))).toBe(false)
+      expect(upserted.length).toBeGreaterThan(0)
+    } finally {
+      restoreTerminal()
+    }
   },
 )
 
@@ -1183,41 +1309,46 @@ test(
     'it should never upsert the replayed row to the trace, even on the failing write (requirement 1.3.2)',
   ].join(', '),
   async () => {
-    // given — every real retry also fails, so the exhausted-attempts branch
-    // is the one that settles the replayed row's standing status this time
-    const upserted: string[] = []
-    const run = aRun(
-      (tracer) => ({
-        ...tracer,
-        activityRunUpsert: (activityRun) => {
-          // biome-ignore lint/plugin/no-array-mutation: recording every id is the test
-          upserted.push(activityRun.activity_run_id)
-          tracer.activityRunUpsert(activityRun)
-        },
-      }),
-      new Set(['build']),
-    )
-    const replay = resumedReplay()
-    const runs: string[] = []
-    const feedbackSeen: string[][] = []
-    const given = [
-      unit('implement', 'serial', [
-        gatedStep('build', {
-          runs,
-          feedbackSeen,
-          passOn: 99,
-          attempts: 2,
-          replay: replay.fn,
+    silenceTerminal()
+    try {
+      // given — every real retry also fails, so the exhausted-attempts branch
+      // is the one that settles the replayed row's standing status this time
+      const upserted: string[] = []
+      const run = aRun(
+        (tracer) => ({
+          ...tracer,
+          activityRunUpsert: (activityRun) => {
+            // biome-ignore lint/plugin/no-array-mutation: recording every id is the test
+            upserted.push(activityRun.activity_run_id)
+            tracer.activityRunUpsert(activityRun)
+          },
         }),
-      ]),
-    ]
+        new Set(['build']),
+      )
+      const replay = resumedReplay()
+      const runs: string[] = []
+      const feedbackSeen: string[][] = []
+      const given = [
+        unit('implement', 'serial', [
+          gatedStep('build', {
+            runs,
+            feedbackSeen,
+            passOn: 99,
+            attempts: 2,
+            replay: replay.fn,
+          }),
+        ]),
+      ]
 
-    // when
-    const actual = runUnits({ run, units: given, start: contextFor(run) })
+      // when
+      const actual = runUnits({ run, units: given, start: contextFor(run) })
 
-    // then
-    await expect(actual).rejects.toThrow(/has no attempts left/)
-    await actual.catch(() => undefined)
-    expect(upserted.some((id) => id.includes('replayed'))).toBe(false)
+      // then
+      await expect(actual).rejects.toThrow(/has no attempts left/)
+      await actual.catch(() => undefined)
+      expect(upserted.some((id) => id.includes('replayed'))).toBe(false)
+    } finally {
+      restoreTerminal()
+    }
   },
 )

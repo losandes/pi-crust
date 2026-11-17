@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { activityRunParams, EXIT } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { observedPayload, PATHS_TOUCHED } from '../../../policy'
 import { readRunState } from '../../../trace'
 import {
@@ -28,7 +29,7 @@ for (const blocker of [
     failedReview: true,
   },
 ]) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given issue #125 requirements 1.1.9 and 1.5.3, refused work, and ${blocker.name}`,
       'when the operator removes the refusing hook but delivery cannot proceed',
@@ -108,7 +109,7 @@ for (const blocker of [
 }
 
 for (const action of ['created', 'updated'] as const) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given issue #125 requirements 1.1.4–1.1.7 and a differently named terminal reporting ${action}`,
       'when its non-recoverable result has no usable pull-request URL',
@@ -176,7 +177,7 @@ for (const action of ['created', 'updated'] as const) {
   )
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given issue #125 requirements 1.3.2 and 1.4.2 and two refused Activity commits',
     'when the first still refuses but the second can land, then the operator clears the remaining refusal',

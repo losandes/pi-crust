@@ -4,6 +4,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { main as decide } from '../../../../decide'
 import { EXIT, pullRequestOutput, type TStage } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { terminalOutput } from '../../../../testing/terminal-capture'
 import type { TDeliveryPorts } from '../../../activities'
 import { readRunState } from '../../../trace'
@@ -159,7 +160,7 @@ const acceptanceFixture = (
   }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given an accepted run',
     'when the terminal Activity is reached',
@@ -200,7 +201,7 @@ for (const scenario of [
     reason: 'not approved',
   },
 ]) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given a ${scenario.name}`,
       'when the terminal Activity is reached',
@@ -237,7 +238,7 @@ for (const scenario of [
 
 for (const surface of ['cli', 'web'] as const) {
   for (const verb of ['approve', 'answer', 'reject'] as const) {
-    test(
+    test.skipIf(SKIP_INTEGRATION)(
       [
         `given an unaccepted run answered with ${verb} through ${surface}`,
         'when resumed',
@@ -326,7 +327,7 @@ for (const surface of ['cli', 'web'] as const) {
   }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given approval followed by a refused push',
     'when the run resumes again after delivery is repaired',
@@ -378,7 +379,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given acceptance followed by an outstanding commit',
     'when signing is repaired and the run resumes after the delivery gate',
@@ -427,7 +428,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given a corrupt decision answer record at the acceptance gate',
     'when resumed',
@@ -454,7 +455,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given an answer recorded before the acceptance gate',
     'when resumed',

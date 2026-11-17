@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from './checks'
 import { EXIT } from './lib/contracts'
+import { SKIP_INTEGRATION } from './testing/integration'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -61,7 +62,7 @@ const captureStdout = <TResult>(
   }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given checks::main ("just crust verify")',
     'when a changed file matches no routing.checks rule',
@@ -94,7 +95,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given checks::main ("just crust verify")',
     'when a changed file matches a declared rule and the command fails',
@@ -124,7 +125,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given checks::main ("just crust verify")',
     'when the config declares no routing.checks rules at all',
@@ -146,7 +147,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given checks::main ("just crust verify")',
     'when nothing has changed in the working tree',

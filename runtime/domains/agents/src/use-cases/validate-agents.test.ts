@@ -4,16 +4,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TPiCrustConfig } from '../../../../lib/contracts'
 import { crustConfigSchema } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { validateAgents } from './validate-agents'
 
 /**
  * A roster that is valid apart from whatever the test is about.
  *
  * The prompts name files the package ships, so the only problem any of these
- * runs reports is the one it was written to report. The model is left off:
- * `resolveModel` shells out to `pi --list-models`, which is an environment
- * these tests do not have and do not need — every assertion here is about a
- * path on disk.
+ * runs reports is the one it was written to report. Cases using the default
+ * model resolver start the real `pi --list-models` process. Host extensions
+ * can run `git worktree list` during that process, so those cases are guarded;
+ * cases supplying a resolver remain in the default suite.
  */
 const configWith = (
   agents: readonly Readonly<Record<string, unknown>>[],
@@ -98,7 +99,7 @@ const problemsFrom = (
   }
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/validate-agents::validateAgents',
     'when an agent names a harness extension nothing can open',
@@ -122,7 +123,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/validate-agents::validateAgents',
     'when the extension is one the package ships',
@@ -146,7 +147,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/validate-agents::validateAgents',
     'when a prompt cannot be found',

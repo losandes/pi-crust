@@ -1,5 +1,6 @@
 /** What an agent may touch and which checks and skills a change routes to */
 
+export type { TRepoAfter } from './src/use-cases/enforce-permissions'
 export {
   enforcePermissions,
   handoffDocument,

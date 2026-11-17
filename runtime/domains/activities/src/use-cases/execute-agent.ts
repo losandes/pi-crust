@@ -677,6 +677,13 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       head: headBefore,
       committing: call.committing === true,
     },
+    {
+      tree: ports.snapshot({
+        workspaceRoot: run.repoRoot,
+        vcsRoot: run.vcsRoot,
+      }),
+      head: ports.rev('HEAD'),
+    },
     /*
      * Resolved from the roster rather than carried: a cohort is Activity
      * names, and what enforcement needs is what those Activities declared.

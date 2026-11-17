@@ -28,6 +28,7 @@ import {
   genericOutput,
   reviewOutput,
 } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import type { TPiResult } from '../../../agents'
 import { emptyUsage } from '../../../agents'
 import type { TResolvedActivity } from './activity-registry'
@@ -247,7 +248,7 @@ const aContextEnvelope = (
     ...overrides,
   }) as unknown as TEnvelopeBase
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     'when the incoming context carries a fact with no evidence',
@@ -274,7 +275,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     "when config.input is 'changes' and something changed since the baseline",
@@ -317,7 +318,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     "when config.input is 'changes' and nothing has changed since the baseline",
@@ -349,7 +350,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     'when replay reads a stored envelope back',
@@ -386,7 +387,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     'when replay cannot read a stored envelope',
@@ -405,7 +406,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     'when the execute path is given an injected TAgentPorts',
@@ -439,7 +440,7 @@ test(
   },
 )
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given use-cases/activities/agent-activity::agentActivity',
     'when the output type judges a change and no --base was given',
@@ -549,7 +550,7 @@ for (const entry of [
     reads: 0,
   },
 ]) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given ${entry.name}`,
       'when choosing its review scope',

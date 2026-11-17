@@ -4,14 +4,12 @@
  * `pi` binary or a git subprocess through the ports this module owns — the
  * fakes below stand in for all seven of them.
  *
- * `enforcePermissions` (enforce-permissions.ts) is out of scope for this
- * work and still reads the real working tree via `snapshotTree`/`isRepo` —
- * see the fixture's repository root below for why that is a real, empty,
- * throwaway git repository rather than an arbitrary directory.
+ * Permission enforcement consumes the before and after snapshots from these
+ * ports too, so plain temporary directories suffice; no git repository is
+ * needed for a fake-port test.
  */
 
 import { expect, test } from 'bun:test'
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -30,6 +28,7 @@ import {
   genericOutput,
   WARNING_EVENT,
 } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import type { TPiControl, TPiHooks, TPiResult } from '../../../agents'
 import { appendSteering, emptyUsage, postToInbox } from '../../../agents'
 import { PATHS_TOUCHED, policyPaths } from '../../../policy'
@@ -42,20 +41,9 @@ import {
   JSON_FIX_ATTEMPTS,
 } from './execute-agent'
 
-/** A throwaway git repository, so `enforcePermissions`' own real diff resolves. */
-const aRepo = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), 'crust-execute-agent-repo-'))
-  const git = (...args: readonly string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
-  git('init', '-q', '-b', 'main')
-  git('config', 'user.email', 'tester@example.com')
-  git('config', 'user.name', 'tester')
-  git('config', 'commit.gpgsign', 'false')
-  writeFileSync(join(dir, 'README.md'), 'before\n')
-  git('add', '-A')
-  git('commit', '-qm', 'first')
-  return dir
-}
+/** A plain temporary workspace; all VCS observations come from the ports. */
+const aRepo = (): string =>
+  mkdtempSync(join(tmpdir(), 'crust-execute-agent-repo-'))
 
 const aPiResult = (
   overrides: Readonly<Partial<TPiResult>> = {},
@@ -658,7 +646,7 @@ test(
         ],
       }),
     })
-    writeFileSync(join(repoRoot, 'README.md'), 'after\n')
+    let snapshots = 0
     const activityRun = anActivityRun({
       params: activityRunParams({
         name: 'review',
@@ -667,7 +655,12 @@ test(
         description: 'Review the thing',
       }),
     })
-    const { ports } = fakePorts()
+    const { ports } = fakePorts({
+      snapshot: () => {
+        snapshots += 1
+        return snapshots === 1 ? {} : { 'README.md': '1,1' }
+      },
+    })
 
     // when
     const envelope = await executeAgent(
@@ -691,6 +684,46 @@ test(
         (event) => (event.payload as { kind: string }).kind === 'overstep',
       ),
     ).toBe(true)
+  },
+)
+
+test(
+  [
+    'given use-cases/execute-agent::executeAgent with committing disabled',
+    'when the injected HEAD changes during the agent call',
+    'it should trace the unauthorized commit as a permission breach',
+  ].join(', '),
+  async () => {
+    // given
+    const repoRoot = aRepo()
+    const { run, events } = aRun(repoRoot)
+    let reads = 0
+    const { ports } = fakePorts({
+      rev: () => {
+        reads += 1
+        return (reads === 1 ? 'a' : 'b').repeat(40)
+      },
+    })
+    try {
+      // when
+      await executeAgent(
+        run,
+        anActivityRun(),
+        aCall({ committing: false }),
+        ports,
+      )
+
+      // then
+      const breach = events.find((event) => event.name === 'permission_breach')
+      expect(breach).toBeDefined()
+      expect((breach?.payload as { note: string } | undefined)?.note).toContain(
+        'HEAD moved from aaaaaaa to bbbbbbb',
+      )
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true })
+      rmSync(run.sessionDir, { recursive: true, force: true })
+      rmSync(run.contextHandoffDir, { recursive: true, force: true })
+    }
   },
 )
 
@@ -892,50 +925,54 @@ test(
   },
 )
 
-test([
-  'given use-cases/execute-agent::executeAgent',
-  "when a message lands in this run's inbox while the agent is working",
-  'it should forward it to the control surface and trace the inbox event',
-].join(', '), async () => {
-  // given
-  const repoRoot = aRepo()
-  const { run, events } = aRun(repoRoot)
-  const activityRun = anActivityRun()
-  const steered: string[] = []
-  const control: TPiControl = {
-    steer: (message) => {
-      // biome-ignore lint/plugin/no-array-mutation: recording what was steered is the test
-      steered.push(message)
-    },
-    followUp: () => undefined,
-    abort: () => undefined,
-  }
-  const sleep = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms))
-  const { ports } = fakePorts({
-    run: async (
-      _request: Parameters<TAgentPorts['run']>[0],
-      hooks?: TPiHooks,
-    ) => {
-      hooks?.onControl?.(control)
-      hooks?.onSpawn?.(4242)
-      // posted AFTER control starts \u2014 deliverFromInbox's cursor begins at
-      // whatever was already in the file, same as a run resuming mid-stream
-      postToInbox(run.sessionDir, 'steer', 'be more careful', 'tester')
-      // long enough for the 1s poll inside deliverFromInbox to fire at least once
-      await sleep(1100)
-      hooks?.onExit?.(4242)
-      return aPiResult({ text: VALID_ENVELOPE_TEXT })
-    },
-  })
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given use-cases/execute-agent::executeAgent',
+    "when a message lands in this run's inbox while the agent is working",
+    'it should forward it to the control surface and trace the inbox event',
+  ].join(', '),
+  async () => {
+    // given
+    const repoRoot = aRepo()
+    const { run, events } = aRun(repoRoot)
+    const activityRun = anActivityRun()
+    const steered: string[] = []
+    const control: TPiControl = {
+      steer: (message) => {
+        // biome-ignore lint/plugin/no-array-mutation: recording what was steered is the test
+        steered.push(message)
+      },
+      followUp: () => undefined,
+      abort: () => undefined,
+    }
+    const sleep = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms))
+    const { ports } = fakePorts({
+      run: async (
+        _request: Parameters<TAgentPorts['run']>[0],
+        hooks?: TPiHooks,
+      ) => {
+        hooks?.onControl?.(control)
+        hooks?.onSpawn?.(4242)
+        // posted AFTER control starts \u2014 deliverFromInbox's cursor begins at
+        // whatever was already in the file, same as a run resuming mid-stream
+        postToInbox(run.sessionDir, 'steer', 'be more careful', 'tester')
+        // long enough for the 1s poll inside deliverFromInbox to fire at least once
+        await sleep(1100)
+        hooks?.onExit?.(4242)
+        return aPiResult({ text: VALID_ENVELOPE_TEXT })
+      },
+    })
 
-  // when
-  await executeAgent(run, activityRun, aCall(), ports)
+    // when
+    await executeAgent(run, activityRun, aCall(), ports)
 
-  // then
-  expect(steered).toEqual(['be more careful'])
-  expect(events.some((event) => event.name === 'inbox_steer')).toBe(true)
-}, 5_000)
+    // then
+    expect(steered).toEqual(['be more careful'])
+    expect(events.some((event) => event.name === 'inbox_steer')).toBe(true)
+  },
+  5_000,
+)
 
 test(
   [
