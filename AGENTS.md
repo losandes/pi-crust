@@ -62,6 +62,7 @@ A record says what is expected. A skill reads the record for you, names files th
 | Readying a branch for a pull request, or asking whether it is ready                                | `.claude/skills/pr-check/`                  |
 | Addressing comments or review feedback on a pull request                                           | `.claude/skills/respond-to-pr-comments/`    |
 | Announcing a long task's outcome aloud                                                             | `.claude/skills/spoken-summary/`            |
+| Logging an idea or problem found in a session as a prompt for the gh-issue lifecycle               | `.claude/skills/identification-prompt/`     |
 
 The first row is the one most often skipped, and it is the one with the widest reach. Every Activity of a run writes markdown — a handoff document, a plan, a diagnosis, an issue body — and markdown an agent improvised is markdown somebody re-formats later. A `.md` file is in scope whether it lands in the repository, in `{handoff}`, or in a GitHub text box.
 
