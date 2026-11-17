@@ -9,7 +9,8 @@
  *
  * Delivery waits before pushing if a retried commit is still outstanding,
  * or after an operator-recoverable refusal. Other results face engine-owned
- * delivery gates. Resuming supersedes only this terminal's fail/waiting rows.
+ * delivery gates. Resuming supersedes this terminal's fail/waiting rows and
+ * cancellations with no recorded reason other than a counted activity failure.
  */
 
 import type {
@@ -25,6 +26,9 @@ import { outstandingCommits, recommitRefused } from './deliver'
 import type { TGateReason } from './human-gate'
 import { resumeInvocation, writeDecisionRequest } from './human-gate'
 import { counts, runActivityRun } from './run-activity-run'
+import { supersedeReplacedAttempts } from './supersede-replaced-attempts'
+
+export const CANCELLED_BY_FAILURE = 'a counted activity run in this run failed'
 
 export type TRunTerminalParams = Readonly<{
   run: TRun
@@ -42,9 +46,12 @@ export type TTerminalOutcome =
 const retryableTerminal = (
   activity: Pick<TTerminalActivity, 'name'>,
   row: Pick<TActivityRun, 'params' | 'status'>,
+  cancellationRecoverable: boolean,
 ): boolean =>
   row.params.name === activity.name &&
-  (row.status === 'fail' || row.status === 'waiting')
+  (row.status === 'fail' ||
+    row.status === 'waiting' ||
+    (row.status === 'cancelled' && cancellationRecoverable))
 
 const waitForDelivery = (
   {
@@ -134,16 +141,26 @@ export const runTerminal = async (
   params: TRunTerminalParams,
 ): Promise<TTerminalOutcome> => {
   const { run, activity, ctx, accepted } = params
+  supersedeReplacedAttempts(run)
   // Like finish, judge the persisted trace, including earlier processes.
   const previous = run.tracer.activityRunsFor(run.runId)
+  const cancellationRecoverable = !run.tracer
+    .eventsNamed(run.runId, 'terminal_cancelled')
+    .some(
+      (event) =>
+        event.activity === activity.params.name &&
+        event.reason !== CANCELLED_BY_FAILURE,
+    )
   if (
     previous
       .filter(counts)
       .some(
-        (row) => row.status !== 'success' && !retryableTerminal(activity, row),
+        (row) =>
+          row.status !== 'success' &&
+          !retryableTerminal(activity, row, cancellationRecoverable),
       )
   ) {
-    recordCancelled(run, activity, 'a counted activity run in this run failed')
+    recordCancelled(run, activity, CANCELLED_BY_FAILURE)
     return { kind: 'settled' }
   }
   if (params.rejectedBy !== undefined) {
@@ -179,7 +196,7 @@ export const runTerminal = async (
     return { kind: 'waiting', request }
   }
   previous
-    .filter((row) => retryableTerminal(activity, row))
+    .filter((row) => retryableTerminal(activity, row, cancellationRecoverable))
     .forEach((row) => {
       run.tracer.activityRunUpsert({ ...row, status: 'superseded' })
       run.tracer.event({

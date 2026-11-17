@@ -26,6 +26,7 @@ import {
   unlockArtifacts,
 } from '../../../handoff'
 import { decisionOptions, resumeInvocation } from './human-gate'
+import { supersedeReplacedAttempts } from './supersede-replaced-attempts'
 
 const openActivityRun = (
   run: TRun,
@@ -295,10 +296,10 @@ export const runActivityRun =
 /**
  * Does this activity run count towards the run's verdict?
  *
- * A superseded row is an attempt that a later attempt replaced — a gate
- * retry, or a steer. It stays in the trace because what it decided is worth
- * reading; it stops counting because the Activity it belongs to was run
- * again, and the later row is the answer.
+ * A superseded row no longer decides the run: a retry, resume, or steer
+ * replaced it. Failed and never-settled attempts are superseded once a later
+ * running, successful, failed, or waiting attempt of the exact same name exists.
+ * The earlier row and its diagnostics remain readable in the trace.
  */
 export const counts = (activityRun: Readonly<{ status: string }>): boolean =>
   activityRun.status !== 'superseded'
@@ -355,6 +356,7 @@ export const finishWaiting = (run: TRun, requestPath: string): number => {
 }
 
 export const finish = (run: TRun, params: TFinishParams = {}): number => {
+  supersedeReplacedAttempts(run)
   const accepted = params.accepted ?? true
   /*
    * The run's recorded activity runs, read through the tracer rather than
