@@ -94,6 +94,7 @@ const workflowFixture = (
   })
   let created = 0
   const delivery: TDeliveryPorts = {
+    defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'topic',
     remoteExists: () => true,

@@ -20,7 +20,7 @@ import { liveAgent, runnableActivities } from '../../../activities'
 import type { TPiRequest } from '../../../agents'
 import { emptyUsage } from '../../../agents'
 import { RUN_START, recordRunStart, runChangeBase } from '../../../policy'
-import { selectedPaths } from '../../../workspace'
+import { resolveBaseBranch, selectedPaths } from '../../../workspace'
 import { createRun } from './create-run'
 import { recordRequest } from './run-activities'
 import { runActivityRun } from './run-activity-run'
@@ -494,7 +494,9 @@ for (const scenario of scenarios) {
               : runChangeBase(head)),
         )
         if (scenario.scope)
-          expect(actual?.changed_files).toBe(selectedPaths(scope).join('\n'))
+          expect(actual?.changed_files).toBe(
+            selectedPaths(resolveBaseBranch(cfg, ''))(scope).join('\n'),
+          )
         if (scenario.skill)
           expect(requests.at(-1)?.skills).toEqual(
             scenario.skill === 'match' ? ['review-skill'] : [],

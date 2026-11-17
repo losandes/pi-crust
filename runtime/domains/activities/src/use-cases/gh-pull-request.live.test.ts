@@ -79,6 +79,7 @@ const fakePorts = (
 ): Readonly<{ ports: TDeliveryPorts; calls: Record<string, unknown>[] }> => {
   const { forge, calls } = fakeForge(forgeOverrides)
   const ports: TDeliveryPorts = {
+    defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'feature',
     remoteExists: () => true,
@@ -316,6 +317,7 @@ test(
     try {
       // when — every liveDelivery operation this Activity can invoke,
       // exercised directly against the real (spied) process boundary
+      liveDelivery.defaultBranch('origin', '/does-not-matter')
       liveDelivery.isRepo('/does-not-matter')
       liveDelivery.branch('/does-not-matter')
       liveDelivery.remoteExists('origin', '/does-not-matter')

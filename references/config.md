@@ -128,11 +128,24 @@ After delivery the engine judges `pull_request_opened`, an engine-owned gate tha
 
 Each entry also carries `delivery`, the deterministic half's own settings — where it pushes and what it opens against:
 
-| Field             | Required | Meaning                                                                                                                                 |
-| ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `delivery.remote` | no       | The git remote it pushes to. Default `origin`.                                                                                          |
-| `delivery.base`   | no       | The branch it opens the pull request against. Default `main`. pi-crust refuses to push FROM this branch — it never creates one for you. |
-| `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                                                      |
+| Field             | Required | Meaning                                                                                                                                  |
+| ----------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `delivery.remote` | no       | The git remote it pushes to. Default `origin`.                                                                                           |
+| `delivery.base`   | no       | Optional base branch; see [The base branch](#the-base-branch). pi-crust refuses to push FROM this branch — it never creates one for you. |
+| `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                                                       |
+
+#### The base branch
+
+Pull request delivery, change measurement for an `input: changes` Activity, and scope ranges with an omitted left side (`...HEAD` or `..HEAD`) use one base-branch resolution order:
+
+1. An explicit `--scope` flag (`--base` is an alias). Delivery has no flag tier; a written range endpoint is an explicit choice.
+2. `delivery.base` in the `terminal` entry named `gh-pull-request`.
+3. The remote's default branch, read locally with `git symbolic-ref --quiet refs/remotes/<delivery.remote>/HEAD`.
+4. The built-in fallback, `main`.
+
+An absent or empty candidate names nothing. Without a `gh-pull-request` entry, configuration names no base and the remote is `origin`. The third tier reads only local state: it does not contact the remote or repair refs. When that record is absent, `git remote set-head <remote> --auto` records it; run that command explicitly if you want to refresh it.
+
+A recorded run start commit still precedes all four tiers for change measurement. If the resolved branch does not exist, the operation stops with a message naming the branch and the tier that supplied it, rather than substituting another ref. Change measurement and ranges require the local ref; delivery retains its preference for the remote-tracking ref over the local branch.
 
 The agent half gets `read` only and no `write` or `bash`: every git and `gh` operation — pushing the branch, finding, creating or updating the pull request — is the harness's, the way `commitActivity` already performs every commit for a `commit: true` Activity. The agent composes a title and body from the draft the harness writes to `{context_handoff_dir}/pull_request.md` before it runs; the harness owns the issue link, the `## Activities` section and the `## Checks` section, and replaces whatever the agent wrote under those with its own, computed from `TRunState`'s recorded gate outcomes, before delivering either the agent's body or, when the agent call fails or answers an empty title or body, that trace-generated draft instead.
 

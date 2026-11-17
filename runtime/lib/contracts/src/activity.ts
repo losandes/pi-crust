@@ -219,7 +219,7 @@ export const isTerminalName = (name: string): name is TTerminalName =>
 /** Where the deterministic half delivers. It belongs to the entry, not to the run. */
 export const deliverySchema = z.object({
   remote: z.string().default('origin'),
-  base: z.string().default('main'),
+  base: z.string().optional(),
   draft: z.boolean().default(false),
 })
 export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
@@ -234,7 +234,6 @@ export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
 export const terminalConfigSchema = plannerConfigSchema.extend({
   delivery: deliverySchema.default({
     remote: 'origin',
-    base: 'main',
     draft: false,
   }),
 })

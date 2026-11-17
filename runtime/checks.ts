@@ -33,10 +33,12 @@ import {
   changedFiles,
   repoRoot,
   requireSelected,
+  resolveBaseBranch,
   resolveDataPaths,
   selectRange,
   untrackedFiles,
 } from './domains/workspace'
+import type { TPiCrustConfig } from './lib/contracts'
 import { DEFAULT_CONFIG_PATH, EXIT } from './lib/contracts'
 import { configPathFromEnv, ensureDir } from './lib/system'
 import { paint, writeLine } from './lib/terminal'
@@ -50,8 +52,11 @@ const flagValue = (
   return at === -1 ? undefined : argv[at + 1]
 }
 
-export const checkedPaths = (scope: string): readonly string[] => {
-  const selection = selectRange(scope)
+export const checkedPaths = (
+  cfg: Readonly<Pick<TPiCrustConfig, 'terminal'>>,
+  scope: string,
+): readonly string[] => {
+  const selection = selectRange(resolveBaseBranch(cfg, ''))(scope)
 
   return scope === ''
     ? [...changedFiles(), ...untrackedFiles()].filter(Boolean).toSorted()
@@ -69,7 +74,7 @@ export const main = (argv: readonly string[]): number => {
 
       return EXIT.SUCCESS
     }
-    const paths = checkedPaths(scope)
+    const paths = checkedPaths(cfg, scope)
     if (paths.length === 0) {
       writeLine(paint('nothing changed — no checks apply', 'dim'))
 

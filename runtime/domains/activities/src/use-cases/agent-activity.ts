@@ -24,6 +24,7 @@ import type {
   TActivity,
   TActivityContext,
   TActivityOptions,
+  TPiCrustConfig,
 } from '../../../../lib/contracts'
 import {
   activityRunName,
@@ -36,8 +37,10 @@ import {
 } from '../../../../lib/contracts'
 import { runChange, runChangeBase } from '../../../policy'
 import {
+  baseBranchProvenance,
   captureChanges,
   changesAsEnvelope,
+  resolveBaseBranch,
   selectedPaths,
 } from '../../../workspace'
 import type { TResolvedActivity } from './activity-registry'
@@ -50,8 +53,11 @@ export const DOCUMENT_NOTES =
   'then copy the write-up into app_docs/ as your task describes.'
 
 /** The named scope overrides the run's change; absent both, use the working tree. */
-const judgedPaths = (base: string): readonly string[] | undefined =>
-  base === '' ? undefined : selectedPaths(base)
+const judgedPaths = (
+  cfg: Readonly<Pick<TPiCrustConfig, 'terminal'>>,
+  base: string,
+): readonly string[] | undefined =>
+  base === '' ? undefined : selectedPaths(resolveBaseBranch(cfg, ''))(base)
 
 /**
  * The change this run has made since its own baseline, as an envelope.
@@ -63,9 +69,14 @@ const judgedPaths = (base: string): readonly string[] | undefined =>
  * discovering it costs a context window.
  */
 const capturedChanges = (ctx: TActivityContext, base: string) => {
+  const resolved =
+    ctx.baseline === '' ? resolveBaseBranch(ctx.run.cfg, base) : undefined
   const captured = captureChanges(
     ctx.run,
-    changeCapture({ base: ctx.baseline || base || 'main' }),
+    changeCapture({
+      base: resolved?.name ?? ctx.baseline,
+      namedBy: resolved === undefined ? '' : baseBranchProvenance(resolved),
+    }),
   )
   if (changeSetEmpty(captured)) {
     throw new Error(
@@ -134,7 +145,7 @@ export const agentActivity = (
         change?.paths ??
         (captured === undefined
           ? envelopeJudges(spec)
-            ? judgedPaths(options.base)
+            ? judgedPaths(ctx.run.cfg, options.base)
             : undefined
           : [...captured.files, ...captured.untracked])
       const envelope = await callAgent(

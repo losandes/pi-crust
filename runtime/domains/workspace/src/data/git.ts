@@ -77,6 +77,17 @@ export const gitOutput = (args: readonly string[], cwd?: string): string => {
   return result.status === 0 ? result.stdout : ''
 }
 
+/** The remote's locally recorded default branch; no network or ref writes. */
+export const remoteDefaultBranch = (remote: string, cwd?: string): string => {
+  const prefix = `refs/remotes/${remote}/`
+  const result = run(['symbolic-ref', '--quiet', `${prefix}HEAD`], cwd)
+  const target = result.stdout.trim()
+
+  return result.status === 0 && target.startsWith(prefix)
+    ? target.slice(prefix.length)
+    : ''
+}
+
 const lines = (text: string): readonly string[] =>
   text.split('\n').filter((line) => line.length > 0)
 

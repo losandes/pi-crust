@@ -20,10 +20,11 @@
  * check", which is the silent green `routing.checks` already guards against.
  */
 
-import type { TRangeSelection } from '../../../../lib/contracts'
+import type { TBaseBranch, TRangeSelection } from '../../../../lib/contracts'
 import { isRange } from '../../../../lib/contracts'
 import * as gitData from '../data/git'
 import { resolveBase } from './capture-changes'
+import { baseBranchProvenance } from './resolve-base-branch'
 
 /** The git surface a selection needs. Injected so the cases are testable. */
 export type TRangeGit = Readonly<{
@@ -68,10 +69,17 @@ const sorted = (paths: readonly string[]): readonly string[] =>
   [...paths].filter(Boolean).toSorted()
 
 /** Both endpoints must resolve, and the message says what to pass instead. */
-const requireRef = (git: TRangeGit, ref: string, spec: string): string => {
+const requireRef = (
+  git: TRangeGit,
+  ref: string,
+  spec: string,
+  namedBy = '',
+): string => {
   if (!git.refExists(ref)) {
     throw new Error(
-      `base ref '${ref}' in '${spec}' does not exist in this repository — ` +
+      `base ref '${ref}' in '${spec}' does not exist in this repository` +
+        (namedBy === '' ? '' : ` (${namedBy})`) +
+        ' — ' +
         'pass --base with a ref or range that does (e.g. --base HEAD~1, ' +
         '--base main...HEAD).',
     )
@@ -79,20 +87,28 @@ const requireRef = (git: TRangeGit, ref: string, spec: string): string => {
   return ref
 }
 
-/** `A..B` / `A...B` split once, with git's own defaults for either end. */
+/** Complete the omitted left endpoint with the resolved base; right with HEAD. */
 const splitRange = (
   spec: string,
   symmetric: boolean,
-): Readonly<{ from: string; to: string }> => {
+  omitted: TBaseBranch,
+): Readonly<{ from: TBaseBranch; to: string }> => {
   const separator = symmetric ? '...' : '..'
   const index = spec.indexOf(separator)
   const left = spec.slice(0, index)
   const right = spec.slice(index + separator.length)
-  return { from: left || 'main', to: right || 'HEAD' }
+  return {
+    from:
+      left === ''
+        ? omitted
+        : { name: left, source: 'flag', remote: omitted.remote },
+    to: right || 'HEAD',
+  }
 }
 
 export const selectRangeWith =
   (git: TRangeGit) =>
+  (omitted: TBaseBranch) =>
   (spec: string): TRangeSelection => {
     if (spec === '') {
       return {
@@ -106,8 +122,9 @@ export const selectRangeWith =
 
     if (isRange(spec)) {
       const symmetric = spec.includes('...')
-      const { from, to } = splitRange(spec, symmetric)
-      requireRef(git, from, spec)
+      const { from: base, to } = splitRange(spec, symmetric, omitted)
+      const from = base.name
+      requireRef(git, from, spec, baseBranchProvenance(base))
       requireRef(git, to, spec)
       return {
         spec,
@@ -173,8 +190,9 @@ export const requireSelected = (
 
 export const selectedPathsWith =
   (git: TRangeGit) =>
+  (omitted: TBaseBranch) =>
   (spec: string): readonly string[] =>
-    requireSelected(selectRangeWith(git)(spec))
+    requireSelected(selectRangeWith(git)(omitted)(spec))
 
 /** The paths a spec names, or a throw when an explicit one names none. */
 export const selectedPaths = selectedPathsWith(defaultGit)

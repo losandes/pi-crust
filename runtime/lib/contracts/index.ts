@@ -30,12 +30,16 @@ export type {
 } from './src/activity-run'
 export { activityRunParams } from './src/activity-run'
 export type {
+  TBaseBranch,
+  TBaseBranchSource,
   TBaseRef,
   TChangeCapture,
   TChangeSet,
   TRangeSelection,
 } from './src/changes'
 export {
+  BASE_BRANCH_SOURCES,
+  BUILT_IN_BASE_BRANCH,
   baseRefLabel,
   changeCapture,
   changeSetEmpty,

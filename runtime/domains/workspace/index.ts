@@ -10,6 +10,7 @@ export {
   currentBranch,
   isRepo,
   pushBranch,
+  remoteDefaultBranch,
   remoteExists,
   repoRoot,
   rev,
@@ -32,6 +33,17 @@ export {
   captureChanges,
   changesAsEnvelope,
 } from './src/use-cases/capture-changes'
+export type {
+  TBaseBranchCandidates,
+  TBaseBranchGit,
+} from './src/use-cases/resolve-base-branch'
+export {
+  baseBranchFrom,
+  baseBranchProvenance,
+  configuredBase,
+  resolveBaseBranch,
+  resolveBaseBranchWith,
+} from './src/use-cases/resolve-base-branch'
 export {
   requireSelected,
   selectedPaths,
