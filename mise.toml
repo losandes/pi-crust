@@ -39,8 +39,8 @@ run = "bun install --frozen-lockfile"
 
 [hooks]
 enter = [
-  "mise install --quiet --monorepo",
-  "mise deps install --quiet --monorepo",
+  "mise install --monorepo",
+  "mise deps install --monorepo",
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
