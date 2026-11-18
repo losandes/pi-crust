@@ -13,10 +13,12 @@ import {
   activityRunParams,
   crustConfigSchema,
   DEFAULT_ACTIVITY_OPTIONS,
+  PULL_REQUEST_EVENT,
   terminalConfigSchema,
 } from '../../../../lib/contracts'
 import { ensureDir, readText, writeText } from '../../../../lib/system'
 import { emptyUsage, render } from '../../../agents'
+import { createTracer } from '../../../trace'
 import type { TAgentPorts } from './execute-agent'
 import type {
   TDeliveryPorts,
@@ -160,6 +162,59 @@ const resumedEnvelope = (
 }
 
 const OPTIONS: TActivityOptions = DEFAULT_ACTIVITY_OPTIONS
+
+for (const action of ['created', 'updated', 'refused'] as const) {
+  test(
+    [
+      `given a pull request delivery that is ${action}`,
+      'when the terminal Activity delivers',
+      'it should persist exactly one delivered URL or none for a refusal',
+    ].join(', '),
+    async () => {
+      // given
+      const dir = mkdtempSync(join(tmpdir(), 'crust-pr-event-'))
+      const tracer = createTracer(
+        join(dir, 'crust.db'),
+        join(dir, 'events.jsonl'),
+      )
+      const run = aRun({ resume: new Set(['gh-pull-request']), tracer })
+      tracer.sessionStart(run.runId, 'tester', 'compose')
+      const url = 'https://example.com/owner/repo/pull/1'
+      const { ports } = fakePorts(
+        {},
+        {
+          authenticated: () => action !== 'refused',
+          find: () => (action === 'updated' ? url : ''),
+        },
+      )
+      resumedEnvelope(run, {
+        status: 'success',
+        summary: 'done',
+        title: 'Ship it',
+        body: 'Complete work.',
+      })
+      try {
+        // when
+        const result = await ghPullRequestActivity(
+          config(),
+          OPTIONS,
+          ports,
+        ).deliver(aCtx(run), aHandle())
+        // then
+        expect(result.action).toBe(action)
+        const recorded = tracer.eventsNamed(run.runId, PULL_REQUEST_EVENT)
+        expect(recorded).toHaveLength(action === 'refused' ? 0 : 1)
+        if (action !== 'refused')
+          expect(recorded[0]).toMatchObject({ url, action })
+      } finally {
+        tracer.close()
+        rmSync(dir, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 test(
   [

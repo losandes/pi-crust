@@ -32,7 +32,9 @@ import {
   activityRunParams,
   agentConfigSchema,
   crustConfigSchema,
+  envelopeNamed,
   genericOutput,
+  ISSUE_OPENED_EVENT,
   WARNING_EVENT,
 } from '../../../../lib/contracts'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
@@ -243,6 +245,110 @@ const aCall = (overrides: Readonly<Partial<TAgentCall>> = {}): TAgentCall => ({
   blockingFindings: [],
   ...overrides,
 })
+
+const ghIssueOutput = envelopeNamed('ghIssueOutput')
+if (ghIssueOutput === undefined)
+  throw new Error('missing ghIssueOutput fixture')
+
+for (const scenario of [
+  {
+    name: 'a successful issue',
+    outputType: ghIssueOutput,
+    status: 'success',
+    url: 'https://github.com/acme/widgets/issues/42',
+    recorded: true,
+  },
+  {
+    name: 'a failed issue',
+    outputType: ghIssueOutput,
+    status: 'fail',
+    url: 'https://github.com/acme/widgets/issues/42',
+    recorded: true,
+  },
+  {
+    name: 'an empty issue URL',
+    outputType: ghIssueOutput,
+    status: 'success',
+    url: '',
+    recorded: false,
+  },
+  {
+    name: 'another output carrying an issue URL',
+    outputType: genericOutput,
+    status: 'success',
+    url: 'https://github.com/acme/widgets/issues/42',
+    recorded: false,
+  },
+] as const) {
+  test(
+    [
+      `given ${scenario.name}`,
+      'when executeAgent persists its parsed answer',
+      'it should record only an opened issue declared by the issue output contract',
+    ].join(', '),
+    async () => {
+      // given
+      const repoRoot = aRepo()
+      const { run, events } = aRun(repoRoot)
+      const activityRun = anActivityRun()
+      const { ports } = fakePorts({
+        run: async () =>
+          aPiResult({
+            text: JSON.stringify({
+              status: scenario.status,
+              summary: 'answered',
+              artifacts: [],
+              notes_for_next_agent: '',
+              facts: [],
+              decisions: [],
+              assumptions: [],
+              unresolved: [],
+              risks: [],
+              objective_met: { met: true, evidence: 'fixture' },
+              regress_to: { activity: '', because: '' },
+              issue_url: scenario.url,
+              issue_number: 42,
+              repo: 'acme/widgets',
+            }),
+          }),
+      })
+      try {
+        // when
+        const answer = executeAgent(
+          run,
+          activityRun,
+          aCall({ outputType: scenario.outputType }),
+          ports,
+        )
+        if (scenario.status === 'fail') {
+          await expect(answer).rejects.toThrow(/reported status='fail'/)
+        } else {
+          await answer
+        }
+        // then
+        expect(
+          events.filter(({ name }) => name === ISSUE_OPENED_EVENT),
+        ).toEqual(
+          scenario.recorded
+            ? [
+                {
+                  run_id: run.runId,
+                  activity_run_id: activityRun.activity_run_id,
+                  type: 'log',
+                  name: ISSUE_OPENED_EVENT,
+                  payload: { url: scenario.url },
+                },
+              ]
+            : [],
+        )
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 test(
   [

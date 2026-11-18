@@ -25,6 +25,8 @@ import type {
 import {
   activityNameFromRun,
   blockingQuestions,
+  ISSUE_OPENED_EVENT,
+  issueOpenedBy,
   trustStance,
   WARNING_EVENT,
   warningPayload,
@@ -265,6 +267,16 @@ const persistEnvelope = (
     : JSON.stringify({ raw: raw.slice(-2000) })
   run.tracer.envelopeRow(activityRun, agentName, spec.name, payloadJson, valid)
   if (envelope) {
+    const url = issueOpenedBy(spec, envelope)
+    if (url !== undefined) {
+      run.tracer.event({
+        run_id: run.runId,
+        activity_run_id: activityRun.activity_run_id,
+        type: 'log',
+        name: ISSUE_OPENED_EVENT,
+        payload: { url },
+      })
+    }
     const text = `${JSON.stringify(
       {
         agent_name: agentName,

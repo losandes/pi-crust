@@ -31,6 +31,7 @@ import type {
 import {
   activityRunParams,
   narrowEnvelope,
+  PULL_REQUEST_EVENT,
   pullRequestOutput,
 } from '../../../../lib/contracts'
 import { writeText } from '../../../../lib/system'
@@ -566,7 +567,7 @@ export const ghPullRequestActivity = (
       run_id: run.runId,
       activity_run_id: handle.activityRun.activity_run_id,
       type: 'log',
-      name: 'pull_request',
+      name: PULL_REQUEST_EVENT,
       payload: {
         action,
         url,

@@ -15,6 +15,10 @@ import type {
   TTracer,
 } from '../../../../lib/contracts'
 import {
+  ISSUE_OPENED_EVENT,
+  openedArtifacts,
+  PULL_REQUEST_EVENT,
+  renderOpened,
   renderWarnings,
   reportPassed,
   violationsOf,
@@ -163,6 +167,14 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
         ok ? 'info' : 'error',
         box(paint('pi-crust run complete', 'bold'), rows, ok ? 'green' : 'red'),
       )
+      for (const line of renderOpened(
+        openedArtifacts({
+          issues: tracer.eventsNamed(runId, ISSUE_OPENED_EVENT),
+          pullRequests: tracer.eventsNamed(runId, PULL_REQUEST_EVENT),
+        }),
+      )) {
+        emit(line)
+      }
     },
 
     activityRunStarted: (activityRun: TActivityRun) => {

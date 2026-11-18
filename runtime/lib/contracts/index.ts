@@ -123,6 +123,15 @@ export {
   withoutImport,
   withoutTerminal,
 } from './src/lifecycle'
+export type { TOpenedArtifact } from './src/opened-artifact'
+export {
+  GITHUB_ISSUE_URL,
+  ISSUE_OPENED_EVENT,
+  issueOpenedBy,
+  openedArtifacts,
+  PULL_REQUEST_EVENT,
+  renderOpened,
+} from './src/opened-artifact'
 export type {
   TQualityCheckResult,
   TQualityCheckSpec,
