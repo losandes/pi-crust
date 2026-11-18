@@ -91,7 +91,7 @@ export const SessionContext = ({
 
       <h3 className={HEADING}>what was asked</h3>
       {prompt === '' ? (
-        <div className="faint">no prompt recorded</div>
+        <div className="text-faint">no prompt recorded</div>
       ) : (
         // Safe: renderMarkdown HTML-escapes all input before producing any
         // tag. This is a document a person wrote, but it arrives through the

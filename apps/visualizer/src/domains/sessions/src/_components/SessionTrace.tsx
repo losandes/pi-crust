@@ -13,7 +13,7 @@ import type { AgentStartPayload, EventRow } from '@/domains/events'
 import { agentColor, hexAlpha, parseAgentStart } from '@/domains/events'
 import { SessionContext } from '@/domains/handoff'
 import { RunControls } from '@/domains/run-controls'
-import { StatChip, StatusChip } from '@/lib/_components'
+import { ErrorBar, StatChip, StatusChip } from '@/lib/_components'
 import { cx } from '@/lib/cx'
 import { axisTicks, fmtDate, payloadOk, ts } from '@/lib/format'
 import { modelIcon, modelName } from '@/lib/models'
@@ -66,8 +66,9 @@ const LABEL =
   'flex min-w-0 flex-col justify-center gap-0.5 overflow-hidden border-r-[length:var(--border-width)] border-border px-4 py-3 whitespace-nowrap'
 const TRACK = 'relative min-h-30 min-w-0 overflow-hidden'
 const LANE_META = 'truncate font-mono text-base text-dim'
+// Issue #171 SC3: unchanged appearance; the removed rule supplied the native button font.
 const BLOCK =
-  'absolute top-3 flex min-h-23 cursor-pointer flex-col justify-start gap-1 overflow-hidden rounded-xl border-[length:var(--border-width)] px-3 pt-2.5 pb-4 text-left text-base leading-[normal] whitespace-nowrap transition-shadow duration-160 ease-[ease]'
+  '[font-family:revert] absolute top-3 flex min-h-23 cursor-pointer flex-col justify-start gap-1 overflow-hidden rounded-xl border-[length:var(--border-width)] px-3 pt-2.5 pb-4 text-left text-base leading-[normal] whitespace-nowrap transition-shadow duration-160 ease-[ease]'
 const BLOCK_HOVER =
   'hover:shadow-[0_0_--spacing(4.5)_var(--lane-glow,rgb(var(--busy-rgb)/0.2))]'
 const BLOCK_SELECTED =
@@ -345,9 +346,7 @@ export const SessionTrace = ({
   return (
     <div className="pb-10">
       {trace.error !== undefined && (
-        <div className="mx-6 my-3 rounded-lg border-[length:var(--border-width)] border-fail/[calc(var(--edge-alpha)*100%)] bg-fail/[calc(var(--fill-soft)*100%)] px-3.5 py-2.5 text-base text-red">
-          api unreachable — retrying {trace.error}
-        </div>
+        <ErrorBar message={`api unreachable — retrying ${trace.error}`} />
       )}
 
       {session !== undefined && (

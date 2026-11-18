@@ -9,7 +9,7 @@ for (const { variant, classes } of [
     classes: [
       'text-base/relaxed',
       '[&_h1]:text-xl',
-      '[&_pre.md-code]:whitespace-pre!',
+      '[&_pre.md-code]:whitespace-pre',
     ],
   },
   {

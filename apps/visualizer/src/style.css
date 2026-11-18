@@ -2,6 +2,15 @@
 @import './domains/themes/src/tokens.css';
 
 /*
+ * What this file holds: the theme bridge, the app's keyframes, document-level
+ * rules for *, html, body, #app and a, and the .j-* classes the JSON
+ * highlighter emits. Components are styled by utilities on their own
+ * elements. Preflight is the baseline: nothing here restores a browser
+ * default.
+ * Two provisions with no reader remain until issue #169 removes them: the `.empty-state` class and the `--radius-sm` override.
+ */
+
+/*
  * The runtime theme swap rewrites these variables under [data-theme]; `inline`
  * keeps each generated utility pointing at the live var() at its use site.
  */
@@ -63,70 +72,10 @@
   --radius-sm: 0.25rem;
 }
 
-/*
- * Stylesheet-backed components and raw markdown still use browser defaults.
- * Preserve those below utilities while keeping preflight enabled.
- */
 @layer base {
   :root,
   :host {
     --radius-sm: initial;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-size: revert;
-    font-weight: revert;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  p,
-  blockquote,
-  dl,
-  dd,
-  figure,
-  ul,
-  ol,
-  input[type="checkbox"],
-  input[type="radio"],
-  dialog {
-    margin: revert;
-  }
-
-  ul,
-  ol {
-    padding: revert;
-    list-style: revert;
-  }
-
-  button,
-  input,
-  select,
-  optgroup,
-  textarea {
-    font: revert;
-    letter-spacing: revert;
-    appearance: revert;
-  }
-
-  code,
-  kbd,
-  samp {
-    font-family: revert;
-    font-size: revert;
-  }
-
-  ::placeholder {
-    color: revert;
   }
 }
 
@@ -160,21 +109,6 @@ a {
   text-decoration: none;
 }
 
-pre {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--panel-3);
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  overflow-x: auto;
-  font-family: var(--mono);
-  font-size: 16px;
-  line-height: 1.55;
-  color: var(--dim);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 /* JSON token colors — spans emitted by lib/highlight.ts */
 .j-key {
   color: var(--purple);
@@ -194,24 +128,6 @@ pre {
 
 .j-null {
   color: var(--red);
-}
-
-.dim {
-  color: var(--dim);
-}
-
-.faint {
-  color: var(--faint);
-}
-
-.error-bar {
-  margin: 12px 24px;
-  padding: 10px 14px;
-  border: var(--border-width) solid rgb(var(--fail-rgb) / var(--edge-alpha));
-  background: rgb(var(--fail-rgb) / var(--fill-soft));
-  color: var(--red);
-  border-radius: 8px;
-  font-size: 16px;
 }
 
 .empty-state {

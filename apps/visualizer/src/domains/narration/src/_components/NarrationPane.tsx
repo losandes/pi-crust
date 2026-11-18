@@ -25,13 +25,14 @@ const styles = {
   turnMark: 'mb-1.5 block font-mono text-sm text-faint',
   thinking:
     'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-dim wrap-anywhere',
+  noNarration:
+    'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-faint wrap-anywhere',
   text: 'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-text wrap-anywhere',
   segment: 'mt-0 mb-1.5 last:mb-0',
-  // Preserve the computed transparent fill and absent left border of the
-  // legacy rgb(var(--panel-3)) / rgb(var(--accent)) declarations.
-  code: 'my-1.5! overflow-x-auto! rounded-l-none! rounded-r-sm! border-l-0! bg-transparent! px-2.5! py-2! font-mono! text-xs! leading-normal! whitespace-pre! [tab-size:2] [&_code]:[font:inherit]',
-  codeOpen: 'border-l-3! [border-left-style:dashed]!',
-  jump: 'absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 cursor-pointer items-center gap-2 rounded-full border-(length:--border-width) border-accent/[calc(var(--edge-alpha)*100%)] bg-panel-2 px-3.5 py-1.5 text-sm text-accent focus-visible:shadow-(--ring) focus-visible:outline-none',
+  code: 'my-1.5 overflow-x-auto rounded-r-sm border-y border-r border-border-soft px-2.5 py-2 font-mono text-xs/normal whitespace-pre text-dim [tab-size:2] [&_code]:[font:inherit]',
+  codeOpen: 'border-l-3 [border-left-style:dashed]',
+  // Issue #171 SC3: unchanged appearance; the removed rule supplied the native button font.
+  jump: '[font-family:revert] absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 cursor-pointer items-center gap-2 rounded-full border-(length:--border-width) border-accent/[calc(var(--edge-alpha)*100%)] bg-panel-2 px-3.5 py-1.5 text-sm text-accent focus-visible:shadow-(--ring) focus-visible:outline-none',
   final:
     'mb-2.5 rounded-sm border-(length:--border-width) px-3 py-2.5 font-card',
   finalOk:
@@ -172,7 +173,7 @@ export const NarrationPane = ({
       <div className={styles.scroller} onScroll={onScroll} ref={scroller}>
         <div className={styles.narration}>
           {conversation.length === 0 && (
-            <div className="faint">nothing recorded for {agent} yet</div>
+            <div className="text-faint">nothing recorded for {agent} yet</div>
           )}
           {conversation.map((item) =>
             item.kind === 'turn' ? (
@@ -360,7 +361,7 @@ const TurnNarration = ({ turn }: Readonly<{ turn: TTurn }>) => (
   <article className={styles.turn}>
     <span className={styles.turnMark}>
       {turn.turn === 0 ? 'untraced' : `turn ${turn.turn}`}
-      <span className="faint">
+      <span className="text-faint">
         {' '}
         {fmtClock(new Date(turn.at).toISOString())}
       </span>
@@ -373,7 +374,7 @@ const TurnNarration = ({ turn }: Readonly<{ turn: TTurn }>) => (
       />
     ))}
     {turn.blocks.length === 0 && (
-      <p className={`${styles.thinking} faint`}>no narration for this turn</p>
+      <p className={styles.noNarration}>no narration for this turn</p>
     )}
   </article>
 )
@@ -393,7 +394,7 @@ const DeveloperMessageCard = ({
     <span className={styles.askedMark}>
       {message.from} ·{' '}
       {message.kind === 'standing' ? 'standing instruction' : message.kind}
-      <span className="faint">
+      <span className="text-faint">
         {' '}
         {fmtClock(new Date(message.at).toISOString())}
       </span>

@@ -46,7 +46,8 @@ export const FilterDropdown = (
       <button
         type="button"
         className={cx(
-          'cursor-pointer rounded-full border-[length:var(--border-width)] px-2.5 py-0.5 font-mono text-[13px] focus-visible:shadow-[var(--ring)] focus-visible:outline-none',
+          // Issue #171 SC3: unchanged appearance; the removed rule supplied native control typography and checkbox margins.
+          'leading-[normal] cursor-pointer rounded-full border-[length:var(--border-width)] px-2.5 py-0.5 font-mono text-[13px] focus-visible:shadow-[var(--ring)] focus-visible:outline-none',
           selected.length > 0
             ? 'border-current bg-panel-2 text-text'
             : 'border-border-soft bg-transparent text-dim',
@@ -61,7 +62,7 @@ export const FilterDropdown = (
         <div className="absolute inset-x-4 z-20 mt-1 flex max-h-70 min-w-50 flex-col gap-1 overflow-y-auto rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2 p-2 shadow-(--shadow-panel) @3xl/dashboard:inset-x-auto @3xl/dashboard:top-full @3xl/dashboard:left-0">
           <input
             type="search"
-            className="min-w-0 rounded-md border-[length:var(--border-width)] border-border-soft bg-transparent px-2 py-1 font-mono text-[13px] text-text"
+            className="leading-[normal] min-w-0 rounded-md border-[length:var(--border-width)] border-border-soft bg-transparent px-2 py-1 font-mono text-[13px] text-text"
             aria-label={`search ${label}`}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -69,6 +70,7 @@ export const FilterDropdown = (
           <label className="flex cursor-pointer items-center gap-1.5 px-1 py-0.5 text-[13px]">
             <input
               type="checkbox"
+              className="[font-family:revert] [font-size:revert] leading-[normal] [margin:revert]"
               checked={selected.length === 0}
               onChange={() => {
                 if (selected.length > 0) onSelectAll()
@@ -83,6 +85,7 @@ export const FilterDropdown = (
             >
               <input
                 type="checkbox"
+                className="[font-family:revert] [font-size:revert] leading-[normal] [margin:revert]"
                 checked={selected.includes(option)}
                 onChange={() => onToggle(option)}
               />

@@ -47,7 +47,7 @@ export const ConfirmDialog = ({
   return (
     <dialog
       ref={ref}
-      className="max-w-md rounded-md border-[length:var(--border-width)] border-fail/[calc(var(--edge-alpha)*100%)] bg-panel-2 px-5 py-4 text-text backdrop:bg-bg/55 backdrop:brightness-0"
+      className="m-auto max-w-md rounded-md border-[length:var(--border-width)] border-fail/[calc(var(--edge-alpha)*100%)] bg-panel-2 px-5 py-4 text-text backdrop:bg-bg/55 backdrop:brightness-0"
       /*
        * Escape means "no", and the browser fires `cancel` for it without
        * telling React — so without this the state that opened the dialog

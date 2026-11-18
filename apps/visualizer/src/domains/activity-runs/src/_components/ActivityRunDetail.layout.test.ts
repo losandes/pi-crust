@@ -518,7 +518,11 @@ const styleDifferences = (page: Page, tab: (typeof TABS)[number]) =>
       if (!(reference instanceof Element))
         throw new Error('Missing reference element')
       reference.removeAttribute('class')
-      reference.setAttribute('style', css)
+      // Issue #171: preserve the legacy native-button reference, not Preflight's inherited font.
+      reference.setAttribute(
+        'style',
+        reference.matches('button') ? `font:revert;${css}` : css,
+      )
       element.after(reference)
       try {
         return properties.flatMap((property) => {

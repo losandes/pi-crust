@@ -26,7 +26,8 @@ export const DetailSection = ({
   <section className="mb-3.5">
     <button
       type="button"
-      className="@container flex w-full cursor-pointer items-center gap-2 rounded-t-md border-0 border-b-[length:var(--border-width)] border-border-soft px-2 py-1.5 text-left text-base/[normal] font-bold tracking-wider text-dim lowercase hover:bg-panel-2 hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
+      // Issue #171 SC3: unchanged appearance; the removed rule supplied the native button font.
+      className="[font-family:revert] @container flex w-full cursor-pointer items-center gap-2 rounded-t-md border-0 border-b-[length:var(--border-width)] border-border-soft px-2 py-1.5 text-left text-base/[normal] font-bold tracking-wider text-dim lowercase hover:bg-panel-2 hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
       onClick={onToggle}
     >
       <span className="flex-none text-faint">{open ? '\u25be' : '\u25b8'}</span>
