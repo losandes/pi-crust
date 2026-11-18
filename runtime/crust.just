@@ -228,6 +228,12 @@ resume RUN_ID *ARGS:
 amend RUN_ID ACTIVITY *INSTRUCTION:
     @bun "{{crust}}/consult.ts" amend {{RUN_ID}} {{ACTIVITY}} "$@"
 
+# open the pi conversation the agent behind an activity had, interactively, with
+# everything it knew. Refused while any process of the run is alive.
+# step into a stopped run's conversation: just crust join <run_id> <activity>
+join RUN_ID ACTIVITY:
+    @bun "{{crust}}/join.ts" "$@"
+
 # the working trees this machine has run in — the observer watches them all
 trees:
     @bun "{{crust}}/workspaces.ts" list

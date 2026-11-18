@@ -6,6 +6,7 @@ export type { TCatalogue, TEntry } from './src/use-cases/catalogue'
 export { catalogueOf, renderCatalogue } from './src/use-cases/catalogue'
 export {
   DECIDE_CLI,
+  JOIN_CLI,
   positionalArgs,
   RESUME_CLI,
   STEER_CLI,

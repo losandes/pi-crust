@@ -1,7 +1,7 @@
 /**
- * The positional-argument guard shared by `resume`, `steer` and `decide`.
+ * The positional-argument guard shared by `resume`, `steer`, `decide` and `join`.
  *
- * All three pick a positional out of argv by excluding what starts with
+ * These commands pick a positional out of argv by excluding what starts with
  * `--`, which has the same hazard `parse-cli.ts` had before short flags
  * forced a fix: an unrecognised flag is read as a positional instead of
  * being refused by name. `resume.ts` and `steer.ts` both run `main()` at
@@ -9,7 +9,7 @@
  * all without spawning a subprocess — this module, and each CLI's own flag
  * spec, are that somewhere.
  *
- * None of these three CLIs gets short flags: see adr-free rationale in
+ * None of these CLIs gets short flags: see adr-free rationale in
  * issue #54 — only `run` does, and `-h` is never reserved.
  */
 
@@ -30,6 +30,11 @@ export const STEER_CLI: TSiblingCli = {
   switches: ['--overwrite', '--branch'],
 }
 
+export const JOIN_CLI: TSiblingCli = {
+  valueFlags: [],
+  switches: [],
+}
+
 export const DECIDE_CLI: TSiblingCli = {
   valueFlags: ['--note', '--file', '--db', '--config'],
   switches: ['--detach'],
@@ -42,7 +47,7 @@ export const DECIDE_CLI: TSiblingCli = {
  * flag itself and never positional — so `--note "-9 is wrong"` keeps "-9 is
  * wrong" as the note instead of being read as an unknown flag. A
  * `--flag=value` token is matched on the part before `=` and is otherwise
- * read exactly as it is today for these three CLIs, which is not at all:
+ * read exactly as it is today for these CLIs, which is not at all:
  * none of them supports the inline form, and this does not add it.
  *
  * Throws `unknown flag: <name>`; the caller prints its own USAGE after it.
