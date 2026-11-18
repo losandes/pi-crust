@@ -12,9 +12,10 @@
  *     could still rewrite the code it was reviewing.
  *
  * So permission is verified the way every other claim in this system is — after
- * the fact, against snapshots supplied by the caller. `enforcePermissions()`
- * compares the before and after change-sets and REPORTS what changed outside
- * the allowlist; it never reads the tree or HEAD itself.
+ * the fact, against snapshots and paths changed in history supplied by the
+ * caller. `enforcePermissions()` compares the before and after change-sets,
+ * includes those history paths and REPORTS what changed outside the allowlist;
+ * it never reads the tree or HEAD itself.
  *
  * Comparing change-sets, rather than watching for writes, is what catches the
  * `git checkout` case: a path that was modified before the agent ran and is
@@ -260,6 +261,11 @@ export type TRepoAfter = Readonly<{
   tree: TTreeSnapshot
   /** HEAD after the Activity ran; '' outside a repository */
   head: string
+  /**
+   * Paths whose committed content differs between `TRepoBefore.head` and
+   * `head`, spelled as the keys of `tree` are; [] when history did not move.
+   */
+  history: readonly string[]
 }>
 
 /**
@@ -350,7 +356,9 @@ export const enforcePermissions = (
 ): TPermissionReport => {
   const before = repoBefore.tree
   const after = repoAfter.tree
-  const touched = changedPaths(before, after)
+  const touched = [
+    ...new Set([...changedPaths(before, after), ...repoAfter.history]),
+  ].toSorted()
   const resolveFor = (one: TAgentConfig): readonly string[] =>
     resolveWrites(one.writes, run.repoRoot, run.contextHandoffDir)
   const writes = resolveFor(agent)

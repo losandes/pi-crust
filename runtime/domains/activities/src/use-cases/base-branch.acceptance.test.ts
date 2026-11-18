@@ -271,6 +271,8 @@ const execute = async (
     untracked: () => [],
     snapshot: () => ({}),
     rev: () => '',
+    head: () => '',
+    history: () => () => [],
     content: () => ({ status: 'ok', data: {} }),
     render: (_path, variables) => {
       // biome-ignore lint/plugin/no-array-mutation: recording the agent input is the test

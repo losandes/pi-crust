@@ -1,8 +1,8 @@
 /**
  * `execute-agent.ts` with every side effect it performs routed through an
  * injected `TAgentPorts` (COVERAGE-AGENT-PORTS.md). No test here spawns the
- * `pi` binary or a git subprocess through the ports this module owns — the
- * fakes below stand in for all seven of them.
+ * `pi` binary. The `SKIP_INTEGRATION` tests use the three live observation
+ * adapters against a throwaway git repository.
  *
  * Permission enforcement consumes the before and after snapshots from these
  * ports too, so plain temporary directories suffice; no git repository is
@@ -10,7 +10,14 @@
  */
 
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -39,6 +46,7 @@ import {
   feedbackBlock,
   findingsBlock,
   JSON_FIX_ATTEMPTS,
+  liveAgent,
 } from './execute-agent'
 
 /** A plain temporary workspace; all VCS observations come from the ports. */
@@ -103,6 +111,12 @@ const fakePorts = (
       return {}
     },
     content: () => ({ status: 'ok', data: {} }),
+    head: () => {
+      // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
+      calls.push({ op: 'head' })
+      return ''
+    },
+    history: () => () => [],
     rev: () => {
       // biome-ignore lint/plugin/no-array-mutation: recording what was called is the test
       calls.push({ op: 'rev' })
@@ -699,7 +713,7 @@ test(
     const { run, events } = aRun(repoRoot)
     let reads = 0
     const { ports } = fakePorts({
-      rev: () => {
+      head: () => {
         reads += 1
         return (reads === 1 ? 'a' : 'b').repeat(40)
       },
@@ -1003,3 +1017,314 @@ test(
     ).rejects.toThrow(/builder reported status='fail': could not finish/)
   },
 )
+
+const git = (cwd: string, ...args: readonly string[]): string =>
+  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+
+const aGitRepo = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'crust-execute-agent-git-'))
+  git(dir, 'init', '-q', '-b', 'main')
+  git(dir, 'config', 'user.email', 'tester@example.com')
+  git(dir, 'config', 'user.name', 'tester')
+  git(dir, 'config', 'commit.gpgsign', 'false')
+  for (const path of ['src', 'reviews', 'guarded']) mkdirSync(join(dir, path))
+  for (const path of [
+    'src/app.ts',
+    'src/old.ts',
+    'reviews/notes.md',
+    'guarded/settings.yaml',
+  ]) {
+    writeFileSync(join(dir, path), 'first\n')
+  }
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-qm', 'first')
+  return dir
+}
+
+const commitPath = (dir: string, path: string): void => {
+  git(dir, 'add', '--', path)
+  git(dir, 'commit', '-qm', 'agent')
+}
+
+const append = (dir: string, path: string): void =>
+  appendFileSync(join(dir, path), 'another line\n')
+
+const appendAndCommit = (dir: string, path: string): void => {
+  append(dir, path)
+  commitPath(dir, path)
+}
+
+type THistoryScenario = Readonly<{
+  id: string
+  criterion: number
+  name: string
+  owner?: string
+  committing?: boolean
+  before?: (dir: string) => void
+  during: (dir: string) => void
+  touched?: readonly string[]
+  noTouched?: boolean
+  overstep?: readonly string[]
+  noOverstep?: boolean
+  noteContains?: string
+  noteExcludes?: string
+  cohort?: readonly string[]
+  nested?: boolean
+  noGit?: boolean
+}>
+
+const historyScenarios: readonly THistoryScenario[] = [
+  {
+    id: 'T1',
+    criterion: 1,
+    name: 'a committed edit to a clean file',
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    touched: ['src/app.ts'],
+  },
+  {
+    id: 'T2',
+    criterion: 1,
+    name: 'a committed new file',
+    during: (dir) => {
+      writeFileSync(join(dir, 'src/new.ts'), 'new\n')
+      commitPath(dir, 'src/new.ts')
+    },
+    touched: ['src/new.ts'],
+  },
+  {
+    id: 'T3',
+    criterion: 1,
+    name: 'a committed deletion',
+    during: (dir) => {
+      git(dir, 'rm', '-q', '--', 'src/old.ts')
+      git(dir, 'commit', '-qm', 'agent')
+    },
+    touched: ['src/old.ts'],
+  },
+  {
+    id: 'T4',
+    criterion: 1,
+    name: 'a committed edit when permitted to commit',
+    committing: true,
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    touched: ['src/app.ts'],
+  },
+  {
+    id: 'T5',
+    criterion: 2,
+    name: 'a committed write outside allowed paths',
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    overstep: ['src/app.ts'],
+    noteContains: 'HEAD moved from',
+  },
+  {
+    id: 'T6',
+    criterion: 2,
+    name: 'a committed write outside allowed paths when permitted to commit',
+    committing: true,
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    overstep: ['src/app.ts'],
+    noteExcludes: 'HEAD moved',
+  },
+  {
+    id: 'T7',
+    criterion: 2,
+    name: 'a committed protected path',
+    owner: 'builder',
+    during: (dir) => appendAndCommit(dir, 'guarded/settings.yaml'),
+    overstep: ['guarded/settings.yaml'],
+  },
+  {
+    id: 'T8',
+    criterion: 3,
+    name: 'a committed write inside allowed paths',
+    committing: true,
+    during: (dir) => appendAndCommit(dir, 'reviews/notes.md'),
+    touched: ['reviews/notes.md'],
+    noOverstep: true,
+  },
+  {
+    id: 'T9',
+    criterion: 4,
+    name: 'an already dirty file edited further and committed',
+    before: (dir) => append(dir, 'src/app.ts'),
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    touched: ['src/app.ts'],
+    overstep: ['src/app.ts'],
+  },
+  {
+    id: 'T10',
+    criterion: 4,
+    name: 'a path committed and edited again',
+    during: (dir) => {
+      appendAndCommit(dir, 'src/app.ts')
+      append(dir, 'src/app.ts')
+    },
+    touched: ['src/app.ts'],
+    overstep: ['src/app.ts'],
+  },
+  {
+    id: 'T11',
+    criterion: 5,
+    name: 'a commit made before the Activity',
+    before: (dir) => {
+      writeFileSync(join(dir, 'src/earlier.ts'), 'earlier\n')
+      commitPath(dir, 'src/earlier.ts')
+    },
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    touched: ['src/app.ts'],
+  },
+  {
+    id: 'T12',
+    criterion: 6,
+    name: "a sibling's declared path committed during the Activity",
+    cohort: ['code-reviewer'],
+    during: (dir) => {
+      mkdirSync(join(dir, 'code-reviews'))
+      writeFileSync(join(dir, 'code-reviews/theirs.md'), 'theirs\n')
+      commitPath(dir, 'code-reviews/theirs.md')
+    },
+    noTouched: true,
+    overstep: [],
+  },
+  {
+    id: 'T13',
+    criterion: 7,
+    name: 'a run started inside a nested repository',
+    nested: true,
+    during: (dir) => appendAndCommit(dir, 'src/app.ts'),
+    touched: ['src/app.ts'],
+    overstep: ['src/app.ts'],
+    noteContains: 'HEAD moved from',
+  },
+  {
+    id: 'T14',
+    criterion: 7,
+    name: 'a workspace outside a git repository',
+    noGit: true,
+    during: () => undefined,
+    noOverstep: true,
+  },
+  {
+    id: 'T15',
+    criterion: 4,
+    name: 'an untracked file committed during the Activity',
+    before: (dir) =>
+      writeFileSync(join(dir, 'src/untracked.ts'), 'untracked\n'),
+    during: (dir) => commitPath(dir, 'src/untracked.ts'),
+    touched: ['src/untracked.ts'],
+    overstep: ['src/untracked.ts'],
+  },
+  {
+    id: 'T16',
+    criterion: 4,
+    name: 'an edit left uncommitted with unchanged HEAD',
+    during: (dir) => append(dir, 'src/app.ts'),
+    touched: ['src/app.ts'],
+    overstep: ['src/app.ts'],
+    noteExcludes: 'HEAD moved',
+  },
+]
+
+for (const scenario of historyScenarios) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given use-cases/execute-agent::executeAgent (SC${scenario.criterion}) ${scenario.id}`,
+      `when observing ${scenario.name}`,
+      'it should record and judge the observed paths without changing the repository',
+    ].join(', '),
+    async () => {
+      // given
+      const dir = scenario.noGit ? aRepo() : aGitRepo()
+      const cfg = crustConfigSchema.parse({
+        defaults: { protected_files: ['guarded/'] },
+        agents: [
+          { name: 'reviewer', writes: ['reviews/'] },
+          { name: 'code-reviewer', writes: ['code-reviews/'] },
+          { name: 'builder', writes: ['*'] },
+        ].map((agent) => ({
+          prompt_engineering: { system: 's.md', user: 'u.md' },
+          ...agent,
+        })),
+      })
+      const { run, events } = aRun(dir, { cfg })
+      const cwd = process.cwd()
+      try {
+        scenario.before?.(dir)
+        if (scenario.nested) {
+          const nested = join(dir, 'nested')
+          mkdirSync(nested)
+          git(nested, 'init', '-q', '-b', 'main')
+          git(nested, 'config', 'user.email', 'tester@example.com')
+          git(nested, 'config', 'user.name', 'tester')
+          git(nested, 'config', 'commit.gpgsign', 'false')
+          writeFileSync(join(nested, 'inner.txt'), 'inner\n')
+          git(nested, 'add', '-A')
+          git(nested, 'commit', '-qm', 'nested')
+          process.chdir(nested)
+        }
+        const activityRun = anActivityRun({
+          params: activityRunParams({
+            name: 'review',
+            kind: 'agent',
+            owner: scenario.owner ?? 'reviewer',
+            description: 'Observe committed writes',
+          }),
+        })
+        const { ports } = fakePorts({
+          snapshot: liveAgent.snapshot,
+          head: liveAgent.head,
+          history: liveAgent.history,
+          run: () => {
+            scenario.during(dir)
+            return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
+          },
+        })
+
+        // when
+        await executeAgent(
+          run,
+          activityRun,
+          aCall({
+            committing: scenario.committing === true,
+            cohort: scenario.cohort ?? [],
+          }),
+          ports,
+        )
+
+        // then
+        const touched = events.filter((event) => event.name === PATHS_TOUCHED)
+        if (scenario.noTouched) expect(touched).toEqual([])
+        if (scenario.touched !== undefined) {
+          expect(touched).toHaveLength(1)
+          expect(
+            (touched[0]?.payload as { paths: readonly string[] } | undefined)
+              ?.paths,
+          ).toEqual(scenario.touched)
+        }
+        const warnings = events.filter(
+          (event) =>
+            event.name === WARNING_EVENT &&
+            (event.payload as { kind: string }).kind === 'overstep',
+        )
+        if (scenario.noOverstep) expect(warnings).toEqual([])
+        if (scenario.overstep !== undefined) {
+          expect(warnings).toHaveLength(1)
+          const payload = warnings[0]?.payload as
+            | { paths: readonly string[]; note: string }
+            | undefined
+          expect(payload?.paths).toEqual(scenario.overstep)
+          if (scenario.noteContains !== undefined)
+            expect(payload?.note).toContain(scenario.noteContains)
+          if (scenario.noteExcludes !== undefined)
+            expect(payload?.note).not.toContain(scenario.noteExcludes)
+        }
+      } finally {
+        process.chdir(cwd)
+        rmSync(dir, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}

@@ -11,6 +11,8 @@
 import { render, run, savePrompt } from '../../../agents'
 import {
   changedFiles,
+  headAt,
+  historyPaths,
   isRepo,
   rev,
   snapshotContent,
@@ -29,5 +31,7 @@ export const liveAgent: TAgentPorts = {
     savePrompt(directory, name, content),
   snapshot: (roots) => snapshotTree(roots),
   content: snapshotContent,
+  head: (roots) => headAt(roots.vcsRoot),
+  history: historyPaths,
   rev: (ref) => (isRepo() ? rev(ref) : ''),
 }

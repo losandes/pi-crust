@@ -277,6 +277,8 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
     rev: () => '',
+    head: () => '',
+    history: () => () => [],
     content: () => ({ status: 'ok', data: {} }),
   }
   const args = {

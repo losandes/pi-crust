@@ -24,7 +24,7 @@ export {
 export type { TRoots } from './src/data/roots'
 export { resolveClaim } from './src/data/roots'
 export type { TTreeSnapshot } from './src/data/working-tree'
-export { snapshotTree } from './src/data/working-tree'
+export { historyPaths, snapshotTree } from './src/data/working-tree'
 export {
   forgetWorkspaces,
   readRegistry,

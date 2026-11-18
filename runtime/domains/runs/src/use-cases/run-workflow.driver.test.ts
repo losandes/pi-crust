@@ -93,6 +93,8 @@ const fakeAgentPorts = (
   savePrompt: (directory, name) => join(directory, name),
   snapshot: () => ({}),
   rev: () => '',
+  head: () => '',
+  history: () => () => [],
   content: () => ({ status: 'ok', data: {} }),
 })
 

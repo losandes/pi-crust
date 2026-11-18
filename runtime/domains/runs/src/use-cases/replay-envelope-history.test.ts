@@ -447,6 +447,8 @@ test.skipIf(SKIP_INTEGRATION)(
       savePrompt: (directory, name) => join(directory, name),
       snapshot: () => ({}),
       rev: () => '',
+      head: () => '',
+      history: () => () => [],
       content: () => ({ status: 'ok', data: {} }),
     }
     const cwd = process.cwd()

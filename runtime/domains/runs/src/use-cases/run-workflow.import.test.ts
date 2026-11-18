@@ -137,6 +137,8 @@ const fixture = () => {
     untracked: () => [],
     snapshot: () => ({}),
     rev: () => '',
+    head: () => '',
+    history: () => () => [],
     content: () => ({ status: 'ok', data: {} }),
     render: (_path, variables) => {
       received.set(received.size, variables)

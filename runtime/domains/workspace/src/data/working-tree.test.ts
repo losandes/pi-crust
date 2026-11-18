@@ -1,10 +1,150 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
-import { snapshotTree } from './working-tree'
+import { historyPaths, snapshotTree } from './working-tree'
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given data/working-tree::historyPaths with modified, deleted, new and renamed paths',
+    'when comparing two commits',
+    'it should include both names of a rename (W1)',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    try {
+      mkdirSync(join(dir, 'src'))
+      for (const name of ['app', 'gone', 'old']) {
+        writeFileSync(join(dir, `src/${name}.ts`), `${name}\n`)
+      }
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-qm', 'A')
+      const from = git(dir, 'rev-parse', 'HEAD')
+      writeFileSync(join(dir, 'src/app.ts'), 'changed\n')
+      rmSync(join(dir, 'src/gone.ts'))
+      writeFileSync(join(dir, 'src/new.ts'), 'new\n')
+      renameSync(join(dir, 'src/old.ts'), join(dir, 'src/renamed.ts'))
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-qm', 'B')
+
+      // when
+      const actual = historyPaths({ workspaceRoot: dir, vcsRoot: dir })(
+        from,
+        git(dir, 'rev-parse', 'HEAD'),
+      )
+
+      // then
+      expect(actual.toSorted()).toEqual([
+        'src/app.ts',
+        'src/gone.ts',
+        'src/new.ts',
+        'src/old.ts',
+        'src/renamed.ts',
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given data/working-tree::historyPaths with a nested workspace',
+    'when history changes paths inside and above it',
+    'it should normalize paths like snapshotTree (W2)',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    try {
+      mkdirSync(join(dir, '_newstack'))
+      writeFileSync(join(dir, '_newstack/inside.ts'), 'inside\n')
+      writeFileSync(join(dir, 'above.ts'), 'above\n')
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-qm', 'A')
+      const from = git(dir, 'rev-parse', 'HEAD')
+      writeFileSync(join(dir, '_newstack/inside.ts'), 'changed inside\n')
+      writeFileSync(join(dir, 'above.ts'), 'changed above\n')
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-qm', 'B')
+
+      // when
+      const actual = historyPaths({
+        workspaceRoot: join(dir, '_newstack'),
+        vcsRoot: dir,
+      })(from, git(dir, 'rev-parse', 'HEAD'))
+
+      // then
+      expect(actual.toSorted()).toEqual(
+        ['inside.ts', join(dir, 'above.ts')].toSorted(),
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
+for (const [from, to] of [
+  ['', 'b'],
+  ['a', ''],
+  ['a', 'a'],
+] as const) {
+  test(
+    [
+      `given data/working-tree::historyPaths with revisions ${JSON.stringify([from, to])}`,
+      'when no history comparison is needed',
+      'it should return no paths even with nonexistent roots (W3)',
+    ].join(', '),
+    () => {
+      // given
+      const roots = {
+        workspaceRoot: '/nonexistent/crust-history',
+        vcsRoot: '/nonexistent/crust-history',
+      }
+
+      // when
+      const actual = historyPaths(roots)(from, to)
+
+      // then
+      expect(actual).toEqual([])
+    },
+  )
+}
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given data/working-tree::historyPaths with an unresolvable revision',
+    'when git cannot compare the commits',
+    'it should return no paths without throwing (W4)',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    try {
+      const from = git(dir, 'rev-parse', 'HEAD')
+
+      // when
+      const actual = historyPaths({ workspaceRoot: dir, vcsRoot: dir })(
+        from,
+        '0'.repeat(40),
+      )
+
+      // then
+      expect(actual).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
