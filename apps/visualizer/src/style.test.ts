@@ -80,7 +80,7 @@ const THEME_PROBES = `<div id="soft-fill" class="bg-ok/10">Soft fill</div>
 <span id="mono-reference" style="font-family:var(--mono)">Code</span>`
 
 const NATIVE_HTML = `<section id="native-prose">
-<h1>Heading</h1><p>Paragraph</p>
+<h1>Heading</h1><h2>Two</h2><h3>Three</h3><h4>Four</h4><h5>Five</h5><h6>Six</h6><p>Paragraph</p>
 <ul><li>Bullet</li></ul><ol><li>Number</li></ol>
 <code>Code</code><button>Control</button>
 <input placeholder="Placeholder"><dialog>Dialog</dialog>
@@ -95,7 +95,6 @@ const HARNESS_HTML = `<!doctype html>
 </select>
 ${NATIVE_HTML}
 ${COLOR_PROBES}
-<button id="utility-control" class="font-sans">Utility control</button>
 ${THEME_PROBES}
 <div id="rendered-prose">
   <h1>Heading</h1>
@@ -692,77 +691,66 @@ test.skipIf(!browserTestsEnabled)(
 
 test.skipIf(!browserTestsEnabled)(
   [
-    'given stylesheet-backed controls and raw prose',
-    'when preflight is loaded',
-    'it should retain native typography and prose spacing below utilities',
+    'given unstyled native elements under the app stylesheet',
+    'when Preflight is loaded',
+    'it should reset them rather than restore browser defaults',
   ].join(', '),
   async () => {
     // given
     await withStyles(async (page) => {
-      const native = await page.context().newPage()
-      try {
-        const body = await page.locator('body').evaluate((element) => {
-          const style = getComputedStyle(element)
-          return {
-            font: style.font,
-            lineHeight:
-              Number.parseFloat(style.lineHeight) /
-              Number.parseFloat(style.fontSize),
-          }
+      // when
+      const reset = await page.locator('#native-prose').evaluate((element) => {
+        const parent = getComputedStyle(element)
+        const body = getComputedStyle(document.body)
+        const headings = Array.from(
+          element.querySelectorAll('h1,h2,h3,h4,h5,h6'),
+        ).map((heading) => {
+          const style = getComputedStyle(heading)
+          return { size: style.fontSize, weight: style.fontWeight }
         })
-        await native.setContent(
-          `<style>body { font: ${body.font}; line-height: ${body.lineHeight}; color-scheme: dark; }</style>${NATIVE_HTML}`,
+        const margins = Array.from(element.querySelectorAll('p,ul,ol')).map(
+          (item) => {
+            const style = getComputedStyle(item)
+            return [
+              style.marginTop,
+              style.marginRight,
+              style.marginBottom,
+              style.marginLeft,
+            ]
+          },
         )
-        const readDefaults = (target: Page) =>
-          target.locator('#native-prose *').evaluateAll((elements) =>
-            elements.map((element) => {
-              const style = getComputedStyle(element)
-              const properties = [
-                'font-family',
-                'font-size',
-                'font-weight',
-                'line-height',
-                'letter-spacing',
-                'margin-top',
-                'margin-right',
-                'margin-bottom',
-                'margin-left',
-                'list-style-type',
-                'appearance',
-              ]
-              return {
-                ...Object.fromEntries(
-                  properties.map((property) => [
-                    property,
-                    style.getPropertyValue(property),
-                  ]),
-                ),
-                listPadding: element.matches('ul, ol')
-                  ? style.paddingInlineStart
-                  : '',
-                placeholder: element.matches('input[placeholder]')
-                  ? getComputedStyle(element, '::placeholder').color
-                  : '',
-              }
-            }),
-          )
+        const lists = Array.from(element.querySelectorAll('ul,ol')).map(
+          (list) => {
+            const style = getComputedStyle(list)
+            return {
+              marker: style.listStyleType,
+              padding: style.paddingInlineStart,
+            }
+          },
+        )
+        const button = element.querySelector('button')
+        const control = button ? getComputedStyle(button) : undefined
+        return {
+          headings,
+          inherited: { size: parent.fontSize, weight: parent.fontWeight },
+          margins,
+          lists,
+          control: { family: control?.fontFamily, size: control?.fontSize },
+          body: { family: body.fontFamily, size: body.fontSize },
+        }
+      })
 
-        // when
-        const expected = await readDefaults(native)
-        const actual = await readDefaults(page)
-        const utilityFont = await page
-          .locator('#utility-control')
-          .evaluate((element) => getComputedStyle(element).fontFamily)
-        const bodyFont = await page
-          .locator('body')
-          .evaluate((element) => getComputedStyle(element).fontFamily)
-
-        // then
-        expect(actual).toEqual(expected)
-        expect(utilityFont).toBe(bodyFont)
-      } finally {
-        await native.close()
-      }
+      // then
+      expect(reset.headings).toEqual(
+        Array.from({ length: 6 }, () => reset.inherited),
+      )
+      expect(reset.margins).toEqual(
+        Array.from({ length: 3 }, () => ['0px', '0px', '0px', '0px']),
+      )
+      expect(reset.lists).toEqual(
+        Array.from({ length: 2 }, () => ({ marker: 'none', padding: '0px' })),
+      )
+      expect(reset.control).toEqual(reset.body)
     })
   },
   20_000,

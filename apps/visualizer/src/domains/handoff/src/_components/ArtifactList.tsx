@@ -49,7 +49,8 @@ export const ArtifactList = ({
   artifacts: readonly TArtifact[]
   onOpen: (artifact: TArtifact) => void
 }>) => {
-  if (artifacts.length === 0) return <div className="faint">no documents</div>
+  if (artifacts.length === 0)
+    return <div className="text-faint">no documents</div>
 
   return (
     <div className="flex min-w-0 flex-col gap-4">

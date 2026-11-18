@@ -47,7 +47,8 @@ export const TokenNotice = ({
         <input
           id={fieldId}
           type="password"
-          className="min-w-0 flex-auto rounded-sm border-none px-2 py-1.5 font-mono text-[0.8rem] focus-visible:outline-none focus-visible:outline-offset-2 @sm:basis-56"
+          // Issue #171 SC3: unchanged appearance; the removed rule supplied native control leading and placeholder colour.
+          className="leading-[normal] placeholder:[color:revert] min-w-0 flex-auto rounded-sm border-none px-2 py-1.5 font-mono text-[0.8rem] focus-visible:outline-none focus-visible:outline-offset-2 @sm:basis-56"
           value={token}
           placeholder="CRUST_TOKEN"
           autoComplete="off"
@@ -55,7 +56,7 @@ export const TokenNotice = ({
         />
         <button
           type="submit"
-          className="cursor-pointer rounded-sm border-none px-3 py-1.5 text-[0.8rem] focus-visible:outline-none focus-visible:outline-offset-2"
+          className="[font-family:revert] leading-[normal] cursor-pointer rounded-sm border-none px-3 py-1.5 text-[0.8rem] focus-visible:outline-none focus-visible:outline-offset-2"
         >
           save token
         </button>

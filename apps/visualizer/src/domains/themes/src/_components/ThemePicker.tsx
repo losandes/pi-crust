@@ -149,7 +149,8 @@ export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
         aria-controls={open ? listId : undefined}
         aria-label={`Theme: ${currentLabel}`}
         title={`Theme: ${currentLabel}`}
-        className="inline-flex h-7 w-8 cursor-pointer items-center justify-center rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2/60 p-0 text-faint hover:bg-accent/[calc(var(--fill-soft)*100%)] hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
+        // Issue #171 SC3: unchanged appearance; the removed rule supplied native control typography.
+        className="[font-family:revert] [font-size:revert] leading-[normal] inline-flex h-7 w-8 cursor-pointer items-center justify-center rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2/60 p-0 text-faint hover:bg-accent/[calc(var(--fill-soft)*100%)] hover:text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
         onClick={() => (open ? close() : openAtCurrent())}
         onKeyDown={onTriggerKeyDown}
       >

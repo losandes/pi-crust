@@ -18,7 +18,7 @@
  * thing never done is handing model-written content to the browser as HTML.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Prose } from '@/lib/_components'
+import { ErrorBar, Prose } from '@/lib/_components'
 import { cx } from '@/lib/cx'
 import { renderMarkdown } from '@/lib/markdown'
 import { fetchHandoffFile, handoffHref } from '../io/fetch-handoff-file'
@@ -99,7 +99,8 @@ export const DocumentViewer = ({
       */}
       <button
         type="button"
-        className="absolute inset-0 cursor-default border-0 bg-transparent p-0"
+        // Issue #171 SC3: unchanged appearance; the removed rule supplied native control typography.
+        className="[font-family:revert] [font-size:revert] leading-[normal] absolute inset-0 cursor-default border-0 bg-transparent p-0"
         aria-label="close this document"
         onClick={onClose}
       />
@@ -136,9 +137,9 @@ export const DocumentViewer = ({
           {artifact?.path}
         </p>
         <div className="min-h-0 overflow-auto px-4.5 pb-4.5">
-          {problem !== '' && <div className="error-bar">{problem}</div>}
+          {problem !== '' && <ErrorBar message={problem} />}
           {problem === '' && text === '' && (
-            <div className="faint">loading…</div>
+            <div className="text-faint">loading…</div>
           )}
           {text !== '' &&
             (artifact !== undefined && isMarkdown(artifact.path) ? (
@@ -147,7 +148,7 @@ export const DocumentViewer = ({
               // — this is a document a model wrote.
               <Prose html={renderMarkdown(text)} variant="handoff-document" />
             ) : (
-              <pre className="m-0 font-mono text-sm! whitespace-pre-wrap wrap-anywhere">
+              <pre className="overflow-x-auto rounded-lg border border-border-soft bg-panel-3 px-3.5 py-3 font-mono text-sm whitespace-pre-wrap text-dim wrap-anywhere">
                 {text}
               </pre>
             ))}

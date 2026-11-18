@@ -192,7 +192,8 @@ export const RunControls = ({
       </header>
 
       <textarea
-        className="w-full resize-y rounded-lg border-(length:--border-width) border-border-soft bg-panel-3 px-3 py-2 font-sans text-base/normal text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
+        // Issue #171 SC3: unchanged appearance; the removed rule supplied the native placeholder colour.
+        className="placeholder:[color:revert] w-full resize-y rounded-lg border-(length:--border-width) border-border-soft bg-panel-3 px-3 py-2 font-sans text-base/normal text-text focus-visible:shadow-(--ring) focus-visible:outline-none"
         value={text}
         rows={3}
         disabled={!(live || canConsult)}
@@ -425,7 +426,7 @@ export const RunControls = ({
           <KeyRound size={15} />
           <input
             type="password"
-            className="min-w-0 max-w-80 flex-1 rounded-lg border-(length:--border-width) border-border-soft bg-panel-3 px-2.5 py-1.5 font-mono text-base text-text"
+            className="placeholder:[color:revert] min-w-0 max-w-80 flex-1 rounded-lg border-(length:--border-width) border-border-soft bg-panel-3 px-2.5 py-1.5 font-mono text-base text-text"
             value={token}
             placeholder="CRUST_TOKEN"
             onChange={(event) => setToken(event.target.value)}

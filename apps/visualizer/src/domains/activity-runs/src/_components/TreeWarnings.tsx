@@ -60,7 +60,7 @@ export const TreeWarnings = ({
                 {/* Issue #90 §1.4.2 requires unchanged type: retain 15px as 0.9375rem, not a rounded text step. */}
                 <span className="text-[0.9375rem] font-semibold">
                   {warning.activities.join(', ')}
-                  <span className="dim"> ({warning.stage})</span>
+                  <span className="text-dim"> ({warning.stage})</span>
                 </span>
                 <ul className="m-0 list-disc pl-4.5">
                   {warning.paths.map((path, pathIndex) => (

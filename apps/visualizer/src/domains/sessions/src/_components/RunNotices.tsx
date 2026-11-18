@@ -50,7 +50,9 @@ export const RunNotices = ({
                 <a href={hrefFor(notice.runId, undefined, workspace)}>
                   {notice.runId}
                 </a>{' '}
-                at <code>{notice.activity}</code>
+                {/* Issue #171 SC3: unchanged appearance; the removed rule supplied the native code font. */}
+                at{' '}
+                <code className="[font-family:revert]">{notice.activity}</code>
               </span>
             </>
           ) : (
@@ -65,7 +67,8 @@ export const RunNotices = ({
                 <a href={hrefFor(notice.runId, undefined, workspace)}>
                   {notice.runId}
                 </a>{' '}
-                from <code>{notice.activity}</code>
+                from{' '}
+                <code className="[font-family:revert]">{notice.activity}</code>
               </span>
             </>
           )}

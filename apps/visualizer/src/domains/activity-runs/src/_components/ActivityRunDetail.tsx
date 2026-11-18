@@ -41,7 +41,13 @@ import {
   type TPendingConsult,
 } from '@/domains/narration'
 import { RunControls } from '@/domains/run-controls'
-import { DetailSection, Prose, StatChip, StatusChip } from '@/lib/_components'
+import {
+  DetailSection,
+  ErrorBar,
+  Prose,
+  StatChip,
+  StatusChip,
+} from '@/lib/_components'
 import { cx } from '@/lib/cx'
 import { fmtClock, payloadOk, ts } from '@/lib/format'
 import { highlightJson, highlightJsonText } from '@/lib/markdown'
@@ -79,12 +85,12 @@ const styles = {
   cfgRow: 'flex min-w-0 flex-wrap items-baseline gap-3 @sm:flex-nowrap',
   cfgK: 'min-w-28 shrink-0 text-faint',
   cfgV: 'min-w-0 text-text wrap-anywhere',
+  cfgNone: 'min-w-0 text-dim wrap-anywhere',
   cfgModelIcon: 'size-4 shrink-0 object-contain',
   cfgChips: 'inline-flex min-w-0 flex-wrap gap-1.5',
   cfgChip:
     'inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border-(length:--border-width) border-border-soft bg-panel-2/60 px-3 py-0.5 font-mono text-base wrap-anywhere',
   cfgIcon: 'shrink-0 text-faint',
-  error: '!mx-4.5 !mt-3.5 !mb-0',
   tabs: 'flex flex-wrap gap-0.5 border-b-(length:--border-width) border-border px-4.5',
   tab: 'inline-flex cursor-pointer items-center gap-2 border-0 border-b-2 border-b-transparent bg-transparent px-3.5 py-2 font-sans text-[0.86rem] leading-normal text-faint hover:text-dim',
   on: '!border-b-accent !text-text',
@@ -106,8 +112,9 @@ const styles = {
   col: '',
   promptPanel:
     'mb-2.5 rounded-lg border-(length:--border-width) border-border-soft bg-panel-3',
+  // Issue #171 SC3: unchanged appearance; the removed rule supplied the native button font and pre leading.
   promptHead:
-    'flex w-full cursor-pointer flex-wrap items-baseline gap-3 rounded-t-lg border-0 bg-transparent px-3.5 py-2 text-left text-base/[normal] text-text hover:bg-panel-2 [&>.dim]:ml-auto',
+    '[font-family:revert] flex w-full cursor-pointer flex-wrap items-baseline gap-3 rounded-t-lg border-0 bg-transparent px-3.5 py-2 text-left text-base/[normal] text-text hover:bg-panel-2',
   chev: 'shrink-0 text-faint',
   promptTitle: 'font-bold',
   promptBody:
@@ -115,18 +122,20 @@ const styles = {
   promptTools:
     'mb-3 flex gap-2 [&>button]:cursor-pointer [&>button]:rounded-md [&>button]:border-(length:--border-width) [&>button]:border-border-soft [&>button]:bg-transparent [&>button]:px-3 [&>button]:py-0.5 [&>button]:font-mono [&>button]:text-base/[normal] [&>button]:text-dim',
   active: '!border-border !bg-panel-2 !text-text',
-  promptRaw: '!max-h-none !border-0 !bg-transparent !p-0',
+  promptRaw:
+    'overflow-x-auto rounded-lg font-mono text-base/[1.55] whitespace-pre-wrap text-dim wrap-anywhere',
   gate: 'group/gate mb-2.5 rounded-lg border-(length:--border-width) border-border-soft border-l-3 bg-panel-3 px-3.5 py-2.5 [&.passed]:border-l-green [&.failed]:border-l-red',
   gateLine: 'flex flex-wrap items-baseline gap-3',
   gateToggle:
-    'w-full cursor-pointer border-0 bg-transparent p-0 text-left text-base/[normal] text-text',
+    '[font-family:revert] w-full cursor-pointer border-0 bg-transparent p-0 text-left text-base/[normal] text-text',
   gateMark: 'group-[.passed]/gate:text-green group-[.failed]/gate:text-red',
   gateChecks: 'mt-2.5 border-t-(length:--border-width) border-border-soft pt-2',
   gateCheck: 'group/check flex flex-wrap items-baseline gap-2.5 py-1',
   checkMark: 'group-[.passed]/check:text-green group-[.failed]/check:text-red',
   checkItem: 'min-w-0 font-mono wrap-anywhere',
   checkNote: 'whitespace-pre-wrap wrap-anywhere',
-  checkNoteBlock: 'mt-1 mb-1.5 ml-6 max-h-[30vh] basis-full overflow-auto',
+  checkNoteBlock:
+    'max-h-[30vh] basis-full overflow-auto rounded-lg border border-border-soft bg-panel-3 px-3.5 py-3 font-mono text-base/[1.55] whitespace-pre-wrap text-dim wrap-anywhere',
   tagFail: '!border-fail/55 [&>span:last-child]:text-red',
   gateName: 'font-bold text-text wrap-anywhere',
   gateTime: 'ml-auto',
@@ -142,7 +151,9 @@ const styles = {
     'group total [&>td]:border-t-(length:--border-width) [&>td]:border-border-soft [&>td]:pt-2 [&>td]:font-bold',
   // Issue #90 §1.4.2 requires unchanged type: retain 15px as 0.9375rem, not a rounded text step.
   usageNote: 'mt-2.5 mb-0 text-[0.9375rem]',
-  output: 'mb-3.5 [&>pre]:max-h-[40vh] [&>pre]:overflow-auto',
+  output: 'mb-3.5',
+  outputPre:
+    'max-h-[40vh] overflow-auto rounded-lg border border-border-soft bg-panel-3 px-3.5 py-3 font-mono text-base/[1.55] whitespace-pre-wrap text-dim wrap-anywhere',
   outputLine: 'mb-2 flex flex-wrap items-baseline gap-3',
   outputType: 'font-bold text-purple',
   outputValid: '[&.passed]:text-green [&.failed]:text-red',
@@ -162,7 +173,7 @@ const styles = {
   // Issue #90 §1.4.2 requires unchanged type: retain 17px as 1.0625rem, not a rounded text step.
   payloadTool: 'text-[1.0625rem] font-bold text-cyan',
   payloadPre:
-    '!max-h-[42vh] overflow-auto !rounded-lg !border-(length:--border-width) !border-border-soft !bg-bg/55 !px-3 !py-2.5',
+    'max-h-[42vh] overflow-auto rounded-lg border-(length:--border-width) border-border-soft bg-bg/55 px-3 py-2.5 font-mono text-base/[1.55] whitespace-pre-wrap text-dim wrap-anywhere',
   documents: 'mt-3.5',
   documentsHead:
     'mt-0 mb-2 text-xs leading-normal font-semibold tracking-[0.08em] text-dim uppercase',
@@ -432,7 +443,7 @@ export const ActivityRunDetail = ({
       </header>
 
       {activityRun.error && (
-        <div className={cx('error-bar', styles.error)}>{activityRun.error}</div>
+        <ErrorBar message={activityRun.error} placement="panel" />
       )}
 
       <DocumentViewer
@@ -521,7 +532,7 @@ export const ActivityRunDetail = ({
                   />
                 </div>
               ) : (
-                <div className={cx(styles.colBody, 'faint')}>
+                <div className={cx(styles.colBody, 'text-faint')}>
                   this activity ran code, not an agent
                 </div>
               )}
@@ -663,7 +674,7 @@ export const ActivityRunDetail = ({
                         ))}
                       </span>
                     ) : (
-                      <span className={cx(styles.cfgV, 'dim')}>none</span>
+                      <span className={styles.cfgNone}>none</span>
                     )}
                   </div>
                 )}
@@ -712,13 +723,13 @@ export const ActivityRunDetail = ({
               onToggle={() => sections.toggle('prompts')}
             >
               {prompts.state === 'loading' && (
-                <div className="faint">loading prompts…</div>
+                <div className="text-faint">loading prompts…</div>
               )}
               {prompts.state === 'error' && (
-                <div className="faint">prompts unavailable</div>
+                <div className="text-faint">prompts unavailable</div>
               )}
               {prompts.state === 'ready' && prompts.panels.length === 0 && (
-                <div className="faint">no compiled prompts recorded</div>
+                <div className="text-faint">no compiled prompts recorded</div>
               )}
               {prompts.state === 'ready' &&
                 prompts.panels.map((panel) => (
@@ -732,7 +743,9 @@ export const ActivityRunDetail = ({
                         {openPanels.has(panel.id) ? '▾' : '▸'}
                       </span>
                       <span className={styles.promptTitle}>{panel.title}</span>
-                      <span className="dim">{panel.lines} lines</span>
+                      <span className="ml-auto text-dim">
+                        {panel.lines} lines
+                      </span>
                     </button>
                     {openPanels.has(panel.id) && (
                       <div className={styles.promptBody}>
@@ -776,7 +789,7 @@ export const ActivityRunDetail = ({
             onToggle={() => sections.toggle('gates')}
           >
             {activityRunGates.length === 0 && (
-              <div className="faint">no gate results</div>
+              <div className="text-faint">no gate results</div>
             )}
             {activityRunGates.map((gate) => {
               const checks = gateChecks(gate)
@@ -796,7 +809,7 @@ export const ActivityRunDetail = ({
                           {gate.passed ? '✓' : '✗'}
                         </span>
                         <span className={styles.gateName}>{gate.gate}</span>
-                        <span className={`dim ${styles.gateTime}`}>
+                        <span className={`text-dim ${styles.gateTime}`}>
                           {fmtClock(gate.created_at)}
                         </span>
                       </div>
@@ -834,14 +847,14 @@ export const ActivityRunDetail = ({
                             {checksLabel(checks)}
                           </span>
                         </span>
-                        <span className={`dim ${styles.gateTime}`}>
+                        <span className={`text-dim ${styles.gateTime}`}>
                           {fmtClock(gate.created_at)}
                         </span>
                       </button>
                       {openGates.has(gate.id) && (
                         <div className={styles.gateChecks}>
                           {checks.length === 0 && (
-                            <div className="faint">
+                            <div className="text-faint">
                               nothing to check — the gate inspected no items
                             </div>
                           )}
@@ -869,7 +882,9 @@ export const ActivityRunDetail = ({
                                   {check.note}
                                 </pre>
                               ) : check.note ? (
-                                <span className={cx(styles.checkNote, 'dim')}>
+                                <span
+                                  className={cx(styles.checkNote, 'text-dim')}
+                                >
                                   {check.note}
                                 </span>
                               ) : undefined}
@@ -925,7 +940,7 @@ export const ActivityRunDetail = ({
                 </tbody>
               </table>
               {usage.partial && (
-                <p className={cx('faint', styles.usageNote)}>
+                <p className={cx('text-faint', styles.usageNote)}>
                   this run predates the per-component breakdown — only the total
                   was recorded
                 </p>
@@ -946,7 +961,7 @@ export const ActivityRunDetail = ({
               </div>
             )}
             {activityRunOutputs.length === 0 && artifacts.length === 0 && (
-              <div className="faint">no outputs</div>
+              <div className="text-faint">no outputs</div>
             )}
             {activityRunOutputs.map((envelope) => (
               <div key={envelope.envelope_id} className={styles.output}>
@@ -969,6 +984,7 @@ export const ActivityRunDetail = ({
                 </div>
                 {/* Safe: highlightJson escapes ALL input before emitting its own spans. */}
                 <pre
+                  className={styles.outputPre}
                   // biome-ignore lint/security/noDangerouslySetInnerHtml: highlightJson escapes its input
                   dangerouslySetInnerHTML={{
                     __html: highlightJson(envelope.payload_json),
@@ -986,7 +1002,7 @@ export const ActivityRunDetail = ({
       >
         <div className={styles.col}>
           {activityRunEvents.length === 0 && (
-            <div className="faint">no events</div>
+            <div className="text-faint">no events</div>
           )}
           {activityRunEvents.map((event) => {
             const duration = eventDurationMs(event)
@@ -1000,7 +1016,7 @@ export const ActivityRunDetail = ({
                   className={cx(styles.eventRow, open && styles.open)}
                   onClick={() => openEvents.toggle(event.event_id)}
                 >
-                  <span className={cx(styles.eventTime, 'dim')}>
+                  <span className={cx(styles.eventTime, 'text-dim')}>
                     {fmtClock(event.started_at)}
                   </span>
                   <span
@@ -1038,7 +1054,7 @@ export const ActivityRunDetail = ({
                     {call === null ? (
                       event.type === 'tool_call' && event.payload_json ? (
                         <>
-                          <div className="faint">
+                          <div className="text-faint">
                             no detail available — legacy event payload
                           </div>
                           <pre
@@ -1061,7 +1077,7 @@ export const ActivityRunDetail = ({
                           />
                         </>
                       ) : (
-                        <div className="faint">no payload</div>
+                        <div className="text-faint">no payload</div>
                       )
                     ) : (
                       <>

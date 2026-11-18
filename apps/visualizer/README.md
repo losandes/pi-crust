@@ -9,9 +9,9 @@ just crust observe --host       # listen on every interface, so a phone can watc
 
 ## Styling
 
-`src/style.css` loads Tailwind CSS v4 through the Vite plugin, bridges the runtime theme variables with `@theme inline`, and owns global keyframes and rendered-markdown rules. Theme palettes and derivation remain in `src/domains/themes/src/tokens.css`; registered themes still repaint the app through `data-theme`.
+`src/style.css` loads Tailwind CSS v4 through the Vite plugin and holds theme plumbing and document-level rules only: the `@theme inline` bridge to the runtime theme variables, the app's keyframes, document-level rules for `*`, `html`, `body`, `#app` and `a`, and the `.j-*` classes the JSON highlighter emits. Theme palettes and derivation remain in `src/domains/themes/src/tokens.css`; registered themes still repaint the app through `data-theme`. Two provisions with no reader remain until issue #169 removes them: the `.empty-state` class and the `--radius-sm` override.
 
-A compatibility block in `@layer base` preserves the browser typography, prose spacing, dialog centering and placeholder colours still used by stylesheet-backed components and raw markdown. Preflight stays enabled; utilities can override the compatibility defaults.
+Preflight is the baseline. The stylesheet restores no browser default, so a native element renders reset until utilities on that element say otherwise; rendered markdown takes its utilities from the `Prose` root. An error message box is the `ErrorBar` atom from `@/lib/_components`.
 
 Author components with Tailwind utilities, following the portable [CSS conventions](../../.claude/skills/adr/css/README.md). Existing components remain on their CSS Modules until migrated as a unit: do not mix a component's stylesheet with utility styling. Compose conditional classes with `@/lib/cx`.
 
