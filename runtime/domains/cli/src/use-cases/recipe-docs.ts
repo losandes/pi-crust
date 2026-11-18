@@ -388,6 +388,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     examples: ['just crust amend 9d67c31f design "shorten section 3"'],
   },
   {
+    name: 'join',
+    group: 'steering a run',
+    summary: "step into a stopped run's conversation",
+    usage: 'just crust join <run-id> <activity>',
+    flags: [],
+    env: [],
+    examples: ['just crust join 9d67c31f build'],
+  },
+  {
     name: 'report',
     group: 'reading the trace',
     summary: 'where a run got to, and what to run to finish it',

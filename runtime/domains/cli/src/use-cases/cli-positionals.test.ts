@@ -1,10 +1,28 @@
 import { expect, test } from 'bun:test'
 import {
   DECIDE_CLI,
+  JOIN_CLI,
   positionalArgs,
   RESUME_CLI,
   STEER_CLI,
 } from './cli-positionals'
+
+test(
+  [
+    'given positionalArgs and JOIN_CLI',
+    'when passed a named run id',
+    'it should refuse the unknown flag by name',
+  ].join(', '),
+  () => {
+    // given
+    const argv = ['--run-id', 'x']
+
+    // when, then
+    expect(() => positionalArgs(argv, JOIN_CLI)).toThrow(
+      'unknown flag: --run-id',
+    )
+  },
+)
 
 test(
   [
@@ -186,12 +204,12 @@ test(
     'it should refuse both, with no escape-hatch separator',
   ].join(', '),
   () => {
-    // given, when, then
-    expect(() => positionalArgs(['-', 'abc'], RESUME_CLI)).toThrow(
-      /unknown flag/,
-    )
-    expect(() => positionalArgs(['--', 'abc'], RESUME_CLI)).toThrow(
-      /unknown flag/,
-    )
+    // given
+    const bareDash = ['-', 'abc']
+    const doubleDash = ['--', 'abc']
+
+    // when, then
+    expect(() => positionalArgs(bareDash, RESUME_CLI)).toThrow(/unknown flag/)
+    expect(() => positionalArgs(doubleDash, RESUME_CLI)).toThrow(/unknown flag/)
   },
 )

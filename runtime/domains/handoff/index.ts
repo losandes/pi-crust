@@ -29,6 +29,14 @@ export {
   isSharedHandoffDir,
   resolveHandoffDir,
 } from './src/use-cases/handoff-location'
+export type {
+  TJoinPorts,
+  TJoinRefusal,
+  TJoinRefusalReason,
+  TJoinRequest,
+  TJoinTarget,
+} from './src/use-cases/join-session'
+export { joinArgv, resolveJoin } from './src/use-cases/join-session'
 export type { TSeeding } from './src/use-cases/steer'
 export {
   activitiesToReplay,
