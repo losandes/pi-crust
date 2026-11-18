@@ -102,9 +102,11 @@ const styles = {
     'min-w-5 rounded-full bg-waiting/18 px-1.5 text-center text-[0.72rem] font-bold text-waiting',
   hidden: 'hidden',
   chat: 'px-4.5 pt-4 pb-5',
-  // The legacy row already has one column; only its height changed at 1100px.
-  // Keep that column, but let variable-length content grow at either size.
-  chatCols: 'mb-4.5 grid min-h-96 grid-cols-1 gap-5 @3xl:min-h-128',
+  // One column at a fixed height at either size: the conversation scrolls
+  // inside the frame, which is what lets it follow the newest message. The
+  // styling record exempts a region that scrolls its own overflow from its
+  // fixed-height rule.
+  chatCols: 'mb-4.5 grid h-96 grid-cols-1 gap-5 @3xl:h-128',
   chatCol:
     'flex min-h-0 min-w-0 flex-col rounded-xl border-(length:--border-width) border-border-soft bg-surface shadow-(--shadow-panel)',
   colHead:
@@ -528,11 +530,12 @@ export const ActivityRunDetail = ({
             ledger that is not part of it — which has its own tab now.
           */}
           <div className={styles.chatCols}>
-            <div className={styles.chatCol}>
+            <div className={styles.chatCol} data-testid="activity-run-thinking">
               <h4 className={styles.colHead}>thinking</h4>
               {activityRun.kind === 'agent' ? (
                 <div className={styles.colBodyFlush}>
                   <NarrationPane
+                    key={activityRun.activity_run_id}
                     events={activityRunEvents}
                     agent={activityRun.owner ?? activityRun.name ?? 'agent'}
                     envelope={activityRunOutputs.at(-1)}

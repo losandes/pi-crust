@@ -1,11 +1,43 @@
 import { expect, test } from 'bun:test'
 import type { EventRow } from '@/domains/events'
 import {
+  hasOverflow,
   isAtBottom,
   JUMP_THRESHOLD,
   shouldOfferJump,
   turnsOf,
 } from './narration'
+
+for (const { name, scrollHeight, clientHeight, expected } of [
+  {
+    name: 'greater than',
+    scrollHeight: 601,
+    clientHeight: 600,
+    expected: true,
+  },
+  { name: 'equal to', scrollHeight: 600, clientHeight: 600, expected: false },
+  {
+    name: 'smaller than',
+    scrollHeight: 599,
+    clientHeight: 600,
+    expected: false,
+  },
+]) {
+  test(
+    [
+      'given narration::hasOverflow',
+      `when scroll height is ${name} client height`,
+      `it should return ${expected}`,
+    ].join(', '),
+    () => {
+      // given — the table supplies both dimensions and the expected result.
+      // when
+      const actual = hasOverflow(scrollHeight, clientHeight)
+      // then
+      expect(actual).toBe(expected)
+    },
+  )
+}
 
 const event = (overrides: Partial<EventRow>): EventRow =>
   ({

@@ -146,6 +146,17 @@ export const turnsOf = (events: readonly EventRow[]): readonly TTurn[] =>
  */
 export const AT_BOTTOM_SLACK_PX = 24
 
+/**
+ * Whether a scroller has content beyond its frame.
+ *
+ * Scroll containment is applied only when this holds: on a scroller with
+ * nothing to scroll, containment keeps the wheel from the page behind it.
+ */
+export const hasOverflow = (
+  scrollHeight: number,
+  clientHeight: number,
+): boolean => scrollHeight > clientHeight
+
 export const isAtBottom = (
   scrollTop: number,
   scrollHeight: number,
