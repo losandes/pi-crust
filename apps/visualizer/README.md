@@ -9,13 +9,15 @@ just crust observe --host       # listen on every interface, so a phone can watc
 
 ## Styling
 
-`src/style.css` loads Tailwind CSS v4 through the Vite plugin and holds theme plumbing and document-level rules only: the `@theme inline` bridge to the runtime theme variables, the app's keyframes, document-level rules for `*`, `html`, `body`, `#app` and `a`, and the `.j-*` classes the JSON highlighter emits. Theme palettes and derivation remain in `src/domains/themes/src/tokens.css`; registered themes still repaint the app through `data-theme`. Two provisions with no reader remain until issue #169 removes them: the `.empty-state` class and the `--radius-sm` override.
+`src/style.css` loads Tailwind CSS v4 through the Vite plugin and holds theme plumbing and document-level rules only: the `@theme inline` bridge to the runtime theme variables, the app's keyframes, document-level rules for `*`, `html`, `body`, `#app` and `a`, and the `.j-*` classes the JSON highlighter emits. Theme palettes and derivation remain in `src/domains/themes/src/tokens.css`; registered themes still repaint the app through `data-theme`.
 
 Preflight is the baseline. The stylesheet restores no browser default, so a native element renders reset until utilities on that element say otherwise; rendered markdown takes its utilities from the `Prose` root. An error message box is the `ErrorBar` atom from `@/lib/_components`.
 
-Author components with Tailwind utilities, following the portable [CSS conventions](../../.claude/skills/adr/css/README.md). Existing components remain on their CSS Modules until migrated as a unit: do not mix a component's stylesheet with utility styling. Compose conditional classes with `@/lib/cx`.
+Style components with Tailwind utility classes only, following the portable [CSS conventions](../../.claude/skills/adr/css/README.md). There are no component stylesheets. The fast architecture tests enforce that `src/style.css` and `src/domains/themes/src/tokens.css` are the only stylesheets anywhere under `src`. Compose conditional classes with `@/lib/cx`.
 
 Browser tests import `viewportWidths` from `@/lib/testing` and refer to widths by tier: `base`, `sm`, `md`, `lg`, `xl` and `2xl`. The helper reads Tailwind's default `--breakpoint-*` values and takes the base width from the `phoneViewport` constant, checked against Playwright's small-phone device descriptor by an integration test; do not repeat viewport dimensions in tests.
+
+Whole-page browser checks exercise the dashboard and populated trace inside the app shell at every tier, with the activity detail closed and with each detail tab open. They cover Dark, Light, Auto under both system preferences, and a runtime-registered High contrast theme with thicker borders, measuring document scroll width against the viewport with a 1 CSS pixel tolerance.
 
 Integration tests run only under `RUN_INTEGRATION_TESTS=true`. The root `test:agent` and `test:raw` mise tasks set it; `test`, `test:be` and `test:fe` do not. These integrations are the browser-driven tests, the git-repository tests in `server/workspaces.test.ts`, and the Playwright viewport-descriptor check. From the repository root, run `CLAUDECODE=1 bun test apps/visualizer` for the fast suite or `RUN_INTEGRATION_TESTS=true CLAUDECODE=1 bun test <path>` for a scoped integration run. Browser tests also require Chromium: run `bunx playwright install chromium` from `apps/visualizer` if it is unavailable.
 

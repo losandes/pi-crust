@@ -7,7 +7,6 @@
  * highlighter emits. Components are styled by utilities on their own
  * elements. Preflight is the baseline: nothing here restores a browser
  * default.
- * Two provisions with no reader remain until issue #169 removes them: the `.empty-state` class and the `--radius-sm` override.
  */
 
 /*
@@ -64,21 +63,6 @@
   }
 }
 
-/*
- * Inline Tailwind's default small radius before clearing its root token:
- * legacy CSS Modules use the same name with different fallback radii.
- */
-@theme inline {
-  --radius-sm: 0.25rem;
-}
-
-@layer base {
-  :root,
-  :host {
-    --radius-sm: initial;
-  }
-}
-
 * {
   box-sizing: border-box;
 }
@@ -128,11 +112,4 @@ a {
 
 .j-null {
   color: var(--red);
-}
-
-.empty-state {
-  padding: 56px 24px;
-  text-align: center;
-  color: var(--dim);
-  font-size: 16px;
 }
