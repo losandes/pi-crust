@@ -29,6 +29,7 @@ const withTrace = (
   check: (page: Page) => Promise<void>,
   status = 'waiting',
   state: 'populated' | 'error' | 'empty' | 'loading' = 'populated',
+  branch = '',
 ) => {
   return withSuitePage(suite)(
     {
@@ -53,7 +54,7 @@ const withTrace = (
         }),
       )
       await page.goto(
-        `${base}/__trace__/index.html?status=${status}&state=${state}#/fixture:trace-layout`,
+        `${base}/__trace__/index.html?status=${status}&state=${state}&branch=${branch}#/fixture:trace-layout`,
       )
       const ready = {
         populated: page.locator(RUNNING_BLOCK),
@@ -146,6 +147,164 @@ for (const { tier, columns, below } of [
           }
         }
       })
+    },
+    30_000,
+  )
+}
+
+for (const status of ['running', 'waiting', 'success', 'fail'] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given a ${status} run at the base tier`,
+      status === 'success'
+        ? 'when the run link is opened directly without visiting the dashboard'
+        : 'when opening its run page',
+      'it should show the recorded branch immediately between status and start date',
+    ].join(', '),
+    async () => {
+      // given
+      await withTrace(
+        'base',
+        async (page) => {
+          // when
+          const branch = page.getByTestId('session-branch')
+          const strip = await branch.evaluate((element) => ({
+            text: element.textContent,
+            previous: element.previousElementSibling?.textContent?.trim(),
+            next: element.nextElementSibling?.textContent?.trim(),
+          }))
+
+          // then
+          expect(await branch.count()).toBe(1)
+          expect(strip.text).toBe('feature/trace-layout')
+          expect(strip.previous).toBe(status)
+          expect(strip.next).toStartWith('started')
+        },
+        status,
+      )
+    },
+    30_000,
+  )
+}
+
+for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given a successful run at the ${tier} tier`,
+      'when opening its run page directly',
+      'it should keep its branch visible immediately between status and start date',
+    ].join(', '),
+    async () => {
+      // given
+      await withTrace(
+        tier,
+        async (page) => {
+          // when
+          const branch = page.getByTestId('session-branch')
+          const strip = await branch.evaluate((element) => ({
+            width: element.getBoundingClientRect().width,
+            height: element.getBoundingClientRect().height,
+            previous: element.previousElementSibling?.textContent?.trim(),
+            next: element.nextElementSibling?.textContent?.trim(),
+          }))
+
+          // then
+          expect(await branch.count()).toBe(1)
+          expect(strip.width).toBeGreaterThan(0)
+          expect(strip.height).toBeGreaterThan(0)
+          expect(strip.previous).toBe('success')
+          expect(strip.next).toStartWith('started')
+        },
+        'success',
+      )
+    },
+    30_000,
+  )
+}
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a run without a recorded branch at the base tier',
+    'when opening its run page directly',
+    'it should show exactly one working-tree name between status and start date',
+  ].join(', '),
+  async () => {
+    // given
+    await withTrace(
+      'base',
+      async (page) => {
+        // when
+        const branch = page.getByTestId('session-branch')
+        const strip = await branch.evaluate((element) => ({
+          text: element.textContent,
+          title: element.getAttribute('title'),
+          width: element.getBoundingClientRect().width,
+          previous: element.previousElementSibling?.textContent?.trim(),
+          next: element.nextElementSibling?.textContent?.trim(),
+        }))
+
+        // then
+        expect(await branch.count()).toBe(1)
+        expect(strip.text).toBe('fixture')
+        expect(strip.title).toBe('fixture')
+        expect(strip.width).toBeGreaterThan(0)
+        expect(strip.previous).toBe('success')
+        expect(strip.next).toStartWith('started')
+      },
+      'success',
+      'populated',
+      'none',
+    )
+  },
+  30_000,
+)
+
+for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given a run with a 120-character branch at the ${tier} tier`,
+      'when opening its run page directly',
+      'it should avoid horizontal document overflow and keep status and start date visible',
+    ].join(', '),
+    async () => {
+      // given
+      await withTrace(
+        tier,
+        async (page) => {
+          // when
+          const branch = page.getByTestId('session-branch')
+          const layout = await branch.evaluate((element) => {
+            const status = element.previousElementSibling
+            const started = element.nextElementSibling
+            if (!(status && started)) throw new Error('Missing strip siblings')
+            return {
+              length: element.textContent?.length,
+              title: element.getAttribute('title'),
+              document: document.documentElement.scrollWidth,
+              viewport: window.innerWidth,
+              siblings: [status, started].map((sibling) => {
+                const { left, right, width, height } =
+                  sibling.getBoundingClientRect()
+                return { left, right, width, height }
+              }),
+            }
+          })
+
+          // then
+          expect(layout.length).toBe(120)
+          expect(layout.title).toBe(`feature/${'x'.repeat(112)}`)
+          expect(layout.document).toBeLessThanOrEqual(layout.viewport + 1)
+          for (const rect of layout.siblings) {
+            expect(rect.width).toBeGreaterThan(0)
+            expect(rect.height).toBeGreaterThan(0)
+            expect(rect.left).toBeGreaterThanOrEqual(0)
+            expect(rect.right).toBeLessThanOrEqual(layout.viewport)
+          }
+        },
+        'success',
+        'populated',
+        'long',
+      )
     },
     30_000,
   )

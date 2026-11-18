@@ -78,9 +78,6 @@ export const SessionsList = () => {
     [poll.value],
   )
   const roles = useMemo(() => workspaceRoles(labels), [labels])
-  // One tree is the ordinary case, and naming it on every card would be the
-  // same word repeated down the page.
-  const several = labels.length > 1
 
   const ordered = useMemo(
     () =>
@@ -207,11 +204,7 @@ export const SessionsList = () => {
                   key={`${session.workspace}:${session.run_id}`}
                   session={session}
                   nowMs={poll.at}
-                  workspaceRole={
-                    several
-                      ? (roles.get(session.workspace) ?? 'blue')
-                      : undefined
-                  }
+                  workspaceRole={roles.get(session.workspace) ?? 'blue'}
                   onArchived={onArchived}
                   onRefused={setRefused}
                 />

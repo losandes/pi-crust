@@ -9,6 +9,7 @@ import { paletteColor } from '@/lib/palette'
 import { hrefFor } from '@/lib/router'
 import { archiveSession } from '../io/send-archive-session'
 import type { SessionSummary } from '../typedefs/session'
+import { resolveBranchLabel } from '../usecases/resolve-branch-label'
 
 /**
  * The timeline shows at most MAX_VISIBLE_ROWS slots. An overflowing roster
@@ -106,12 +107,8 @@ export const SessionCard = ({
 }: Readonly<{
   session: SessionSummary
   nowMs: number
-  /**
-   * The colour this run's working tree wears, or absent when only one tree is
-   * being watched — where the chip would say the same word on every card,
-   * which is noise rather than information.
-   */
-  workspaceRole?: string
+  /** The colour this run's working tree wears: the role the tree filter gives it. */
+  workspaceRole: string
   /** Called with the id to drop, or '' when the write failed and a re-sync is needed. */
   onArchived: (runId: string) => void
   /** A refused write, in words — the list shows it with somewhere to fix it. */
@@ -253,21 +250,20 @@ export const SessionCard = ({
         {session.run_id}
       </span>
       {/*
-        Which tree this ran in. Only when several are watched: with one, it is
-        the same word on every card, which is noise rather than information.
+        The branch this run started on, in its tree's colour; the tree's name
+        when no branch was recorded. Shown with one tree watched or several.
       */}
-      {workspaceRole !== undefined && (
-        <span
-          className="max-w-full flex-none self-start truncate rounded-full px-2 py-0.5 font-mono text-xs leading-normal"
-          style={{
-            color: paletteColor(workspaceRole),
-            background: paletteColor(workspaceRole, 0.14),
-          }}
-          title={session.workspace_root ?? session.workspace}
-        >
-          {session.branch ?? session.workspace}
-        </span>
-      )}
+      <span
+        className="max-w-full flex-none self-start truncate rounded-full px-2 py-0.5 font-mono text-xs leading-normal"
+        data-testid="session-branch"
+        style={{
+          color: paletteColor(workspaceRole),
+          background: paletteColor(workspaceRole, 0.14),
+        }}
+        title={session.workspace_root ?? session.workspace}
+      >
+        {resolveBranchLabel(session)}
+      </span>
       <span
         className="flex-none truncate font-mono text-base text-cyan"
         title={session.name ?? session.lifecycle ?? ''}
