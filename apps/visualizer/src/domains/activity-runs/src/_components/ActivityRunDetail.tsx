@@ -62,6 +62,10 @@ import {
   requestText,
   violations,
 } from '../usecases/activity-run-facts'
+import {
+  deriveGatesVerdict,
+  type TGatesVerdict,
+} from '../usecases/derive-gates-verdict'
 import { byStart, startedAfter } from '../usecases/order'
 import { usePrompts } from '../usecases/use-prompts'
 import { warningsFor } from '../usecases/warnings'
@@ -180,6 +184,16 @@ const styles = {
   highlights: 'overflow-auto px-4.5 pt-4 pb-5',
 } as const
 
+const GATES_VERDICT_MARK = {
+  passed: '✓',
+  failed: '✗',
+} as const satisfies Record<TGatesVerdict, string>
+
+const GATES_VERDICT_TONE = {
+  passed: 'flex-none font-normal text-green',
+  failed: 'flex-none font-normal text-red',
+} as const satisfies Record<TGatesVerdict, string>
+
 const NUM = new Intl.NumberFormat('en-US')
 
 const TYPE_CLASS: Readonly<Record<string, string>> = {
@@ -276,6 +290,8 @@ export const ActivityRunDetail = ({
         .toSorted((a, b) => a.id - b.id),
     [gates, activityRun.activity_run_id],
   )
+
+  const gatesVerdict = deriveGatesVerdict(activityRunGates)
 
   const activityRunOutputs = useMemo(
     () =>
@@ -785,6 +801,16 @@ export const ActivityRunDetail = ({
             title="gates"
             icon={ShieldCheck}
             count={activityRunGates.length}
+            trailing={
+              gatesVerdict === undefined ? undefined : (
+                <span
+                  data-testid="gates-verdict"
+                  className={GATES_VERDICT_TONE[gatesVerdict]}
+                >
+                  {GATES_VERDICT_MARK[gatesVerdict]}
+                </span>
+              )
+            }
             open={sections.has('gates')}
             onToggle={() => sections.toggle('gates')}
           >

@@ -47,6 +47,7 @@ afterAll(() => closeBrowserSuite(suite), 30_000)
 const withDetail = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
+  query = '',
 ) => {
   return withSuitePage(suite)(
     {
@@ -85,7 +86,7 @@ const withDetail = (
             : []
         return route.fulfill({ json: body })
       })
-      await page.route('**/__diag__/index.html', async (route) =>
+      await page.route('**/__diag__/index.html*', async (route) =>
         route.fulfill({
           contentType: 'text/html',
           body: await server.transformIndexHtml(
@@ -94,7 +95,7 @@ const withDetail = (
           ),
         }),
       )
-      await page.goto(`${base}/__diag__/index.html`)
+      await page.goto(`${base}/__diag__/index.html${query}`)
       await page.getByRole('tab', { name: 'events' }).waitFor()
       await page.waitForFunction(() =>
         document
@@ -624,3 +625,297 @@ for (const { theme, scheme } of THEMES) {
     30_000,
   )
 }
+
+const gatesHeader = (page: Page) =>
+  page
+    .locator(`${CONTEXT} > div > section > button`)
+    .filter({ hasText: 'gates' })
+
+const gateRows = (page: Page) =>
+  gatesHeader(page).locator('..').locator(':scope > div > div > button')
+
+const gatesHeaderText = (page: Page) =>
+  gatesHeader(page).evaluate((button) => button.textContent?.replace(/\s/g, ''))
+
+for (const tier of ['base', 'xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given mixed gates at the ${tier} tier`,
+      'when the context tab is opened and gates are expanded',
+      'it should show exactly one verdict directly after the count in both states',
+    ].join(', '),
+    async () => {
+      // given
+      await withDetail(tier, async (page) => {
+        // when
+        await page.getByRole('tab', { name: 'context' }).click()
+        const mark = page.getByTestId('gates-verdict')
+        const placement = await mark.evaluate((element) => {
+          const count = element.previousElementSibling
+          if (!count) throw new Error('Missing gates count')
+          const markBox = element.getBoundingClientRect()
+          const countBox = count.getBoundingClientRect()
+          return {
+            previousTag: count.tagName,
+            previousText: count.textContent,
+            last: element.parentElement?.lastElementChild === element,
+            after: markBox.left >= countBox.right,
+            overlaps:
+              markBox.top < countBox.bottom && markBox.bottom > countBox.top,
+          }
+        })
+
+        // then
+        expect(await gateRows(page).count()).toBe(0)
+        expect(await mark.count()).toBe(1)
+        expect(await mark.isVisible()).toBe(true)
+        expect(await gatesHeaderText(page)).toBe('▸gates(2)✗')
+        expect(placement).toEqual({
+          previousTag: 'SPAN',
+          previousText: '(2)',
+          last: true,
+          after: true,
+          overlaps: true,
+        })
+
+        // when
+        await gatesHeader(page).click()
+
+        // then
+        expect(await gateRows(page).count()).toBe(2)
+        for (const row of await gateRows(page).all())
+          expect(await row.isVisible()).toBe(true)
+        expect(await mark.count()).toBe(1)
+        expect(await mark.isVisible()).toBe(true)
+        expect(await gatesHeaderText(page)).toBe('▾gates(2)✗')
+      })
+    },
+    30_000,
+  )
+}
+
+for (const { name, query, rowIndex, headerText } of [
+  { name: 'mixed', query: '', rowIndex: 1, headerText: '▾gates(2)✗' },
+  {
+    name: 'passing',
+    query: '?gates=passed',
+    rowIndex: 0,
+    headerText: '▾gates(2)✓',
+  },
+]) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given ${name} gates at the xl tier`,
+      'when gates are expanded and each selectable theme is chosen',
+      'it should match the row mark character, colour and weight',
+    ].join(', '),
+    async () => {
+      // given
+      await withDetail(
+        'xl',
+        async (page) => {
+          // when
+          await page.getByRole('tab', { name: 'context' }).click()
+          await gatesHeader(page).click()
+          for (const theme of ['Dark', 'Light', 'High contrast']) {
+            await page.getByRole('button', { name: /^Theme:/ }).click()
+            await page.getByRole('option', { name: theme, exact: true }).click()
+            await settleTransitions(page)
+            const header = await page
+              .getByTestId('gates-verdict')
+              .evaluate((element) => ({
+                text: element.textContent,
+                color: getComputedStyle(element).color,
+                weight: getComputedStyle(element).fontWeight,
+              }))
+            const row = await gateRows(page)
+              .nth(rowIndex)
+              .locator(':scope > span:nth-child(2)')
+              .evaluate((element) => ({
+                text: element.textContent,
+                color: getComputedStyle(element).color,
+                weight: getComputedStyle(element).fontWeight,
+              }))
+
+            // then
+            expect(header, theme).toEqual(row)
+            expect(row.weight, theme).toBe('400')
+            expect(await gatesHeaderText(page)).toBe(headerText)
+          }
+        },
+        query,
+      )
+    },
+    30_000,
+  )
+}
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a gate with no recorded verdict at the xl tier',
+    'when the context gates are expanded',
+    'it should show the failure mark on both the row and header',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail(
+      'xl',
+      async (page) => {
+        // when
+        await page.getByRole('tab', { name: 'context' }).click()
+        await gatesHeader(page).click()
+
+        // then
+        expect(await gateRows(page).count()).toBe(1)
+        expect(
+          await gateRows(page)
+            .locator(':scope > span:nth-child(2)')
+            .textContent(),
+        ).toBe('✗')
+        expect(await gatesHeaderText(page)).toBe('▾gates(1)✗')
+      },
+      '?gates=unrecorded',
+    )
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given no gate results at the xl tier',
+    'when the context tab is opened and gates are expanded',
+    'it should show a zero count and no verdict in either state',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail(
+      'xl',
+      async (page) => {
+        // when
+        await page.getByRole('tab', { name: 'context' }).click()
+
+        // then
+        expect(await gatesHeaderText(page)).toBe('▸gates(0)')
+        expect(await page.getByTestId('gates-verdict').count()).toBe(0)
+
+        // when
+        await gatesHeader(page).click()
+
+        // then
+        expect(
+          await page.getByText('no gate results', { exact: true }).isVisible(),
+        ).toBe(true)
+        expect(await gatesHeaderText(page)).toBe('▾gates(0)')
+        expect(await page.getByTestId('gates-verdict').count()).toBe(0)
+      },
+      '?gates=none',
+    )
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given passing gates at the xl tier',
+    'when another activity with a failing gate is selected',
+    'it should change the header verdict without reloading',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail(
+      'xl',
+      async (page) => {
+        await page.getByRole('tab', { name: 'context' }).click()
+        expect(await gatesHeaderText(page)).toBe('▸gates(2)✓')
+        const origin = await page.evaluate(() => performance.timeOrigin)
+
+        // when
+        await page.evaluate(
+          "window.dispatchEvent(new CustomEvent('fixture:select-activity', { detail: 'ar-diag-2' }))",
+        )
+        await page.getByRole('tab', { name: 'context' }).click()
+
+        // then
+        expect(await gatesHeaderText(page)).toBe('▸gates(1)✗')
+        expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin)
+      },
+      '?gates=passed',
+    )
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given expanded passing gates at the xl tier',
+    'when a failing result arrives',
+    'it should change the verdict in the first snapshot listing the new row without reloading',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail(
+      'xl',
+      async (page) => {
+        await page.getByRole('tab', { name: 'context' }).click()
+        await gatesHeader(page).click()
+        expect(await gatesHeaderText(page)).toBe('▾gates(2)✓')
+        const origin = await page.evaluate(() => performance.timeOrigin)
+
+        // when
+        await page.evaluate(
+          "window.dispatchEvent(new CustomEvent('fixture:record-failed-gate'))",
+        )
+        const snapshot = await page.waitForFunction(() => {
+          const header = document.querySelector(
+            '[data-testid="gates-verdict"]',
+          )?.parentElement
+          const rows = header?.parentElement?.querySelectorAll(
+            ':scope > div > div > button',
+          )
+          if (rows?.length !== 3) return false
+          return {
+            mark: rows[2]?.querySelector(':scope > span:nth-child(2)')
+              ?.textContent,
+            header: header?.textContent?.replace(/\s/g, ''),
+          }
+        })
+
+        // then
+        expect(await snapshot.jsonValue()).toEqual({
+          mark: '✗',
+          header: '▾gates(3)✗',
+        })
+        expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin)
+      },
+      '?gates=passed',
+    )
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given the default activity context at the xl tier',
+    'when the section headers are inspected',
+    'it should show no overall result marks outside gates',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await page.getByRole('tab', { name: 'context' }).click()
+      const headers = page.locator(`${CONTEXT} > div > section > button`)
+      const others = headers.filter({ hasNotText: 'gates' })
+
+      // then
+      expect(await headers.count()).toBeGreaterThanOrEqual(4)
+      for (const header of await others.all()) {
+        expect(
+          await header.locator('[data-testid="gates-verdict"]').count(),
+        ).toBe(0)
+        expect(await header.textContent()).not.toMatch(/[✓✗]/)
+      }
+    })
+  },
+  30_000,
+)

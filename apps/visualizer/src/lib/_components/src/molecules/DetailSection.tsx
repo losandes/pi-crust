@@ -10,6 +10,7 @@ export const DetailSection = ({
   title,
   icon: Icon,
   count,
+  trailing,
   open,
   onToggle,
   children,
@@ -19,6 +20,8 @@ export const DetailSection = ({
   icon?: ComponentType<TIconProps>
   /** Shown after the title; omit for sections without a natural count. */
   count?: number
+  /** Phrasing content rendered last on the header line, open or closed. */
+  trailing?: ReactNode
   open: boolean
   onToggle: () => void
   children?: ReactNode
@@ -38,6 +41,7 @@ export const DetailSection = ({
       {count !== undefined && (
         <span className="font-medium text-dim">({count})</span>
       )}
+      {trailing}
     </button>
     {open && <div className="pt-2.5">{children}</div>}
   </section>
