@@ -5,6 +5,7 @@ export {
   enforcePermissions,
   handoffDocument,
   matchesPattern,
+  resolveWrites,
 } from './src/use-cases/enforce-permissions'
 export {
   claimedPaths,

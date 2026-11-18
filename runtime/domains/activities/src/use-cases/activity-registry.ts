@@ -18,6 +18,7 @@ import {
   activityNamed,
   ENVELOPE_NAMES,
   envelopeNamed,
+  isImportName,
   isPlannerName,
   isTerminalName,
   PLANNER_NAMES,
@@ -90,7 +91,12 @@ export const activityFaults = (
       ]
     : []
 
-  return [...planner, ...terminal, ...output, ...gates, ...input]
+  const importing = isImportName(activity.name)
+    ? [
+        "activity 'import': that name is the engine's import step, not an Activity — a Lifecycle names it first to import referenced work, and configuration cannot define it",
+      ]
+    : []
+  return [...importing, ...planner, ...terminal, ...output, ...gates, ...input]
 }
 
 /**
@@ -106,6 +112,11 @@ const aliasFaults = (
     const earlier = activities.slice(0, index)
 
     return activity.aliases.flatMap((alias, aliasIndex) => {
+      if (isImportName(alias)) {
+        return [
+          `activity '${activity.name}': alias 'import' is the engine's import step — configuration cannot make an Activity answer to it`,
+        ]
+      }
       const namesActivity = activities.find((one) => one.name === alias)
       if (namesActivity !== undefined) {
         return [

@@ -9,6 +9,10 @@
 # rejected at load. Review Activities can run concurrently because each
 # reads the completed changes and writes to a separate findings file.
 #
+# `import` is not an Activity. Named first in a Lifecycle's first Stage, it
+# brings the issue or document the request references into the handoff
+# directory before anything runs. See <pi-crust>/references/handoff.md.
+#
 # Local overrides: crust.lifecycles.local.yaml (gitignored).
 # Example: <pi-crust>/cookbooks/examples/crust.lifecycles.local.example.yaml
 
@@ -99,11 +103,11 @@ lifecycles:
 
   - name: ship-to-plan
     description: >-
-      An e2e engineering lifecycle to launch after you already identified the plan: build, and review.
+      An e2e engineering lifecycle to launch after you already identified the plan: import the work the request references, build, and review.
     stages:
       - name: deliver
         strategy: serial
-        activities: [build]
+        activities: [import, build]
       - name: accept
         strategy: concurrent
         activities: [outcome-review, code-review]

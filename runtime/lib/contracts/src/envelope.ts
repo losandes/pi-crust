@@ -729,6 +729,71 @@ export const changesOutputSchema = envelopeBaseSchema.extend({
 export type TChangesOutput = Readonly<z.infer<typeof changesOutputSchema>>
 export const changesOutput = envelopeSpec('ChangesOutput', changesOutputSchema)
 
+export const IMPORT_SOURCE_KINDS = [
+  'github-issue',
+  'document',
+  'handoff',
+] as const
+export const UNATTRIBUTED_REASONS = [
+  'outside-sections',
+  'unknown-label',
+  'annotating',
+  'no-document',
+  'chain-activity',
+  'superseded',
+  'already-present',
+  'untrusted-author',
+  'no-target',
+] as const
+export const importSourceSchema = z.object({
+  kind: z.enum(IMPORT_SOURCE_KINDS),
+  written: z.string().default(''),
+  address: z.string().default(''),
+  read_at: z.string().default(''),
+  updated_at: z.string().default(''),
+  sha256: z.string().default(''),
+  head: z.string().default(''),
+  differs_from_head: z.boolean().default(false),
+})
+export const importedVersionSchema = z.object({
+  address: z.string(),
+  posted_at: z.string(),
+  used: z.boolean(),
+})
+export const importedDocumentSchema = z.object({
+  activity: z.string(),
+  document: z.string(),
+  status: z.enum(['imported', 'present']),
+  address: z.string(),
+  versions: z.array(importedVersionSchema),
+  appended: z.array(z.string()),
+})
+export const importedCommentSchema = z.object({
+  author: z.string(),
+  association: z.string(),
+  address: z.string(),
+  posted_at: z.string(),
+  edited_at: z.string(),
+  placement: z.enum(['yielded', 'appended', 'unattributed']),
+  documents: z.array(z.string()),
+  reason: z.string(),
+})
+export const unattributedSchema = z.object({
+  address: z.string(),
+  label: z.string(),
+  reason: z.enum(UNATTRIBUTED_REASONS),
+})
+export const importOutputSchema = envelopeBaseSchema.extend({
+  source: importSourceSchema,
+  documents: z.array(importedDocumentSchema).default([]),
+  comments: z.array(importedCommentSchema).default([]),
+  unattributed: z.array(unattributedSchema).default([]),
+  unattributed_status: z.enum(['none', 'imported', 'present']).default('none'),
+})
+export type TImportSource = Readonly<z.infer<typeof importSourceSchema>>
+export type TImportOutput = Readonly<z.infer<typeof importOutputSchema>>
+export const importOutput = envelopeSpec('ImportOutput', importOutputSchema)
+
 /**
  * The terminal Activity's agent half: title and body for the pull request the
  * harness opens. The harness performs every git and `gh` operation; the

@@ -120,6 +120,10 @@ An Activity entry carries what the work IS as well as who performs it, because t
 
 Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
 
+### The engine step `import`
+
+`import` is a name configuration cannot define: neither an Activity name nor an alias may claim it. It has no roster entry, model or prompt. A Lifecycle or `--activities` chain may name it only as the first entry of a serial first Stage. The engine removes it before resolving Activities and imports the issue or markdown document the request references before any agent starts. See [Importing referenced work](handoff.md#importing-referenced-work) for reference syntax, stop conditions and the manual configuration edit for existing installations.
+
 ### `terminal[]`
 
 A second closed set, beside the Planners: `gh-pull-request` is the only member. A terminal Activity runs once, after a run's revise loop has settled with an accepted result, outside the fold entirely — after `runReviseLoop` returns and before `finish`. A Lifecycle may only name it as the LAST entry of its LAST Stage, and never inside a `concurrent` Stage; naming it anywhere else is refused at load, with the reason. Configuration tunes `model`, `thinking`, `color`, `tools`, `writes` and `prompt_engineering`, exactly as it tunes a Planner — it carries no `output`, `gates`, `input`, `attempts` or `commit`, and cannot add a second terminal Activity. A name under `terminal:` that is not in the closed set, or a member with no entry at all, is refused at load.

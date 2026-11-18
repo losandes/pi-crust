@@ -56,13 +56,14 @@ A name the team file does not have is simply a new Lifecycle. See `crust.lifecyc
 
 ## What the loader refuses
 
-Both files are validated together, before anything runs:
+Both files are validated together, before anything runs. To enable the engine step `import`, follow [Importing referenced work](../references/handoff.md#importing-referenced-work); it is not a registry Activity.
 
-| Refused                                       | Because                                                                       |
-| --------------------------------------------- | ----------------------------------------------------------------------------- |
-| two Stages with one name                      | `--approve-after stage:<name>` could not say which it meant                   |
-| one Stage naming an Activity twice            | concurrently that is an Activity racing itself                                |
-| a `strategy` that is not serial or concurrent | a typo falling back to serial is a Stage you believe is concurrent and is not |
-| a concurrent Stage with overlapping `writes`  | the two would overwrite each other and neither could be held responsible      |
+| Refused                                             | Because                                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `import` anywhere but first in a serial first Stage | the engine imports before any Activity runs                                   |
+| two Stages with one name                            | `--approve-after stage:<name>` could not say which it meant                   |
+| one Stage naming an Activity twice                  | concurrently that is an Activity racing itself                                |
+| a `strategy` that is not serial or concurrent       | a typo falling back to serial is a Stage you believe is concurrent and is not |
+| a concurrent Stage with overlapping `writes`        | the two would overwrite each other and neither could be held responsible      |
 
 Discovering any of these three Activities into a run wastes the three, which is why they are load-time and not run-time.

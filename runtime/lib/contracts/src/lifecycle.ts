@@ -31,7 +31,7 @@
  */
 
 import { z } from 'zod'
-import { isTerminalName } from './activity'
+import { isImportName, isTerminalName } from './activity'
 
 export const DEFAULT_LIFECYCLES_PATH = '.pi-crust/config/crust.lifecycles.yaml'
 
@@ -160,6 +160,41 @@ export const misplacedTerminal = (
     }),
   )
 
+export const misplacedImport = (
+  lifecycle: TLifecycleConfig,
+): readonly TLifecycleFault[] =>
+  lifecycle.stages.flatMap((stage, stageAt) =>
+    stage.activities.flatMap((name, activityAt) => {
+      if (!isImportName(name)) return []
+      if (stageAt === 0 && stage.strategy === 'concurrent') {
+        return [
+          {
+            lifecycle: lifecycle.name,
+            message: `'import' cannot run in a concurrent stage ('${stage.name}') — it runs before any Activity does. It must be the first entry of a serial first stage.`,
+          },
+        ]
+      }
+      if (stageAt === 0 && activityAt === 0) return []
+      return [
+        {
+          lifecycle: lifecycle.name,
+          message: `'import' is the engine's import step and is named in stage '${stage.name}' — it may only be the first entry of the first stage, because it runs before any Activity does.`,
+        },
+      ]
+    }),
+  )
+
+export const importIn = (stages: readonly TStage[]): boolean =>
+  stages.some((stage) => stage.activities.some(isImportName))
+
+export const withoutImport = (stages: readonly TStage[]): readonly TStage[] =>
+  stages
+    .map((stage) => ({
+      ...stage,
+      activities: stage.activities.filter((name) => !isImportName(name)),
+    }))
+    .filter((stage) => stage.activities.length > 0)
+
 /** Every structural fault in a Lifecycle, in the order worth fixing them. */
 export const lifecycleFaults = (
   lifecycle: TLifecycleConfig,
@@ -167,6 +202,7 @@ export const lifecycleFaults = (
   ...duplicateStages(lifecycle),
   ...repeatedActivities(lifecycle),
   ...misplacedTerminal(lifecycle),
+  ...misplacedImport(lifecycle),
 ]
 
 /**

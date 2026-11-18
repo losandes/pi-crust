@@ -13,6 +13,7 @@ export type {
   TTerminalActivity,
 } from './src/use-cases/gh-pull-request'
 export {
+  envelopeHistoryPath,
   readEnvelope,
   readHistoryEnvelope,
 } from './src/use-cases/read-envelope'

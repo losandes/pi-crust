@@ -539,7 +539,11 @@ test(
     const actual = workflowArgs(args, 'the resolved prompt text')
 
     // then
-    expect(actual).toEqual({ ...args, prompt: 'the resolved prompt text' })
+    expect(actual).toEqual({
+      ...args,
+      prompt: 'the resolved prompt text',
+      promptPath: args.prompt,
+    })
   },
 )
 

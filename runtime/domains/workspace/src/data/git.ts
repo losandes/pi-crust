@@ -7,7 +7,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 
 const run = (
   args: readonly string[],
@@ -75,6 +75,29 @@ const blockingGitAt = (
 export const gitOutput = (args: readonly string[], cwd?: string): string => {
   const result = run(args, cwd)
   return result.status === 0 ? result.stdout : ''
+}
+
+export const headAt = (cwd: string): string =>
+  gitOutput(['rev-parse', '--verify', 'HEAD'], cwd).trim()
+
+export const matchesHead = (absolutePath: string): boolean => {
+  const cwd = dirname(absolutePath)
+  const root = gitOutput(['rev-parse', '--show-toplevel'], cwd).replace(
+    /\r?\n$/,
+    '',
+  )
+  if (root === '') return false
+  const prefix = gitOutput(['rev-parse', '--show-prefix'], cwd).replace(
+    /\r?\n$/,
+    '',
+  )
+  const path = `${prefix}${basename(absolutePath)}`
+  const blob = gitOutput(['rev-parse', '--verify', `HEAD:${path}`], root).trim()
+  const current = gitOutput(
+    ['hash-object', '--no-filters', '--', absolutePath],
+    root,
+  ).trim()
+  return blob !== '' && blob === current
 }
 
 /** The remote's locally recorded default branch; no network or ref writes. */
