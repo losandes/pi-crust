@@ -5,6 +5,7 @@
  */
 
 import type { ActivityRun, Envelope, Event, GateResult } from '@shared/types'
+import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource/play/400.css'
 import '@fontsource/play/700.css'
@@ -29,6 +30,15 @@ const activityRun: ActivityRun = {
   started_at: new Date(now - 60_000).toISOString(),
   ended_at: new Date(now).toISOString(),
 }
+
+const secondActivityRun: ActivityRun = {
+  ...activityRun,
+  activity_run_id: 'ar-diag-2',
+  seq: 2,
+  name: 'review',
+}
+
+const gatesVariant = new URLSearchParams(window.location.search).get('gates')
 
 const longPath = `src/${'long-directory/'.repeat(12)}activity.tsx`
 const events: readonly Event[] = (
@@ -113,23 +123,45 @@ const events: readonly Event[] = (
   ended_at: activityRun.ended_at,
 }))
 
-const gates: readonly GateResult[] = [true, false].map((passed, index) => ({
-  id: index + 1,
-  run_id: activityRun.run_id,
-  activity_run_id: activityRun.activity_run_id,
-  gate: passed ? 'schema' : 'checks',
-  passed: passed ? 1 : 0,
+const createGate = (
+  id: number,
+  selected: Readonly<ActivityRun>,
+  gate: string,
+  passed: GateResult['passed'],
+): GateResult => ({
+  id,
+  run_id: selected.run_id,
+  activity_run_id: selected.activity_run_id,
+  gate,
+  passed,
   violations_json: JSON.stringify(passed ? [] : ['One check failed']),
   checks_json: JSON.stringify([
     { item: 'source.tsx', ok: true, note: 'Verified' },
     {
       item: longPath,
-      ok: passed,
+      ok: Boolean(passed),
       note: passed ? 'Verified' : 'check exited 1\nEvidence on another line',
     },
   ]),
-  created_at: activityRun.ended_at,
-}))
+  created_at: selected.ended_at,
+})
+
+const gates: readonly GateResult[] = [
+  ...(gatesVariant === 'none'
+    ? []
+    : gatesVariant === 'unrecorded'
+      ? [createGate(1, activityRun, 'schema', null)]
+      : [
+          createGate(1, activityRun, 'schema', 1),
+          createGate(
+            2,
+            activityRun,
+            'checks',
+            gatesVariant === 'passed' ? 1 : 0,
+          ),
+        ]),
+  createGate(3, secondActivityRun, 'checks', 0),
+]
 
 const envelopes: readonly Envelope[] = [true, false].map((valid, index) => ({
   envelope_id: `detail-envelope-${index}`,
@@ -149,20 +181,54 @@ const envelopes: readonly Envelope[] = [true, false].map((valid, index) => ({
   created_at: activityRun.ended_at,
 }))
 
+const DetailHarness = () => {
+  const [selected, setSelected] = useState(activityRun)
+  const [recordedGates, setRecordedGates] = useState(gates)
+
+  useEffect(() => {
+    const selectActivity = (event: globalThis.Event) => {
+      if (!(event instanceof CustomEvent)) return
+      if (event.detail === activityRun.activity_run_id) setSelected(activityRun)
+      if (event.detail === secondActivityRun.activity_run_id)
+        setSelected(secondActivityRun)
+    }
+    const recordFailedGate = () =>
+      setRecordedGates((current) => [
+        ...current,
+        createGate(
+          Math.max(0, ...current.map((gate) => gate.id)) + 1,
+          selected,
+          'checks',
+          0,
+        ),
+      ])
+    window.addEventListener('fixture:select-activity', selectActivity)
+    window.addEventListener('fixture:record-failed-gate', recordFailedGate)
+    return () => {
+      window.removeEventListener('fixture:select-activity', selectActivity)
+      window.removeEventListener('fixture:record-failed-gate', recordFailedGate)
+    }
+  }, [selected])
+
+  return (
+    <ActivityRunDetail
+      activityRun={selected}
+      runId="run-diag-1"
+      runStatus="success"
+      events={events}
+      envelopes={envelopes}
+      gates={recordedGates}
+      activityRuns={[selected]}
+      onClose={() => {}}
+    />
+  )
+}
+
 const el = document.getElementById('root')
 if (el) {
   createRoot(el).render(
     <DefaultLayout>
-      <ActivityRunDetail
-        activityRun={activityRun}
-        runId="run-diag-1"
-        runStatus="success"
-        events={events}
-        envelopes={envelopes}
-        gates={gates}
-        activityRuns={[activityRun]}
-        onClose={() => {}}
-      />
+      <DetailHarness />
       <TreeWarnings
         standalone
         warnings={[
