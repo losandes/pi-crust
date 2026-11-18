@@ -483,5 +483,5 @@ terminal:
       - read
     delivery:
       remote: origin
-      base: main
+      # base: <branch>  # optional; omit to use the repository's default branch
       draft: false

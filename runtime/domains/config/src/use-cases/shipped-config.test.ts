@@ -26,6 +26,31 @@ const STAMP = join(import.meta.dir, '../../../../../templates/stamp/config')
 /** Examples live in cookbooks/ (issue #24, 1.10.1) — documentation, not a stamp. */
 const EXAMPLES = join(import.meta.dir, '../../../../../cookbooks/examples')
 
+for (const name of [
+  'crust.activities.yaml',
+  'crust.activities-bic.example.yaml',
+  'crust.activities-econ.example.yaml',
+]) {
+  test(
+    [
+      `given the shipped ${name} template`,
+      'when parsing its pull request delivery configuration',
+      'it should leave the base absent so the remote default can win',
+    ].join(', '),
+    () => {
+      // given
+      const yaml = readFileSync(join(STAMP, name), 'utf8')
+      // when
+      const actual = activitiesFileSchema
+        .parse(Bun.YAML.parse(yaml))
+        .terminal.find((one) => one.name === 'gh-pull-request')
+      // then
+      expect(actual).toBeDefined()
+      expect(actual?.delivery.base).toBeUndefined()
+    },
+  )
+}
+
 const lifecyclesAt = (yaml: string): string => {
   const path = join(
     mkdtempSync(join(tmpdir(), 'crust-shipped-')),

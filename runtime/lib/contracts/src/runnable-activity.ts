@@ -177,8 +177,8 @@ export type TActivityOptions = Readonly<{
 }>
 
 export const DEFAULT_ACTIVITY_OPTIONS: TActivityOptions = {
-  // '' and not 'main': a activity must be able to tell "no --base was given" from
-  // "--base main was given", and only `document` falls back to main.
+  // Preserve absence: activities distinguish an explicit scope from the
+  // run's change or a base supplied by the shared branch resolver.
   base: '',
   instance: 1,
   committing: true,

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { TBaseRef } from '../../../../lib/contracts'
+import type { TBaseBranch, TBaseRef } from '../../../../lib/contracts'
 import type { TRangeGit } from './select-range'
 import {
   requireSelected,
@@ -14,6 +14,12 @@ import {
  * which git question gets asked, which is a decision this module makes and a
  * temp repo would only obscure.
  */
+const OMITTED: TBaseBranch = {
+  name: 'main',
+  source: 'built-in',
+  remote: 'origin',
+}
+
 const gitWith = (facts: Readonly<Partial<TRangeGit>>): TRangeGit => ({
   refExists: () => true,
   shortSha: (ref) => ref.slice(0, 7),
@@ -45,7 +51,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('')
+    const actual = selectRangeWith(git)(OMITTED)('')
 
     // then
     expect(actual.paths).toEqual(['src/a.ts', 'src/b.ts'])
@@ -69,7 +75,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('main..HEAD')
+    const actual = selectRangeWith(git)(OMITTED)('main..HEAD')
 
     // then
     expect(actual.paths).toEqual(['main-HEAD.ts'])
@@ -92,7 +98,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('main...HEAD')
+    const actual = selectRangeWith(git)(OMITTED)('main...HEAD')
 
     // then
     expect(actual.paths).toEqual(['src/a.ts'])
@@ -116,7 +122,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('HEAD~1')
+    const actual = selectRangeWith(git)(OMITTED)('HEAD~1')
 
     // then
     expect(actual.paths).toEqual(['HEAD~1.ts', 'new.ts'])
@@ -137,7 +143,7 @@ test(
     const git = gitWith({ refExists: (ref) => ref !== 'nope' })
 
     // when, then
-    expect(() => selectRangeWith(git)('nope...HEAD')).toThrow(
+    expect(() => selectRangeWith(git)(OMITTED)('nope...HEAD')).toThrow(
       /base ref 'nope' in 'nope\.\.\.HEAD' does not exist/,
     )
   },
@@ -154,7 +160,7 @@ test(
     const git = gitWith({ diffFilesBetween: () => [] })
 
     // when, then
-    expect(() => selectedPathsWith(git)('main...HEAD')).toThrow(
+    expect(() => selectedPathsWith(git)(OMITTED)('main...HEAD')).toThrow(
       /--base 'main\.\.\.HEAD' selects no changed file/,
     )
   },
@@ -168,7 +174,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const selection = selectRangeWith(gitWith({}))('')
+    const selection = selectRangeWith(gitWith({}))(OMITTED)('')
 
     // when
     const actual = requireSelected(selection)
@@ -193,7 +199,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('apps/gateway')
+    const actual = selectRangeWith(git)(OMITTED)('apps/gateway')
 
     // then — a range cannot express this, which is why the scope exists
     expect(actual.paths).toEqual(['apps/gateway/a.ts', 'apps/gateway/b.ts'])
@@ -216,7 +222,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('main')
+    const actual = selectRangeWith(git)(OMITTED)('main')
 
     // then — `--base main` meant a ref first and must not change meaning
     expect(actual.paths).toEqual(['changed.ts'])
@@ -237,7 +243,7 @@ test(
     })
 
     // when
-    const actual = selectRangeWith(git)('lib/**/*.ts')
+    const actual = selectRangeWith(git)(OMITTED)('lib/**/*.ts')
 
     // then
     expect(actual.paths).toEqual(['lib/one.ts', 'lib/two.ts'])
@@ -255,7 +261,7 @@ test(
     const git = gitWith({})
 
     // when
-    const actual = selectRangeWith(git)('HEAD~1')
+    const actual = selectRangeWith(git)(OMITTED)('HEAD~1')
 
     // then
     expect(actual.paths).toEqual([])
@@ -271,7 +277,7 @@ test(
   () => {
     // given
     const git = gitWith({ refExists: () => false, filesUnder: () => [] })
-    const selection = selectRangeWith(git)('apps/does-not-exist')
+    const selection = selectRangeWith(git)(OMITTED)('apps/does-not-exist')
 
     // when
     const selecting = (): readonly string[] => requireSelected(selection)

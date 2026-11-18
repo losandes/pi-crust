@@ -29,7 +29,7 @@ import * as git from '../data/git'
 export const DIFF_FILENAME = 'changes.diff'
 
 /** Pick the commit the work is measured from, and record why that one. */
-export const resolveBase = (ref: string): TBaseRef => {
+export const resolveBase = (ref: string, namedBy = ''): TBaseRef => {
   if (!git.isRepo()) {
     throw new Error(
       'not a git repository — change capture needs one. Run `git init` in ' +
@@ -38,7 +38,9 @@ export const resolveBase = (ref: string): TBaseRef => {
   }
   if (!git.refExists(ref)) {
     throw new Error(
-      `base ref '${ref}' does not exist in this repository — pass --base ` +
+      `base ref '${ref}' does not exist in this repository` +
+        (namedBy === '' ? '' : ` (${namedBy})`) +
+        ' — pass --base ' +
         'with a ref that does (e.g. --base master, --base HEAD~1).',
     )
   }
@@ -80,7 +82,7 @@ export const captureChanges = (
   run: TRun,
   params: TChangeCapture,
 ): TChangeSet => {
-  const base = resolveBase(params.base)
+  const base = resolveBase(params.base, params.namedBy)
   const files = git.diffFiles(base.commit)
   const untracked = params.includeUntracked ? git.untrackedFiles() : []
   const { insertions, deletions } = git.diffCounts(base.commit)

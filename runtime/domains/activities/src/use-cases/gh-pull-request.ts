@@ -23,6 +23,7 @@ import type {
   TActivityOptions,
   TActivityRunHandle,
   TActivityRunParams,
+  TBaseBranch,
   TPullRequestOutput,
   TRunState,
   TTerminalConfig,
@@ -35,11 +36,14 @@ import {
 import { writeText } from '../../../../lib/system'
 import { readRunState } from '../../../trace'
 import {
+  baseBranchFrom,
+  baseBranchProvenance,
   changedFiles,
   commitsAhead,
   currentBranch,
   isRepo,
   pushBranch,
+  remoteDefaultBranch,
   remoteExists,
   untrackedFiles,
   upstreamBase,
@@ -82,6 +86,8 @@ export type TDeliveryPorts = Readonly<{
   /** '' when HEAD is detached */
   branch: (cwd: string) => string
   remoteExists: (remote: string, cwd: string) => boolean
+  /** the branch <remote>/HEAD names; '' when the remote declares none */
+  defaultBranch: (remote: string, cwd: string) => string
   /** '' when neither <remote>/<base> nor <base> resolves */
   baseRef: (remote: string, base: string, cwd: string) => string
   commitsAhead: (baseRef: string, branch: string, cwd: string) => number
@@ -181,6 +187,7 @@ export const liveDelivery: TDeliveryPorts = {
     return name === 'HEAD' ? '' : name
   },
   remoteExists: (remote, cwd) => remoteExists(remote, cwd),
+  defaultBranch: (remote, cwd) => remoteDefaultBranch(remote, cwd),
   baseRef: (remote, base, cwd) => upstreamBase(remote, base, cwd),
   commitsAhead: (baseRef, branch, cwd) => commitsAhead(baseRef, branch, cwd),
   push: (remote, branch, cwd) => pushBranch(remote, branch, cwd),
@@ -309,6 +316,7 @@ const preconditions = (
   ports: TDeliveryPorts,
   config: TTerminalConfig,
   options: TActivityOptions,
+  base: TBaseBranch,
   cwd: string,
 ): readonly TPrecondition[] => {
   const branch = ports.branch(cwd)
@@ -326,11 +334,11 @@ const preconditions = (
       reason: 'the workspace is not a git repository, or HEAD is detached',
     },
     {
-      ok: branch !== config.delivery.base,
+      ok: branch !== base.name,
       recoverable: false,
       reason:
-        `the current branch IS delivery.base ('${config.delivery.base}') — ` +
-        'pi-crust does not create branches',
+        `the current branch IS the base branch '${base.name}' ` +
+        `(${baseBranchProvenance(base)}) — pi-crust does not create branches`,
     },
     {
       ok: ports.remoteExists(config.delivery.remote, cwd),
@@ -339,21 +347,21 @@ const preconditions = (
     },
     {
       recoverable: false,
-      ok:
-        ports.baseRef(config.delivery.remote, config.delivery.base, cwd) !== '',
+      ok: ports.baseRef(config.delivery.remote, base.name, cwd) !== '',
       reason:
-        `neither refs/remotes/${config.delivery.remote}/${config.delivery.base} ` +
-        `nor ${config.delivery.base} resolves to a commit`,
+        `base branch '${base.name}' (${baseBranchProvenance(base)}) does not exist: ` +
+        `neither refs/remotes/${config.delivery.remote}/${base.name} ` +
+        `nor ${base.name} resolves to a commit`,
     },
     {
       recoverable: false,
       ok:
         ports.commitsAhead(
-          ports.baseRef(config.delivery.remote, config.delivery.base, cwd),
+          ports.baseRef(config.delivery.remote, base.name, cwd),
           branch,
           cwd,
         ) > 0,
-      reason: `the branch is not ahead of ${config.delivery.base}`,
+      reason: `the branch is not ahead of ${base.name}`,
     },
     {
       ok: ports.forge.authenticated(cwd),
@@ -367,9 +375,10 @@ const firstRefusal = (
   ports: TDeliveryPorts,
   config: TTerminalConfig,
   options: TActivityOptions,
+  base: TBaseBranch,
   cwd: string,
 ): TPrecondition | undefined =>
-  preconditions(ports, config, options, cwd).find((one) => !one.ok)
+  preconditions(ports, config, options, base, cwd).find((one) => !one.ok)
 
 export const ghPullRequestActivity = (
   config: TTerminalConfig,
@@ -390,6 +399,12 @@ export const ghPullRequestActivity = (
   deliver: async (ctx, handle) => {
     const run = ctx.run
     const cwd = run.vcsRoot
+    const base = baseBranchFrom({
+      flag: '',
+      configured: config.delivery.base,
+      remoteDefault: ports.defaultBranch(config.delivery.remote, cwd),
+      remote: config.delivery.remote,
+    })
 
     const refuse = (reason: string, recoverable: boolean): TDeliveryResult => {
       run.console.note(`${config.name}: refused — ${reason}`)
@@ -401,7 +416,7 @@ export const ghPullRequestActivity = (
         payload: {
           reason,
           branch: ports.branch(cwd),
-          base: config.delivery.base,
+          base: base.name,
           remote: config.delivery.remote,
         },
       })
@@ -413,7 +428,7 @@ export const ghPullRequestActivity = (
         fallback: false,
       }
     }
-    const refusal = firstRefusal(ports, config, options, cwd)
+    const refusal = firstRefusal(ports, config, options, base, cwd)
     if (refusal !== undefined) {
       return refuse(refusal.reason, refusal.recoverable)
     }
@@ -534,7 +549,7 @@ export const ghPullRequestActivity = (
     const params: TPullRequestParams = {
       title: titleWithIssues(chosen.title, issueRefs(facts)),
       bodyPath,
-      base: config.delivery.base,
+      base: base.name,
       branch,
       draft: config.delivery.draft,
     }
@@ -557,7 +572,7 @@ export const ghPullRequestActivity = (
         url,
         number: numberFromUrl(url),
         branch,
-        base: config.delivery.base,
+        base: base.name,
         draft: config.delivery.draft,
         fallback: fellBack,
       },

@@ -1,9 +1,26 @@
 /** Change capture — git diff facts, no judgement. */
 
+export const BASE_BRANCH_SOURCES = [
+  'flag',
+  'configuration',
+  'remote-default',
+  'built-in',
+] as const
+export type TBaseBranchSource = (typeof BASE_BRANCH_SOURCES)[number]
+export const BUILT_IN_BASE_BRANCH = 'main'
+export type TBaseBranch = Readonly<{
+  name: string
+  source: TBaseBranchSource
+  /** the remote whose declared default was consulted */
+  remote: string
+}>
+
 /** Everything captureChanges() needs. One object, never loose params. */
 export type TChangeCapture = Readonly<{
   /** the ref the work is measured against */
   base: string
+  /** baseBranchProvenance of base; '' when base is a pinned commit */
+  namedBy: string
   /** the diff artifact is truncated past this */
   maxDiffLines: number
   /** a brand-new file is part of the change */
@@ -11,9 +28,9 @@ export type TChangeCapture = Readonly<{
 }>
 
 export const changeCapture = (
-  params: Readonly<Partial<TChangeCapture>>,
+  params: Readonly<Pick<TChangeCapture, 'base'> & Partial<TChangeCapture>>,
 ): TChangeCapture => ({
-  base: 'main',
+  namedBy: '',
   maxDiffLines: 2000,
   includeUntracked: true,
   ...params,

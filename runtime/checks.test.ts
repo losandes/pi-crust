@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from './checks'
@@ -177,5 +177,68 @@ test.skipIf(SKIP_INTEGRATION)(
     // then
     expect(result).toEqual(EXIT.SUCCESS)
     expect(printed).toContain('nothing changed')
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given @SC5 checks in a clone whose default branch is dev and has no main',
+    'when verifying ...HEAD and dev...HEAD with a matching rule',
+    'it should return success and print identical results',
+  ].join(', '),
+  () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), 'crust-checks-dev-'))
+    const seed = join(root, 'seed')
+    const work = join(root, 'work')
+    mkdirSync(seed)
+    git(seed, 'init', '-q', '-b', 'dev')
+    git(seed, 'config', 'user.email', 'tester@example.com')
+    git(seed, 'config', 'user.name', 'tester')
+    git(seed, 'config', 'commit.gpgsign', 'false')
+    writeFileSync(join(seed, 'initial.txt'), 'initial\n')
+    git(seed, 'add', '.')
+    git(seed, 'commit', '-qm', 'initial')
+    git(root, 'clone', '-q', '--bare', seed, join(root, 'remote.git'))
+    git(root, 'clone', '-q', join(root, 'remote.git'), work)
+    git(work, 'config', 'user.email', 'tester@example.com')
+    git(work, 'config', 'user.name', 'tester')
+    git(work, 'config', 'commit.gpgsign', 'false')
+    git(work, 'checkout', '-qb', 'feature')
+    writeFileSync(join(work, 'feature.txt'), 'feature\n')
+    git(work, 'add', '.')
+    git(work, 'commit', '-qm', 'feature')
+    const configPath = join(root, 'checks.yaml')
+    writeFileSync(
+      configPath,
+      [
+        'routing:',
+        '  checks:',
+        '    - name: verify',
+        "      when: ['*.txt']",
+        "      argv: ['true']",
+        '',
+      ].join('\n'),
+    )
+    try {
+      // when
+      const explicit = inDir(work, () =>
+        captureStdout(() =>
+          main(['--scope', 'dev...HEAD', '--config', configPath]),
+        ),
+      )
+      const actual = inDir(work, () =>
+        captureStdout(() =>
+          main(['--scope', '...HEAD', '--config', configPath]),
+        ),
+      )
+      // then
+      expect(explicit.result).toBe(EXIT.SUCCESS)
+      expect(actual.result).toBe(EXIT.SUCCESS)
+      expect(actual.printed).toBe(explicit.printed)
+      expect(actual.printed).toContain('all 1 check(s) passed')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   },
 )

@@ -19,6 +19,7 @@ import {
   diffFilesBetween,
   filesUnder,
   pushBranch,
+  remoteDefaultBranch,
   remoteExists,
   stageAll,
   upstreamBase,
@@ -49,6 +50,59 @@ const aRepo = (): string => {
   git(dir, 'commit', '-qm', 'add the file a later activity removes')
 
   return dir
+}
+
+for (const state of [
+  'clone',
+  'no-remote',
+  'no-head',
+  'slash-remote',
+  'foreign-target',
+  'not-repo',
+]) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given remoteDefaultBranch with ${state}`,
+      'when reading the locally recorded default',
+      'it should preserve branch slashes and return empty when unavailable',
+    ].join(', '),
+    () => {
+      // given
+      const root = mkdtempSync(join(tmpdir(), 'crust-remote-default-'))
+      const source = aRepo()
+      try {
+        git(source, 'branch', '-m', 'release/1.x')
+        git(root, 'clone', '-q', '--bare', source, join(root, 'remote.git'))
+        git(root, 'clone', '-q', join(root, 'remote.git'), join(root, 'work'))
+        const work = join(root, 'work')
+        const remote = state === 'slash-remote' ? 'up/stream' : 'origin'
+        if (state === 'no-remote') git(work, 'remote', 'remove', 'origin')
+        if (state === 'no-head')
+          git(work, 'remote', 'set-head', 'origin', '--delete')
+        if (state === 'slash-remote')
+          git(work, 'remote', 'rename', 'origin', remote)
+        if (state === 'foreign-target')
+          git(
+            work,
+            'symbolic-ref',
+            'refs/remotes/origin/HEAD',
+            'refs/heads/release/1.x',
+          )
+        // when
+        const actual =
+          state === 'not-repo'
+            ? inDir(root, () => remoteDefaultBranch(remote))
+            : remoteDefaultBranch(remote, work)
+        // then
+        expect(actual).toBe(
+          state === 'clone' || state === 'slash-remote' ? 'release/1.x' : '',
+        )
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+        rmSync(source, { recursive: true, force: true })
+      }
+    },
+  )
 }
 
 test.skipIf(SKIP_INTEGRATION)(

@@ -75,6 +75,7 @@ const fakePorts = (
 ): Readonly<{ ports: TDeliveryPorts; calls: Record<string, unknown>[] }> => {
   const { forge, calls } = fakeForge(forgeOverrides)
   const ports: TDeliveryPorts = {
+    defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'feature',
     remoteExists: () => true,
@@ -284,7 +285,7 @@ test(
 
     // then
     expect(actual.action).toEqual('refused')
-    expect(actual.reason).toMatch(/IS delivery.base/)
+    expect(actual.reason).toMatch(/IS the base branch 'main'/)
     expect(actual.recoverable).toBe(false)
     expect(calls).toEqual([])
   },
