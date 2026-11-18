@@ -1,5 +1,5 @@
 /**
- * Fingerprinting the working tree — what permission enforcement compares.
+ * Working-tree fingerprints and paths changed in history for permission enforcement.
  */
 
 import { gitOutput } from './git'
@@ -7,6 +7,20 @@ import type { TRoots } from './roots'
 import { normaliseFromGit } from './roots'
 
 export type TTreeSnapshot = Readonly<Record<string, string>>
+
+export const historyPaths =
+  (roots: TRoots) =>
+  (from: string, to: string): readonly string[] =>
+    from === '' || to === '' || from === to
+      ? []
+      : gitOutput(
+          ['diff', '--name-only', '--no-renames', from, to, '--'],
+          roots.vcsRoot,
+        )
+          .split('\n')
+          .flatMap((line) =>
+            line.trim() ? [normaliseFromGit(roots, line.trim())] : [],
+          )
 
 /**
  * Fingerprint every path the working tree currently differs on.

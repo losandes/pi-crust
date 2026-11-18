@@ -57,6 +57,43 @@ const aRepo = (): string => {
 
 test.skipIf(SKIP_INTEGRATION)(
   [
+    'given data/git::commitPaths with already committed modifications and deletions',
+    'when the engine commits those paths',
+    'it should leave HEAD unchanged and return no commit (G1)',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    try {
+      mkdirSync(join(dir, 'src'))
+      writeFileSync(join(dir, 'src/app.ts'), 'before\n')
+      writeFileSync(join(dir, 'src/old.ts'), 'old\n')
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-qm', 'track paths')
+      writeFileSync(join(dir, 'src/app.ts'), 'after\n')
+      git(dir, 'rm', '-q', '--', 'src/old.ts')
+      git(dir, 'add', '-A')
+      git(dir, 'commit', '-qm', 'agent')
+      const head = headAt(dir)
+
+      // when
+      const actual = commitPaths(
+        'engine',
+        [join(dir, 'src/app.ts'), join(dir, 'src/old.ts')],
+        dir,
+      )
+
+      // then
+      expect(actual).toEqual({ sha: '', paths: [] })
+      expect(headAt(dir)).toBe(head)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
     'given on-disk document provenance',
     'when comparing committed edited untracked and non-repository files',
     'it should report HEAD and exact blob equality',

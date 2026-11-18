@@ -157,6 +157,10 @@ export type TAgentPorts = Readonly<{
   /** the working tree's own fingerprint; the real implementation reads disk */
   snapshot: (roots: TRoots) => TTreeSnapshot
   content: (roots: TRoots, base: string) => TSettlement<TTreeSnapshot>
+  /** HEAD of the repository at `roots.vcsRoot`; '' when there is none */
+  head: (roots: TRoots) => string
+  /** paths whose committed content differs between two revisions of that repository */
+  history: (roots: TRoots) => (from: string, to: string) => readonly string[]
   /**
    * HEAD's revision; '' when the process cwd is not (yet) a git repository.
    * The real implementation reads the process cwd.
@@ -642,10 +646,8 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // What the tree looked like before this agent got its hands on it. Every
   // send in this activityRun — first prompt, JSON retries — is measured against
   // this one baseline.
-  const treeBefore = ports.snapshot({
-    workspaceRoot: run.repoRoot,
-    vcsRoot: run.vcsRoot,
-  })
+  const roots: TRoots = { workspaceRoot: run.repoRoot, vcsRoot: run.vcsRoot }
+  const treeBefore = ports.snapshot(roots)
   /*
    * And where history was, so a commit this Activity was not asked to make is
    * caught. No prompt asks an agent to commit, but a prompt is advice:
@@ -653,7 +655,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
    * agent free to commit with `bash`, and the run would be reported as having
    * made no commits while carrying one.
    */
-  const headBefore = ports.rev('HEAD')
+  const headBefore = ports.head(roots)
 
   const parsed = parseWithRetries(
     run,
@@ -669,6 +671,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   // done: the agent is finished, so the tree it leaves is the one to compare.
   // Observed, never acted on — see enforce-permissions for why nothing here
   // puts a file back.
+  const headAfter = ports.head(roots)
   const observed = enforcePermissions(
     run,
     agent,
@@ -678,11 +681,9 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       committing: call.committing === true,
     },
     {
-      tree: ports.snapshot({
-        workspaceRoot: run.repoRoot,
-        vcsRoot: run.vcsRoot,
-      }),
-      head: ports.rev('HEAD'),
+      tree: ports.snapshot(roots),
+      head: headAfter,
+      history: ports.history(roots)(headBefore, headAfter),
     },
     /*
      * Resolved from the roster rather than carried: a cohort is Activity

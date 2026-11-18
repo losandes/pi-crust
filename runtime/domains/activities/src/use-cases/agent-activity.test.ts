@@ -83,6 +83,8 @@ const fakePorts = (
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
     rev: () => '',
+    head: () => '',
+    history: () => () => [],
     content: () => ({ status: 'ok', data: {} }),
     ...overrides,
     run: (request, hooks) => {

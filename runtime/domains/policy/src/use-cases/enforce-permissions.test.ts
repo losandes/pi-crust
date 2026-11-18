@@ -373,8 +373,16 @@ test(
     }
 
     // when
-    const actual = commitBreach(given, { tree: {}, head: 'b'.repeat(40) })
-    const unchanged = commitBreach(given, { tree: {}, head: given.head })
+    const actual = commitBreach(given, {
+      tree: {},
+      head: 'b'.repeat(40),
+      history: [],
+    })
+    const unchanged = commitBreach(given, {
+      tree: {},
+      head: given.head,
+      history: [],
+    })
 
     // then
     expect(unchanged).toEqual([])
@@ -395,7 +403,11 @@ test(
     const given = { tree: {}, head: 'a'.repeat(40), committing: true }
 
     // when
-    const actual = commitBreach(given, { tree: {}, head: 'b'.repeat(40) })
+    const actual = commitBreach(given, {
+      tree: {},
+      head: 'b'.repeat(40),
+      history: [],
+    })
 
     // then
     expect(actual).toEqual([])
@@ -413,7 +425,11 @@ test(
     const given = { tree: {}, head: '', committing: false }
 
     // when
-    const actual = commitBreach(given, { tree: {}, head: 'b'.repeat(40) })
+    const actual = commitBreach(given, {
+      tree: {},
+      head: 'b'.repeat(40),
+      history: [],
+    })
 
     // then
     expect(actual).toEqual([])
@@ -431,7 +447,7 @@ test(
     const before = { tree: {}, head: 'a'.repeat(40), committing: false }
 
     // when
-    const actual = commitBreach(before, { tree: {}, head: '' })
+    const actual = commitBreach(before, { tree: {}, head: '', history: [] })
 
     // then
     expect(actual).toEqual([])
@@ -488,7 +504,7 @@ test(
         runIn(dir, cfg),
         agentNamed(cfg, 'reviewer'),
         { tree: before, head: '', committing: false },
-        { tree: after, head: '' },
+        { tree: after, head: '', history: [] },
       )
 
       // then — named, and still on disk
@@ -522,7 +538,7 @@ test(
         runIn(dir, cfg),
         agentNamed(cfg, 'reviewer'),
         { tree: before, head: '', committing: false },
-        { tree: after, head: '' },
+        { tree: after, head: '', history: [] },
       )
 
       // then
@@ -564,7 +580,11 @@ test.skipIf(SKIP_INTEGRATION)(
       runIn(dir, cfg),
       agentNamed(cfg, 'reviewer'),
       { tree: before, head: '', committing: false },
-      { tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }), head: '' },
+      {
+        tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }),
+        head: '',
+        history: [],
+      },
       [agentNamed(cfg, 'code-reviewer')],
     )
 
@@ -641,7 +661,11 @@ test.skipIf(SKIP_INTEGRATION)(
       run,
       agentNamed(cfg, 'reviewer'),
       { tree: before, head: '', committing: false },
-      { tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }), head: '' },
+      {
+        tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }),
+        head: '',
+        history: [],
+      },
     )
 
     // then
@@ -676,7 +700,11 @@ test.skipIf(SKIP_INTEGRATION)(
       run,
       agentNamed(cfg, 'reviewer'),
       { tree: before, head: '', committing: false },
-      { tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }), head: '' },
+      {
+        tree: snapshotTree({ workspaceRoot: dir, vcsRoot: dir }),
+        head: '',
+        history: [],
+      },
     )
 
     // then
@@ -734,6 +762,7 @@ test.skipIf(SKIP_INTEGRATION)(
           vcsRoot: vcsRootDir,
         }),
         head: '',
+        history: [],
       },
     )
 
@@ -819,6 +848,7 @@ test.skipIf(SKIP_INTEGRATION)(
           vcsRoot: vcsRootDir,
         }),
         head: '',
+        history: [],
       },
     )
 
@@ -835,3 +865,110 @@ test.skipIf(SKIP_INTEGRATION)(
     expect(actual.overstepped).toEqual([absoluteDockerfile])
   },
 )
+
+for (const scenario of [
+  {
+    name: 'U1: an unauthorized commit outside writes',
+    writes: ['reviews/'],
+    committing: false,
+    before: {},
+    after: {},
+    history: ['src/app.ts'],
+    touched: ['src/app.ts'],
+    overstepped: ['src/app.ts'],
+    commits: 1,
+  },
+  {
+    name: 'U2: an authorized commit outside writes',
+    writes: ['reviews/'],
+    committing: true,
+    before: {},
+    after: {},
+    history: ['src/app.ts'],
+    touched: ['src/app.ts'],
+    overstepped: ['src/app.ts'],
+    commits: 0,
+  },
+  {
+    name: 'U3: an authorized commit inside writes',
+    writes: ['reviews/'],
+    committing: true,
+    before: {},
+    after: {},
+    history: ['reviews/notes.md'],
+    touched: ['reviews/notes.md'],
+    overstepped: [],
+    commits: 0,
+  },
+  {
+    name: 'U4: overlapping tree and history paths',
+    writes: ['reviews/'],
+    committing: false,
+    before: { 'src/app.ts': '1,0' },
+    after: { 'src/app.ts': '2,0' },
+    history: ['src/b.ts', 'src/app.ts'],
+    touched: ['src/app.ts', 'src/b.ts'],
+    overstepped: ['src/app.ts', 'src/b.ts'],
+    commits: 1,
+  },
+  {
+    name: 'U5: a sibling committing its declared path',
+    writes: ['reviews/'],
+    committing: false,
+    before: {},
+    after: {},
+    history: ['code-reviews/theirs.md', 'reviews/mine.md'],
+    touched: ['reviews/mine.md'],
+    overstepped: [],
+    commits: 1,
+  },
+  {
+    name: 'U6: a committed protected path with unrestricted writes',
+    writes: ['*'],
+    committing: true,
+    before: {},
+    after: {},
+    history: ['.pi-crust/config/crust.config.yaml'],
+    touched: ['.pi-crust/config/crust.config.yaml'],
+    overstepped: ['.pi-crust/config/crust.config.yaml'],
+    commits: 0,
+  },
+]) {
+  test(
+    [
+      `given use-cases/enforce-permissions::enforcePermissions with ${scenario.name}`,
+      'when history paths are supplied alongside the snapshots',
+      'it should judge the sorted union with the existing ownership and protection rules',
+    ].join(', '),
+    () => {
+      // given
+      const cfg = configWith([
+        { name: 'reviewer', writes: scenario.writes },
+        { name: 'code-reviewer', writes: ['code-reviews/'] },
+      ])
+
+      // when
+      const actual = enforcePermissions(
+        runIn('/repo', cfg),
+        agentNamed(cfg, 'reviewer'),
+        {
+          tree: scenario.before,
+          head: 'a'.repeat(40),
+          committing: scenario.committing,
+        },
+        {
+          tree: scenario.after,
+          head: 'b'.repeat(40),
+          history: scenario.history,
+        },
+        [agentNamed(cfg, 'code-reviewer')],
+      )
+
+      // then
+      expect(actual.touched).toEqual(scenario.touched)
+      expect(actual.overstepped).toEqual(scenario.overstepped)
+      expect(actual.committed).toHaveLength(scenario.commits)
+      if (scenario.commits === 0) expect(actual.committed).toEqual([])
+    },
+  )
+}

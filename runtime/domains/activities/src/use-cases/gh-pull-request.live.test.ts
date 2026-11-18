@@ -116,6 +116,8 @@ const fakeAgentPorts = (run: TAgentPorts['run']): TAgentPorts => ({
   savePrompt: (directory, name) => join(directory, name),
   snapshot: () => ({}),
   rev: () => '',
+  head: () => '',
+  history: () => () => [],
   content: () => ({ status: 'ok', data: {} }),
 })
 
