@@ -187,6 +187,10 @@ const harnessControlSchema = z.object({
   messages: z.number().int().nonnegative().optional(),
   kind: z.enum(['agent', 'code']).optional(),
   activityRunId: z.string().optional(),
+  /** Turn numbers within 1..messages that call one tool and narrate nothing. */
+  silentTurns: z.array(z.number().int().positive()).optional(),
+  /** One steer, sent 500 ms after this turn began. */
+  steerAfterTurn: z.number().int().positive().optional(),
 })
 type THarnessControl = Readonly<z.infer<typeof harnessControlSchema>>
 
@@ -230,6 +234,8 @@ const Harness = () => {
         messages: detail.messages ?? current.messages,
         kind: detail.kind ?? current.kind,
         activityRunId: detail.activityRunId ?? current.activityRunId,
+        silentTurns: detail.silentTurns ?? current.silentTurns,
+        steerAfterTurn: detail.steerAfterTurn ?? current.steerAfterTurn,
       }))
     }
     window.addEventListener('activity-run-harness', update)
@@ -240,28 +246,65 @@ const Harness = () => {
     kind: control.kind ?? selected.kind,
     activity_run_id: control.activityRunId ?? selected.activity_run_id,
   }
+  const turnTime = (turn: number, offset = 0) =>
+    new Date(
+      Date.parse(activityRun.started_at ?? '') + turn * 1000 + offset,
+    ).toISOString()
   const currentEvents: readonly Event[] = [
     ...events,
-    ...Array.from(
-      { length: control.messages ?? 0 },
-      (_, index): Event => ({
-        rowid: events.length + index + 1,
-        event_id: `detail-message-${index + 1}`,
+    ...Array.from({ length: control.messages ?? 0 }, (_, index): Event => {
+      const turn = index + 1
+      const silent = control.silentTurns?.includes(turn) ?? false
+      return {
+        rowid: events.length + turn,
+        event_id: `detail-${silent ? 'silent' : 'message'}-${turn}`,
         run_id: activityRun.run_id,
         activity_run_id: currentActivityRun.activity_run_id,
         parent_id: '',
-        type: 'narration',
-        name: 'builder',
-        payload_json: JSON.stringify({
-          turn: index + 1,
-          channel: 'text',
-          text: `message ${index + 1}`,
-        }),
+        type: silent ? 'tool_call' : 'narration',
+        name: silent ? `bash: silent turn ${turn}` : 'builder',
+        payload_json: JSON.stringify(
+          silent
+            ? {
+                turn,
+                tool: 'bash',
+                ok: true,
+                args: { command: `silent turn ${turn}` },
+                result_snippet: '',
+                duration_ms: 1,
+              }
+            : {
+                turn,
+                channel: 'text',
+                text: `message ${turn}`,
+              },
+        ),
         tokens: 0,
-        started_at: activityRun.started_at,
-        ended_at: activityRun.ended_at,
-      }),
-    ),
+        started_at: turnTime(turn),
+        ended_at: turnTime(turn),
+      }
+    }),
+    ...(control.steerAfterTurn === undefined
+      ? []
+      : [
+          {
+            rowid: events.length + (control.messages ?? 0) + 1,
+            event_id: 'detail-steer',
+            run_id: activityRun.run_id,
+            activity_run_id: currentActivityRun.activity_run_id,
+            parent_id: '',
+            type: 'log' as const,
+            name: 'inbox_steer',
+            payload_json: JSON.stringify({
+              kind: 'steer',
+              message: 'steer note',
+              from: 'alice',
+            }),
+            tokens: 0,
+            started_at: turnTime(control.steerAfterTurn, 500),
+            ended_at: turnTime(control.steerAfterTurn, 500),
+          },
+        ]),
   ].map((event) => ({
     ...event,
     activity_run_id: control.activityRunId ?? event.activity_run_id,

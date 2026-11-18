@@ -57,9 +57,8 @@ const turnOf = (payload: Readonly<Record<string, unknown>>): number =>
 /**
  * Group a activity-run's events into turns.
  *
- * Events whose turn is unknown — every run traced before narration existed —
- * collect under turn 0, which the pane renders as a single untitled group
- * rather than dropping. An old run should still show its tool calls.
+ * Events with no turn number collect under turn 0. `turnsOf` returns that
+ * group; the chat tab shows it only when it holds narration (`narratedTurnsOf`).
  */
 /**
  * One event's contribution to a turn, before the turns are assembled.
@@ -132,6 +131,15 @@ export const turnsOf = (events: readonly EventRow[]): readonly TTurn[] =>
     }))
     .filter((group) => group.blocks.length > 0 || group.calls.length > 0)
     .toSorted((a, b) => a.turn - b.turn || a.at - b.at)
+
+/**
+ * The turns the chat tab shows: those in which the agent narrated something.
+ *
+ * A turn that only called tools has nothing to read in the conversation; its
+ * calls are in the events tab.
+ */
+export const narratedTurnsOf = (turns: readonly TTurn[]): readonly TTurn[] =>
+  turns.filter((turn) => turn.blocks.length > 0)
 
 /**
  * Whether the view should stay pinned to the newest message.

@@ -202,14 +202,21 @@ const controlDetail = async (
     messages?: number
     kind?: 'agent' | 'code'
     activityRunId?: string
+    silentTurns?: readonly number[]
+    steerAfterTurn?: number
   }>,
+  expectedEvents?: number,
 ) => {
   await page.evaluate(
     (detail) =>
       window.dispatchEvent(new CustomEvent('activity-run-harness', { detail })),
     detail,
   )
-  if (detail.messages) {
+  if (expectedEvents !== undefined) {
+    await page
+      .getByRole('tab', { name: `events (${expectedEvents})`, exact: true })
+      .waitFor()
+  } else if (detail.messages) {
     await page
       .getByText(`message ${detail.messages}`, { exact: true })
       .waitFor()
@@ -1252,6 +1259,260 @@ test.skipIf(!browserTestsEnabled)(
         ).toBe(0)
         expect(await header.textContent()).not.toMatch(/[✓✗]/)
       }
+    })
+  },
+  30_000,
+)
+
+const chatPanel = (page: Page) => page.getByTestId('activity-run-thinking')
+const turnLabels = (page: Page) =>
+  chatPanel(page)
+    .getByTestId('narration-scroller')
+    .locator('article > span:first-child')
+    .evaluateAll((marks) =>
+      marks.map((mark) => mark.firstChild?.textContent?.trim()),
+    )
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC1: T1 a tool-only turn between narrated turns',
+    'when the chat tab is opened',
+    'it should omit the silent turn and placeholder',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await controlDetail(page, { messages: 3, silentTurns: [2] })
+
+      // then — SC1
+      expect(await turnLabels(page)).not.toContain('turn 2')
+      expect(
+        await chatPanel(page)
+          .getByText('no narration for this turn', { exact: true })
+          .count(),
+      ).toBe(0)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC1: T2 tool calls with no turn numbers',
+    'when the default chat tab is opened',
+    'it should show the empty state without an untraced panel',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await chatPanel(page).waitFor()
+
+      // then — SC1, SC4
+      expect(
+        await chatPanel(page)
+          .getByText('nothing recorded for builder yet', { exact: true })
+          .isVisible(),
+      ).toBe(true)
+      expect(await turnLabels(page)).not.toContain('untraced')
+      expect(
+        await chatPanel(page)
+          .getByText('no narration for this turn', { exact: true })
+          .count(),
+      ).toBe(0)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC2: T3 a gap between narrated turns',
+    'when the chat tab is opened',
+    'it should keep the original turn labels and their own passages',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await controlDetail(page, { messages: 3, silentTurns: [2] })
+      const panels = chatPanel(page)
+        .getByTestId('narration-scroller')
+        .locator('article')
+
+      // then — SC2
+      expect(await turnLabels(page)).toEqual(['turn 1', 'turn 3'])
+      expect(
+        await panels.nth(0).getByText('message 1', { exact: true }).isVisible(),
+      ).toBe(true)
+      expect(
+        await panels.nth(1).getByText('message 3', { exact: true }).isVisible(),
+      ).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC2: T4 spoken text without reasoning',
+    'when the chat tab is opened',
+    'it should keep the turn panel and its text',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await controlDetail(page, { messages: 1 })
+      const panel = chatPanel(page)
+        .getByTestId('narration-scroller')
+        .locator('article')
+        .filter({ hasText: 'message 1' })
+
+      // then — SC2
+      expect(
+        await panel
+          .locator(':scope > span:first-child')
+          .evaluate((mark) => mark.firstChild?.textContent?.trim()),
+      ).toBe('turn 1')
+      expect(
+        await panel.getByText('message 1', { exact: true }).isVisible(),
+      ).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC3: T5 a steer during a tool-only turn',
+    'when the chat tab is opened',
+    'it should keep the steer between the remaining narrated turns',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await controlDetail(page, {
+        messages: 3,
+        silentTurns: [2],
+        steerAfterTurn: 2,
+      })
+      await chatPanel(page).getByText('steer note', { exact: true }).waitFor()
+      const passages = await chatPanel(page)
+        .getByTestId('narration-scroller')
+        .locator('article p')
+        .allTextContents()
+
+      // then — SC3
+      expect(
+        passages.filter((text) => /^(message [13]|steer note)$/.test(text)),
+      ).toEqual(['message 1', 'steer note', 'message 3'])
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC4: T6 every turn only called tools',
+    'when the chat tab is opened',
+    'it should show the empty-state line and no turn panels',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      // when
+      await controlDetail(page, { messages: 3, silentTurns: [1, 2, 3] }, 8)
+
+      // then — SC4
+      expect(
+        await chatPanel(page)
+          .getByText('nothing recorded for builder yet', { exact: true })
+          .isVisible(),
+      ).toBe(true)
+      expect(await turnLabels(page)).toEqual([])
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC5: T7 a reader midway through a conversation',
+    'when eight silent turns arrive followed by eight narrated turns',
+    'it should offer only the eight displayed arrivals',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      await scrollConversation(page, 'middle')
+      const before = await page
+        .getByRole('tab', { name: /^events/ })
+        .textContent()
+      const count = Number(before?.match(/\((\d+)\)/)?.[1])
+      expect(count).toBe(305)
+
+      // when
+      await controlDetail(
+        page,
+        {
+          messages: 308,
+          silentTurns: Array.from({ length: 8 }, (_, index) => 301 + index),
+        },
+        count + 8,
+      )
+
+      // then — SC5
+      expect(
+        await chatPanel(page).getByRole('button', { name: /new$/ }).count(),
+      ).toBe(0)
+
+      // when
+      await controlDetail(page, { messages: 316 })
+
+      // then — SC5: silent turns stay excluded from the accumulated count.
+      expect(
+        await chatPanel(page)
+          .getByRole('button', { name: '8 new', exact: true })
+          .isVisible(),
+      ).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given issue #185 SC6: T9 a tool-only turn omitted from chat',
+    'when the events tab is opened',
+    'it should keep the tool call and the full event count',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 3, silentTurns: [2] })
+
+      // when
+      await page.getByRole('tab', { name: 'events' }).click()
+
+      // then — SC6
+      expect(
+        await page
+          .getByRole('tab', { name: 'events (8)', exact: true })
+          .isVisible(),
+      ).toBe(true)
+      expect(
+        await page
+          .locator(EVENTS)
+          .getByText('bash: silent turn 2', { exact: true })
+          .isVisible(),
+      ).toBe(true)
+      expect(await page.locator(`${EVENTS} > div > div > button`).count()).toBe(
+        8,
+      )
     })
   },
   30_000,

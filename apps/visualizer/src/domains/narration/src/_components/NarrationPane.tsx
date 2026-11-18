@@ -20,6 +20,7 @@ import {
 import {
   hasOverflow,
   isAtBottom,
+  narratedTurnsOf,
   shouldOfferJump,
   type TTurn,
   turnsOf,
@@ -35,8 +36,6 @@ const styles = {
   turnMark: 'mb-1.5 block font-mono text-sm text-faint',
   thinking:
     'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-dim wrap-anywhere',
-  noNarration:
-    'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-faint wrap-anywhere',
   text: 'mt-0 mb-2 text-base/relaxed whitespace-pre-wrap text-text wrap-anywhere',
   segment: 'mt-0 mb-1.5 last:mb-0',
   code: 'my-1.5 overflow-x-auto rounded-r-sm border-y border-r border-border-soft px-2.5 py-2 font-mono text-xs/normal whitespace-pre text-dim [tab-size:2] [&_code]:[font:inherit]',
@@ -122,7 +121,7 @@ export const NarrationPane = ({
   runId: string
   runStatus: string
 }>) => {
-  const turns = turnsOf(events)
+  const turns = narratedTurnsOf(turnsOf(events))
   const messages = developerMessagesOf(events)
   const conversation = conversationOf(turns, messages)
   const [following, setFollowing] = useState(true)
@@ -402,9 +401,6 @@ const TurnNarration = ({ turn }: Readonly<{ turn: TTurn }>) => (
         text={block.text}
       />
     ))}
-    {turn.blocks.length === 0 && (
-      <p className={styles.noNarration}>no narration for this turn</p>
-    )}
   </article>
 )
 
