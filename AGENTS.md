@@ -34,6 +34,7 @@ Read the listed record **before** producing code, prose or a plan for the matchi
 | SQL, schema, or query documentation                                                                                             | `.claude/skills/adr/sql/README.md`                                         |
 | Writing a commit message                                                                                                        | `.claude/skills/adr/git/use-conventional-commits.md`                       |
 | Why verification and skills are selected by changed path rather than by position                                                | `adr/deterministic-verification/route-verification-by-changed-paths.md`    |
+| Deciding what a run reads from the issue or document its request references                                                     | `adr/activity-handoff/import-referenced-work.md`                           |
 | Deciding what an Activity is handed from the Activities before it — supersede vs annotate, single input vs whole history        | `adr/activity-handoff/envelope-succession.md`                              |
 | Deciding what a judging Activity is told to judge — its file list, where it reads the change, the run's start state             | `adr/activity-handoff/review-the-whole-run.md`                             |
 | Assigning a model or a thinking level to an Activity, or questioning one already assigned                                       | `adr/choosing-models/choosing-the-right-model-for-an-activity.md`          |

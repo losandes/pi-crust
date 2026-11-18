@@ -183,15 +183,62 @@ The map records the model each session was created with. If config drift changes
 
 This matters because of what used to happen when it did not. A activity run whose gates failed terminally threw before anything was written, so the agent's work sat in the repository while its report vanished — and a later activity run in the same session read `previous_envelope: (none)` and carried on as though no one had done anything.
 
+## Importing referenced work
+
+A Lifecycle may name the engine step `import` first in its first, serial Stage. It reads the work before any agent runs and supplies an `ImportOutput` envelope listing the handoff documents, their provenance and any comments. The first Activity receives that envelope as `previous_envelope`; later Activities receive it in `previous_envelopes`. `--resume` replays the saved envelope without reading the source again.
+
+Every GitHub issue reference counts: `#150`, `owner/name#150`, or an issue URL. Every whitespace-delimited path ending in `.md` or `.markdown` also counts, ignoring case and surrounding quotes, backticks, brackets and punctuation. Web addresses ending in `.md` do not count. Repeated references to the same issue or resolved path count once. An issue must belong to the repository `gh` resolves for the run. A relative path in request text resolves against the repository root; when the prompt argument itself is a markdown file, that path resolves against the invoking working directory and the import does not scan its contents for further references.
+
+Handoff documents are recognised by these markers, outside fenced code blocks:
+
+```text
+---
+> _Handoff: Identify_
+---
+
+<identify output>
+
+---
+> _Handoff: Plan_
+---
+
+<plan>
+
+---
+> _End of handoffs_
+---
+
+<provenance or other notes>
+```
+
+To post a plan in a comment as a plan rather than an appended comment, surround it with the `Handoff: Plan` divider and the end marker shown above. Labels resolve by Activity name, alias or handoff-document basename. A section for an annotating Activity, an unknown label, an Activity with no document, or an Activity this run will execute is kept aside rather than attributed. Marker lines and adjacent blank lines are removed; the document's remaining text is not reworded or reordered, and internal line endings are preserved.
+
+Attributed sections become the Activity's established handoff file, such as `identify.md`, `plan.md` or `diagnosis.md`. The latest posted version wins; earlier versions are retained as unattributed material and all versions are recorded. An unmarked description or document becomes `imported-work.md` byte for byte. Text outside sections and anything that cannot be attributed goes to `imported-unattributed.md`, labelled with its source and reason. Existing files are never overwritten. The envelope also lists work documents already present, even when the request names nothing; with no reference and no work present, import succeeds without an envelope or imported file.
+
+Every issue comment is read and recorded with its author, author association, address, posting time and last-edited time. Comments from `OWNER`, `MEMBER` or `COLLABORATOR` authors may supply sections. A trusted comment without sections is appended below an `Issue comment` divider to the first earlier imported document containing a question code it cites, or to the most recently posted earlier document otherwise. Answers below that divider supersede provisional answers to the same question codes. Comments from other associations, blank comments and comments with no eligible target stay in unattributed material, not in the work documents.
+
+`just crust report <run-id>` shows the reference as written, the source address and read time, the issue's updated time, every document and version, and every comment's placement. For document sources it also shows the SHA-256 digest, commit at `HEAD` and whether the bytes differed from it. The files and envelope are the version this run implements; Activities should not fetch the source again.
+
+Import stops before any agent runs when the request names multiple distinct sources, the repository or issue cannot be read, an issue belongs to another repository, the reference is a pull request, a document is missing, unreadable, not a file or protected by `protected_files`, or a source carries no usable text and there is no earlier work. The message names the references and reason. Reword an ambiguous request so exactly one source remains, or run a chain without `import`. A failed write stops the import and removes the files it created; if removal also fails, the message lists the paths left behind for the operator to remove before retrying. Neither path alters earlier files.
+
+A repository set up before this change does not gain the import by updating: its configuration belongs to it, not to the template. Enable it by hand:
+
+1. Open `.pi-crust/config/crust.lifecycles.yaml`.
+2. Find the Lifecycle you deliver with — the one whose first Stage starts at `build`.
+3. Add `import` as the first entry of that Stage's `activities`, so it reads `activities: [import, build]`. The Stage must be `serial`.
+4. Save the file. Nothing else is needed: `import` has no entry in `crust.activities.yaml`, and no re-stamp is required.
+
+New installations enable import only in `ship-to-plan`. Lifecycles that identify, diagnose or plan for themselves are unchanged.
+
 ## How a activity run is replayed
 
 `--resume` skips a activity run already recorded successful for the session and replays its result instead. Three sources, one per kind:
 
-| Activity Run kind            | Replayed from                                                              |
-| ---------------------------- | -------------------------------------------------------------------------- |
-| agent                        | `{sessionDir}/{agent}/envelope.json`, parsed against the Activity's spec   |
-| code                         | the payload the activity run filed under the `step_result` event           |
-| git (commit, change capture) | the recorded sha, or simply re-captured — a diff is deterministic and free |
+| Activity Run kind            | Replayed from                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| agent                        | `{sessionDir}/{agent}/envelope.json`, parsed against the Activity's spec       |
+| code                         | the `step_result` payload, except `import`, which replays its envelope history |
+| git (commit, change capture) | the recorded sha, or simply re-captured — a diff is deterministic and free     |
 
 Two rules hold this together:
 

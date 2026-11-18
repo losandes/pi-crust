@@ -41,12 +41,15 @@ import {
   shellLine,
 } from './domains/cli'
 import { loadConfig } from './domains/config'
+import { renderImportReport } from './domains/imports'
 import { readRunState } from './domains/trace'
 import type { TGateOutcome, TRunState } from './lib/contracts'
 import {
   DEFAULT_CONFIG_PATH,
   DEFAULT_DB,
   EXIT,
+  importOutput,
+  importOutputSchema,
   renderWarnings,
 } from './lib/contracts'
 import { configPathFromEnv, dbPathFromEnv } from './lib/system'
@@ -227,6 +230,16 @@ export const renderReport = (
    * usually not the person who watched it happen.
    */
   const warnings = renderWarnings(state.warnings)
+  const imported = state.envelopes
+    .filter(
+      (envelope) =>
+        envelope.valid && envelope.output_type === importOutput.name,
+    )
+    .flatMap((envelope) => {
+      const parsed = importOutputSchema.safeParse(envelope.payload)
+      return parsed.success ? [parsed.data] : []
+    })
+    .at(-1)
 
   return [
     box('run', header, state.resumable ? 'yellow' : 'green'),
@@ -235,6 +248,7 @@ export const renderReport = (
       ? activityRuns
       : ['  (no activityRuns recorded)']),
     '',
+    ...(imported === undefined ? [] : [...renderImportReport(imported), '']),
     ...(warnings.length > 0
       ? [...warnings.map((line) => paint(line, 'yellow')), '']
       : []),

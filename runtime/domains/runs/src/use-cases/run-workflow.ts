@@ -26,9 +26,12 @@ import type {
 import {
   DEFAULT_ACTIVITY_OPTIONS,
   describeTrust,
+  IMPORT_NAME,
+  importIn,
   TRUST_PROVISIONAL,
   terminalIn,
   trustLevel,
+  withoutImport,
   withoutTerminal,
 } from '../../../../lib/contracts'
 import { dataDirFromEnv } from '../../../../lib/system'
@@ -69,6 +72,7 @@ import { loopAgents } from './revise-loop'
 import type { TWaiting } from './run-activities'
 import { recordRequest } from './run-activities'
 import { counts, finish, finishWaiting } from './run-activity-run'
+import { runImport } from './run-import'
 import { runReviewSegments } from './run-review-segments'
 import { runTerminal } from './run-terminal'
 import { startSession } from './start-session'
@@ -277,7 +281,8 @@ export const runWorkflow = async (
    * names list, the attempt ledger, reviewGroups) ever sees it.
    */
   const terminalName = terminalIn(plan)
-  const foldPlan = withoutTerminal(plan)
+  const importing = importIn(plan)
+  const foldPlan = withoutImport(withoutTerminal(plan))
   const names = plannedNames(foldPlan)
   const loaded = loadConfigWithNotes(args.config)
   const options: Readonly<Partial<TActivityOptions>> = {
@@ -427,6 +432,7 @@ export const runWorkflow = async (
     const baseline = pinBaseline(names)
 
     const wholeChain = [
+      ...(importing ? [IMPORT_NAME] : []),
       ...names,
       ...(terminal === undefined ? [] : [terminal.name]),
     ]
@@ -443,18 +449,33 @@ export const runWorkflow = async (
         ),
     )
 
+    const imported = importing
+      ? await runImport()({
+          run,
+          request: args.prompt,
+          promptPath: args.promptPath,
+          chain: names,
+        })
+      : undefined
     const units = unitsFrom(foldPlan, activities)
+    const replayed = args.resume ? replayEnvelopeHistory(run, units) : undefined
     const start: TActivityContext = {
       run,
       prompt: args.prompt,
-      previous: undefined,
-      previousStep: undefined,
-      upstream: [],
+      previous: replayed?.previous ?? imported,
+      previousStep:
+        replayed?.previousStep ??
+        (imported === undefined ? undefined : IMPORT_NAME),
+      upstream: [
+        ...(imported === undefined
+          ? []
+          : [{ activity: IMPORT_NAME, envelope: imported }]),
+        ...(replayed?.upstream ?? []),
+      ],
       cohort: [],
       baseline,
       outcomes: [],
       feedback: [],
-      ...(args.resume ? replayEnvelopeHistory(run, units) : {}),
     }
     // A later delivery gate must not hide the acceptance this answer settles.
     const acceptanceGate =

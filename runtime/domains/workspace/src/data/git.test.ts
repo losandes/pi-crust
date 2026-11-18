@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   rmSync,
   writeFileSync,
@@ -18,6 +19,8 @@ import {
   createBranch,
   diffFilesBetween,
   filesUnder,
+  headAt,
+  matchesHead,
   pushBranch,
   remoteDefaultBranch,
   remoteExists,
@@ -51,6 +54,40 @@ const aRepo = (): string => {
 
   return dir
 }
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given on-disk document provenance',
+    'when comparing committed edited untracked and non-repository files',
+    'it should report HEAD and exact blob equality',
+  ].join(', '),
+  () => {
+    // given
+    const dir = aRepo()
+    const outside = mkdtempSync(join(tmpdir(), 'crust-no-git-'))
+    try {
+      const path = join(dir, 'extra.test.ts')
+      const nested = join(dir, ' docs ', 'plan.md')
+      mkdirSync(join(dir, ' docs '))
+      writeFileSync(nested, 'nested work')
+      git(dir, 'add', ' docs /plan.md')
+      git(dir, 'commit', '-qm', 'track the document with spaces in its path')
+      // when, then
+      expect(matchesHead(nested)).toBe(true)
+      expect(headAt(dir)).toBe(git(dir, 'rev-parse', 'HEAD'))
+      expect(matchesHead(path)).toBe(true)
+      writeFileSync(path, 'changed\n')
+      expect(matchesHead(path)).toBe(false)
+      writeFileSync(join(dir, 'untracked.md'), 'new')
+      expect(matchesHead(join(dir, 'untracked.md'))).toBe(false)
+      expect(headAt(outside)).toBe('')
+      expect(matchesHead(join(outside, 'absent.md'))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(outside, { recursive: true, force: true })
+    }
+  },
+)
 
 for (const state of [
   'clone',

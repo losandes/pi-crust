@@ -42,6 +42,7 @@ The skill carries cookbooks for each of those and will load only the one your re
 │   ├── config/       reading and merging crust.config.yaml and its layers
 │   ├── gates/        acceptance — gates, disputes, regressions
 │   ├── handoff/      the session directory and inter-activity artifacts
+│   ├── imports/      referenced work, handoff sections and comment provenance
 │   ├── planning/     activities and lifecycles turned into an ordered plan
 │   ├── policy/       what an agent may touch and which checks it routes to
 │   ├── runs/         the engine that executes a run and reports it

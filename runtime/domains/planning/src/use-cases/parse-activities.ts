@@ -28,8 +28,10 @@ import type {
   TStage,
 } from '../../../../lib/contracts'
 import {
+  isImportName,
   isPlannerName,
   isTerminalName,
+  misplacedImport,
   misplacedTerminal,
   PLANNER_NAMES,
 } from '../../../../lib/contracts'
@@ -111,7 +113,12 @@ const nameFaults = (
   const planners = names.filter(isPlannerName)
   const unknown = names.filter(
     (name) =>
-      !(isPlannerName(name) || isTerminalName(name) || offered.includes(name)),
+      !(
+        isImportName(name) ||
+        isPlannerName(name) ||
+        isTerminalName(name) ||
+        offered.includes(name)
+      ),
   )
 
   return [
@@ -183,7 +190,10 @@ export const parseActivities = (
    * longhand) where it is a probable mistake in a declared Lifecycle, so
    * `repeatedActivities` must not run against an ad-hoc chain.
    */
-  const placement = misplacedTerminal(asLifecycle)
+  const placement = [
+    ...misplacedTerminal(asLifecycle),
+    ...misplacedImport(asLifecycle),
+  ]
   if (placement.length > 0) {
     throw new Error(placement.map((fault) => fault.message).join('\n'))
   }

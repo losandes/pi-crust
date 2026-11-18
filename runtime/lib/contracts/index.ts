@@ -13,6 +13,8 @@ export {
   activityPatchFileSchema,
   activitySuccession,
   DEFAULT_ATTEMPTS,
+  IMPORT_NAME,
+  isImportName,
   isPlannerName,
   isTerminalName,
   mergeActivities,
@@ -66,6 +68,8 @@ export type {
   TChangesOutput,
   TEnvelopeBase,
   TEnvelopeSpec,
+  TImportOutput,
+  TImportSource,
   TPlanOutput,
   TPullRequestOutput,
   TQuestion,
@@ -82,6 +86,13 @@ export {
   envelopeJudges,
   envelopeNamed,
   genericOutput,
+  IMPORT_SOURCE_KINDS,
+  importedCommentSchema,
+  importedDocumentSchema,
+  importedVersionSchema,
+  importOutput,
+  importOutputSchema,
+  importSourceSchema,
   narrowEnvelope,
   operatorPlanOutput,
   planOutput,
@@ -91,6 +102,8 @@ export {
   regressionOf,
   reviewOutput,
   reviewOutputSchema,
+  UNATTRIBUTED_REASONS,
+  unattributedSchema,
 } from './src/envelope'
 export type { TAgentCall, TGate, TGateCheck, TGateReport } from './src/gate'
 export { addCheck, emptyReport, reportPassed, violationsOf } from './src/gate'
@@ -98,13 +111,16 @@ export type { TLifecycleConfig, TLifecycleFault, TStage } from './src/lifecycle'
 export {
   activityOrder,
   DEFAULT_LIFECYCLES_PATH,
+  importIn,
   lifecycleConfigSchema,
   lifecycleFaults,
   lifecycleNamed,
   lifecyclesFileSchema,
+  misplacedImport,
   misplacedTerminal,
   stagePlan,
   terminalIn,
+  withoutImport,
   withoutTerminal,
 } from './src/lifecycle'
 export type {

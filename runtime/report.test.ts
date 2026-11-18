@@ -1,10 +1,10 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { expect, test } from 'bun:test'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from './domains/trace'
 import type { TRunState } from './lib/contracts'
-import { EXIT } from './lib/contracts'
+import { EXIT, importOutputSchema } from './lib/contracts'
 import {
   main,
   parseReportArgs,
@@ -21,10 +21,138 @@ import {
   terminalOutput,
 } from './testing/terminal-capture'
 
-beforeEach(silenceTerminal)
-afterEach(restoreTerminal)
+test(
+  [
+    'given SC7 and SC19 an ImportOutput with versions and comments',
+    'when rendering the operator report',
+    'it should show provenance and ignore invalid later records',
+  ].join(', '),
+  () => {
+    // given
+    const payload = importOutputSchema.parse({
+      status: 'success',
+      source: {
+        kind: 'github-issue',
+        written: '#150',
+        address: 'issue-address',
+        read_at: 'read-time',
+        updated_at: 'issue-updated',
+      },
+      documents: [
+        {
+          activity: 'plan',
+          document: 'handoff/plan.md',
+          status: 'imported',
+          address: 'comment-address',
+          versions: [
+            {
+              address: 'issue-address',
+              posted_at: 'issue-posted',
+              used: false,
+            },
+            {
+              address: 'comment-address',
+              posted_at: 'plan-posted',
+              used: true,
+            },
+          ],
+          appended: ['answer-address'],
+        },
+      ],
+      comments: [
+        {
+          author: 'alice',
+          association: 'MEMBER',
+          address: 'comment-address',
+          posted_at: 'plan-posted',
+          edited_at: 'plan-edited',
+          placement: 'yielded',
+          documents: ['handoff/plan.md'],
+          reason: '',
+        },
+        {
+          author: 'bob',
+          association: 'OWNER',
+          address: 'answer-address',
+          posted_at: 'answer-posted',
+          edited_at: 'answer-edited',
+          placement: 'appended',
+          documents: ['handoff/plan.md'],
+          reason: '',
+        },
+      ],
+      unattributed: [
+        { address: 'issue-address', label: 'Plan', reason: 'superseded' },
+      ],
+    })
+    const state = aState({
+      envelopes: [
+        {
+          activityRun: 'import',
+          agent: 'import',
+          output_type: 'ImportOutput',
+          valid: true,
+          payload,
+        },
+        {
+          activityRun: 'import',
+          agent: 'import',
+          output_type: 'ImportOutput',
+          valid: true,
+          payload: {},
+        },
+        {
+          activityRun: 'import',
+          agent: 'import',
+          output_type: 'ImportOutput',
+          valid: false,
+          payload: {
+            ...payload,
+            source: { ...payload.source, written: 'invalid' },
+          },
+        },
+      ],
+    })
+    // when
+    const actual = renderReport(state)
+    // then
+    for (const field of [
+      '#150',
+      'issue-address',
+      'read-time',
+      'issue-updated',
+      'handoff/plan.md',
+      'imported',
+      'comment-address',
+      'issue-posted',
+      'plan-posted',
+      'plan-edited',
+      'alice',
+      'bob',
+      'answer-address',
+      'answer-posted',
+      'answer-edited',
+      'yielded',
+      'appended',
+      'superseded',
+    ])
+      expect(actual).toContain(field)
+    expect(actual).not.toContain('import invalid')
+    expect(renderReport(aState())).not.toContain('import #150')
+  },
+)
 
-const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-report-'))
+const scratch = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'crust-report-'))
+  silenceTerminal()
+  return {
+    dir,
+    [Symbol.dispose]: () => {
+      restoreTerminal()
+      rmSync(dir, { recursive: true, force: true })
+    },
+  }
+}
 
 const aState = (overrides: Readonly<Partial<TRunState>> = {}): TRunState =>
   ({
@@ -55,7 +183,8 @@ test(
     'it should read it as the positional runId with every flag at its default',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = parseReportArgs(['fbf49583'])
 
     // then
@@ -71,7 +200,8 @@ test(
     'it should parse every one of them',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = parseReportArgs([
       'fbf49583',
       '--json',
@@ -97,7 +227,9 @@ test(
     'it should throw naming the flag and USAGE',
   ].join(', '),
   () => {
-    // given, when, then
+    // given
+    // when
+    // then
     expect(() => parseReportArgs(['--db'])).toThrow(/--db needs a value/)
   },
 )
@@ -194,7 +326,8 @@ test(
     'it should resolve under sessions/<run-id>, beside the db',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = sessionDirOf('/data/crust.db', 'fbf49583')
 
     // then
@@ -210,7 +343,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = scratch()
+    using given = scratch()
+    const dir = given.dir
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.close()
@@ -231,7 +365,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = scratch()
+    using given = scratch()
+    const dir = given.dir
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.sessionStart('bbbb2222', 'tester', 'sdlc')
@@ -256,7 +391,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = scratch()
+    using given = scratch()
+    const dir = given.dir
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.sessionStart('cccc3333', 'tester', 'sdlc')
@@ -281,7 +417,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = scratch()
+    using given = scratch()
+    const dir = given.dir
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.sessionStart('dddd4444', 'tester', 'sdlc')
@@ -304,7 +441,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = scratch()
+    using given = scratch()
+    const dir = given.dir
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.sessionStart('eeee5555', 'tester', 'sdlc')
@@ -328,7 +466,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const dir = scratch()
+    using given = scratch()
+    const dir = given.dir
     const dbPath = join(dir, 'crust.db')
     const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
     tracer.sessionStart('ffff6666', 'tester', 'sdlc')
@@ -428,7 +567,9 @@ test(
     'it should name --json, --db, --config and both env overrides',
   ].join(', '),
   () => {
-    // given, when, then
+    // given
+    // when
+    // then
     expect(USAGE).toContain('--json')
     expect(USAGE).toContain('--db')
     expect(USAGE).toContain('--config')

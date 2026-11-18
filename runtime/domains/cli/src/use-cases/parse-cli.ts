@@ -395,13 +395,17 @@ export const parseCli = (
  * positional list that long is where a caller silently passes `config` as
  * `runId`.
  */
-export type TWorkflowArgs = TCliArgs
+export type TWorkflowArgs = TCliArgs & Readonly<{ promptPath?: string }>
 
 /** Parsed args with the prompt resolved from a file when it names one. */
 export const workflowArgs = (
   args: TCliArgs,
   prompt: string,
-): TWorkflowArgs => ({ ...args, prompt })
+): TWorkflowArgs => ({
+  ...args,
+  prompt,
+  ...(prompt === args.prompt ? {} : { promptPath: args.prompt }),
+})
 
 /**
  * The entry boundary every workflow shares: parse, run, report, exit.

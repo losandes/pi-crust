@@ -201,6 +201,10 @@ export const plannerConfigSchema = activityConfigSchema.omit({
 })
 export type TPlannerConfig = Readonly<z.infer<typeof plannerConfigSchema>>
 
+/** The engine's import step: named first in a Lifecycle, run before the fold, never an Activity. */
+export const IMPORT_NAME = 'import'
+export const isImportName = (name: string): boolean => name === IMPORT_NAME
+
 /**
  * The terminal Activities: they run after the chain has settled, and act on
  * the outside world with the run's actual verdict in hand.

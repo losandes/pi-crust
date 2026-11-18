@@ -19,6 +19,7 @@ import type {
 } from '../../../../lib/contracts'
 import {
   DEFAULT_ACTIVITY_OPTIONS,
+  isImportName,
   isPlannerName,
   isTerminalName,
 } from '../../../../lib/contracts'
@@ -53,7 +54,7 @@ export const unknownActivities = (
     names,
   ).filter(
     (name) =>
-      !(isPlannerName(name) || isTerminalName(name)) &&
+      !(isImportName(name) || isPlannerName(name) || isTerminalName(name)) &&
       resolvedNamed(registry, name) === undefined,
   )
 
@@ -127,6 +128,11 @@ export const runnableActivities = (
       ...options,
       instance:
         canonical.slice(0, index).filter((seen) => seen === name).length + 1,
+    }
+    if (isImportName(name)) {
+      throw new Error(
+        "'import' is the engine's import step — the engine runs it before the fold. Nothing in the fold resolves it.",
+      )
     }
     if (isTerminalName(name)) {
       throw new Error(
