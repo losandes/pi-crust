@@ -4,6 +4,7 @@ import {
   hasOverflow,
   isAtBottom,
   JUMP_THRESHOLD,
+  narratedTurnsOf,
   shouldOfferJump,
   turnsOf,
 } from './narration'
@@ -226,5 +227,97 @@ test(
 
     // then
     expect(actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given narration::narratedTurnsOf',
+    'when a tool-only turn separates two narrated turns',
+    'it should keep their own numbers and passages in order',
+  ].join(', '),
+  () => {
+    // given
+    const events = [
+      narration(1, 'first thought'),
+      call(2, 'bash: check'),
+      narration(3, 'third thought'),
+    ]
+
+    // when
+    const actual = narratedTurnsOf(turnsOf(events))
+
+    // then — SC1, SC2
+    expect(actual.map((turn) => turn.turn)).toEqual([1, 3])
+    expect(
+      actual.map((turn) => turn.blocks.map((block) => block.text)),
+    ).toEqual([['first thought'], ['third thought']])
+  },
+)
+
+test(
+  [
+    'given narration::narratedTurnsOf',
+    'when a tool call has no turn number',
+    'it should omit the untraced group',
+  ].join(', '),
+  () => {
+    // given
+    const events = [
+      event({ type: 'tool_call', payload_json: '{"tool":"bash"}' }),
+    ]
+
+    // when
+    const actual = narratedTurnsOf(turnsOf(events))
+
+    // then — SC1
+    expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given narration::narratedTurnsOf',
+    'when a turn has spoken text but no reasoning',
+    'it should keep its text block',
+  ].join(', '),
+  () => {
+    // given
+    const events = [narration(1, 'spoken passage', 'text')]
+
+    // when
+    const actual = narratedTurnsOf(turnsOf(events))
+
+    // then — SC2
+    expect(actual).toHaveLength(1)
+    expect(actual[0]?.blocks).toHaveLength(1)
+    expect(actual[0]?.blocks[0]?.channel).toBe('text')
+  },
+)
+
+test(
+  [
+    'given narration::narratedTurnsOf',
+    'when a turn has reasoning, spoken text and a tool call',
+    'it should preserve the original turn object without modifying the input',
+  ].join(', '),
+  () => {
+    // given
+    const turns = Object.freeze(
+      turnsOf([
+        narration(1, 'reasoning', 'thinking'),
+        narration(1, 'spoken text', 'text'),
+        call(1, 'bash: check'),
+      ]),
+    )
+    const before = [...turns]
+
+    // when
+    const actual = narratedTurnsOf(turns)
+
+    // then — SC2
+    expect(actual).toHaveLength(1)
+    expect(actual[0]).toBe(turns[0])
+    expect(turns).toEqual(before)
   },
 )
