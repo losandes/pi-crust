@@ -1,7 +1,14 @@
 import { ArrowDown } from 'lucide-react'
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { Envelope, EventRow } from '@/domains/decisions'
 import { DecisionRequest } from '@/domains/decisions'
+import { cx } from '@/lib/cx'
 import { fmtClock } from '@/lib/format'
 import { hasCode, highlightJsonText, splitFencesAndJson } from '@/lib/markdown'
 import type { TConsult, TPendingConsult } from '../usecases/consult'
@@ -11,6 +18,7 @@ import {
   type TDeveloperMessage,
 } from '../usecases/messages'
 import {
+  hasOverflow,
   isAtBottom,
   shouldOfferJump,
   type TTurn,
@@ -19,7 +27,9 @@ import {
 
 const styles = {
   pane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
-  scroller: 'min-h-0 flex-1 overflow-y-auto overscroll-contain',
+  scroller: 'min-h-0 flex-1 overflow-y-auto',
+  // Only while there is content to scroll; see hasOverflow.
+  contained: 'overscroll-contain',
   narration: 'flex min-w-0 flex-col px-4.5 py-3.5',
   turn: 'relative mb-2.5 rounded-sm border-(length:--border-width) border-border border-l-3 bg-panel-2/60 px-3 py-2.5 text-left font-card text-inherit',
   turnMark: 'mb-1.5 block font-mono text-sm text-faint',
@@ -120,6 +130,20 @@ export const NarrationPane = ({
 
   const scroller = useRef<HTMLDivElement | null>(null)
   const seen = useRef(0)
+  const [scrollable, setScrollable] = useState(false)
+  const content = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const frame = scroller.current
+    const inner = content.current
+    if (frame === null || inner === null) return undefined
+    const observer = new ResizeObserver(() =>
+      setScrollable(hasOverflow(frame.scrollHeight, frame.clientHeight)),
+    )
+    observer.observe(frame)
+    observer.observe(inner)
+    return () => observer.disconnect()
+  }, [])
 
   /**
    * Follow the live edge only while the reader is at it.
@@ -170,8 +194,13 @@ export const NarrationPane = ({
         meant two heights disagreeing — a scrollbar on the pane and another
         on the column around it.
       */}
-      <div className={styles.scroller} onScroll={onScroll} ref={scroller}>
-        <div className={styles.narration}>
+      <div
+        className={cx(styles.scroller, scrollable && styles.contained)}
+        data-testid="narration-scroller"
+        onScroll={onScroll}
+        ref={scroller}
+      >
+        <div className={styles.narration} ref={content}>
           {conversation.length === 0 && (
             <div className="text-faint">nothing recorded for {agent} yet</div>
           )}

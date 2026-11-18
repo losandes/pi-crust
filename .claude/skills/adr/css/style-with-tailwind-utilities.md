@@ -72,6 +72,15 @@ A container must not fix a height, width or column width for content whose lengt
 </article>
 ```
 
+A region that scrolls its own overflow is exempt along the axis it scrolls. It may fix or cap its size on that axis, because content beyond the frame stays reachable by scrolling inside it and is not hidden.
+
+```html
+<section class="flex h-96 flex-col">
+  <h2 class="shrink-0">Log</h2>
+  <div class="min-h-0 flex-1 overflow-y-auto">Entries</div>
+</section>
+```
+
 A control revealed on hover must also be revealed for a coarse pointer and keyboard focus. Use the corresponding pointer and focus variants so touch and keyboard users can reach the same control.
 
 ### Browser verification
@@ -89,6 +98,8 @@ Tailwind's [source detection](https://tailwindcss.com/docs/detecting-classes-in-
 Tailwind's [responsive design](https://tailwindcss.com/docs/responsive-design) provides mobile-first min-width variants and container queries. Parent-sized components need the latter because their available width can change without the viewport changing. The default scales provide the translation target when replacing inherited pixel budgets.
 
 Tailwind's [preflight](https://tailwindcss.com/docs/preflight) resets headings, lists and other browser defaults. Preserving an existing appearance requires checking those defaults, not assuming that unchanged component markup implies unchanged rendering.
+
+A frame that keeps the newest entry of a growing log or conversation in view depends on a bounded height. Given only a minimum height it grows with its content, so it never overflows, has no scroll position to follow, and lengthens the page with every entry. The fixed-budget rule guards against content lost to clipped overflow; a region that scrolls its overflow loses none.
 
 ## Consequences
 

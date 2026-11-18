@@ -188,62 +188,399 @@ for (const tier of ['base', 'xl'] as const) {
   )
 }
 
+const twoFrames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  )
+
+const controlDetail = async (
+  page: Page,
+  detail: Readonly<{
+    messages?: number
+    kind?: 'agent' | 'code'
+    activityRunId?: string
+  }>,
+) => {
+  await page.evaluate(
+    (detail) =>
+      window.dispatchEvent(new CustomEvent('activity-run-harness', { detail })),
+    detail,
+  )
+  if (detail.messages) {
+    await page
+      .getByText(`message ${detail.messages}`, { exact: true })
+      .waitFor()
+  }
+  await twoFrames(page)
+}
+
+const scrollConversation = async (
+  page: Page,
+  position: 'start' | 'middle' | 'end',
+) => {
+  await page.getByTestId('narration-scroller').evaluate((frame, position) => {
+    frame.scrollTop =
+      position === 'start'
+        ? 0
+        : position === 'end'
+          ? frame.scrollHeight
+          : (frame.scrollHeight - frame.clientHeight) / 2
+  }, position)
+  await twoFrames(page)
+}
+
+const messageInside = (page: Page, message: number) =>
+  page.getByText(`message ${message}`, { exact: true }).evaluate((element) => {
+    const frame = element.closest('[data-testid="narration-scroller"]')
+    if (!frame) throw new Error('Message is not inside the scroller')
+    const bounds = frame.getBoundingClientRect()
+    const text = element.getBoundingClientRect()
+    return text.top >= bounds.top - 1 && text.bottom <= bounds.bottom + 1
+  })
+
+const firstMessageInFrame = (page: Page) =>
+  page.getByTestId('narration-scroller').evaluate((frame) => {
+    const top = frame.getBoundingClientRect().top
+    const message = Array.from(frame.querySelectorAll('p')).find(
+      (element) =>
+        /^message \d+$/.test(element.textContent ?? '') &&
+        element.getBoundingClientRect().bottom > top,
+    )
+    if (!message) throw new Error('No message in the frame')
+    return {
+      text: message.textContent,
+      top: message.getBoundingClientRect().top,
+    }
+  })
+
+const boundedCases = [
+  { tier: 'base', height: 384 },
+  { tier: 'sm', height: 384 },
+  { tier: 'md', height: 384 },
+  { tier: 'lg', height: 512 },
+  { tier: 'xl', height: 512 },
+  { tier: '2xl', height: 512 },
+  { tier: 'xl', height: 384, narrow: true },
+] as const
+
+for (const entry of boundedCases) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given the activity detail panel at ${entry.tier}${'narrow' in entry ? ' narrowed to sm' : ''}`,
+      'when its conversation grows from one message to three hundred',
+      'it should keep the thinking panel at one bounded height',
+    ].join(', '),
+    async () => {
+      // given
+      await withDetail(entry.tier, async (page) => {
+        if ('narrow' in entry) {
+          await page
+            .locator('#root')
+            .evaluate(
+              (element, width) =>
+                element.setAttribute('style', `width:${width}px`),
+              viewportWidths.sm,
+            )
+        }
+        await controlDetail(page, { messages: 1 })
+        const measure = () =>
+          page.getByTestId('activity-run-thinking').evaluate((panel) => ({
+            height: panel.getBoundingClientRect().height,
+            pageHeight: document.documentElement.scrollHeight,
+            columns: getComputedStyle(
+              panel.parentElement as Element,
+            ).gridTemplateColumns.split(/\s+/).length,
+            width: document.documentElement.scrollWidth,
+            available: document.documentElement.clientWidth,
+          }))
+        const one = await measure()
+
+        // when
+        await controlDetail(page, { messages: 300 })
+        const many = await measure()
+
+        // then
+        expect(
+          Math.abs(one.height - entry.height),
+          JSON.stringify(one),
+        ).toBeLessThanOrEqual(1)
+        expect(
+          Math.abs(many.height - one.height),
+          JSON.stringify({ one, many }),
+        ).toBeLessThanOrEqual(1)
+        expect(many.columns).toBe(1)
+        expect(many.width).toBeLessThanOrEqual(many.available)
+        expect(
+          many.pageHeight,
+          JSON.stringify({ one, many }),
+        ).toBeLessThanOrEqual(one.pageHeight)
+      })
+    },
+    30_000,
+  )
+}
+
 test.skipIf(!browserTestsEnabled)(
   [
-    'given the activity detail panel at the xl tier',
-    'when only its parent narrows to the sm tier',
-    'it should adapt its chat frame to its container while keeping one column and allowing growth',
+    'given a conversation of three hundred messages',
+    'when scrolling from its beginning to its end inside the panel',
+    'it should keep every message reachable in the scroller',
   ].join(', '),
   async () => {
     // given
     await withDetail('xl', async (page) => {
-      const chat = page.locator(`${DETAIL} > div`).filter({
-        has: page.getByRole('heading', { name: 'thinking', exact: true }),
-      })
-      const row = chat.locator(':scope > div').first()
-      // when
-      const wide = await row.evaluate((element) => ({
-        minHeight: getComputedStyle(element).minHeight,
-        columns:
-          getComputedStyle(element).gridTemplateColumns.split(/\s+/).length,
-      }))
-      await page
-        .locator('#root')
-        .evaluate(
-          (element, width) => element.setAttribute('style', `width:${width}px`),
-          viewportWidths.sm,
-        )
-      // Container-query styles settle at the next rendering opportunity.
-      await page.evaluate(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          ),
-      )
-      const narrow = await row.evaluate((element) => ({
-        height: element.getBoundingClientRect().height,
-        minHeight: getComputedStyle(element).minHeight,
-        columns:
-          getComputedStyle(element).gridTemplateColumns.split(/\s+/).length,
-      }))
+      await controlDetail(page, { messages: 300 })
+      const frame = page.getByTestId('narration-scroller')
+      expect(
+        await frame.getByText(/^message \d+$/, { exact: true }).count(),
+      ).toBe(300)
+      expect(
+        await frame.evaluate(
+          (element) => element.scrollHeight > element.clientHeight,
+        ),
+      ).toBe(true)
 
+      // when
+      await scrollConversation(page, 'start')
       // then
-      expect(wide).toEqual({ minHeight: '512px', columns: 1 })
-      expect(narrow.minHeight).toBe('384px')
-      expect(narrow.columns).toBe(1)
-      // when — variable content exceeds the former fixed-height frame.
-      await row.evaluate((element) => {
-        const content = document.createElement('p')
-        content.setAttribute('style', 'min-height:64rem')
-        element.firstElementChild?.append(content)
-      })
-      const expanded = await row.boundingBox()
+      expect(await messageInside(page, 1)).toBe(true)
+      // when
+      await scrollConversation(page, 'end')
       // then
-      expect(expanded?.height).toBeGreaterThan(64 * 16)
+      expect(await messageInside(page, 300)).toBe(true)
     })
   },
   30_000,
 )
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given an activity with a long conversation',
+    'when opening its chat tab',
+    'it should show the latest message without scrolling',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      await page.getByRole('tab', { name: 'events' }).click()
+      // when
+      await page.getByRole('tab', { name: 'chat' }).click()
+      await twoFrames(page)
+      // then
+      expect(await messageInside(page, 300)).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a reader at the latest message',
+    'when one new message arrives',
+    'it should keep the new message in view',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      // when
+      await controlDetail(page, { messages: 301 })
+      // then
+      expect(await messageInside(page, 301)).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a reader scrolled up in one activity',
+    'when a different activity is selected',
+    'it should open at the latest message without a stale missed count',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      await scrollConversation(page, 'start')
+      // when
+      await controlDetail(page, { activityRunId: 'ar-diag-2' })
+      // then
+      expect(await messageInside(page, 300)).toBe(true)
+      expect(
+        await page
+          .getByTestId('activity-run-thinking')
+          .getByRole('button', { name: /new$/ })
+          .count(),
+      ).toBe(0)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a reader midway through a conversation',
+    'when three messages arrive',
+    'it should preserve the first visible message and its position',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      await scrollConversation(page, 'middle')
+      const before = await firstMessageInFrame(page)
+      // when
+      await controlDetail(page, { messages: 303 })
+      const after = await firstMessageInFrame(page)
+      // then
+      expect(after.text).toBe(before.text)
+      expect(Math.abs(after.top - before.top)).toBeLessThanOrEqual(1)
+      expect(await messageInside(page, 301)).toBe(false)
+      expect(await messageInside(page, 302)).toBe(false)
+      expect(await messageInside(page, 303)).toBe(false)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a reader midway through a conversation',
+    'when eight messages arrive and the reader jumps to latest',
+    'it should offer the missed count inside the panel and resume following',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      await scrollConversation(page, 'middle')
+      // when
+      await controlDetail(page, { messages: 308 })
+      const jump = page
+        .getByTestId('activity-run-thinking')
+        .getByRole('button', { name: '8 new', exact: true })
+      // then
+      expect(await jump.isVisible()).toBe(true)
+      expect(
+        await jump.evaluate((button) => {
+          const panel = button.closest('[data-testid="activity-run-thinking"]')
+          if (!panel) throw new Error('Missing thinking panel')
+          const outer = panel.getBoundingClientRect()
+          const inner = button.getBoundingClientRect()
+          return (
+            inner.top >= outer.top - 1 &&
+            inner.bottom <= outer.bottom + 1 &&
+            inner.left >= outer.left - 1 &&
+            inner.right <= outer.right + 1
+          )
+        }),
+      ).toBe(true)
+      // when
+      await jump.click()
+      await twoFrames(page)
+      // then
+      expect(await messageInside(page, 308)).toBe(true)
+      expect(await jump.count()).toBe(0)
+      // when
+      await controlDetail(page, { messages: 309 })
+      // then
+      expect(await messageInside(page, 309)).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a reader midway through a conversation',
+    'when scrolling back to latest by hand before a new message arrives',
+    'it should resume following without another scroll',
+  ].join(', '),
+  async () => {
+    // given
+    await withDetail('xl', async (page) => {
+      await controlDetail(page, { messages: 300 })
+      await scrollConversation(page, 'middle')
+      // when
+      await scrollConversation(page, 'end')
+      await controlDetail(page, { messages: 301 })
+      // then
+      expect(await messageInside(page, 301)).toBe(true)
+    })
+  },
+  30_000,
+)
+
+for (const detail of [{ messages: 1 }, { kind: 'code' }] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given a thinking panel with ${'messages' in detail ? 'one message' : 'a code activity'}`,
+      'when wheeling over it and over the tab bar',
+      'it should move the page by the same positive distance',
+    ].join(', '),
+    async () => {
+      // given
+      await withDetail('xl', async (page) => {
+        await controlDetail(page, detail)
+        await page.evaluate(() => window.scrollTo(0, 0))
+        await twoFrames(page)
+        const panel = page.getByTestId('activity-run-thinking')
+        const bounds = await panel.boundingBox()
+        if (!bounds) throw new Error('Missing panel bounds')
+        const centre = {
+          x: bounds.x + bounds.width / 2,
+          y: bounds.y + bounds.height / 2,
+        }
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollHeight > window.innerHeight,
+          ),
+        ).toBe(true)
+        expect(centre.y).toBeGreaterThan(0)
+        expect(centre.y).toBeLessThan(phoneViewport.height)
+        if ('messages' in detail) {
+          expect(
+            await page
+              .getByTestId('narration-scroller')
+              .evaluate((frame) => frame.scrollHeight === frame.clientHeight),
+          ).toBe(true)
+        }
+        const tabs = await page.getByRole('tablist').boundingBox()
+        if (!tabs) throw new Error('Missing tab bounds')
+        // when
+        await page.mouse.move(tabs.x + tabs.width / 2, tabs.y + tabs.height / 2)
+        await page.mouse.wheel(0, 100)
+        await page.waitForFunction(() => window.scrollY > 0)
+        await page.waitForFunction(() => {
+          const position = window.scrollY
+          return new Promise<boolean>((resolve) =>
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => resolve(window.scrollY === position)),
+            ),
+          )
+        })
+        const reference = await page.evaluate(() => window.scrollY)
+        await page.evaluate(() => window.scrollTo(0, 0))
+        await twoFrames(page)
+        await page.mouse.move(centre.x, centre.y)
+        await page.mouse.wheel(0, 100)
+        await page.waitForFunction(
+          (distance) => window.scrollY === distance,
+          reference,
+        )
+        // then
+        expect(await page.evaluate(() => window.scrollY)).toBe(reference)
+        expect(reference).toBeGreaterThan(0)
+      })
+    },
+    30_000,
+  )
+}
 
 const TYPE = ['font-family', 'font-size', 'font-weight', 'line-height']
 const BORDER = ['border-top-color', 'border-top-width', 'border-top-style']

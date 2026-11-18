@@ -7,6 +7,7 @@
 import type { ActivityRun, Envelope, Event, GateResult } from '@shared/types'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { z } from 'zod'
 import '@fontsource/play/400.css'
 import '@fontsource/play/700.css'
 import '@/style.css'
@@ -181,7 +182,15 @@ const envelopes: readonly Envelope[] = [true, false].map((valid, index) => ({
   created_at: activityRun.ended_at,
 }))
 
-const DetailHarness = () => {
+/** `detail` of the `activity-run-harness` CustomEvent, merged over current state. */
+const harnessControlSchema = z.object({
+  messages: z.number().int().nonnegative().optional(),
+  kind: z.enum(['agent', 'code']).optional(),
+  activityRunId: z.string().optional(),
+})
+type THarnessControl = Readonly<z.infer<typeof harnessControlSchema>>
+
+const Harness = () => {
   const [selected, setSelected] = useState(activityRun)
   const [recordedGates, setRecordedGates] = useState(gates)
 
@@ -210,25 +219,72 @@ const DetailHarness = () => {
     }
   }, [selected])
 
-  return (
-    <ActivityRunDetail
-      activityRun={selected}
-      runId="run-diag-1"
-      runStatus="success"
-      events={events}
-      envelopes={envelopes}
-      gates={recordedGates}
-      activityRuns={[selected]}
-      onClose={() => {}}
-    />
-  )
-}
+  const [control, setControl] = useState<THarnessControl>({ messages: 0 })
+  useEffect(() => {
+    const update = (event: globalThis.Event) => {
+      if (!(event instanceof CustomEvent)) return
+      const parsed = harnessControlSchema.safeParse(event.detail)
+      if (!parsed.success) return
+      const detail: THarnessControl = parsed.data
+      setControl((current) => ({
+        messages: detail.messages ?? current.messages,
+        kind: detail.kind ?? current.kind,
+        activityRunId: detail.activityRunId ?? current.activityRunId,
+      }))
+    }
+    window.addEventListener('activity-run-harness', update)
+    return () => window.removeEventListener('activity-run-harness', update)
+  }, [])
+  const currentActivityRun = {
+    ...selected,
+    kind: control.kind ?? selected.kind,
+    activity_run_id: control.activityRunId ?? selected.activity_run_id,
+  }
+  const currentEvents: readonly Event[] = [
+    ...events,
+    ...Array.from(
+      { length: control.messages ?? 0 },
+      (_, index): Event => ({
+        rowid: events.length + index + 1,
+        event_id: `detail-message-${index + 1}`,
+        run_id: activityRun.run_id,
+        activity_run_id: currentActivityRun.activity_run_id,
+        parent_id: '',
+        type: 'narration',
+        name: 'builder',
+        payload_json: JSON.stringify({
+          turn: index + 1,
+          channel: 'text',
+          text: `message ${index + 1}`,
+        }),
+        tokens: 0,
+        started_at: activityRun.started_at,
+        ended_at: activityRun.ended_at,
+      }),
+    ),
+  ].map((event) => ({
+    ...event,
+    activity_run_id: control.activityRunId ?? event.activity_run_id,
+  }))
 
-const el = document.getElementById('root')
-if (el) {
-  createRoot(el).render(
+  return (
     <DefaultLayout>
-      <DetailHarness />
+      <ActivityRunDetail
+        activityRun={currentActivityRun}
+        runId="run-diag-1"
+        runStatus="success"
+        events={currentEvents}
+        envelopes={envelopes.map((envelope) => ({
+          ...envelope,
+          activity_run_id: control.activityRunId ?? envelope.activity_run_id,
+        }))}
+        gates={recordedGates.map((gate) => ({
+          ...gate,
+          activity_run_id: control.activityRunId ?? gate.activity_run_id,
+        }))}
+        activityRuns={[currentActivityRun]}
+        onClose={() => {}}
+      />
       <TreeWarnings
         standalone
         warnings={[
@@ -242,6 +298,9 @@ if (el) {
           },
         ]}
       />
-    </DefaultLayout>,
+    </DefaultLayout>
   )
 }
+
+const el = document.getElementById('root')
+if (el) createRoot(el).render(<Harness />)
