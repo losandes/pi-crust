@@ -11,13 +11,18 @@ const now = Date.now()
 const LONG_BRANCH = `feature/${'x'.repeat(112)}`
 const at = (seconds: number) => new Date(now + seconds * 1000).toISOString()
 const query = new URLSearchParams(window.location.search)
+const overflow = query.has('overflow')
+const longId = 'unbroken-identifier-'.repeat(30)
+const longPath = `src/${'long-directory/'.repeat(30)}activity.tsx`
+const runId = overflow ? `trace-layout-${longId}` : 'trace-layout'
 const status = query.get('status') ?? 'waiting'
 const state = query.get('state') ?? 'populated'
 const session = {
-  run_id: 'trace-layout',
+  run_id: runId,
   lifecycle: 'build',
-  request:
-    'Keep the trace readable on a phone, including a request that is longer than its character measure permits on one line',
+  request: overflow
+    ? longId
+    : 'Keep the trace readable on a phone, including a request that is longer than its character measure permits on one line',
   status,
   engineer: 'fixture engineer',
   started_at: at(-60),
@@ -25,13 +30,15 @@ const session = {
   total_tokens: 12345,
   total_cost: 0.42,
   archived: 0,
-  workspace_root: '/fixture/trace',
+  workspace_root: overflow ? `/fixture/${longPath}` : '/fixture/trace',
   branch:
     query.get('branch') === 'none'
       ? null
       : query.get('branch') === 'long'
         ? LONG_BRANCH
-        : 'feature/trace-layout',
+        : overflow
+          ? longId
+          : 'feature/trace-layout',
   name: '',
   workspace: 'fixture',
 }
@@ -143,8 +150,12 @@ const events = [
   },
   {
     type: 'tool_call',
-    name: 'read',
-    payload: { tool: 'read', ok: true },
+    name: overflow ? `read: ${longPath}` : 'read',
+    payload: {
+      tool: 'read',
+      ok: true,
+      ...(overflow ? { args: { path: longPath } } : {}),
+    },
     activity: 'build',
     time: -15,
   },
@@ -155,6 +166,30 @@ const events = [
     activity: 'build',
     time: -10,
   },
+  ...(overflow
+    ? [
+        {
+          type: 'agent_start',
+          name: 'builder',
+          payload: {
+            coding_agent: 'pi',
+            model: 'claude-sonnet-4-6',
+            thinking: 'high',
+            tools: ['read', 'edit', 'bash'],
+            session_id: longId,
+          },
+          activity: 'build',
+          time: -24,
+        },
+        {
+          type: 'narration',
+          name: 'builder',
+          payload: { text: `Inspecting ${longPath}` },
+          activity: 'build',
+          time: -14,
+        },
+      ]
+    : []),
   {
     type: 'log',
     name: 'tree_warning',
@@ -203,7 +238,7 @@ window.fetch = new Proxy(window.fetch, {
       input instanceof Request ? input.url : String(input),
       window.location.href,
     )
-    if (url.pathname === '/api/sessions/trace-layout') {
+    if (url.pathname === `/api/sessions/${runId}`) {
       if (state === 'loading') return new Promise<Response>(() => {})
       if (state === 'error') {
         return Promise.resolve(
@@ -214,7 +249,7 @@ window.fetch = new Proxy(window.fetch, {
     const body =
       url.pathname === '/api/themes'
         ? { themes }
-        : url.pathname === '/api/sessions/trace-layout'
+        : url.pathname === `/api/sessions/${runId}`
           ? {
               session,
               activityRuns: state === 'empty' ? [] : activityRuns,
@@ -222,19 +257,48 @@ window.fetch = new Proxy(window.fetch, {
               usage: { read: 10000, written: 2345 },
               handoff_dir: '',
             }
-          : url.pathname.endsWith('/events')
-            ? {
-                events: url.searchParams.get('after') === '0' ? events : [],
-                cursor: events.length,
-                has_more: false,
-              }
-            : url.pathname.endsWith('/decision-request')
+          : overflow && url.pathname.endsWith('/envelopes')
+            ? [
+                {
+                  envelope_id: 'overflow-envelope',
+                  run_id: runId,
+                  activity_run_id: 'build',
+                  agent: 'builder',
+                  output_type: 'BuildOutput',
+                  valid: 1,
+                  payload_json: JSON.stringify({
+                    summary: longPath,
+                    facts: [{ fact: longId, evidence: longPath }],
+                    decisions: [{ decision: longId, rationale: longPath }],
+                    assumptions: [
+                      { assumption: longId, invalidated_by: longPath },
+                    ],
+                    unresolved: [
+                      {
+                        question: longId,
+                        consequential: true,
+                        beyond_this_run: false,
+                        provisional_answer: longPath,
+                      },
+                    ],
+                    risks: [],
+                  }),
+                  created_at: at(0),
+                },
+              ]
+            : url.pathname.endsWith('/events')
               ? {
-                  present: true,
-                  markdown:
-                    '# Waiting for you\n\nShould this trace layout be kept?',
+                  events: url.searchParams.get('after') === '0' ? events : [],
+                  cursor: events.length,
+                  has_more: false,
                 }
-              : []
+              : url.pathname.endsWith('/decision-request')
+                ? {
+                    present: true,
+                    markdown:
+                      '# Waiting for you\n\nShould this trace layout be kept?',
+                  }
+                : []
     return Promise.resolve(Response.json(body))
   },
 })

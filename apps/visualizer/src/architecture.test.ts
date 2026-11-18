@@ -1,6 +1,16 @@
 import { expect, test } from 'bun:test'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, relative } from 'node:path'
 
 /*
  * gh-72 reorganizes apps/visualizer/src from a flat components/+lib/+theme
@@ -99,6 +109,67 @@ test(
 
     // then — 1.1.2
     expect(files).toEqual(['App.tsx', 'main.tsx', 'style.css', 'vite-env.d.ts'])
+  },
+)
+
+const STYLESHEET = /\.(css|scss|sass|less|styl|stylus|pcss|postcss)$/i
+
+/** Every stylesheet below `root`, as sorted paths relative to it. */
+const stylesheetsUnder = (root: string): readonly string[] =>
+  readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => !entry.isDirectory())
+    .filter((entry) => STYLESHEET.test(entry.name))
+    .map((entry) => relative(root, join(entry.parentPath, entry.name)))
+    .toSorted()
+
+test(
+  [
+    'given apps/visualizer/src',
+    'when stylesheets at every directory depth are listed',
+    'it should contain only style.css and domains/themes/src/tokens.css',
+  ].join(', '),
+  () => {
+    // given
+    const root = SRC
+
+    // when
+    const actual = stylesheetsUnder(root)
+
+    // then
+    expect(actual).toEqual(['domains/themes/src/tokens.css', 'style.css'])
+  },
+)
+
+test(
+  [
+    'given a source tree with a module stylesheet and a plain stylesheet beside a component',
+    'when stylesheets at every directory depth are listed',
+    'it should list both beside the two shared stylesheets',
+  ].join(', '),
+  () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), 'visualizer-stylesheets-'))
+    const files = [
+      'domains/sessions/src/_components/SessionCard.module.css',
+      'domains/sessions/src/_components/SessionCard.tsx',
+      'domains/sessions/src/_components/session-card.css',
+      'domains/themes/src/tokens.css',
+      'style.css',
+    ]
+    try {
+      for (const file of files) {
+        mkdirSync(dirname(join(root, file)), { recursive: true })
+        writeFileSync(join(root, file), '')
+      }
+
+      // when
+      const actual = stylesheetsUnder(root)
+
+      // then
+      expect(actual).toEqual(files.filter((file) => file.endsWith('.css')))
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   },
 )
 

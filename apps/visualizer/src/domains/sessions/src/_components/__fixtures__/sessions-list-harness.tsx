@@ -6,9 +6,11 @@ import DefaultLayout from '@/layouts/default-layout'
 import highContrastCss from '../../../../../../../../templates/stamp/config/high-contrast.css?raw'
 import { SessionsList } from '../SessionsList'
 
+const query = new URLSearchParams(window.location.search)
+const overflow = query.has('overflow')
+const longId = 'unbroken-identifier-'.repeat(30)
 const now = Date.now()
 const LONG_BRANCH = `feature/${'x'.repeat(112)}`
-const query = new URLSearchParams(window.location.search)
 const startedAt = new Date(now - 60_000).toISOString()
 const endedAt = new Date(now).toISOString()
 const sessions = [
@@ -55,10 +57,18 @@ const sessions = [
   }
   return {
     ...session,
+    ...(overflow
+      ? {
+          run_id: `${session.run_id}-${longId}`,
+          branch: longId,
+          workspace: longId,
+        }
+      : {}),
     lifecycle: session.status === 'fail' ? 'build' : 'plan + build',
     name: '',
-    request:
-      'Keep the dashboard readable on a phone without clipping its stats',
+    request: overflow
+      ? longId
+      : 'Keep the dashboard readable on a phone without clipping its stats',
     engineer: 'fixture',
     started_at: startedAt,
     ended_at: endedAt,
