@@ -270,7 +270,7 @@ CRUST_WORKSPACES=/trees/a,api=/trees/b just crust observe
 
 The registry only ever contains trees where the factory has actually run, so watching all of them cannot sprawl into unrelated checkouts. A tree that has never run pi-crust is invisible, deliberately: `--all-worktrees` sweeps sibling git worktrees for databases as a one-off repair for a machine whose registry was deleted, and is not the normal path.
 
-In the UI, a run's tree is a chip on its card and a filter above the list, both of which appear only when more than one tree is being watched. A link carries the tree when it is known — `#/<workspace>:<run_id>` — and an unqualified link still works: the server finds the run across every tree it watches.
+In the UI, every run's card carries a chip naming the branch the run started on — the tree's name when no branch was recorded — in its tree's colour, whether one tree is being watched or several, and the run's own page shows the same text between its status and its start date. The tree filter above the list appears only when more than one tree is being watched. A link carries the tree when it is known — `#/<workspace>:<run_id>` — and an unqualified link still works: the server finds the run across every tree it watches.
 
 ## Ports
 

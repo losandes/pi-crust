@@ -11,7 +11,7 @@ import {
 } from '@/lib/testing'
 
 /*
- * Real browser geometry verifies that the optional workspace chip and wrapped
+ * Real browser geometry verifies that the branch chip and wrapped
  * stats can grow the card. happy-dom has no layout engine to measure this.
  */
 
@@ -19,6 +19,8 @@ const HARNESS_HTML = `<!doctype html>
 <html><body>
 <div id="single" style="width:100%"></div>
 <div id="multi" style="width:100%"></div>
+<div id="unrecorded" style="width:100%"></div>
+<div id="long" style="width:100%"></div>
 <script type="module" src="/src/domains/sessions/src/_components/__fixtures__/session-card-harness.tsx"></script>
 </body></html>`
 
@@ -48,6 +50,8 @@ const withCards = <T>(
       await page.goto(`${base}/__diag__/index.html`)
       await page.waitForSelector('#single a')
       await page.waitForSelector('#multi a')
+      await page.waitForSelector('#unrecorded a')
+      await page.waitForSelector('#long a')
       await page.evaluate(() => document.fonts.ready)
       return await check(page)
     },
@@ -85,7 +89,7 @@ for (const tier of ['base', 'xl'] as const) {
       [
         `given a ${variant}-workspace card at the ${tier} tier`,
         'when measuring the stats row in a viewport-wide harness',
-        'it should keep the stats inside the card with or without a workspace chip',
+        'it should keep the stats inside the card with its branch chip',
       ].join(', '),
       async () => {
         // given
@@ -104,6 +108,123 @@ for (const tier of ['base', 'xl'] as const) {
       20_000,
     )
   }
+}
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a single-tree card at the base tier',
+    'when its branch renders',
+    'it should show main directly below the run identifier',
+  ].join(', '),
+  async () => {
+    // given
+    await withCards('base', async (page) => {
+      const card = page.locator('#single a')
+
+      // when
+      const branch = card.getByTestId('session-branch')
+      const position = await branch.evaluate((element) => {
+        const identifier = element.previousElementSibling
+        if (!identifier) throw new Error('Missing run identifier')
+        return {
+          identifier: identifier.textContent?.trim(),
+          below:
+            element.getBoundingClientRect().top >=
+            identifier.getBoundingClientRect().bottom - 0.5,
+        }
+      })
+
+      // then
+      expect(await branch.count()).toBe(1)
+      expect(await branch.textContent()).toBe('main')
+      expect(position).toEqual({ identifier: 'run-diag-1', below: true })
+    })
+  },
+  20_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a card with no recorded branch at the base tier',
+    'when its branch label renders',
+    'it should show exactly one visible working-tree name',
+  ].join(', '),
+  async () => {
+    // given
+    await withCards('base', async (page) => {
+      const card = page.locator('#unrecorded a')
+
+      // when
+      const branch = card.getByTestId('session-branch')
+      const bounds = await branch.boundingBox()
+
+      // then
+      expect(await branch.count()).toBe(1)
+      expect(await branch.textContent()).toBe('pi-crust')
+      expect(bounds?.width).toBeGreaterThan(0)
+    })
+  },
+  20_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given a multi-tree card at the base tier',
+    'when hovering its branch label',
+    'it should retain the working-tree path as its title',
+  ].join(', '),
+  async () => {
+    // given
+    await withCards('base', async (page) => {
+      // when
+      const branch = page.locator('#multi a').getByTestId('session-branch')
+      await branch.hover()
+
+      // then
+      expect(await branch.getAttribute('title')).toBe('/repo/a')
+    })
+  },
+  20_000,
+)
+
+for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given a 120-character branch card at the ${tier} tier`,
+      'when measuring the branch chip',
+      'it should stay inside the card without horizontal document overflow',
+    ].join(', '),
+    async () => {
+      // given
+      await withCards(tier, async (page) => {
+        // when
+        const layout = await page.locator('#long a').evaluate((card) => {
+          const branch = card.querySelector('[data-testid="session-branch"]')
+          if (!branch) throw new Error('Missing branch chip')
+          const bounds = card.getBoundingClientRect()
+          const rect = branch.getBoundingClientRect()
+          return {
+            length: branch.textContent?.length,
+            inside:
+              rect.top >= bounds.top - 0.5 &&
+              rect.bottom <= bounds.bottom + 0.5 &&
+              rect.left >= bounds.left - 0.5 &&
+              rect.right <= bounds.right + 0.5,
+            truncated: branch.scrollWidth > branch.clientWidth,
+            document: document.documentElement.scrollWidth,
+            viewport: window.innerWidth,
+          }
+        })
+
+        // then
+        expect(layout.length).toBe(120)
+        expect(layout.inside).toBe(true)
+        expect(layout.document).toBeLessThanOrEqual(layout.viewport + 1)
+        if (tier === 'base') expect(layout.truncated).toBe(true)
+      })
+    },
+    20_000,
+  )
 }
 
 const cardLayout = async (card: Locator) => {

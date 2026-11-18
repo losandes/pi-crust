@@ -25,6 +25,7 @@ const withDashboard = (
   tier: TViewportTier,
   check: (page: Page) => Promise<void>,
   touch = false,
+  query = '',
 ) => {
   return withSuitePage(suite)(
     {
@@ -41,7 +42,7 @@ const withDashboard = (
       page.setDefaultNavigationTimeout(10_000)
       // The harness supplies fetch; abort anything unexpected before the API proxy.
       await page.route('**/api/**', (route) => route.abort())
-      await page.route('**/__dashboard__/index.html', async (route) =>
+      await page.route('**/__dashboard__/index.html*', async (route) =>
         route.fulfill({
           contentType: 'text/html',
           body: await server.transformIndexHtml(
@@ -50,7 +51,7 @@ const withDashboard = (
           ),
         }),
       )
-      await page.goto(`${base}/__dashboard__/index.html`)
+      await page.goto(`${base}/__dashboard__/index.html${query}`)
       await page.waitForFunction(
         (selector) => document.querySelectorAll(selector).length === 4,
         CARDS,
@@ -236,6 +237,184 @@ for (const { tier, status, inline } of [
           expect(date.x + date.width).toBeLessThanOrEqual(contentRight + 1)
         }
       })
+    },
+    30_000,
+  )
+}
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given one watched tree at the base tier',
+    'when the dashboard lists its four runs without a tree filter',
+    'it should show every recorded branch on its card',
+  ].join(', '),
+  async () => {
+    // given
+    await withDashboard(
+      'base',
+      async (page) => {
+        // when
+        const cards = page.locator(CARDS)
+        const labels = await cards.evaluateAll((elements) =>
+          elements.map((card) => ({
+            run: card.getAttribute('href')?.split(':').at(-1),
+            branches: Array.from(
+              card.querySelectorAll('[data-testid="session-branch"]'),
+              (branch) => ({
+                text: branch.textContent,
+                width: branch.getBoundingClientRect().width,
+              }),
+            ),
+          })),
+        )
+
+        // then
+        expect(
+          await page.getByRole('button', { name: 'tree', exact: true }).count(),
+        ).toBe(0)
+        expect(labels).toHaveLength(4)
+        for (const { run, branches } of labels) {
+          expect(branches).toHaveLength(1)
+          expect(branches[0]?.text).toBe(
+            run === 'dashboard-success' || run === 'dashboard-running'
+              ? 'main'
+              : 'feature/dashboard',
+          )
+          expect(branches[0]?.width).toBeGreaterThan(0)
+        }
+      },
+      false,
+      '?trees=one',
+    )
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given two watched trees at the xl tier',
+    'when filtering the dashboard to alpha',
+    'it should retain main on both remaining cards',
+  ].join(', '),
+  async () => {
+    // given
+    await withDashboard('xl', async (page) => {
+      // when
+      await page.getByRole('button', { name: 'tree', exact: true }).click()
+      await page.getByRole('checkbox', { name: 'alpha', exact: true }).check()
+      await page.waitForFunction(
+        (selector) => document.querySelectorAll(selector).length === 2,
+        CARDS,
+      )
+      const cards = page.locator(CARDS)
+
+      // then
+      expect(await cards.count()).toBe(2)
+      for (const card of await cards.all()) {
+        const branch = card.getByTestId('session-branch')
+        expect(await branch.count()).toBe(1)
+        expect(await branch.textContent()).toBe('main')
+        expect((await branch.boundingBox())?.width).toBeGreaterThan(0)
+      }
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given two watched trees at the xl tier',
+    'when opening the tree filter',
+    'it should match every branch chip colour to its tree option and retain its path',
+  ].join(', '),
+  async () => {
+    // given
+    await withDashboard('xl', async (page) => {
+      // when
+      await page.getByRole('button', { name: 'tree', exact: true }).click()
+      const colors = await page.locator(CARDS).evaluateAll((cards) =>
+        ['alpha', 'beta'].map((workspace) => {
+          const option = Array.from(
+            document.querySelectorAll('label span'),
+          ).find((element) => element.textContent === workspace)
+          if (!option) throw new Error(`Missing tree option: ${workspace}`)
+          const matching = cards.flatMap((card) =>
+            Array.from(card.querySelectorAll('[data-testid="session-branch"]'))
+              .filter(
+                (element) =>
+                  element.getAttribute('title') === `/fixture/${workspace}`,
+              )
+              .map((element) => ({
+                color: getComputedStyle(element).color,
+                title: element.getAttribute('title'),
+              })),
+          )
+          return { workspace, color: getComputedStyle(option).color, matching }
+        }),
+      )
+
+      // then
+      expect(colors[0]?.color).not.toBe(colors[1]?.color)
+      for (const { workspace, color, matching } of colors) {
+        expect(matching).toHaveLength(2)
+        for (const chip of matching) {
+          expect(chip.color).toBe(color)
+          expect(chip.title).toBe(`/fixture/${workspace}`)
+        }
+      }
+    })
+  },
+  30_000,
+)
+
+for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given dashboard cards with 120-character branches at the ${tier} tier`,
+      'when measuring their branch chips',
+      'it should keep every chip inside its card without horizontal document overflow',
+    ].join(', '),
+    async () => {
+      // given
+      await withDashboard(
+        tier,
+        async (page) => {
+          // when
+          const layout = await page.locator(CARDS).evaluateAll((cards) => ({
+            document: document.documentElement.scrollWidth,
+            viewport: window.innerWidth,
+            chips: cards.map((card) => {
+              const branches = card.querySelectorAll(
+                '[data-testid="session-branch"]',
+              )
+              const branch = branches[0]
+              if (!branch) throw new Error('Missing branch chip')
+              const bounds = card.getBoundingClientRect()
+              const rect = branch.getBoundingClientRect()
+              return {
+                count: branches.length,
+                length: branch.textContent?.length,
+                inside:
+                  rect.top >= bounds.top - 0.5 &&
+                  rect.bottom <= bounds.bottom + 0.5 &&
+                  rect.left >= bounds.left - 0.5 &&
+                  rect.right <= bounds.right + 0.5,
+              }
+            }),
+          }))
+
+          // then
+          expect(layout.chips).toHaveLength(4)
+          for (const chip of layout.chips) {
+            expect(chip.count).toBe(1)
+            expect(chip.length).toBe(120)
+            expect(chip.inside).toBe(true)
+          }
+          expect(layout.document).toBeLessThanOrEqual(layout.viewport + 1)
+        },
+        false,
+        '?branch=long',
+      )
     },
     30_000,
   )

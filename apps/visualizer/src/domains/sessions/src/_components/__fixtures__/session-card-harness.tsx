@@ -1,6 +1,6 @@
 /**
- * Mounts two real `SessionCard`s — one with a single watched workspace, one
- * with several — so `SessionCard.layout.test.ts` can measure actual rendered
+ * Mounts real `SessionCard`s with one or several watched workspaces, plus
+ * missing and long branches, so `SessionCard.layout.test.ts` measures rendered
  * geometry in a real browser. Not shipped; loaded only by that test's
  * in-memory Vite server.
  */
@@ -11,6 +11,7 @@ import '@/style.css'
 import { SessionCard } from '../SessionCard'
 
 const now = Date.now()
+const LONG_BRANCH = `feature/${'x'.repeat(112)}`
 
 const session: SessionSummary = {
   run_id: 'run-diag-1',
@@ -59,12 +60,16 @@ const session: SessionSummary = {
   ],
 }
 
-const mount = (id: string, workspaceRole: string | undefined) => {
+const mount = (
+  id: string,
+  workspaceRole: string,
+  cardSession: Readonly<SessionSummary> = session,
+) => {
   const el = document.getElementById(id)
   if (!el) return
   createRoot(el).render(
     <SessionCard
-      session={session}
+      session={cardSession}
       nowMs={now}
       workspaceRole={workspaceRole}
       onArchived={() => {}}
@@ -73,5 +78,7 @@ const mount = (id: string, workspaceRole: string | undefined) => {
   )
 }
 
-mount('single', undefined)
-mount('multi', 'a')
+mount('single', 'blue')
+mount('multi', 'amber')
+mount('unrecorded', 'blue', { ...session, branch: null, workspace: 'pi-crust' })
+mount('long', 'blue', { ...session, branch: LONG_BRANCH })

@@ -7,6 +7,8 @@ import highContrastCss from '../../../../../../../../templates/stamp/config/high
 import { SessionsList } from '../SessionsList'
 
 const now = Date.now()
+const LONG_BRANCH = `feature/${'x'.repeat(112)}`
+const query = new URLSearchParams(window.location.search)
 const startedAt = new Date(now - 60_000).toISOString()
 const endedAt = new Date(now).toISOString()
 const sessions = [
@@ -45,34 +47,42 @@ const sessions = [
     branch: 'feature/dashboard',
     owners: [],
   },
-].map(({ owners, ...session }) => ({
-  ...session,
-  lifecycle: session.status === 'fail' ? 'build' : 'plan + build',
-  name: '',
-  request: 'Keep the dashboard readable on a phone without clipping its stats',
-  engineer: 'fixture',
-  started_at: startedAt,
-  ended_at: endedAt,
-  total_tokens: 12345,
-  total_cost: 0.42,
-  archived: 0,
-  workspace_root: `/fixture/${session.workspace}`,
-  activityRuns: owners.map((owner, index) => ({
-    activity_run_id: `${session.run_id}-${owner}`,
-    run_id: session.run_id,
-    seq: index + 1,
-    name: owner,
-    kind: 'agent',
-    owner,
-    description: 'Dashboard layout fixture',
-    status: ['success', 'fail', 'running', 'queued'][index % 4],
-    error: '',
+].map(({ owners, ...recorded }) => {
+  const session = {
+    ...recorded,
+    workspace: query.get('trees') === 'one' ? 'alpha' : recorded.workspace,
+    branch: query.get('branch') === 'long' ? LONG_BRANCH : recorded.branch,
+  }
+  return {
+    ...session,
+    lifecycle: session.status === 'fail' ? 'build' : 'plan + build',
+    name: '',
+    request:
+      'Keep the dashboard readable on a phone without clipping its stats',
+    engineer: 'fixture',
     started_at: startedAt,
     ended_at: endedAt,
-  })),
-  activity_run_count: owners.length,
-  agents: [],
-}))
+    total_tokens: 12345,
+    total_cost: 0.42,
+    archived: 0,
+    workspace_root: `/fixture/${session.workspace}`,
+    activityRuns: owners.map((owner, index) => ({
+      activity_run_id: `${session.run_id}-${owner}`,
+      run_id: session.run_id,
+      seq: index + 1,
+      name: owner,
+      kind: 'agent',
+      owner,
+      description: 'Dashboard layout fixture',
+      status: ['success', 'fail', 'running', 'queued'][index % 4],
+      error: '',
+      started_at: startedAt,
+      ended_at: endedAt,
+    })),
+    activity_run_count: owners.length,
+    agents: [],
+  }
+})
 
 const themes = [
   { name: 'auto', label: 'Auto', builtin: true, css: '' },

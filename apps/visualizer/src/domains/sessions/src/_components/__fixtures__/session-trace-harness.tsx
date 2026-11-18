@@ -8,6 +8,7 @@ import highContrastCss from '../../../../../../../../templates/stamp/config/high
 import { SessionTrace } from '../SessionTrace'
 
 const now = Date.now()
+const LONG_BRANCH = `feature/${'x'.repeat(112)}`
 const at = (seconds: number) => new Date(now + seconds * 1000).toISOString()
 const query = new URLSearchParams(window.location.search)
 const status = query.get('status') ?? 'waiting'
@@ -25,7 +26,12 @@ const session = {
   total_cost: 0.42,
   archived: 0,
   workspace_root: '/fixture/trace',
-  branch: 'feature/trace-layout',
+  branch:
+    query.get('branch') === 'none'
+      ? null
+      : query.get('branch') === 'long'
+        ? LONG_BRANCH
+        : 'feature/trace-layout',
   name: '',
   workspace: 'fixture',
 }
