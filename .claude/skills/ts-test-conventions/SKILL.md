@@ -56,7 +56,9 @@ Then match the nearest conforming test in the project you are in — the Step 3 
 
 ## Step 3 — Run the tests
 
-The command is the project's, not this skill's. Look in the project's task definitions — `package.json` scripts, or a task runner's file such as `mise.toml` — before inventing one and choose a test run appropriate for LLMs. When neither defines one, use `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test --verbose --bail` as your default.
+The command is the project's, not this skill's. Look first in the project's agent instructions — `AGENTS.md`, `CLAUDE.md` — for the command an agent should run, then in its task definitions — `package.json` scripts, or a task runner's file such as `mise.toml` — before inventing one, and choose a test run appropriate for LLMs.
+
+Run only the tests your change needs. A task that runs every test is a full regression, and when the project's workflow already runs one as a gate, running it yourself duplicates the gate and spends wall-clock time to learn what the gate will report anyway. When neither defines one, use `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test --verbose --bail` as your default.
 
 | Situation                      | Command                                                                                       |
 | ------------------------------ | --------------------------------------------------------------------------------------------- |

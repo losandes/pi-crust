@@ -101,6 +101,9 @@ run = "bun run --cwd apps/visualizer build"
 [tasks.lint]
 run = "bunx biome check apps lib runtime scripts templates"
 
+[tasks.lintmd]
+run = "bash .claude/skills/markdown-authoring/scripts/check-markdown.sh --all"
+
 # --- TYPECHECK ----------------------------------------------------------------
 
 [tasks."typecheck:runtime"]

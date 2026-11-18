@@ -77,7 +77,7 @@ Both are blocking, and both run from the repository root.
 With no arguments it checks prompts changed against `HEAD`; pass `--base <ref>` for a whole branch, paths to narrow, `--all` to sweep. Exit 0 is clean, 1 is violations, 2 is a usage or environment error. The analysis is in `.claude/skills/prompt-authoring/scripts/prompt-contract.ts`; the shell script owns scope and extracts each baseline from git, so a prompt with no committed version gets the structural rules only.
 
 ```bash
-CLAUDECODE=1 bun test runtime/prompt-engineering
+RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompt-engineering --parallel | bunx buntap --agent --no-color
 ```
 
 These suites read the prompt files and assert on their text. A test that now fails is a contract this rewrite changed: restore the sentence, or change the test deliberately and say which requirement made it stale.

@@ -58,7 +58,7 @@ Three suites read prompt files and assert on their contents, so a heading or sen
 - `runtime/prompt-engineering/gh-pull-request/prompt-content.test.ts` — the prohibition on arguing the change should be merged, the statement that the harness owns the issue link and the `## Activities` and `## Checks` sections, and the no-attribution, no-envelope-JSON, no-git-or-`gh`, read-only instructions
 - `runtime/prompt-engineering/revise-round.test.ts` — the findings-only task, preservation and scope sentences in all three revise prompts, the tester-only restrictions and escalation sentences, and the copied Intake and Report spans from each Activity's `user.md`
 
-Run `CLAUDECODE=1 bun test runtime/prompt-engineering` after any edit. A new assertion belongs with any instruction a later rewrite must not quietly drop.
+Run `RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompt-engineering --parallel | bunx buntap --agent --no-color` after any edit. A new assertion belongs with any instruction a later rewrite must not quietly drop.
 
 ## The house structure
 

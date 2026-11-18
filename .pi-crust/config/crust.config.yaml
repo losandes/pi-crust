@@ -75,6 +75,11 @@ routing:
       when: ["**/*.ts", "**/*.tsx"]
       path: .claude/skills/ts-code-review
 
+    - name: markdown-review
+      agents: [identify, plan, gh-issue, gh-pull-request]
+      when: ["**/*.md"]
+      path: .claude/skills/markdown-authoring
+
   #   - name: respond-to-pr-comments
   #     agents: [build]
   #     activity_runs: [build_2]        # omit for all activity runs

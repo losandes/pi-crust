@@ -129,7 +129,9 @@ Every check is a task in `mise.toml`, run from the repository root. Nothing here
 mise run check
 ```
 
-That is the whole gate, in increasing order of cost, stopping at the first failure: `lint`, `typecheck`, `test:agent`, `build` and `check:install`. Run it before reporting work finished. While you are still working, run the scoped commands below instead — this one takes about a minute, and most of that is the suites.
+That is the whole gate, in increasing order of cost, stopping at the first failure: `lint`, `typecheck`, `test:agent`, `build` and `check:install`. It is not an agent's routine check. Run it only when a full regression is the purpose — you were asked for one, or you are readying a branch through `pr-check` — and run the scoped test command below for everything else.
+
+Most code in this repository is written inside a pi-crust run, and a run's `checks` gate already runs `mise run test:agent`, a full integration-enabled regression of thousands of tests that takes over 90 seconds. A failure anywhere in the blast radius of a change is reported back to the Activity to fix. An agent that runs the full suite itself spends that wall-clock time to learn what the gate will tell it anyway, so a missed failure outside the tests you ran is the gate's to catch, not yours.
 
 It is one task rather than one for a developer and one for a pipeline, because two gates are how the thing CI runs and the thing you run stop being the same check. What differs between a laptop and a runner is handled inside the individual checks and said out loud: `typecheck:harness` needs a pi install, finds none on a runner, and prints that it did NOT check `harness-engineering/` rather than implying it did.
 
@@ -141,24 +143,21 @@ A runner also needs `bunx playwright install --with-deps chromium`, run from `ap
 
 The test tasks run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, and the tasks call them through `bunx`, which resolves them from `node_modules/.bin` without a global install. Typed bare, they do not resolve: neither is on `PATH`, and a shell that reaches `bunt` through a version manager's shim is reaching a different installation, or none. Call them through `bunx` outside a task too.
 
-**Never run `bun test` without `CLAUDECODE=1`.** It is the difference between a readable result and a flood: `bun test runtime` prints 1344 lines, `CLAUDECODE=1 bun test runtime` prints 14, and the 1330 it dropped were per-test `(pass)` lines nobody reads. An agent that spends its context window on them has less left for the work.
-
-Scope a run to what you are changing. That is the normal case while iterating, and the argument is a path from the root:
+**Run only the tests your change needs**, with this command and no other:
 
 ```sh
-CLAUDECODE=1 bun test runtime
-CLAUDECODE=1 bun test apps/visualizer/src/lib/markdown/src/markdown.test.ts
+RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt <path-to-tests> --parallel | bunx buntap --agent --no-color
 ```
 
-For two lines instead of fourteen, pipe the same scope through the reporter — identical meaning, less of it:
-
-```sh
-CLAUDECODE=1 bunx bunt runtime | bunx buntap --agent
-```
+- `<path-to-tests>` is one or more paths from the repository root — the test files you wrote or changed, and the directory of the code you changed. Not a top-level root such as `runtime` or `apps/visualizer` unless your change genuinely spans it
+- `RUN_INTEGRATION_TESTS=true` only when the tests you need are integration tests — browser-driven, git-repository or process-spawning tests guarded by the integration switch. Otherwise `false`
+- Do not reach for the `mise run test*` tasks. Each one runs every root, which is the gate's job, not yours
+- Never add `--coverage` to a scoped run. Coverage is only meaningful over the whole repository, as described below, so a scoped run reports files whose tests it did not run as below the threshold and `buntap` exits `3` on a change that is fine. Coverage is the gate's to measure
+- Do not run bare `bun test`. Without `CLAUDECODE=1` it floods the context with per-test `(pass)` lines — `bun test runtime` prints 1344 lines where `CLAUDECODE=1 bun test runtime` prints 14 — and with `--coverage` it fails silently, as described below
 
 **Coverage is only meaningful over the whole repository.** `--coverage` measures every file a run loads, including files imported from outside the scope whose own tests were not in it — so a scoped run reports those as uncovered and is lying. `bun test runtime --coverage` reports `lib/typedefs/src/settlement.ts` at 71.43% functions, which looks like a gap and is not: that module is imported by `runtime` and tested by `lib/typedefs/src/settlement.test.ts`, which a `runtime` scope never ran. Measured whole, the same file is at 100%.
 
-So one command settles coverage, and it is the unscoped one:
+So one command settles coverage, and it is the unscoped one the run's `checks` gate already executes:
 
 ```sh
 mise run test:agent
