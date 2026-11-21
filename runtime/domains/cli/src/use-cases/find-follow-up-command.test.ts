@@ -3,6 +3,7 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activityRunParams, crustConfigSchema } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { createTracer } from '../../../trace'
 import { findFollowUpCommand } from './find-follow-up-command'
 
@@ -11,7 +12,7 @@ for (const one of [
   { name: 'an overriding store', override: true, missing: false },
   { name: 'a missing run', override: false, missing: true },
 ]) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       `given findFollowUpCommand with ${one.name}`,
       'when reading the triage recommendation',
