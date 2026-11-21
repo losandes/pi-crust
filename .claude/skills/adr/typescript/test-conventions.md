@@ -4,6 +4,20 @@
 
 accepted
 
+## Test classification and suite boundaries
+
+Classify a test by the effects it actually exercises, including effects in setup, helpers and default dependencies. Its filename, the number of collaborating modules and the use of fake inputs do not determine its classification.
+
+Tests that drive a real browser, create or mutate a Git repository, launch a runtime or fixture subprocess, call an external service, or rely on long wall-clock waits belong to the integration suite. A controlled or fake executable still starts a real process; testing its launch, exit status or signal handling exercises a process boundary.
+
+Keep integration tests out of the default fast suite and available through an explicit integration opt-in. Replacing a real boundary with injected values can make a test isolated; supplying fake data to a real executable does not remove that boundary. Cheap local temporary files, disposable local SQLite and collaboration between modules do not automatically make a test an integration test.
+
+## Choose the cheapest sufficient test
+
+Use the least expensive test that can reliably detect the regression. Test pure transformations and diagnostic formatting directly from inputs and outputs, without starting processes or browsers. Keep targeted integration coverage for behavior that depends on actual process launch, termination, browser rendering or Git operations.
+
+Do not add expensive setup merely to raise coverage, or remove meaningful integration assertions merely to make the suite faster. Separate pure decisions from boundary execution so each can be tested at the level needed to establish its behavior.
+
 ## File name conventions
 
 Test files should be named using the following convention: `*.test.ts` or `*.test.tsx`.

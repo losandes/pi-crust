@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { openPiSession } from './open-pi-session'
 
 for (const code of [7, 0]) {
-  test(
+  test.skipIf(SKIP_INTEGRATION)(
     [
       'given openPiSession and an executable',
       `when it exits with ${code}`,
@@ -21,7 +22,7 @@ for (const code of [7, 0]) {
   )
 }
 
-test(
+test.skipIf(SKIP_INTEGRATION)(
   [
     'given openPiSession and a missing binary',
     'when spawning it',
