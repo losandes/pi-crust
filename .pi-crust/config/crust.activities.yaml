@@ -256,7 +256,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    model: claude-code/claude-opus-5
+    model: openai/gpt-6.1-sol # claude-code/claude-opus-5
     thinking: high
     color: cyan
     purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
