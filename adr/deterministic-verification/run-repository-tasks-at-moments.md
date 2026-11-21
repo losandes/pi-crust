@@ -82,4 +82,6 @@ An Activity added on one machine is covered by `on = "change"` with no repositor
 
 Regressing on a `deliver` failure re-runs the last writing Activity and everything after it. That is the most expensive recovery the run has, bounded by that Activity's attempts.
 
-Two things are deliberately left unsettled, so a later decision does not have to unpick this one: whether a changed path that no task selected is reported, which the superseded record's rule that silence is never read as coverage required; and selecting skills by changed path, which the superseded record also governed and this record does not.
+Silence is still never read as coverage. When changed paths reach no task, the run's summary says how many, with no setting to turn that into a failure. The old setting existed because the gate failed or warned on uncovered paths; with tasks, nothing fails because no task matched, so reporting the number is the whole of the rule.
+
+Selecting skills by changed path, which the superseded record also governed, is withdrawn rather than carried over. The coding agent already lists every skill its environment can discover and loads one only when the task calls for it, and a skill named on its command line joins that same list rather than being loaded. Naming a discoverable skill again changed nothing, and naming one outside discovery only added it to the list. A skill an Activity needs belongs where the agent discovers skills.
