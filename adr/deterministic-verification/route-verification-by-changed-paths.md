@@ -6,7 +6,9 @@ Context: All apps
 
 ## Status
 
-accepted
+superseded
+
+Replaced by [Run repository tasks at moments in the run](./run-repository-tasks-at-moments.md).
 
 ## Decision
 
