@@ -5,7 +5,7 @@ import { join } from 'node:path'
 for (const activity of ['build', 'plan']) {
   test(
     [
-      `given prompt-engineering/${activity}/user.md`,
+      `given prompts/${activity}/user.md`,
       'when its input variables are read',
       'it should render the whole envelope history as well as the single previous envelope',
     ].join(', '),

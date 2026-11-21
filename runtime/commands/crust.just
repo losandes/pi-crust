@@ -66,7 +66,7 @@ config := env_var_or_default("CRUST_CONFIG", ".pi-crust/config/crust.config.yaml
 # file, including ones that never read {{db}} — so a failure here falls
 # back to the old literal default rather than taking down `list`, `run` and
 # everything else that does not touch the trace database at all.
-db := shell('bun "$1/print-db-path.ts" --config "$2" 2>/dev/null || echo ".pi-crust/data/crust.db"', crust, config)
+db := shell('bun "$1/commands/print-db-path.ts" --config "$2" 2>/dev/null || echo ".pi-crust/data/crust.db"', crust, config)
 
 # list every crust recipe (just crust help for the full reference)
 default:
@@ -83,9 +83,9 @@ default:
 # start here: two cheap read-only runs, end to end
 demo:
     @echo "1/2  scout: read-only recon"
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --activities scout
+    bun "{{crust}}/commands/run.ts" --config {{config}} "list the top-level directories in this repo and what each is for. change nothing." --activities scout
     @echo "\n2/2  identify: the outcome and how success is recognised"
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "state the outcome a newcomer to this repo would want from it, and how they would know they had it" --activities identify
+    bun "{{crust}}/commands/run.ts" --config {{config}} "state the outcome a newcomer to this repo would want from it, and how they would know they had it" --activities identify
     @echo "\nboth done. now run:  just crust sessions    (or: just crust observe)"
 
 # ── run something ───────────────────────────────────────────────────────────
@@ -99,18 +99,18 @@ demo:
 
 # the catalogue alone — just crust help adds every recipe: just crust list
 list *ARGS:
-    @bun "{{crust}}/catalogue.ts" --config {{config}} "$@"
+    @bun "{{crust}}/commands/list.ts" --config {{config}} "$@"
 
 # every recipe, every flag, and what this repo can run: just crust help [<recipe>]
 help *ARGS:
-    @bun "{{crust}}/help.ts" --config {{config}} "$@"
+    @bun "{{crust}}/commands/help.ts" --config {{config}} "$@"
 
 # Every effective defaults.* and observability.* value, and the file that set
 # it \u2014 a repository's own crust.config.yaml, its gitignored .local layer, or
 # ~/.pi-crust/config/crust.config.yaml's ordinary or override: section.
 # what is actually in force, and where it came from: just crust config
 config *ARGS:
-    @bun "{{crust}}/show-config.ts" --config {{config}} "$@"
+    @bun "{{crust}}/commands/config.ts" --config {{config}} "$@"
 
 # A Lifecycle by name:
 #     just crust run "add a /health endpoint" --lifecycle sdlc
@@ -124,7 +124,7 @@ config *ARGS:
 
 # run a Lifecycle, or any chain of Activities: just crust run "..." --lifecycle sdlc
 run *ARGS:
-    bun "{{crust}}/lifecycles/compose.ts" --config {{config}} "$@"
+    bun "{{crust}}/commands/run.ts" --config {{config}} "$@"
 
 # Any run resumes: add --run-id <id> --resume to it, e.g.
 #     just crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume
@@ -143,45 +143,45 @@ run *ARGS:
 # gate inside a run; this is them on their own, for a pre-PR sweep.
 # run the checks the changed paths select: just crust verify
 verify *ARGS:
-    @bun "{{crust}}/checks.ts" --config {{config}} "$@"
+    @bun "{{crust}}/commands/verify.ts" --config {{config}} "$@"
 
 # ── let something else choose the chain ─────────────────────────────────────
 
 # let it choose the chain and run it: just crust operator "the webhook drops retries"
 operator *ARGS:
-    bun "{{crust}}/stages/operator.ts" --config {{config}} "$@"
+    bun "{{crust}}/commands/operator.ts" --config {{config}} "$@"
 
 # Prints the run command and the reasoning behind it; starts nothing.
 # recommend a lifecycle instead of running it: just crust triage "..."
 triage *ARGS:
-    bun "{{crust}}/stages/triage.ts" --config {{config}} "$@"
+    bun "{{crust}}/commands/triage.ts" --config {{config}} "$@"
 
 # build the command by answering questions: just crust please
 please:
-    @bun "{{crust}}/please.ts"
+    @bun "{{crust}}/commands/please.ts"
 
 # ── watch it ────────────────────────────────────────────────────────────────
 # Reads never block a running workflow, the db is WAL. Poll as hard as you like.
 
 # continue a run that is waiting for you: just crust approve <run_id>
 approve RUN_ID:
-    @bun "{{crust}}/decide.ts" approve {{RUN_ID}}
+    @bun "{{crust}}/commands/approve.ts" {{RUN_ID}}
 
 # send it back with a correction: just crust reject <run_id> --note "..."
 reject RUN_ID *ARGS:
-    @bun "{{crust}}/decide.ts" reject {{RUN_ID}} "$@"
+    @bun "{{crust}}/commands/reject.ts" {{RUN_ID}} "$@"
 
 # answer the questions it could not: just crust answer <run_id> --file a.md
 answer RUN_ID *ARGS:
-    @bun "{{crust}}/decide.ts" answer {{RUN_ID}} "$@"
+    @bun "{{crust}}/commands/answer.ts" {{RUN_ID}} "$@"
 
 # where a run got to, and what to run to finish it: just crust report [<run_id>]
 report *ARGS:
-    @bun "{{crust}}/report.ts" --config {{config}} "$@"
+    @bun "{{crust}}/commands/report.ts" --config {{config}} "$@"
 
 # the same, as JSON for an agent to parse: just crust report-json <run_id>
 report-json *ARGS:
-    @bun "{{crust}}/report.ts" --config {{config}} --json "$@"
+    @bun "{{crust}}/commands/report.ts" --config {{config}} --json "$@"
 
 # the last 10 runs
 sessions:
@@ -202,12 +202,12 @@ procs RUN_ID:
 # forget runs older than N days, on disk and in the trace together.
 # Dry by default: add --yes to actually delete. just crust prune 14d
 prune AGE *ARGS:
-    @bun "{{crust}}/prune.ts" --older-than {{AGE}} "$@"
+    @bun "{{crust}}/commands/prune.ts" --older-than {{AGE}} "$@"
 
 # ask a finished activity a question — it still remembers the conversation.
 # just crust ask <run_id> <activity> "why did you choose a registry table?"
 ask RUN_ID ACTIVITY *QUESTION:
-    @bun "{{crust}}/consult.ts" ask {{RUN_ID}} {{ACTIVITY}} "$@"
+    @bun "{{crust}}/commands/ask.ts" {{RUN_ID}} {{ACTIVITY}} "$@"
 
 # send a run back to an activity with new instructions: it and every activity
 # after it run again. --overwrite or --branch is REQUIRED; neither is default.
@@ -216,32 +216,32 @@ ask RUN_ID ACTIVITY *QUESTION:
 # just crust steer <run_id> <activity> --overwrite "use the registry, not the map"
 # just crust steer <run_id> <activity> --branch --seeding fresh "start over"
 steer RUN_ID ACTIVITY *ARGS:
-    @bun "{{crust}}/steer.ts" {{RUN_ID}} {{ACTIVITY}} "$@"
+    @bun "{{crust}}/commands/steer.ts" {{RUN_ID}} {{ACTIVITY}} "$@"
 
 # pick a stopped run back up, optionally with a note every activity from here reads.
 # just crust resume <run_id> --note "I fixed the failing migration"
 resume RUN_ID *ARGS:
-    @bun "{{crust}}/resume.ts" {{RUN_ID}} "$@"
+    @bun "{{crust}}/commands/resume.ts" {{RUN_ID}} "$@"
 
 # have a finished activity revise ITS OWN document. Every other activity's
 # stays read-only. just crust amend <run_id> <activity> "shorten section 3"
 amend RUN_ID ACTIVITY *INSTRUCTION:
-    @bun "{{crust}}/consult.ts" amend {{RUN_ID}} {{ACTIVITY}} "$@"
+    @bun "{{crust}}/commands/amend.ts" {{RUN_ID}} {{ACTIVITY}} "$@"
 
 # open the pi conversation the agent behind an activity had, interactively, with
 # everything it knew. Refused while any process of the run is alive.
 # step into a stopped run's conversation: just crust join <run_id> <activity>
 join RUN_ID ACTIVITY:
-    @bun "{{crust}}/join.ts" "$@"
+    @bun "{{crust}}/commands/join.ts" "$@"
 
 # the working trees this machine has run in — the observer watches them all
 trees:
-    @bun "{{crust}}/workspaces.ts" list
+    @bun "{{crust}}/commands/trees.ts"
 
 # Only removes it from this machine's list; nothing on disk is deleted.
 # stop watching a tree: just crust forget-tree /path/to/worktree
 forget-tree *PATHS:
-    @bun "{{crust}}/workspaces.ts" forget "$@"
+    @bun "{{crust}}/commands/forget-tree.ts" "$@"
 
 # ── observability UI ────────────────────────────────────────────────────────
 

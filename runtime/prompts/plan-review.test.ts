@@ -9,7 +9,7 @@ const prompt = (activity: string, part: string): string =>
 for (const activity of ['plan-comprehension', 'plan-readiness']) {
   test(
     [
-      `given prompt-engineering/${activity}`,
+      `given prompts/${activity}`,
       'when its instructions and Report are read',
       'it should grade findings without making severity a second blocking authority',
     ].join(', '),

@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { SKIP_INTEGRATION } from './testing/integration'
-import { tokenRepo } from './testing/token-repo'
+import { SKIP_INTEGRATION } from '../testing/integration'
+import { tokenRepo } from '../testing/token-repo'
 
 for (const one of [
   { name: 'token configuration', options: {}, note: false },

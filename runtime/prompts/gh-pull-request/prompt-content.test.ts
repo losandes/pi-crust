@@ -22,7 +22,7 @@ const userMd = (): string => readFileSync(join(PROMPT_DIR, 'user.md'), 'utf8')
 
 test(
   [
-    'given prompt-engineering/gh-pull-request/system.md',
+    'given prompts/gh-pull-request/system.md',
     'when read',
     'it should forbid arguing the change is safe, ready, or should be merged (1.2.1)',
   ].join(', '),
@@ -38,7 +38,7 @@ test(
 
 test(
   [
-    'given prompt-engineering/gh-pull-request/system.md',
+    'given prompts/gh-pull-request/system.md',
     'when read',
     'it should tell the agent the harness owns the issue link and the Activities and Checks sections (1.7.2)',
   ].join(', '),
@@ -56,7 +56,7 @@ test(
 
 test(
   [
-    'given prompt-engineering/gh-pull-request/system.md',
+    'given prompts/gh-pull-request/system.md',
     'when read',
     'it should preserve the pre-existing no-attribution, no-envelope-JSON, no-git/gh, and read-only instructions (1.7.5)',
   ].join(', '),
@@ -74,7 +74,7 @@ test(
 
 test(
   [
-    'given prompt-engineering/gh-pull-request/user.md',
+    'given prompts/gh-pull-request/user.md',
     'when read',
     'it should tell the agent not to put an issue number in the title (1.7.4)',
   ].join(', '),
@@ -91,7 +91,7 @@ test(
 
 test(
   [
-    'given prompt-engineering/gh-pull-request/user.md',
+    'given prompts/gh-pull-request/user.md',
     'when read',
     "it should tell the agent to write outcome-level '## What changed' bullets, not file-by-file or line-level mechanics (1.7.3)",
   ].join(', '),
@@ -108,7 +108,7 @@ test(
 
 test(
   [
-    'given prompt-engineering/gh-pull-request/user.md',
+    'given prompts/gh-pull-request/user.md',
     'when read',
     'it should tell the agent the harness owns the issue link, Activities and Checks and discards anything it writes there (1.7.2)',
   ].join(', '),

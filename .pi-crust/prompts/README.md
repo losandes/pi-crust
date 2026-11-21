@@ -8,20 +8,20 @@ Point the Activity at your file in `config/crust.activities.yaml`:
 
 ```yaml
 - name: plan
-  prompt_engineering:
-    system: .pi-crust/prompt-engineering/plan/system.md
+  prompts:
+    system: .pi-crust/prompts/plan/system.md
 ```
 
 A key you do not mention keeps the shipped prompt, so overriding the system prompt alone leaves the user prompt as it was.
 
 ## Overriding the revise prompt
 
-Set `prompt_engineering.revise` for `build` in `config/crust.activities.yaml`:
+Set `prompts.revise` for `build` in `config/crust.activities.yaml`:
 
 ```yaml
 - name: build
-  prompt_engineering:
-    revise: prompt-engineering/build/custom-revise.md
+  prompts:
+    revise: prompts/build/custom-revise.md
 ```
 
 Create that file under `.pi-crust/`. A revise round renders it instead of the user prompt, then appends steering and the blocking findings from review. Leaving the key out keeps the shipped revise prompt.

@@ -31,7 +31,8 @@ import { runWorkflow } from '../domains/runs'
 import { repoRoot } from '../domains/workspace'
 import { EXIT } from '../lib/contracts'
 import { newId } from '../lib/system'
-export const ACTIVITIES = ['triage'] as const
+
+const ACTIVITIES = ['triage'] as const
 
 export const main = async (args: TWorkflowArgs): Promise<number> => {
   /*

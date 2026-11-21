@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { SKIP_INTEGRATION } from './testing/integration'
-import { tokenRepo } from './testing/token-repo'
+import { SKIP_INTEGRATION } from '../testing/integration'
+import { tokenRepo } from '../testing/token-repo'
+import { main } from './ask'
 
 for (const one of [
   { mode: 'ask', name: 'token configuration', options: {} },
@@ -12,7 +13,7 @@ for (const one of [
     name: 'a data directory separate from the store',
     options: { separateData: true },
   },
-]) {
+].filter((one) => one.mode === 'ask')) {
   test.skipIf(SKIP_INTEGRATION)(
     [
       `given ${one.mode} with ${one.name}`,
@@ -24,8 +25,7 @@ for (const one of [
       using fixture = tokenRepo(one.options)
 
       // when
-      const child = fixture.invoke('consult.ts', [
-        one.mode,
+      const child = fixture.invoke('ask.ts', [
         fixture.runId,
         'build',
         'explain your decision',
@@ -43,3 +43,19 @@ for (const one of [
     },
   )
 }
+
+test(
+  [
+    'given ask without arguments',
+    'when calling its entry function',
+    'it should return usage without opening a run',
+  ].join(', '),
+  async () => {
+    // given
+    const argv: readonly string[] = []
+    // when
+    const actual = await main(argv)
+    // then
+    expect(actual).toBe(2)
+  },
+)

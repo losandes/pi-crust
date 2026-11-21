@@ -11,10 +11,7 @@ test(
   () => {
     // given
     // when
-    const actual = readFileSync(
-      'runtime/prompt-engineering/gh-issue/user.md',
-      'utf8',
-    )
+    const actual = readFileSync('runtime/prompts/gh-issue/user.md', 'utf8')
     // then
     expect(actual).toContain(HANDOFF_DIVIDER_PREFIX)
     expect(actual).toContain(HANDOFF_END_LINE)

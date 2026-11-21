@@ -1,9 +1,14 @@
 import { expect, test } from 'bun:test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { main } from './decide'
-import { gateFixture } from './domains/runs/src/use-cases/human-gate-fixture.test'
-import { EXIT } from './lib/contracts'
+import { parseDecideArgs } from '../../../cli'
+import { decideRun } from '../..'
+
+const main = (argv: readonly string[]) =>
+  Promise.resolve(argv).then(parseDecideArgs).then(decideRun)
+
+import { EXIT } from '../../../../lib/contracts'
+import { gateFixture } from './human-gate-fixture.test'
 
 for (const verb of ['approve', 'answer', 'reject'] as const) {
   test(

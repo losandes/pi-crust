@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SKIP_INTEGRATION } from './testing/integration'
+import { SKIP_INTEGRATION } from '../testing/integration'
 
 /*
  * Issue #24, stage 2 (1.6.1, 1.6.2, 1.6.3, 1.6.4): a linked worktree that was

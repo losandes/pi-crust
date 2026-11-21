@@ -3,9 +3,9 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { main } from './checks'
-import { EXIT } from './lib/contracts'
-import { SKIP_INTEGRATION } from './testing/integration'
+import { EXIT } from '../lib/contracts'
+import { SKIP_INTEGRATION } from '../testing/integration'
+import { main } from './verify'
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()

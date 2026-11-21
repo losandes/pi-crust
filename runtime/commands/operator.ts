@@ -20,9 +20,10 @@ import { resolvePrompt, runCli, workflowArgs } from '../domains/cli'
 import { asSingleStage } from '../domains/planning'
 import { runWorkflow } from '../domains/runs'
 import { EXIT } from '../lib/contracts'
-export const ACTIVITIES = ['operator'] as const
 
-export const CONFLICTING_ACTIVITIES =
+const ACTIVITIES = ['operator'] as const
+
+const CONFLICTING_ACTIVITIES =
   'operator and --activities are competing instructions: one asks the ' +
   'operator to choose the chain, the other names it. Pick one.\n' +
   '  just crust operator "<what you want>"                 # it chooses\n' +
