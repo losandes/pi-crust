@@ -56,7 +56,7 @@ themes:
   # Examples of custom themes
   - name: dracula
     label: Dracula
-    stylesheet: config/dracula.css
+    builtin: true
 
   - name: high-contrast
     label: High contrast

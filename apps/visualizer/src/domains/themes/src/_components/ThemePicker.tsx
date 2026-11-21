@@ -1,4 +1,4 @@
-import { Contrast, Monitor, Moon, Palette, Sun } from 'lucide-react'
+import { Monitor, Moon, MoonStar,Palette, Sun } from 'lucide-react'
 import type { ComponentType, KeyboardEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { cx } from '@/lib/cx'
@@ -18,7 +18,7 @@ const ICONS: Readonly<Record<string, ComponentType<{ size?: number }>>> = {
   auto: Monitor,
   light: Sun,
   dark: Moon,
-  'high-contrast': Contrast,
+  dracula: MoonStar,
 }
 
 /**
