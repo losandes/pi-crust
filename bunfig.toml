@@ -47,13 +47,12 @@ coveragePathIgnorePatterns = [
   # machine. `copyToClipboard`'s own fallback-ordering logic has no branch
   # that does not end in one of these spawns.
   "runtime/lib/terminal/src/clipboard.ts",
-  # The process-exit guard around `domains/cli`'s catalogue renderer (issue
-  # #82, 4.11): `main` and `reportUsageError` are exercised directly by
-  # catalogue.test.ts, but `if (import.meta.main)` itself is false under
-  # every bun test process, the same as the identical guard in every other
-  # runtime/*.ts entry point — those stay above the coverage gate only
-  # because more of their own logic sits beside the guard than this file's
-  # does now that 4.11 moved catalogueOf/renderCatalogue out of it.
+  # runtime/commands/list.ts is the process-exit boundary around the CLI list
+  # renderer (issue #82, 4.11). commands/list.test.ts exercises main; the shared
+  # usage-error handler is tested beside its CLI domain module. import.meta.main
+  # is false when imported by bun test, as in other runtime/commands/*.ts entry
+  # points. This thin file has too few other executable lines to cover that
+  # process-only guard after rendering moved into the CLI domain.
   "runtime/commands/list.ts"
 ]
 

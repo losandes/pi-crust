@@ -7,25 +7,14 @@ import {
   restoreTerminal,
   silenceTerminal,
 } from '../../../../testing/terminal-capture'
-import type { TWorkflowArgs } from '../../../cli'
 import { plannedNames } from '../..'
 import { plannedActivities } from './planned-activities'
 
-const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
-  prompt: 'x',
-  config: '.pi-crust/config/crust.config.yaml',
-  runId: undefined,
-  base: undefined,
-  resume: false,
+type TPlanningArgs = Parameters<typeof plannedActivities>[0]
+
+const args = (over: Partial<TPlanningArgs>): TPlanningArgs => ({
   activities: undefined,
   lifecycle: undefined,
-  models: undefined,
-  approveAfter: undefined,
-  commit: undefined,
-  stream: false,
-  trustLevel: undefined,
-  handoff: undefined,
-  name: undefined,
   ...over,
 })
 
