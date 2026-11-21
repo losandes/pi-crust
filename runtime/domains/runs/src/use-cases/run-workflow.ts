@@ -616,6 +616,12 @@ export const runWorkflow = async (
   } catch (error) {
     run.tracer.sessionFinish(run.runId, false)
     run.tracer.processesEndAll(run.runId)
+    run.console.sessionFinished(
+      false,
+      run.tokens(),
+      run.cost(),
+      run.cfg.observability.db,
+    )
     throw error
   }
 }

@@ -283,12 +283,6 @@ export const runActivityRun =
       run.tracer.activityRunUpsert(failed)
       run.tracer.sessionFinish(run.runId, false)
       run.console.activityRunEnded(failed, (monotonicMs() - clock) / 1000)
-      run.console.sessionFinished(
-        false,
-        run.tokens(),
-        run.cost(),
-        run.cfg.observability.db,
-      )
       throw error
     }
   }

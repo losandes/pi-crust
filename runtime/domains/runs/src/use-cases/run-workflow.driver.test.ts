@@ -1793,6 +1793,170 @@ test(
   },
 )
 
+const openedIssueEnvelope = {
+  status: 'success',
+  summary: 'opened the issue',
+  artifacts: [],
+  notes_for_next_agent: '',
+  facts: [],
+  decisions: [],
+  assumptions: [],
+  unresolved: [],
+  risks: [],
+  objective_met: { met: true, evidence: 'fixture' },
+  regress_to: { activity: '', because: '' },
+  issue_url: 'https://github.com/acme/widgets/issues/42',
+  issue_number: 42,
+  repo: 'acme/widgets',
+}
+
+test(
+  [
+    'given an opened issue whose reported number fails its gate',
+    'when the workflow exhausts its attempts outside the Activity Run',
+    'it should reject and print one failed panel followed by the issue link',
+  ].join(', '),
+  async () => {
+    // given
+    using _environment = workflowEnvironment()
+    const dir = mkdtempSync(join(tmpdir(), 'crust-workflow-issue-gate-'))
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the registry boundary owned by this disposable fixture
+    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+    const configPath = configFor(dir, [
+      {
+        name: 'open-issue',
+        output: 'ghIssueOutput',
+        gates: ['issueCreated'],
+        attempts: 1,
+        commit: false,
+      },
+    ])
+    const ports = fakeAgentPorts({ ...openedIssueEnvelope, issue_number: 43 })
+    try {
+      // when, then
+      await expect(
+        runWorkflow(
+          { ...argsFor(configPath, 'abcd1871'), resume: false },
+          [
+            {
+              name: 'discover',
+              strategy: 'serial',
+              activities: ['open-issue'],
+            },
+          ],
+          ports,
+          fixtureModel,
+        ),
+      ).rejects.toThrow('has no attempts left')
+      const output = plain(terminalOutput())
+      const lines = output.trimEnd().split('\n')
+      expect(output.split('pi-crust run complete')).toHaveLength(2)
+      expect(output).toContain('✗ fail')
+      expect(lines[lines.findIndex((line) => line.startsWith('╰')) + 1]).toBe(
+        `  issue          ${openedIssueEnvelope.issue_url}`,
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  [
+    'given concurrent siblings where one fails before the other opens an issue',
+    'when the workflow finishes waiting for both siblings',
+    'it should reject and print the late issue link after exactly one completion panel',
+  ].join(', '),
+  async () => {
+    // given
+    using _environment = workflowEnvironment()
+    const dir = mkdtempSync(join(tmpdir(), 'crust-workflow-concurrent-issue-'))
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the registry boundary owned by this disposable fixture
+    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
+    const runId = 'abcd1872'
+    const configPath = configFor(dir, [
+      {
+        name: 'fails-first',
+        output: 'genericOutput',
+        attempts: 1,
+        writes: [],
+        model: 'fixture/fails',
+        commit: false,
+      },
+      {
+        name: 'opens-later',
+        output: 'ghIssueOutput',
+        attempts: 1,
+        writes: [],
+        model: 'fixture/opens',
+        commit: false,
+      },
+    ])
+    const ports: TAgentPorts = {
+      ...fakeAgentPorts(openedIssueEnvelope),
+      run: async (request) => {
+        if (request.model === 'fixture/fails') {
+          return aPiResult(
+            JSON.stringify({
+              status: 'fail',
+              summary: 'failed sibling',
+              artifacts: [],
+              notes_for_next_agent: '',
+            }),
+          )
+        }
+        const tracer = createTracer(
+          join(dir, 'data', 'crust.db'),
+          join(dir, 'poll.jsonl'),
+        )
+        try {
+          for (let attempt = 0; attempt < 200; attempt += 1) {
+            if (
+              tracer
+                .activityRunsFor(runId)
+                .some(
+                  (row) =>
+                    row.params.name === 'fails-first' && row.status === 'fail',
+                )
+            ) {
+              return aPiResult(JSON.stringify(openedIssueEnvelope))
+            }
+            await Bun.sleep(5)
+          }
+          throw new Error('failing sibling never settled')
+        } finally {
+          tracer.close()
+        }
+      },
+    }
+    try {
+      // when, then
+      await expect(
+        runWorkflow(
+          { ...argsFor(configPath, runId), resume: false },
+          [
+            {
+              name: 'discover',
+              strategy: 'concurrent',
+              activities: ['fails-first', 'opens-later'],
+            },
+          ],
+          ports,
+          fixtureModel,
+        ),
+      ).rejects.toThrow('failed sibling')
+      const output = plain(terminalOutput())
+      const lines = output.trimEnd().split('\n')
+      expect(output.split('pi-crust run complete')).toHaveLength(2)
+      expect(lines[lines.findIndex((line) => line.startsWith('╰')) + 1]).toBe(
+        `  issue          ${openedIssueEnvelope.issue_url}`,
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
 test(
   [
     'given use-cases/run-workflow::runWorkflow',

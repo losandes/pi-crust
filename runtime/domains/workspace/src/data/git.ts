@@ -5,14 +5,36 @@
  * shell injection.
  */
 
-import { spawnSync } from 'node:child_process'
+import { type SpawnSyncReturns, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+
+const gitFailure = (
+  args: readonly string[],
+  cwd: string,
+  result: Readonly<
+    Pick<SpawnSyncReturns<string>, 'status' | 'signal' | 'error' | 'stderr'>
+  >,
+): string =>
+  [
+    `git ${args.join(' ')} failed: ${result.stderr?.trim() ?? ''}`,
+    `argv: ${JSON.stringify(['git', ...args])}`,
+    `cwd: ${JSON.stringify(cwd)}`,
+    `exit status: ${result.status ?? 'unavailable'}`,
+    `signal: ${result.signal ?? 'none'}`,
+    `spawn error: ${result.error?.message ?? 'none'}`,
+    `spawn error code: ${result.error !== undefined && 'code' in result.error ? String(result.error.code) : 'none'}`,
+  ].join('\n')
 
 const run = (
   args: readonly string[],
   cwd?: string,
-): Readonly<{ status: number; stdout: string; stderr: string }> => {
+): Readonly<{
+  status: number
+  stdout: string
+  stderr: string
+  failure: string
+}> => {
   const result = spawnSync('git', [...args], {
     encoding: 'utf8',
     ...(cwd === undefined ? {} : { cwd }),
@@ -21,6 +43,8 @@ const run = (
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
+    failure:
+      result.status === 0 ? '' : gitFailure(args, cwd ?? process.cwd(), result),
   }
 }
 
@@ -28,7 +52,7 @@ const run = (
 const git = (...args: readonly string[]): string => {
   const result = run(args)
   if (result.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed: ${result.stderr.trim()}`)
+    throw new Error(result.failure)
   }
   return result.stdout.trim()
 }
@@ -37,7 +61,7 @@ const git = (...args: readonly string[]): string => {
 const gitAt = (cwd: string, ...args: readonly string[]): string => {
   const result = run(args, cwd)
   if (result.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed: ${result.stderr.trim()}`)
+    throw new Error(result.failure)
   }
   return result.stdout.trim()
 }
@@ -63,11 +87,12 @@ const blockingGitAt = (
   ) {
     throw new Error(
       `git ${args[0]} did not finish within ${timeoutMs / 1000} s and was stopped — ` +
-        'a signing or SSH agent may be waiting for approval',
+        'a signing or SSH agent may be waiting for approval\n' +
+        gitFailure(args, cwd, result),
     )
   }
   if (result.status !== 0) {
-    throw new Error(`git ${args.join(' ')} failed: ${result.stderr.trim()}`)
+    throw new Error(gitFailure(args, cwd, result))
   }
 }
 

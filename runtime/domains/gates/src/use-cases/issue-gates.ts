@@ -9,10 +9,11 @@
  */
 
 import type { TEnvelopeBase, TGate } from '../../../../lib/contracts'
-import { addCheck, emptyReport } from '../../../../lib/contracts'
-
-const ISSUE_URL_PATTERN =
-  /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)$/
+import {
+  addCheck,
+  emptyReport,
+  GITHUB_ISSUE_URL,
+} from '../../../../lib/contracts'
 
 type TClaim = Readonly<{
   issue_url?: unknown
@@ -25,7 +26,7 @@ export const issueCreated: TGate = {
   check: (envelope: TEnvelopeBase) => {
     const claim = envelope as TClaim
     const url = typeof claim.issue_url === 'string' ? claim.issue_url : ''
-    const match = url.match(ISSUE_URL_PATTERN)
+    const match = url.match(GITHUB_ISSUE_URL)
 
     const withUrl = addCheck(
       emptyReport,
