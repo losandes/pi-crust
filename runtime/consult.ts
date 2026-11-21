@@ -20,7 +20,7 @@
 
 import { Database } from 'bun:sqlite'
 import { spawn } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { safeParseSettlement } from '../lib/typedefs/src/settlement'
 import { loadConfig } from './domains/config'
 import {
@@ -33,8 +33,8 @@ import {
   type TConsultRequest,
 } from './domains/handoff'
 import { createTracer } from './domains/trace'
-import { DEFAULT_DB } from './lib/contracts'
-import { configPathFromEnv, dbPathFromEnv } from './lib/system'
+import { repoRoot, resolveLookupPaths } from './domains/workspace'
+import { configPathFromEnv } from './lib/system'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
@@ -139,8 +139,7 @@ const main = async (): Promise<number> => {
 
   const configPath = configPathFromEnv()
   const cfg = loadConfig(configPath)
-  const dbPath = resolve(dbPathFromEnv() ?? cfg.observability.db ?? DEFAULT_DB)
-  const dataDir = resolve(dirname(dirname(dbPath)), 'data')
+  const { db: dbPath, dataDir } = resolveLookupPaths(cfg, repoRoot())
 
   const db = new Database(dbPath, { readonly: true })
   const activityRun = activityRunOf(db, runId, activity)

@@ -435,7 +435,7 @@ export const ghPullRequestActivity = (
     }
 
     const branch = ports.branch(cwd)
-    const state = readRunState(run.cfg.observability.db, run.runId)
+    const state = readRunState(run.tracer.dbPath, run.runId)
     const facts: TBodyFacts = {
       runId: run.runId,
       prompt: ctx.prompt,

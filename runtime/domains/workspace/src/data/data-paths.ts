@@ -16,7 +16,11 @@
 import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { dataDirFromEnv, type TEnv } from '../../../../lib/system'
+import {
+  dataDirFromEnv,
+  dbPathFromEnv,
+  type TEnv,
+} from '../../../../lib/system'
 export const PRIMARY_WORKTREE_TOKEN = '{primary_worktree}'
 
 const run = (
@@ -111,5 +115,18 @@ export const resolveDataPaths = (
   return {
     dataDir: resolveConfiguredPath(dataDirValue, repoRoot),
     db: resolveConfiguredPath(cfg.observability.db, repoRoot),
+  }
+}
+
+export const resolveLookupPaths = (
+  cfg: TDataPathsConfig,
+  repoRoot: string,
+  env: TEnv = process.env,
+): TResolvedDataPaths => {
+  const configured = resolveDataPaths(cfg, repoRoot, env)
+  const store = dbPathFromEnv(env)
+  return {
+    dataDir: configured.dataDir,
+    db: store === undefined ? configured.db : resolve(store),
   }
 }

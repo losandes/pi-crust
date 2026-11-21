@@ -43,6 +43,7 @@ import {
 import { loadConfig } from './domains/config'
 import { renderImportReport } from './domains/imports'
 import { readRunState } from './domains/trace'
+import { repoRoot, resolveDataPaths } from './domains/workspace'
 import type { TGateOutcome, TRunState } from './lib/contracts'
 import {
   DEFAULT_CONFIG_PATH,
@@ -123,7 +124,9 @@ export const resolveDbPath = (args: TReportArgs): string => {
     return args.db
   }
   const cfg = safeParseSettlement(() => loadConfig(args.config))
-  return cfg.status === 'ok' ? cfg.data.observability.db : DEFAULT_DB
+  return cfg.status === 'ok'
+    ? resolveDataPaths(cfg.data, repoRoot()).db
+    : DEFAULT_DB
 }
 
 const MARKS: Readonly<Record<string, string>> = {
@@ -176,6 +179,17 @@ export const resumeCommand = (
 /** Where this run wrote down how it was started, from the trace it is in. */
 export const sessionDirOf = (dbPath: string, runId: string): string =>
   join(dirname(dbPath), 'sessions', runId)
+
+export const resolveSessionDir = (
+  args: TReportArgs,
+  dbPath: string,
+  runId: string,
+): string => {
+  const cfg = safeParseSettlement(() => loadConfig(args.config))
+  return cfg.status === 'ok'
+    ? join(resolveDataPaths(cfg.data, repoRoot()).dataDir, 'sessions', runId)
+    : sessionDirOf(dbPath, runId)
+}
 
 export const renderReport = (
   state: TRunState,
@@ -272,7 +286,8 @@ export const main = (argv: readonly string[]): number => {
       ? JSON.stringify(state, null, 2)
       : renderReport(
           state,
-          recordedInvocation(sessionDirOf(dbPath, state.run_id))?.argv,
+          recordedInvocation(resolveSessionDir(args, dbPath, state.run_id))
+            ?.argv,
         ),
   )
   if (state.status === 'waiting') {

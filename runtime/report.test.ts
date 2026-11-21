@@ -15,11 +15,13 @@ import {
   sessionDirOf,
   USAGE,
 } from './report'
+import { SKIP_INTEGRATION } from './testing/integration'
 import {
   restoreTerminal,
   silenceTerminal,
   terminalOutput,
 } from './testing/terminal-capture'
+import { tokenRepo } from './testing/token-repo'
 
 test(
   [
@@ -139,6 +141,64 @@ test(
       expect(actual).toContain(field)
     expect(actual).not.toContain('import invalid')
     expect(renderReport(aState())).not.toContain('import #150')
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given report with token configuration',
+    'when reading a recorded run as JSON',
+    'it should find the run in the configured store',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = tokenRepo()
+
+    // when
+    const child = fixture.invoke('report.ts', [
+      fixture.runId,
+      '--json',
+      '--config',
+      fixture.configPath,
+    ])
+    const output = child.stdout.toString()
+
+    // then
+    expect(child.exitCode).toBe(EXIT.FAILED)
+    expect(output).not.toContain('no session found')
+    expect(JSON.parse(output).run_id).toBe(fixture.runId)
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given report with token configuration and an overriding store',
+    'when a failed run recorded its invocation under the configured data directory',
+    'it should retain the lifecycle flag from that recorded invocation',
+  ].join(', '),
+  () => {
+    // given
+    using fixture = tokenRepo({ overrideDb: true })
+    writeFileSync(
+      join(fixture.sessionDir, 'invocation.json'),
+      JSON.stringify({
+        argv: [
+          'bun',
+          join(fixture.root, 'compose.ts'),
+          'fixture request',
+          '--lifecycle',
+          'sdlc',
+        ],
+        cwd: fixture.root,
+      }),
+    )
+
+    // when
+    const child = fixture.invoke('report.ts', [fixture.runId])
+
+    // then
+    expect(child.exitCode).toBe(EXIT.FAILED)
+    expect(child.stdout.toString()).toContain('--lifecycle sdlc')
   },
 )
 
@@ -401,7 +461,13 @@ test(
     tracer.close()
 
     // when
-    const actual = main(['cccc3333', '--db', dbPath])
+    const actual = main([
+      'cccc3333',
+      '--db',
+      dbPath,
+      '--config',
+      join(dir, 'missing.config.yaml'),
+    ])
 
     // then
     expect(actual).toEqual(EXIT.WAITING)
@@ -426,7 +492,13 @@ test(
     tracer.close()
 
     // when
-    const actual = main(['dddd4444', '--db', dbPath])
+    const actual = main([
+      'dddd4444',
+      '--db',
+      dbPath,
+      '--config',
+      join(dir, 'missing.config.yaml'),
+    ])
 
     // then
     expect(actual).toEqual(EXIT.RUNNING)
@@ -451,7 +523,13 @@ test(
     tracer.close()
 
     // when
-    const actual = main(['eeee5555', '--db', dbPath])
+    const actual = main([
+      'eeee5555',
+      '--db',
+      dbPath,
+      '--config',
+      join(dir, 'missing.config.yaml'),
+    ])
 
     // then
     expect(actual).toEqual(EXIT.FAILED)
@@ -481,7 +559,13 @@ test(
     )
 
     // when
-    const actual = main(['ffff6666', '--db', dbPath])
+    const actual = main([
+      'ffff6666',
+      '--db',
+      dbPath,
+      '--config',
+      join(dir, 'missing.config.yaml'),
+    ])
 
     // then — no recorded invocation at `sessionDir`, so it falls back cleanly
     expect(actual).toEqual(EXIT.FAILED)

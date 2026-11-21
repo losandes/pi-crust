@@ -18,10 +18,9 @@
  * asking; a run that does nothing has nothing to ask about.
  */
 
-import { resolve } from 'node:path'
 import type { TWorkflowArgs } from '../domains/cli'
 import {
-  adviceCommand,
+  findFollowUpCommand,
   resolvePrompt,
   runCli,
   workflowArgs,
@@ -29,9 +28,9 @@ import {
 import { loadConfig } from '../domains/config'
 import { asSingleStage } from '../domains/planning'
 import { runWorkflow } from '../domains/runs'
-import { readRunState } from '../domains/trace'
-import { DEFAULT_DB, EXIT } from '../lib/contracts'
-import { dbPathFromEnv, newId } from '../lib/system'
+import { repoRoot } from '../domains/workspace'
+import { EXIT } from '../lib/contracts'
+import { newId } from '../lib/system'
 export const ACTIVITIES = ['triage'] as const
 
 export const main = async (args: TWorkflowArgs): Promise<number> => {
@@ -41,7 +40,8 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
    * run just wrote — and a stage that let the id be generated below it
    * would have to guess which run was its own.
    */
-  const withId: TWorkflowArgs = { ...args, runId: args.runId ?? newId(8) }
+  const runId = args.runId ?? newId(8)
+  const withId: TWorkflowArgs = { ...args, runId }
   const code = await runWorkflow(withId, asSingleStage(ACTIVITIES))
   /*
    * Printed after the run rather than by the agent, because the agent is
@@ -49,11 +49,10 @@ export const main = async (args: TWorkflowArgs): Promise<number> => {
    * and the shape of the command belongs to the code that knows what
    * `compose` takes today.
    */
-  const cfg = loadConfig(withId.config)
-  const dbPath = resolve(dbPathFromEnv() ?? cfg.observability.db ?? DEFAULT_DB)
-  const state = readRunState(dbPath, withId.runId)
-  const command =
-    state === undefined ? undefined : adviceCommand(state, args.prompt)
+  const command = findFollowUpCommand({
+    repoRoot: repoRoot(),
+    env: process.env,
+  })(loadConfig(withId.config), runId, args.prompt)
   if (command !== undefined) {
     process.stdout.write(`\n${command}\n`)
   }

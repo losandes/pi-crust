@@ -31,8 +31,8 @@ import { positionalArgs, RESUME_CLI, resumeRecordedRun } from './domains/cli'
 import { loadConfig } from './domains/config'
 import { developerNote, flagValue, handoffDirFor } from './domains/handoff'
 import { readRunState } from './domains/trace'
-import { DEFAULT_DB } from './lib/contracts'
-import { configPathFromEnv, dbPathFromEnv, nowIso } from './lib/system'
+import { repoRoot, resolveLookupPaths } from './domains/workspace'
+import { configPathFromEnv, nowIso } from './lib/system'
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`)
@@ -73,8 +73,7 @@ const main = async (): Promise<number> => {
   const detach = argv.includes('--detach')
 
   const cfg = loadConfig(configPathFromEnv())
-  const dbPath = resolve(dbPathFromEnv() ?? cfg.observability.db ?? DEFAULT_DB)
-  const dataDir = cfg.defaults.data_dir
+  const { db: dbPath, dataDir } = resolveLookupPaths(cfg, repoRoot())
 
   const state = readRunState(dbPath, runId)
   if (state === undefined) {

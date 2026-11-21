@@ -470,6 +470,8 @@ Repository-wins over the ordinary machine layer, rather than the other way round
 
 Resolution in full, for `defaults.data_dir` and `observability.db` however they were set: expand a leading `~` to the user's home directory; expand `{primary_worktree}`; use the result unchanged when it is already absolute; otherwise resolve it against the repository root — never the shell's current directory, so the answer agrees regardless of where `just` was invoked from.
 
+For a command that locates a run, `CRUST_DATA_DIR` replaces `defaults.data_dir` and `CRUST_DB` replaces `observability.db`. `CRUST_DB` does not move the data directory: `resume`, `steer`, `ask`, `amend`, `join`, `approve`, `reject`, `answer` and `report` still look for session and handoff directories under `CRUST_DATA_DIR` or the configured `data_dir`. To consult a run from another repository using `CRUST_DB`, also set `CRUST_DATA_DIR` to its data directory. `prune` reads the `sessions` directory beside the store it was pointed at.
+
 See `cookbooks/centralize_worktree_data.md` for the worktree workflow this exists to support: configure the machine once, create worktrees freely, delete them without losing a run.
 
 ## Agent colours are theme roles

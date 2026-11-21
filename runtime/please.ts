@@ -21,6 +21,7 @@
 
 import { Database } from 'bun:sqlite'
 import { existsSync } from 'node:fs'
+import { safeParseSettlement } from '../lib/typedefs/src/settlement'
 import {
   askMenuChoice,
   askOne,
@@ -39,6 +40,7 @@ import {
 } from './domains/cli'
 import { loadConfig } from './domains/config'
 import { lifecyclesBeside, loadLifecycles } from './domains/planning'
+import { repoRoot, resolveLookupPaths } from './domains/workspace'
 import { DEFAULT_CONFIG_PATH, TRUST_DEFAULT } from './lib/contracts'
 import { configPathFromEnv, dbPathFromEnv } from './lib/system'
 import { box, copyToClipboard, paint, writeLine } from './lib/terminal'
@@ -323,7 +325,13 @@ const planNewRun = async (): Promise<readonly string[] | undefined> => {
 }
 
 export const main = async (): Promise<number> => {
-  const dbPath = dbPathFromEnv() ?? DEFAULT_DB
+  const cfg = safeParseSettlement(() =>
+    loadConfig(configPathFromEnv() ?? DEFAULT_CONFIG_PATH),
+  )
+  const dbPath =
+    cfg.status === 'ok'
+      ? resolveLookupPaths(cfg.data, repoRoot()).db
+      : (dbPathFromEnv() ?? DEFAULT_DB)
 
   const which = await askWhichRun(dbPath)
   if (which === undefined) {
