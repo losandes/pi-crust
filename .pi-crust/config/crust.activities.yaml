@@ -45,8 +45,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    # model: openai/gpt-5.6-terra # anthropic/claude-sonnet-5
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: medium
     color: indigo
     purpose: Judge the change against this repository's ratified conventions, through its own review skill.
@@ -60,7 +59,7 @@ activities:
     output: conceptualizeOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: cyan
     purpose: Decide what the solution must mean and do; choose no technology.
@@ -74,7 +73,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: violet
     purpose: Establish what the data can show, and what it cannot.
@@ -96,7 +95,7 @@ activities:
     output: designOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: pink
     purpose: Give the logical architecture a physical shape here, observability included.
@@ -111,7 +110,7 @@ activities:
     output: diagnosisOutput
     succession: supersedes
     gates: [artifactsExist, reproductionSupported]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: medium
     color: purple
     purpose: Reproduce the reported behaviour and name its cause, with evidence.
@@ -132,7 +131,6 @@ activities:
     gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
-    # model: openai/gpt-5.6-luna # anthropic/claude-sonnet-5
     model: openai/gpt-6.1-sol
     thinking: low
     color: blue
@@ -152,7 +150,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: pink
     purpose: Model the domain and the rules that actually govern it.
@@ -193,7 +191,7 @@ activities:
     output: identifyOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: blue
     purpose: Turn a problem into an outcome with criteria anyone could check.
@@ -206,8 +204,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    # model: openai/gpt-5.6-terra  # anthropic/claude-sonnet-5
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: medium
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -221,7 +218,7 @@ activities:
     output: planOutput
     succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -259,7 +256,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    model: anthropic/claude-opus-5
+    model: claude-code/claude-opus-5
     thinking: high
     color: cyan
     purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
@@ -295,7 +292,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: rose
     purpose: Establish how this could fail, be misused, or be attacked.
@@ -318,7 +315,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: purple
     purpose: Establish what is technically true, feasible, and evidenced.
@@ -335,26 +332,6 @@ activities:
       - web_search
       - fetch_content
       - source_check
-
-  # Author tests before implementation; `checks` is intentionally omitted.
-  - name: test-tdd
-    output: buildOutput
-    succession: supersedes
-    gates: [diffMatchesClaims]  # tests expected to fail before build
-    commit: true
-    model: openai/gpt-6.1-sol
-    thinking: medium
-    color: teal
-    purpose: Write the tests that would prove the request was implemented (before build); implement nothing else.
-    prompt_engineering:
-      system: prompt-engineering/test/system.md
-      user: prompt-engineering/test/user.md
-    writes:
-      - "**/*.test.ts"
-      - "**/*.test.tsx"
-      - "**/*.spec.ts"
-      - "**/__tests__/"
-      - "**/tests/"
 
   # Author tests after implementation; `checks` must pass.
   # Running test commands is a gate, not an Activity.
@@ -381,7 +358,7 @@ activities:
     output: uxDesignOutput
     succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: orange
     purpose: Specify an interface precisely enough to implement without inventing UX.
@@ -404,7 +381,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-fable-5-2
+    model: claude-code/claude-fable-5-2
     thinking: high
     color: cyan
     purpose: Establish what users need, experience, and struggle with.
@@ -433,7 +410,7 @@ planners:
 
   # Select and execute the smallest suitable Activity chain.
   - name: operator
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: medium
     color: amber
     purpose: Choose the smallest chain of Activities that can produce the outcome.
@@ -447,7 +424,7 @@ planners:
 
   # Recommend an Activity chain without executing it.
   - name: triage
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: medium
     color: amber
     purpose: Choose the smallest chain that can produce the outcome, and hand it back.

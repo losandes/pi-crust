@@ -37,7 +37,7 @@ activities:
     gates: [diffMatchesClaims, checks]
     attempts: 2  # includes first attempt
     commit: true
-    model: anthropic/claude-haiku-5-5
+    model: claude-code/claude-haiku-5-5
     thinking: max
     color: green
     purpose: Implement the plan exactly; report every changed file in the envelope.
@@ -64,7 +64,7 @@ activities:
     output: conceptualizeOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: cyan
     purpose: Decide what the solution must mean and do; choose no technology.
@@ -78,7 +78,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: violet
     purpose: Establish what the data can show, and what it cannot.
@@ -100,7 +100,7 @@ activities:
     output: designOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: pink
     purpose: Give the logical architecture a physical shape here, observability included.
@@ -136,7 +136,7 @@ activities:
     gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
-    model: anthropic/claude-haiku-5-5
+    model: claude-code/claude-haiku-5-5
     thinking: medium
     color: blue
     purpose: Write up the change that was just made, from the diff; document only.
@@ -155,7 +155,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: pink
     purpose: Model the domain and the rules that actually govern it.
@@ -178,7 +178,7 @@ activities:
     output: ghIssueOutput
     succession: annotates
     gates: [artifactsExist, filesNonEmpty, issueCreated]
-    model: anthropic/claude-haiku-5-5
+    model: claude-code/claude-haiku-5-5
     thinking: medium
     color: indigo
     purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
@@ -196,7 +196,7 @@ activities:
     output: identifyOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: blue
     purpose: Turn a problem into an outcome with criteria anyone could check.
@@ -209,7 +209,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -223,7 +223,7 @@ activities:
     output: planOutput
     succession: supersedes
     gates: [artifactsExist, filesNonEmpty]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -244,7 +244,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: medium
     color: cyan
     purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
@@ -261,7 +261,7 @@ activities:
     output: reviewOutput
     succession: annotates
     gates: [artifactsExist, verdictConsistent]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: cyan
     purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
@@ -278,7 +278,7 @@ activities:
     output: scoutOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-haiku-5-5
+    model: claude-code/claude-haiku-5-5
     thinking: max
     color: orange
     purpose: Find and report where things live; change nothing.
@@ -297,7 +297,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: rose
     purpose: Establish how this could fail, be misused, or be attacked.
@@ -320,7 +320,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: purple
     purpose: Establish what is technically true, feasible, and evidenced.
@@ -338,26 +338,6 @@ activities:
       - fetch_content
       - source_check
 
-  # Author tests before implementation; `checks` is intentionally omitted.
-  - name: test-tdd
-    output: buildOutput
-    succession: supersedes
-    gates: [diffMatchesClaims]  # tests expected to fail before build
-    commit: true
-    model: openai/gpt-6.1-sol
-    thinking: max
-    color: teal
-    purpose: Write the tests that would prove the request was implemented (before build); implement nothing else.
-    prompt_engineering:
-      system: prompt-engineering/test/system.md
-      user: prompt-engineering/test/user.md
-    writes:
-      - "**/*.test.ts"
-      - "**/*.test.tsx"
-      - "**/*.spec.ts"
-      - "**/__tests__/"
-      - "**/tests/"
-
   # Author tests after implementation; `checks` must pass.
   # Running test commands is a gate, not an Activity.
   - name: test
@@ -365,7 +345,7 @@ activities:
     succession: supersedes
     gates: [diffMatchesClaims, checks]
     commit: true
-    model: anthropic/claude-haiku-5-5
+    model: claude-code/claude-haiku-5-5
     thinking: max
     color: teal
     purpose: Write the tests that prove the request was implemented (after build); implement nothing else.
@@ -406,7 +386,7 @@ activities:
     output: researchOutput
     succession: supersedes
     gates: [artifactsExist]
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: cyan
     purpose: Establish what users need, experience, and struggle with.
@@ -435,7 +415,7 @@ planners:
 
   # Select and execute the smallest suitable Activity chain.
   - name: operator
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: amber
     purpose: Choose the smallest chain of Activities that can produce the outcome.
@@ -449,7 +429,7 @@ planners:
 
   # Recommend an Activity chain without executing it.
   - name: triage
-    model: anthropic/claude-opus-5-5
+    model: claude-code/claude-opus-5-5
     thinking: high
     color: amber
     purpose: Choose the smallest chain that can produce the outcome, and hand it back.
@@ -471,7 +451,7 @@ terminal:
 
   # Harness handles GitHub operations; agent only drafts content.
   - name: gh-pull-request
-    model: anthropic/claude-haiku-5-5
+    model: claude-code/claude-haiku-5-5
     thinking: medium
     color: teal
     purpose: Push the run's branch and open or update one GitHub pull request describing it.
