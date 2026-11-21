@@ -16,6 +16,7 @@
  * generalisation is the activity library's rather than one workflow's.
  */
 
+import { resolve } from 'node:path'
 import type {
   TActivityContext,
   TActivityOptions,
@@ -53,7 +54,13 @@ import {
 } from '../../../planning'
 import { recordRunStart } from '../../../policy'
 import { readRunState, runLink, visualizerIsUp } from '../../../trace'
-import { isRepo, rev, shortSha } from '../../../workspace'
+import {
+  isRepo,
+  repoRoot,
+  resolveDataPaths,
+  rev,
+  shortSha,
+} from '../../../workspace'
 import { resolveDecisionAnswer } from '../data/resolve-decision-answer'
 import type { TAttemptLedger } from './attempts'
 import { attemptLedger } from './attempts'
@@ -92,11 +99,12 @@ export const NOT_ACCEPTED =
 export const spentAlready = (
   cfg: TPiCrustConfig,
   runId: string | undefined,
+  root: string = resolve(repoRoot()),
 ): readonly string[] => {
   if (runId === undefined) {
     return []
   }
-  const state = readRunState(cfg.observability.db, runId)
+  const state = readRunState(resolveDataPaths(cfg, root).db, runId)
 
   return (state?.activityRuns ?? [])
     .filter(
@@ -123,7 +131,8 @@ export const ledgerSeed = (
   cfg: TPiCrustConfig,
   runId: string | undefined,
   resuming: boolean,
-): readonly string[] => (resuming ? [] : spentAlready(cfg, runId))
+  root: string = resolve(repoRoot()),
+): readonly string[] => (resuming ? [] : spentAlready(cfg, runId, root))
 
 /**
  * HEAD before this run commits anything, for the documenter's diff.
@@ -620,7 +629,7 @@ export const runWorkflow = async (
       false,
       run.tokens(),
       run.cost(),
-      run.cfg.observability.db,
+      run.tracer.dbPath,
     )
     throw error
   }

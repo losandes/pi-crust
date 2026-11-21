@@ -1,14 +1,106 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
   primaryWorktree,
   resolveConfiguredPath,
   resolveDataPaths,
+  resolveLookupPaths,
 } from './data-paths'
+
+const lookupCases = [
+  {
+    name: 'token configuration',
+    token: true,
+    env: {},
+    data: '.pi-crust/data',
+    db: '.pi-crust/data/crust.db',
+  },
+  {
+    name: 'data directory override',
+    token: true,
+    env: { CRUST_DATA_DIR: 'other-data' },
+    data: 'other-data',
+    db: '.pi-crust/data/crust.db',
+  },
+  {
+    name: 'absolute store override',
+    token: true,
+    env: { CRUST_DB: '/placeholder' },
+    data: '.pi-crust/data',
+    db: 'override.db',
+  },
+  {
+    name: 'relative store override',
+    token: true,
+    env: { CRUST_DB: 'relative' },
+    data: '.pi-crust/data',
+    db: 'override.db',
+  },
+  {
+    name: 'whitespace store override',
+    token: true,
+    env: { CRUST_DB: '   ' },
+    data: '.pi-crust/data',
+    db: '.pi-crust/data/crust.db',
+  },
+  {
+    name: 'relative configuration',
+    token: false,
+    env: {},
+    data: '.pi-crust/data',
+    db: '.pi-crust/data/crust.db',
+  },
+] as const
+
+for (const one of lookupCases) {
+  test.skipIf(one.token && SKIP_INTEGRATION)(
+    [
+      `given data/data-paths::resolveLookupPaths with ${one.name}`,
+      'when locating a run in a scratch root',
+      'it should resolve the store independently of the data directory',
+    ].join(', '),
+    () => {
+      // given
+      const root = realpathSync(mkdtempSync(join(tmpdir(), 'crust-lookup-')))
+      const prefix = one.token ? '{primary_worktree}/' : ''
+      const cfg = {
+        defaults: { data_dir: `${prefix}.pi-crust/data` },
+        observability: { db: `${prefix}.pi-crust/data/crust.db` },
+      }
+      const store = join(root, 'override.db')
+      const env =
+        one.name === 'absolute store override'
+          ? { CRUST_DB: store }
+          : one.name === 'relative store override'
+            ? { CRUST_DB: relative(process.cwd(), store) }
+            : one.env
+      try {
+        // when
+        const actual = resolveLookupPaths(cfg, root, env)
+
+        // then
+        expect(actual).toEqual({
+          dataDir: join(root, one.data),
+          db: join(root, one.db),
+        })
+        expect(actual.db).not.toContain('{primary_worktree}')
+        expect(actual.dataDir).not.toContain('{primary_worktree}')
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()

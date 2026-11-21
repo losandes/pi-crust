@@ -16,6 +16,7 @@ export {
   runArgv,
   TRUST_CHOICES,
 } from './src/use-cases/compose-request'
+export { findFollowUpCommand } from './src/use-cases/find-follow-up-command'
 export {
   chosenLifecycle,
   chosenPlanner,

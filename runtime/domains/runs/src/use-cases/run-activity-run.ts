@@ -407,11 +407,6 @@ export const finish = (run: TRun, params: TFinishParams = {}): number => {
     run.console.note(`not accepted: ${note}`)
   }
   run.tracer.sessionFinish(run.runId, ok)
-  run.console.sessionFinished(
-    ok,
-    run.tokens(),
-    run.cost(),
-    run.cfg.observability.db,
-  )
+  run.console.sessionFinished(ok, run.tokens(), run.cost(), run.tracer.dbPath)
   return ok ? EXIT.SUCCESS : EXIT.FAILED
 }

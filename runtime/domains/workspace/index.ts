@@ -1,7 +1,7 @@
 /** Git, worktrees, roots, and the machine-local workspace registry */
 
 export { ABSENT, snapshotContent } from './src/data/content-snapshot'
-export { resolveDataPaths } from './src/data/data-paths'
+export { resolveDataPaths, resolveLookupPaths } from './src/data/data-paths'
 export { engineerName } from './src/data/engineer'
 export {
   changedFiles,

@@ -158,6 +158,56 @@ const fixtureModel: TResolveModel = (pattern) => {
     : { provider: pattern.slice(0, slash), modelId: pattern.slice(slash + 1) }
 }
 
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given use-cases/run-workflow::spentAlready with token configuration',
+    'when a joined run has spent an agent attempt in the resolved store',
+    'it should seed the ledger with that activity name',
+  ].join(', '),
+  () => {
+    // given
+    const root = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-ledger-token-')),
+    )
+    const dbPath = join(root, '.pi-crust', 'data', 'crust.db')
+    const tracer = createTracer(dbPath, join(root, 'events.jsonl'))
+    try {
+      tracer.sessionStart('aaaa1111', 'tester', 'compose')
+      tracer.activityRunUpsert({
+        activity_run_id: 'aaaa1111_01_build',
+        run_id: 'aaaa1111',
+        seq: 1,
+        params: activityRunParams({
+          name: 'build',
+          kind: 'agent',
+          owner: 'build',
+          description: 'Spend one attempt',
+        }),
+        status: 'success',
+        error: undefined,
+        started_at: undefined,
+        ended_at: undefined,
+      })
+      const cfg = crustConfigSchema.parse({
+        defaults: { data_dir: '{primary_worktree}/.pi-crust/data' },
+        observability: { db: '{primary_worktree}/.pi-crust/data/crust.db' },
+        agents: [],
+      })
+
+      // when
+      const actual = spentAlready(cfg, 'aaaa1111', root)
+      const seed = ledgerSeed(cfg, 'aaaa1111', false, root)
+
+      // then
+      expect(actual).toEqual(['build'])
+      expect(seed).toEqual(['build'])
+    } finally {
+      tracer.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
 const MODEL = 'anthropic/claude-haiku-4-5'
 
 /** `process.cwd()`-sensitive helpers (`isRepo`, `rev`) need a real chdir. */

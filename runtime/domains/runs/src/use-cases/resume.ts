@@ -67,7 +67,7 @@ export const replayStepResult = (
   run: TRun,
   activityRunName: string,
 ): TEventPayload | undefined => {
-  const state = readRunState(run.cfg.observability.db, run.runId)
+  const state = readRunState(run.tracer.dbPath, run.runId)
   return state === undefined
     ? undefined
     : latestLogPayload(state, activityRunName, STEP_RESULT_EVENT)
