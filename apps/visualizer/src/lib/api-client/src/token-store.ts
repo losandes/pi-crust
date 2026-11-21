@@ -11,7 +11,7 @@
  * the address bar becomes a credential leak.
  */
 
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 
 export const TOKEN_KEY = 'crust.token'
 export const TOKEN_HEADER = 'x-crust-token'

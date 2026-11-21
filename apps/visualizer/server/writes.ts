@@ -101,7 +101,7 @@ export const sessionDir = (dbPath: string, runId: string): string =>
  * Where the pi-crust runtime is, for the commands this server spawns.
  *
  * The runtime ships with the package and is NOT stamped into a repository:
- * `.pi-crust/` holds `config/`, `data/` and `prompt-engineering/`, and an
+ * `.pi-crust/` holds `config/`, `data/` and `prompts/`, and an
  * install removes anything else it finds there. So every entry point this
  * server starts has to be resolved the way the recipes resolve it —
  * `CRUST_HOME`, else the path the installer wrote into the stamp.
@@ -289,7 +289,7 @@ export const startSteer = (
   const args =
     target === 'branch'
       ? [
-          join(runtime, 'steer.ts'),
+          join(runtime, 'commands', 'steer.ts'),
           runId,
           activity,
           '--branch',
@@ -299,7 +299,13 @@ export const startSteer = (
           branchRunId ?? '',
           note,
         ]
-      : [join(runtime, 'steer.ts'), runId, activity, '--overwrite', note]
+      : [
+          join(runtime, 'commands', 'steer.ts'),
+          runId,
+          activity,
+          '--overwrite',
+          note,
+        ]
   const child = spawnChild('bun', args, {
     cwd: workspaceRoot(dbPath),
     detached: true,
@@ -353,7 +359,7 @@ export const startConsult = (
   const log = join(dir, 'consult.log')
   const child = spawnChild(
     'bun',
-    [join(runtime, 'consult.ts'), mode, runId, activity, question],
+    [join(runtime, 'commands', `${mode}.ts`), runId, activity, question],
     {
       cwd: workspaceRoot(dbPath),
       detached: true,
@@ -552,7 +558,7 @@ export const startRun = (
   const child = spawnChild(
     'bun',
     [
-      join(runtime, 'lifecycles', 'compose.ts'),
+      join(runtime, 'commands', 'run.ts'),
       prompt,
       '--lifecycle',
       lifecycle,

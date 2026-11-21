@@ -54,7 +54,7 @@ coveragePathIgnorePatterns = [
   # runtime/*.ts entry point — those stay above the coverage gate only
   # because more of their own logic sits beside the guard than this file's
   # does now that 4.11 moved catalogueOf/renderCatalogue out of it.
-  "runtime/catalogue.ts"
+  "runtime/commands/list.ts"
 ]
 
 # Outputs for coverage reports.

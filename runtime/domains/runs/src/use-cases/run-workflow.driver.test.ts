@@ -356,13 +356,13 @@ const configFor = (
   const entries = activities.map((activity) => ({
     model: MODEL,
     purpose: `Perform ${activity.name}`,
-    prompt_engineering: { system, user },
+    prompts: { system, user },
     writes: [],
     ...activity,
   }))
   const terminalEntries = terminal.map((one) => ({
     model: MODEL,
-    prompt_engineering: { system, user },
+    prompts: { system, user },
     writes: [],
     ...one,
   }))
@@ -570,7 +570,7 @@ test(
       purpose: 'Build the requested change',
       model: 'repository/activity',
       thinking: 'low',
-      prompt_engineering: prompts,
+      prompts: prompts,
       writes: [],
       attempts: 1,
       commit: false,
@@ -1082,7 +1082,7 @@ test(
           {
             name: 'build',
             purpose: 'Build the thing',
-            prompt_engineering: { system, user },
+            prompts: { system, user },
             output: 'genericOutput',
           },
         ],

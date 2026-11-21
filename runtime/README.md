@@ -1,10 +1,10 @@
-# `.pi-crust/` — the pi-crust in this repository
+# Runtime
 
-`.pi-crust/` is a software factory: repeatable **agents plus code** workflows. Deterministic TypeScript owns sequencing, retries, and acceptance; coding agents work inside bounded activity runs; typed JSON envelopes carry context between them; every event streams into SQLite as it happens. Agent proposes, code disposes.
+This directory holds the package code for pi-crust's repeatable **agents plus code** workflows. Deterministic TypeScript owns sequencing, retries, and acceptance; coding agents work inside bounded activity runs; typed JSON envelopes carry context between them; every event streams into SQLite as it happens.
 
-## Why it is here, and who put it there
+## The package and the stamp
 
-Nobody hand-wrote this directory. It was stamped out of pi-crust by its installer, which copies a template tree into the repository root. Where that copy came from is recorded in `data/pi-crust-home`.
+The runtime ships with pi-crust; it is not copied into a target repository. The installer stamps configuration and prompt-override scaffolding under `.pi-crust/` and records the package location in `.pi-crust/data/pi-crust-home`.
 
 Once stamped, **the non-example config is yours.** Retune the roster or change a Lifecycle by hand. A re-install skips existing files unless you use `--refresh`, which replaces only template-owned files, including `.example.yaml` documents under `config/`. A missing `config/` is seeded once; after that, non-example files there are neither added nor overwritten. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. See [the install cookbook](../cookbooks/install.md) for adopting new settings deliberately.
 
@@ -25,39 +25,50 @@ The skill carries cookbooks for each of those and will load only the one your re
 ## Layout
 
 ```text
-.pi-crust/
-├── README.md         this file
-├── package.json      one dependency: zod. Run `bun install` here once.
-├── tsconfig.json     strict; the same compiler settings the repo uses
-├── crust.just         recipes, reached as `just crust <recipe>`
-├── report.ts         where did a run stop, and what picks it back up
-├── config/
-│   └── crust.config.yaml    the agent roster — one agent, one prompt, one purpose
-├── stages/           the Planners: operator and triage
-├── lifecycles/       compositions of stages: sdlc, bugfix, compose
-├── domains/          business capabilities, each index.ts + src/{data,typedefs,use-cases}
-│   ├── activities/   what an Activity is, which ones exist, running one
+runtime/
+├── cli.ts
+├── commands/
+│   ├── crust.just
+│   ├── <recipe>.ts
+│   ├── print-db-path.ts
+│   └── <name>.test.ts
+├── domains/
+│   ├── activities/   Activity registration and execution
 │   ├── agents/       coding-agent hosts and their I/O
-│   ├── cli/          the developer-facing command surface
-│   ├── config/       reading and merging crust.config.yaml and its layers
-│   ├── gates/        acceptance — gates, disputes, regressions
-│   ├── handoff/      the session directory and inter-activity artifacts
-│   ├── imports/      referenced work, handoff sections and comment provenance
-│   ├── planning/     activities and lifecycles turned into an ordered plan
-│   ├── policy/       what an agent may touch and which checks it routes to
-│   ├── runs/         the engine that executes a run and reports it
-│   ├── trace/        the SQLite trace, its reader, and what observes a run
-│   └── workspace/    git, worktrees, roots, the machine-local workspace registry
-├── lib/              packages used across domains, each index.ts + flat src/
-│   ├── contracts/    the shared domain model — types and zod schemas
-│   ├── system/       process, filesystem, clock and id primitives
-│   └── terminal/     writing to a terminal and to the clipboard
-├── prompt-engineering/   what each agent is told              (tracked — edit here)
-├── harness-engineering/  pi extensions each agent can load    (tracked)
-└── data/                 runtime only; nothing here is authored
-    ├── sessions/         one directory per run                (gitignored)
-    └── crust.db           the SQLite trace                     (gitignored)
+│   ├── cli/          shared command-line behavior
+│   ├── config/       configuration and its layers
+│   ├── gates/        acceptance, disputes and regressions
+│   ├── handoff/      inter-Activity artifacts and session documents
+│   ├── imports/      referenced work and provenance
+│   ├── planning/     Activities and Lifecycles turned into a plan
+│   ├── policy/       governed paths and deterministic checks
+│   ├── runs/         run execution and orchestration
+│   ├── trace/        the trace store and its readers
+│   └── workspace/    Git, worktrees, roots and workspace registration
+├── lib/
+│   ├── contracts/    shared types and schemas
+│   ├── system/       process, filesystem, clock and ID primitives
+│   └── terminal/     terminal output and clipboard integration
+├── testing/
+├── prompts/
+├── extensions/
+├── README.md
+└── tsconfig.json
 ```
+
+| Entry           | Holds                                                                      |
+| --------------- | -------------------------------------------------------------------------- |
+| `cli.ts`        | The front door stamped repositories invoke                                 |
+| `commands/`     | Recipe-named entry points, the recipes file and their tests                |
+| `domains/`      | Capability-owned logic exposed through domain indexes                      |
+| `lib/`          | Packages used across domains                                               |
+| `testing/`      | Shared fixtures and capture helpers                                        |
+| `prompts/`      | Shipped Activity prompts and tests of their content                        |
+| `extensions/`   | Host-loaded adapters; every agent loads the package path policy            |
+| `README.md`     | Runtime usage and layout documentation                                     |
+| `tsconfig.json` | The runtime compiler project; extensions are checked against pi separately |
+
+The [runtime layout record](../adr/runtime-layout/name-runtime-directories-for-what-they-hold.md) defines where new files belong and separates command composition from shared CLI behavior.
 
 ## Running something
 
@@ -69,10 +80,10 @@ just crust report                                # where the last run got to
 just crust sessions                              # what just happened
 ```
 
-Every Activity `config/crust.activities.yaml` registers runs on its own, and `compose` runs any ordered subset of them:
+Every Activity `.pi-crust/config/crust.activities.yaml` registers can run on its own, and `run` executes any ordered subset of them:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,code-review
+bun <pi-crust>/runtime/commands/run.ts "<prompt>" --activities test,build,code-review
 ```
 
 The list is that file's, not this package's: add an entry and it is runnable, delete one and the capability is gone. A name nothing registers is refused before anything spawns, with the list of what was available.
@@ -89,7 +100,7 @@ just crust verify                                # routing.checks, for what you 
 The raw form, which every recipe wraps:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/compose.ts requests/health.md --lifecycle sdlc --run-id a1b2c3d4
+bun <pi-crust>/runtime/commands/run.ts requests/health.md --lifecycle sdlc --run-id a1b2c3d4
 ```
 
 The prompt is inline text or a path to a file. `--run-id` is optional on every workflow: given one, the run joins that session and each agent resumes its existing context window; omitted, a fresh id is minted and printed.
@@ -97,28 +108,28 @@ The prompt is inline text or a path to a file. `--run-id` is optional on every w
 A run that stopped is picked up rather than restarted. `just crust report` names the activity run it stopped at and prints the command that continues it:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/compose.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
 `--resume` works on every workflow and skips the activity runs already recorded successful for that session.
 
 ## Where to edit what
 
-| Change                                                                                       | File                                                |
-| -------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| What an Activity is told                                                                     | `prompt-engineering/<activity>/{system.md,user.md}` |
-| Which model an Activity runs, what it may write                                              | `config/crust.activities.yaml`                      |
-| What an Activity answers with, what gates it, how often it may run again, whether it commits | `config/crust.activities.yaml`                      |
-| Which commands the `checks` gate runs, and which skills an Activity loads                    | `config/crust.config.yaml`, under `routing:`        |
-| A Lifecycle's Stages and Activities                                                          | `config/crust.lifecycles.yaml`                      |
+| Change                                                                                       | File                                         |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| What an Activity is told                                                                     | `prompts/<activity>/{system.md,user.md}`     |
+| Which model an Activity runs, what it may write                                              | `config/crust.activities.yaml`               |
+| What an Activity answers with, what gates it, how often it may run again, whether it commits | `config/crust.activities.yaml`               |
+| Which commands the `checks` gate runs, and which skills an Activity loads                    | `config/crust.config.yaml`, under `routing:` |
+| A Lifecycle's Stages and Activities                                                          | `config/crust.lifecycles.yaml`               |
 
-**Edit prompts here, never inside the skill.** `prompt-engineering/` is the user-owned home for them; the copies in the skill are templates for the next repository, and changing those does nothing for this one.
+**Package defaults live in `runtime/prompts/`; repository overrides live in `.pi-crust/prompts/`.** A relative prompt reference resolves against the repository's `.pi-crust/` first, then this runtime directory. Editing a shipped default affects repositories that have not overridden it.
 
 Authored files and runtime files are kept apart on purpose: everything under `data/` is written by a run and is yours to read, never to edit.
 
 ## What is gitignored, and why
 
-`data/sessions/`, `data/crust.db*`, and `node_modules/` are runtime, not source. Sessions hold full agent transcripts and are large; the trace db is rebuildable from them; `node_modules/` is `node_modules/`. Everything else in `.pi-crust/` is meant to be committed — the roster, the prompts, the workflows, and the modules are the factory, and a teammate who clones without them has nothing.
+In a stamped repository, `.pi-crust/data/` holds execution history rather than source. Commit the repository-owned configuration and prompt overrides, not session transcripts or the trace database. Runtime code stays in the package this README describes; it is not duplicated in the stamp.
 
 ## The one prohibition
 

@@ -6,11 +6,8 @@
  */
 
 import { join, resolve } from 'node:path'
-import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
-import {
-  errorMessage,
-  safeParseSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import type { TSettlement } from '../../../../../lib/typedefs'
+import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TActivityRun,
   TActivityRunHandle,
@@ -18,7 +15,7 @@ import type {
   TAgentConfig,
   TEnvelopeBase,
   TEnvelopeSpec,
-  TPromptEngineering,
+  TPrompts,
   TRun,
   TTreeWarning,
 } from '../../../../lib/contracts'
@@ -43,8 +40,8 @@ import {
   emptyUsage,
   inboxSince,
   mergeUsage,
+  packageExtensionPath,
   readSteering,
-  resolveReference,
   revisePromptReference,
 } from '../../../agents'
 import { resolveAgent } from '../../../config'
@@ -96,7 +93,7 @@ export const findingsBlock = (findings: readonly string[]): string =>
       "repository's declared checks decides may not be disputed. Fix it."
 
 export type TUserMessage = Readonly<{
-  prompts: TPromptEngineering
+  prompts: TPrompts
   variables: Readonly<Record<string, string>>
   /** the developer's standing instructions; '' when there are none */
   steering: string
@@ -108,7 +105,7 @@ export type TUserMessage = Readonly<{
 
 export type TUserMessagePorts = Readonly<{
   render: TAgentPorts['render']
-  reviseReference: (prompts: TPromptEngineering) => string
+  reviseReference: (prompts: TPrompts) => string
 }>
 
 export const userMessage =
@@ -133,9 +130,9 @@ export const JSON_FIX_ATTEMPTS = 2
 
 /**
  * The extension every agent is given, which refuses a governed path before
- * the tool runs. Named relative to the package, like every other reference.
+ * the tool runs. Always resolved from the package, never from a repository.
  */
-export const PATH_POLICY_EXTENSION = 'harness-engineering/path-policy.ts'
+export const PATH_POLICY_EXTENSION = packageExtensionPath('path-policy.ts')
 
 /**
  * Everything one agent call reaches outside this process, following
@@ -493,7 +490,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
      */
     trust_stance: trustStance(run.trust),
   }
-  const systemText = ports.render(agent.prompt_engineering.system, variables)
+  const systemText = ports.render(agent.prompts.system, variables)
   /*
    * Steering is APPENDED, not rendered from a placeholder.
    *
@@ -507,7 +504,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
     render: ports.render,
     reviseReference: revisePromptReference,
   })({
-    prompts: agent.prompt_engineering,
+    prompts: agent.prompts,
     variables,
     steering,
     feedback: call.feedback ?? [],
@@ -549,7 +546,6 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       changed_paths: changedPaths.length,
       change_base: call.changeBase ?? '',
       tools: agent.tools ?? null, // null = all tools
-      harness_engineering: agent.harness_engineering,
     },
   })
   run.console.agentStarted(agent.name, agent.model, sessionId)
@@ -622,10 +618,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
          * relative to ITS cwd, which is the repository being worked on, and
          * the extensions ship with the package rather than with the stamp.
          */
-        extensions: [
-          resolveReference(PATH_POLICY_EXTENSION),
-          ...agent.harness_engineering.map(resolveReference),
-        ],
+        extensions: [PATH_POLICY_EXTENSION],
         skills,
         cwd: run.repoRoot,
         env: policy.env,

@@ -17,7 +17,7 @@ export default defineConfig({
       // Outside this app, deliberately: one settlement module for the UI and
       // the runtime both. Mirrored in tsconfig.json's `paths`.
       '@typedefs': fileURLToPath(
-        new URL('../../lib/typedefs/src', import.meta.url),
+        new URL('../../lib/typedefs/index.ts', import.meta.url),
       ),
     },
   },

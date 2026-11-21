@@ -99,7 +99,7 @@ test(
     })
 
     // when
-    const actual = render(activity?.prompt_engineering?.user ?? '', {
+    const actual = render(activity?.prompts?.user ?? '', {
       annotating_handoffs: annotatingHandoffs,
     })
 

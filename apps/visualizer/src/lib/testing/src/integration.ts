@@ -1,8 +1,4 @@
-import {
-  safeParseSettlement,
-  settleAsync,
-  settledOr,
-} from '@typedefs/settlement'
+import { safeParseSettlement, settleAsync, settledOr } from '@typedefs'
 
 export const integrationEnabled = (
   env: Readonly<Record<string, string | undefined>>,

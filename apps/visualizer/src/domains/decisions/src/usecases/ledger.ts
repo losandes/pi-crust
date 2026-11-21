@@ -20,7 +20,7 @@
  * rather than what today's rules would have done.
  */
 
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 import type { Envelope, EventRow } from '../typedefs/decision'
 
 /** What became of a question the activity could not answer from evidence. */

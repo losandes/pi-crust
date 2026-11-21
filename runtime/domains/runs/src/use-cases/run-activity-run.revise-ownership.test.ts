@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import { activityRunParams, crustConfigSchema } from '../../../../lib/contracts'
 import {
   restoreTerminal,
@@ -127,7 +127,7 @@ test(
         {
           name: 'plan',
           output: 'planOutput',
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
         },
       ],
     }).activities

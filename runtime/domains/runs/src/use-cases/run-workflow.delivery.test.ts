@@ -27,7 +27,7 @@ const configWithDelivery = (dir: string, cfg: TPiCrustConfig): string => {
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver the completed run',
-    prompt_engineering: { system, user },
+    prompts: { system, user },
     writes: [],
   }
   const path = join(dir, 'delivery.config.yaml')

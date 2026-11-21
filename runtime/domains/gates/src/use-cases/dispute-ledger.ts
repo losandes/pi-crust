@@ -16,10 +16,7 @@
 
 import { join } from 'node:path'
 import { z } from 'zod'
-import {
-  errorMessage,
-  safeParseSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TBuildOutput,
   TPlanOutput,

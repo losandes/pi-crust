@@ -129,7 +129,7 @@ const cfgWith = (terminal = shippedTerminal()): TPiCrustConfig =>
       activityConfigSchema.parse({
         name: 'build',
         purpose: 'Implement the requested change',
-        prompt_engineering: { system: 's.md', user: 'u.md' },
+        prompts: { system: 's.md', user: 'u.md' },
         writes: ['*'],
       }),
     ],
@@ -313,7 +313,7 @@ const execute = async (
       config: activityConfigSchema.parse({
         name: 'build',
         purpose: 'Implement the requested change',
-        prompt_engineering: { system: 's.md', user: 'u.md' },
+        prompts: { system: 's.md', user: 'u.md' },
         output: judge ? 'reviewOutput' : 'genericOutput',
         input: judge ? 'upstream' : 'changes',
         commit: false,

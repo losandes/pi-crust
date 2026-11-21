@@ -11,13 +11,13 @@
 
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
-import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
+import type { TSettlement } from '../../../../../lib/typedefs'
 import {
   errorMessage,
   fail,
   safeParseSettlement,
   succeed,
-} from '../../../../../lib/typedefs/src/settlement'
+} from '../../../../../lib/typedefs'
 import type {
   TActivityContext,
   TActivityOptions,

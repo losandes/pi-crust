@@ -100,7 +100,7 @@ export const gateFixture = (
     purpose: `Perform the ${name} work`,
     output: name === 'review' ? 'reviewOutput' : 'buildOutput',
     attempts: options.attempts ?? 4,
-    prompt_engineering: { system, user },
+    prompts: { system, user },
     writes: [],
   }))
   const cfg = crustConfigSchema.parse({

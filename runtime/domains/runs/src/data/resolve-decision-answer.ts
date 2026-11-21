@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import {
   safeParseSettlement,
   type TSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+} from '../../../../../lib/typedefs'
 import { fileExists, readText } from '../../../../lib/system'
 import {
   ANSWER_RECORD_FILENAME,

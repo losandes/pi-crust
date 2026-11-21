@@ -19,7 +19,7 @@ const anActivity = (
 ) => ({
   name,
   purpose: `Do the ${name} work and report it`,
-  prompt_engineering: prompts,
+  prompts: prompts,
   writes: [`{handoff}/${name}.md`],
   ...extra,
 })
@@ -35,13 +35,13 @@ const aConfig = (
       {
         name: 'operator',
         purpose: 'Choose the chain',
-        prompt_engineering: prompts,
+        prompts: prompts,
         writes: [],
       },
       {
         name: 'triage',
         purpose: 'Choose the chain and hand it back',
-        prompt_engineering: prompts,
+        prompts: prompts,
         writes: [],
       },
     ],
@@ -288,7 +288,7 @@ test(
         {
           name: 'gh-pull-request',
           purpose: 'Open the PR',
-          prompt_engineering: prompts,
+          prompts: prompts,
           writes: [],
         },
       ],

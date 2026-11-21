@@ -89,7 +89,7 @@ export const tokenRepo = (
     agentConfigSchema.parse({
       name: 'builder',
       model: 'test/model',
-      prompt_engineering: { system: 'system.md', user: 'user.md' },
+      prompts: { system: 'system.md', user: 'user.md' },
       writes: [],
     }),
     'fixture-session',
@@ -133,13 +133,16 @@ export const tokenRepo = (
     sessionDir,
     configPath,
     invoke: (entry: string, args: readonly string[]) =>
-      Bun.spawnSync(['bun', resolve(import.meta.dir, '..', entry), ...args], {
-        cwd,
-        env,
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: 15000,
-      }),
+      Bun.spawnSync(
+        ['bun', resolve(import.meta.dir, '..', 'commands', entry), ...args],
+        {
+          cwd,
+          env,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 15000,
+        },
+      ),
     [Symbol.dispose]: () => {
       rmSync(root, { recursive: true, force: true })
       if (options.overrideData) {

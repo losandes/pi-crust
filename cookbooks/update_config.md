@@ -56,39 +56,13 @@ Narrow by role, not by reflex:
 - Withhold `edit`/`write` only where the restriction *is* the guarantee. The reviewer's contract is "change nothing", so withholding `edit` makes that structural instead of merely prompted.
 - Recon agents should get the full read surface (`read`, `grep`, `find`, `ls`) — cheaper and more legible in the trace than the equivalent `bash` calls.
 
-**Extension tools count against the allowlist.** `--tools` filters built-in, extension, and custom tools alike. Once an agent has a `tools` list — its own, or inherited from `defaults` — a tool registered by one of its `harness_engineering` extensions is dropped unless it is named there. Nothing errors: the extension loads, the run passes, the tool is just never offered. Any agent with a tool-registering extension must list that tool by name.
-
-## Add harness extensions
-
-```yaml
-    harness_engineering:
-      - .pi/extensions/json_guard.ts    # a pi extension FILE PATH
-```
-
-Entries are pi extension **file paths**, passed through as `pi -e <path>`, applied to that agent only. Reach for an output-tightening extension when an agent keeps wrapping its envelope in prose and burning correction retries. The starter roster ships with none — this is an escape hatch, not a default.
-
-**Adding a tool-registering extension is a two-part edit.** The extension path goes in `harness_engineering`, *and* the tool name it registers goes in that agent's `tools` list:
-
-```yaml
-  - name: outcome-review
-    harness_engineering:
-      - .pi/extensions/ast_query.ts     # registers tool: ast_query
-    tools:
-      - read
-      - grep
-      - find
-      - ls
-      - bash
-      - ast_query                       # REQUIRED — or the extension loads and its tool is filtered out
-```
-
-Skip the second half and it fails silently: extension loaded, run green, tool never available to the model. Extensions that only shape output or register flags — no new tool — need no `tools` change.
+Every agent loads the package's path-policy extension. Configuration cannot add an extension or replace that policy.
 
 ## Add a new Activity
 
 Two steps, and then it is runnable. There is no third edit anywhere in the package — that is the whole point of the registry being configuration.
 
-1. **Prompts.** Create `.pi-crust/prompt-engineering/{name}/system.md` (Purpose + Instructions — the Activity's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
+1. **Prompts.** Create `.pi-crust/prompts/{name}/system.md` (Purpose + Instructions — the Activity's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
 2. **Registry entry** in `crust.activities.yaml`. Name it for the WORK, give it a `purpose`, its prompt refs, its `writes`, and the work half: `output`, `gates`, and `attempts` or `commit` where the defaults are wrong. An `output` or a gate the package does not publish is refused at load, listing what it does publish — so a typo costs a second, not a run.
 
 Then name it in `--activities`, or in a Stage in `crust.lifecycles.yaml`. If none of the published envelope specs fits its report, add one — see `update_modules.md` — and the user prompt's `Report` section must show exactly that shape.

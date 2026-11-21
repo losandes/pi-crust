@@ -15,8 +15,8 @@ The workflow is the worker. Your job is to launch it, watch the trace, and tell 
 Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `.pi-crust/config/crust.lifecycles.yaml` for the chains this repo offers and `crust.activities.yaml` for the work they are built from; the names below are shape, not a menu.
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/sdlc.ts "add a /health endpoint"
-bun <pi-crust>/runtime/lifecycles/compose.ts requests/health.md
+bun <pi-crust>/runtime/commands/run.ts "add a /health endpoint" --lifecycle sdlc
+bun <pi-crust>/runtime/commands/run.ts requests/health.md
 just crust run "implement the plan" --activities build --run-id a1b2c3d4
 just crust run "where is auth handled" --activities scout --config path/to/other.config.yaml
 ```
@@ -55,7 +55,7 @@ They will rarely say `--config`. Treat any of these as naming a roster, then res
 `--config` takes the path directly, and `CRUST_CONFIG` stands in for it when the flag is absent — whether a workflow is launched through the justfile or run with `bun` directly. The flag wins over the variable:
 
 ```bash
-bun <pi-crust>/runtime/lifecycles/<name>.ts "<prompt>" --config .pi-crust/config/crust.frontier.config.yaml
+bun <pi-crust>/runtime/commands/run.ts "<prompt>" --lifecycle <name> --config .pi-crust/config/crust.frontier.config.yaml
 CRUST_CONFIG=.pi-crust/config/crust.frontier.config.yaml just <recipe> "<prompt>"
 ```
 
@@ -108,7 +108,7 @@ Every Activity also runs on its own, which is what an engineer usually wants whe
 ```bash
 just crust run "the /health work" --activities code-review   # just the conventions review
 just crust verify                                # just the declared checks, no run at all
-bun <pi-crust>/runtime/lifecycles/compose.ts "<prompt>" --activities test,build,outcome-review
+bun <pi-crust>/runtime/commands/run.ts "<prompt>" --activities test,build,outcome-review
 ```
 
 `compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
@@ -131,7 +131,7 @@ The report names every activity run and its status, the gate that failed with it
 
 ```text
 resume from: build
-  bun <pi-crust>/runtime/lifecycles/sdlc.ts --run-id a1b2c3d4 --resume "<the original request>"
+  bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
 Exit codes: `0` the run succeeded, `1` it failed or is incomplete, `2` no such session.

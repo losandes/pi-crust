@@ -11,16 +11,16 @@ import {
   CODING_AGENTS,
   DEFAULT_MODEL,
   plannerConfigSchema,
-  promptEngineeringSchema,
+  promptsSchema,
   terminalConfigSchema,
 } from './activity'
 import { QUALITY_AREAS, QUALITY_OPERATIONS } from './quality'
 
-export type { TCodingAgent, TPromptEngineering } from './activity'
+export type { TCodingAgent, TPrompts } from './activity'
 export {
   CODING_AGENTS,
   DEFAULT_MODEL,
-  promptEngineeringSchema,
+  promptsSchema,
 } from './activity'
 
 export const DEFAULT_DATA_DIR = '.pi-crust/data'
@@ -38,8 +38,7 @@ export const agentConfigSchema = z.object({
   /** hex swatch for this agent's lane in the UI */
   color: z.string().default(''),
   purpose: z.string().default(''),
-  prompt_engineering: promptEngineeringSchema,
-  harness_engineering: z.array(z.string()).default([]),
+  prompts: promptsSchema,
   /**
    * Kept out of interactive menus. Described in full on the Activity schema
    * in `activity.ts`, which is the canonical definition; this mirrors it so
@@ -117,7 +116,6 @@ export const configDefaultsSchema = z.object({
   model: z.string().default(DEFAULT_MODEL),
   thinking: z.string().default('medium'),
   color: z.string().default(''),
-  harness_engineering: z.array(z.string()).default([]),
   /** roster-wide allowlist; undefined = all tools usable */
   tools: z.array(z.string()).optional(),
   // Off-limits to every agent that has not named them in its own `writes`.

@@ -64,8 +64,8 @@ activities:
   # Replace one prompt and keep the other. A nested object merges, so this
   # leaves the team's user prompt exactly as it was.
   - name: plan
-    prompt_engineering:
-      system: prompt-engineering/plan/system.md
+    prompts:
+      system: prompts/plan/system.md
 
   # Narrow what an Activity may reach. The list REPLACES the team's, which is
   # the only way to take a tool away.
@@ -94,9 +94,9 @@ activities:
     purpose: Answer one throwaway question without touching the repository.
     output: researchOutput
     gates: [artifactsExist]
-    prompt_engineering:
-      system: prompt-engineering/spike/system.md
-      user: prompt-engineering/spike/user.md
+    prompts:
+      system: prompts/spike/system.md
+      user: prompts/spike/user.md
     writes: ["{handoff}/spike.md"]   # the one document it leaves behind
 
 # A Planner is tuned here the same way, and cannot be added or removed: the

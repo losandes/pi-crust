@@ -2,7 +2,7 @@
  * The path policy, as one agent call has to carry it.
  *
  * The decision itself is in `path-policy.ts` and the enforcement is in the
- * extension that runs inside pi (`harness-engineering/path-policy.ts`). This
+ * extension that runs inside pi (`extensions/path-policy.ts`). This
  * is the join between them: what the runtime writes before a spawn, and what
  * it reads back afterwards.
  *

@@ -50,7 +50,7 @@ test(
     // Relative, because the file is generated beside the config it extends:
     // `types: ["bun"]` resolves from the file that declares it.
     expect(project.extends).toEqual('./tsconfig.json')
-    expect(project.include).toEqual(['harness-engineering'])
+    expect(project.include).toEqual(['extensions'])
   },
 )
 

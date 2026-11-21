@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
-import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 
 const sessionHeaderSchema = z.object({
   type: z.literal('session'),

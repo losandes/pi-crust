@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fail, succeed } from '../../../../../lib/typedefs/src/settlement'
+import { fail, succeed } from '../../../../../lib/typedefs'
 import {
   activitiesFileSchema,
   crustConfigSchema,

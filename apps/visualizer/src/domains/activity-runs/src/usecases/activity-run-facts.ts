@@ -7,7 +7,7 @@
  * which is the part worth testing.
  */
 
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 import type { EventRow } from '@/domains/events'
 import { parseToolCall } from '@/domains/events'
 import { ts } from '@/lib/format'

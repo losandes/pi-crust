@@ -1,4 +1,4 @@
-import { isOk, safeParseSettlement } from '@typedefs/settlement'
+import { isOk, safeParseSettlement } from '@typedefs'
 
 export function ts(iso: string | null | undefined): number {
   if (!iso) return Number.NaN

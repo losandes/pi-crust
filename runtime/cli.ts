@@ -3,7 +3,7 @@
  * The one entry point a stamped repository reaches.
  *
  * `just crust <recipe> [args]` lands here. The recipes themselves live in
- * `crust.just` beside this file, in the pi-crust package rather than in the
+ * `commands/crust.just` relative to this file, in the pi-crust package rather than in the
  * repository being worked on — so this runs `just` against that file with the
  * caller's directory as the working directory.
  *
@@ -19,7 +19,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const recipes = join(here, 'crust.just')
+const recipes = join(here, 'commands', 'crust.just')
 
 const result = spawnSync(
   'just',

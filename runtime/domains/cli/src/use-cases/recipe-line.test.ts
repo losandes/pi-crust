@@ -9,7 +9,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const script = '/Users/andy/src/pi-crust/runtime/lifecycles/compose.ts'
+    const script = '/Users/andy/src/pi-crust/runtime/commands/run.ts'
 
     // when
     const actual = recipeOf(script)
@@ -29,7 +29,7 @@ test(
     // given — argv as a run records it: absolute, because that is what ran
     const argv = [
       'bun',
-      '/Users/andy/src/pi-crust/runtime/lifecycles/compose.ts',
+      '/Users/andy/src/pi-crust/runtime/commands/run.ts',
       'add a /health endpoint',
       '--lifecycle',
       'sdlc',
@@ -64,7 +64,7 @@ test(
     // given
     const argv = [
       'bun',
-      '/pkg/runtime/stages/operator.ts',
+      '/pkg/runtime/commands/operator.ts',
       'the webhook drops retries',
     ]
 

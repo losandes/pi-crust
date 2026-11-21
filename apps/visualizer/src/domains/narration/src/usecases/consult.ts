@@ -5,7 +5,7 @@
  * waterfall. It hangs off the activityRun it asked about, so the answer is found
  * where the question made sense rather than at the end of the run.
  */
-import { safeParseSettlement } from '@typedefs/settlement'
+import { safeParseSettlement } from '@typedefs'
 import type { EventRow } from '@/domains/events'
 import { ts } from '@/lib/format'
 import type { ActivityRun } from '../typedefs/activity-run'

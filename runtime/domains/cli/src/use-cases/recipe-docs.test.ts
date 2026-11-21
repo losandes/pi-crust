@@ -1,16 +1,15 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { USAGE as CATALOGUE_USAGE } from '../../../../catalogue'
-import { USAGE as DECIDE_USAGE } from '../../../../decide'
-import { USAGE as PRUNE_USAGE } from '../../../../prune'
-import { USAGE as REPORT_USAGE } from '../../../../report'
+import { DECIDE_USAGE } from './decide-args'
 import { FLAG_TABLE } from './parse-cli'
 import { GLOBAL_FLAGS, RECIPE_DOCS, recipeDoc } from './recipe-docs'
+import { REPORT_USAGE } from './report-args'
+import { LIST_USAGE as CATALOGUE_USAGE, PRUNE_USAGE } from './usage'
 
 /*
- * Tests MUST NOT import runtime/steer.ts, runtime/resume.ts or
- * runtime/consult.ts: each ends in `process.exitCode = await main()` with no
+ * Tests MUST NOT import runtime/commands/steer.ts, runtime/commands/resume.ts or
+ * runtime/commands/ask.ts: each ends in `process.exitCode = await main()` with no
  * `import.meta.main` guard, so importing one runs it. Their flag text is
  * transcribed by hand in recipe-docs.ts instead (issue #35, 1.3.5).
  */
@@ -18,7 +17,7 @@ import { GLOBAL_FLAGS, RECIPE_DOCS, recipeDoc } from './recipe-docs'
 /** Recipe names, which are the lines that start in column one and end in `:`. */
 const recipeNamesInCrustJust = (): readonly string[] =>
   readFileSync(
-    join(import.meta.dir, '..', '..', '..', '..', 'crust.just'),
+    join(import.meta.dir, '..', '..', '..', '..', 'commands', 'crust.just'),
     'utf8',
   )
     .split('\n')
@@ -177,15 +176,15 @@ test(
 )
 
 const usageCases = [
-  { script: 'catalogue.ts', usage: CATALOGUE_USAGE, recipes: ['list'] },
+  { script: 'usage.ts (list)', usage: CATALOGUE_USAGE, recipes: ['list'] },
   {
-    script: 'report.ts',
+    script: 'report-args.ts',
     usage: REPORT_USAGE,
     recipes: ['report', 'report-json'],
   },
-  { script: 'prune.ts', usage: PRUNE_USAGE, recipes: ['prune'] },
+  { script: 'usage.ts (prune)', usage: PRUNE_USAGE, recipes: ['prune'] },
   {
-    script: 'decide.ts',
+    script: 'decide-args.ts',
     usage: DECIDE_USAGE,
     recipes: ['approve', 'reject', 'answer'],
   },

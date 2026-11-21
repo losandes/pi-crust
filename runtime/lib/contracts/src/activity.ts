@@ -45,7 +45,7 @@ export const THINKING_LEVELS = [
   'max',
 ] as const
 
-export const promptEngineeringSchema = z.object({
+export const promptsSchema = z.object({
   /** path to system.md */
   system: z.string(),
   /** path to user.md */
@@ -53,9 +53,7 @@ export const promptEngineeringSchema = z.object({
   /** path to the revise-round prompt; absent means "resolve it beside `user`" */
   revise: z.string().optional(),
 })
-export type TPromptEngineering = Readonly<
-  z.infer<typeof promptEngineeringSchema>
->
+export type TPrompts = Readonly<z.infer<typeof promptsSchema>>
 
 export const DEFAULT_ACTIVITIES_PATH = '.pi-crust/config/crust.activities.yaml'
 
@@ -96,8 +94,7 @@ export const activityConfigSchema = z.object({
   /** hex swatch for this Activity's lane in the UI */
   color: z.string().default(''),
   purpose: z.string().default(''),
-  prompt_engineering: promptEngineeringSchema,
-  harness_engineering: z.array(z.string()).default([]),
+  prompts: promptsSchema,
   /** allowlist; undefined = all tools usable */
   tools: z.array(z.string()).optional(),
   /*

@@ -32,7 +32,7 @@ const workflowFixture = (
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver accepted work',
-    prompt_engineering: {
+    prompts: {
       system: join(dir, 'system.md'),
       user: join(dir, 'user.md'),
     },

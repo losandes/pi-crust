@@ -39,7 +39,13 @@ import {
 } from '../../../../lib/contracts'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import type { TPiControl, TPiHooks, TPiResult } from '../../../agents'
-import { appendSteering, emptyUsage, postToInbox } from '../../../agents'
+import {
+  appendSteering,
+  emptyUsage,
+  packageExtensionPath,
+  postToInbox,
+} from '../../../agents'
+import { loadConfig } from '../../../config'
 import { PATHS_TOUCHED, policyPaths } from '../../../policy'
 import type { TAgentPorts } from './execute-agent'
 import {
@@ -138,7 +144,7 @@ const aConfig = (
       agentConfigSchema.parse({
         name: 'builder',
         purpose: 'build the thing',
-        prompt_engineering: { system: 's.md', user: 'u.md' },
+        prompts: { system: 's.md', user: 'u.md' },
         writes: ['*'],
         ...overrides,
       }),
@@ -466,7 +472,7 @@ for (const revising of [true, false]) {
       const repoRoot = aRepo()
       const { run } = aRun(repoRoot, {
         cfg: aConfig({
-          prompt_engineering: { system: 's.md', user: 'u.md', revise: 'r.md' },
+          prompts: { system: 's.md', user: 'u.md', revise: 'r.md' },
         }),
       })
       const requests: string[] = []
@@ -496,6 +502,59 @@ for (const revising of [true, false]) {
         expect(requests[0]).toBe(
           `rendered:${revising ? 'r.md' : 'u.md'}${findingsBlock(findings)}`,
         )
+      } finally {
+        rmSync(repoRoot, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
+
+for (const shadow of [false, true]) {
+  test(
+    [
+      `given a shipped agent and ${shadow ? 'a repository override' : 'no override'}`,
+      'when starting the agent',
+      'it should load only the package path policy',
+    ].join(', '),
+    async () => {
+      // given
+      const repoRoot = aRepo()
+      const cfg = loadConfig(
+        join(
+          import.meta.dir,
+          '../../../../../templates/stamp/config/crust.config.yaml',
+        ),
+      )
+      const agent = cfg.agents.find((one) => one.name === 'build')
+      if (agent === undefined) throw new Error('missing shipped build agent')
+      const { run } = aRun(repoRoot, {
+        cfg: { ...cfg, agents: [{ ...agent, name: 'builder' }] },
+      })
+      const extensions: (readonly string[] | undefined)[] = []
+      const { ports } = fakePorts({
+        run: (request) => {
+          // biome-ignore lint/plugin/no-array-mutation: recording the process-boundary request is the test
+          extensions.push(request.extensions)
+          return Promise.resolve(aPiResult({ text: VALID_ENVELOPE_TEXT }))
+        },
+      })
+      try {
+        if (shadow) {
+          const directory = join(repoRoot, '.pi-crust', 'extensions')
+          mkdirSync(directory, { recursive: true })
+          writeFileSync(
+            join(directory, 'path-policy.ts'),
+            'throw new Error("repository override loaded")',
+          )
+        }
+
+        // when
+        await executeAgent(run, anActivityRun(), aCall(), ports)
+
+        // then
+        expect(extensions).toEqual([[packageExtensionPath('path-policy.ts')]])
       } finally {
         rmSync(repoRoot, { recursive: true, force: true })
         rmSync(run.sessionDir, { recursive: true, force: true })
@@ -760,7 +819,7 @@ test(
           agentConfigSchema.parse({
             name: 'reviewer',
             purpose: 'review only',
-            prompt_engineering: { system: 's.md', user: 'u.md' },
+            prompts: { system: 's.md', user: 'u.md' },
             writes: [],
           }),
         ],
@@ -866,7 +925,7 @@ for (const hasReviewer of [true, false]) {
                 name: 'reviewer',
                 output: 'reviewOutput',
                 writes: ['{handoff}/verdict.md'],
-                prompt_engineering: { system: 's.md', user: 'u.md' },
+                prompts: { system: 's.md', user: 'u.md' },
               },
             ],
           })
@@ -1018,12 +1077,12 @@ test(
         agents: [
           agentConfigSchema.parse({
             name: 'builder',
-            prompt_engineering: { system: 's.md', user: 'u.md' },
+            prompts: { system: 's.md', user: 'u.md' },
             writes: ['*'],
           }),
           agentConfigSchema.parse({
             name: 'reviewer',
-            prompt_engineering: { system: 's.md', user: 'u.md' },
+            prompts: { system: 's.md', user: 'u.md' },
             writes: ['*'],
           }),
         ],
@@ -1349,7 +1408,7 @@ for (const scenario of historyScenarios) {
           { name: 'code-reviewer', writes: ['code-reviews/'] },
           { name: 'builder', writes: ['*'] },
         ].map((agent) => ({
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
           ...agent,
         })),
       })

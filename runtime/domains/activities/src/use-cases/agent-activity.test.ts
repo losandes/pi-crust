@@ -103,7 +103,7 @@ const aConfig = (): TPiCrustConfig =>
       agentConfigSchema.parse({
         name: 'builder',
         purpose: 'build the thing',
-        prompt_engineering: { system: 's.md', user: 'u.md' },
+        prompts: { system: 's.md', user: 'u.md' },
         writes: ['*'],
       }),
     ],
@@ -182,7 +182,7 @@ const anActivity = (
   config: activityConfigSchema.parse({
     name: 'build',
     purpose: 'build the thing',
-    prompt_engineering: { system: 's.md', user: 'u.md' },
+    prompts: { system: 's.md', user: 'u.md' },
     output: 'genericOutput',
     input: 'upstream',
     attempts: 1,

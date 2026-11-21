@@ -11,7 +11,7 @@ import {
   PLANNER_NAMES,
   plannerConfigSchema,
   plannerFaults,
-  promptEngineeringSchema,
+  promptsSchema,
   TERMINAL_NAMES,
   terminalConfigSchema,
   terminalFaults,
@@ -60,7 +60,7 @@ for (const revise of [undefined, 'custom/revise.md']) {
       }
 
       // when
-      const actual = promptEngineeringSchema.parse(prompts)
+      const actual = promptsSchema.parse(prompts)
 
       // then
       expect(actual.revise).toBe(revise)
@@ -86,7 +86,7 @@ for (const { name, schema } of [
       const entry = {
         name: 'build',
         thinking: 'provider-adaptive',
-        prompt_engineering: { system: 'system.md', user: 'user.md' },
+        prompts: { system: 'system.md', user: 'user.md' },
         writes: [],
       }
 
@@ -128,7 +128,7 @@ test(
     // given
     const given = {
       name: 'planner',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     }
 
     // when
@@ -167,7 +167,7 @@ test(
     // given
     const given = {
       name: 'build',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     }
 
     // when
@@ -188,7 +188,7 @@ test(
     // given
     const given = {
       name: 'operator',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
       aliases: ['op'],
     }
 
@@ -211,7 +211,7 @@ test(
     const given = [
       activityConfigSchema.parse({
         name: 'security-research',
-        prompt_engineering: { system: 's.md', user: 'u.md' },
+        prompts: { system: 's.md', user: 'u.md' },
         hidden: true,
       }),
     ]
@@ -257,7 +257,7 @@ test(
         thinking: 'high',
         color: 'violet',
         purpose: 'Turn a request into a plan.',
-        prompt_engineering: {
+        prompts: {
           system: 'planner/system.md',
           user: 'planner/user.md',
         },
@@ -278,7 +278,7 @@ test(
         thinking: 'medium',
         color: 'blue',
         purpose: 'Turn a request into a plan.',
-        prompt_engineering: {
+        prompts: {
           system: 'planner/system.md',
           user: 'planner/user.md',
         },
@@ -317,17 +317,15 @@ test(
   () => {
     // given
     const base = [
-      { name: 'planner', prompt_engineering: { system: 's.md', user: 'u.md' } },
+      { name: 'planner', prompts: { system: 's.md', user: 'u.md' } },
     ]
-    const local = [
-      { name: 'planner', prompt_engineering: { system: 'mine.md' } },
-    ]
+    const local = [{ name: 'planner', prompts: { system: 'mine.md' } }]
 
     // when
     const actual = mergeActivities(base, local)
 
     // then
-    expect(actual[0]?.prompt_engineering).toEqual({
+    expect(actual[0]?.prompts).toEqual({
       system: 'mine.md',
       user: 'u.md',
     })
@@ -467,7 +465,7 @@ test(
      */
     const given = {
       name: 'spike',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     }
 
     // when

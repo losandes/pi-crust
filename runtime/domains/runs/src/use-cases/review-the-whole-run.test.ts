@@ -331,7 +331,7 @@ for (const scenario of scenarios) {
           name,
           purpose: `Execute the ${name} scenario against fixture files`,
           output: name.endsWith('review') ? 'reviewOutput' : 'buildOutput',
-          prompt_engineering: {
+          prompts: {
             system: `${name}/system`,
             user: `${name}/user`,
           },

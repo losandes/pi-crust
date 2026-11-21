@@ -65,7 +65,7 @@ const fixtureWith = (
     model: `fixture/${entry.name}`,
     purpose: `Exercise ${entry.name} against the preceding work`,
     writes: [],
-    prompt_engineering: { system, user },
+    prompts: { system, user },
   }))
   const config = join(dir, 'crust.config.yaml')
   writeFileSync(

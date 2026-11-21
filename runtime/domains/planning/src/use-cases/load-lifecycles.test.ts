@@ -122,12 +122,12 @@ lifecycles:
         {
           name: 'plan',
           purpose: 'p',
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
         },
         {
           name: 'gh-pull-request',
           purpose: 'p',
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
           aliases: ['gh-pr'],
         },
       ],
@@ -191,13 +191,13 @@ lifecycles:
           name: 'custom-judge',
           output: 'reviewOutput',
           writes: ['handoff/findings.md'],
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
         },
         {
           name: 'custom-writer',
           output: 'planOutput',
           writes: ['handoff/plan.md'],
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
         },
       ],
     })

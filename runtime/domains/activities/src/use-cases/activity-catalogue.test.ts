@@ -11,7 +11,7 @@ const anActivity = (
 ): TActivityConfig =>
   activityConfigSchema.parse({
     name,
-    prompt_engineering: prompts,
+    prompts: prompts,
     ...extra,
   })
 

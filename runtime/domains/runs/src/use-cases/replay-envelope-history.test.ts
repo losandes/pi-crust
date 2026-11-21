@@ -49,7 +49,7 @@ const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   writeFileSync(system, '# System\n')
   writeFileSync(user, '# User\n')
   const entries = activities.map((entry) => ({
-    prompt_engineering: { system, user },
+    prompts: { system, user },
     purpose: 'Carry the request through the fixture chain',
     writes: [],
     ...entry,

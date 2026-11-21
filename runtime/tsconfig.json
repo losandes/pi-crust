@@ -15,7 +15,7 @@
    */
   "include": [".", "../lib/**/*.ts"],
   /*
-   * `harness-engineering` is pi's, not ours. It imports @earendil-works/*
+   * `extensions` is pi's, not ours. It imports @earendil-works/*
    * and typebox — modules the pi host provides to an extension at run time
    * and which are deliberately not dependencies of this tree. Checking it
    * here would report thirty unresolvable imports forever, which is how a
@@ -27,7 +27,7 @@
    * the machine, which is the only version whose API the extensions will
    * ever meet. Run it with `mise run typecheck`. `data` is runtime output.
    */
-  "exclude": ["node_modules", "data", "harness-engineering"],
+  "exclude": ["node_modules", "data", "extensions"],
   "compilerOptions": {
     "types": ["bun"],
     // base

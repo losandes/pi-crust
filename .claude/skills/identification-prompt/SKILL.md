@@ -1,6 +1,6 @@
 ---
 name: identification-prompt
-description: Turns an idea, a gap, or a problem uncovered during a session into a prompt for pi-crust's Identify Activity, ready to paste into the gh-issue lifecycle so the problem is logged as an issue someone can act on later. Use when asked for an "identification prompt", "a prompt for gh-issue", "a prompt I can feed to identify", to "log this as an issue", "file that for later", or "restate that as a prompt", and when a session surfaces a problem the developer wants captured without fixing it now. Not for prompts that launch build work (see cookbooks/how_to_prompt_for_the_eng.md), not for Activity prompt files under runtime/prompt-engineering/ (use prompt-authoring), and not for specs (use spec-authoring).
+description: Turns an idea, a gap, or a problem uncovered during a session into a prompt for pi-crust's Identify Activity, ready to paste into the gh-issue lifecycle so the problem is logged as an issue someone can act on later. Use when asked for an "identification prompt", "a prompt for gh-issue", "a prompt I can feed to identify", to "log this as an issue", "file that for later", or "restate that as a prompt", and when a session surfaces a problem the developer wants captured without fixing it now. Not for prompts that launch build work (see cookbooks/how_to_prompt_for_the_eng.md), not for Activity prompt files under runtime/prompts/ (use prompt-authoring), and not for specs (use spec-authoring).
 ---
 
 # Writing an Identification Prompt
@@ -26,7 +26,7 @@ Prose this skill produces follows [write-from-evidence.md](../adr/conventions/wr
 
 ## Step 1 — Read what Identify does with the prompt
 
-Read `runtime/prompt-engineering/identify/system.md` and `runtime/prompt-engineering/identify/user.md` before writing. In a stamped repository, check `.pi-crust/prompt-engineering/identify/` first, because an override there replaces the shipped prompts. These facts about the shipped prompts shape everything below:
+Read `runtime/prompts/identify/system.md` and `runtime/prompts/identify/user.md` before writing. In a stamped repository, check `.pi-crust/prompts/identify/` first, because an override there replaces the shipped prompts. These facts about the shipped prompts shape everything below:
 
 - **The prompt is copied verbatim** into the `## Request` section of `identify.md`, and the `gh-issue` Activity copies that document into the issue body. Every word you write is published to the issue, so write it for a person reading GitHub months from now, not for the agent.
 - **Identify turns a problem into an outcome, success criteria, scenarios, scope, and constraints.** It is told not to name a file, module, or algorithm in the outcome or criteria. A prompt that states a solution makes Identify reverse-engineer the problem from it, and that guess is recorded as an assumption.

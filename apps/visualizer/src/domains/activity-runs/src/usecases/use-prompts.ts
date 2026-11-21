@@ -1,4 +1,4 @@
-import { settleAsync } from '@typedefs/settlement'
+import { settleAsync } from '@typedefs'
 import { useEffect, useRef, useState } from 'react'
 import { renderMarkdown } from '@/lib/markdown'
 import { fetchPrompts, type PromptsResponse } from '../io/fetch-prompts'

@@ -12,10 +12,9 @@ const configFor = () => {
     model: 'anthropic/claude-opus-5',
     thinking: 'medium',
     purpose: `Perform ${entry.name}`,
-    prompt_engineering: { system: 'system.md', user: 'user.md' },
+    prompts: { system: 'system.md', user: 'user.md' },
     tools: ['read'],
     writes: ['src/'],
-    harness_engineering: ['extension.ts'],
     ...entry,
   }))
   const planners = ['operator', 'triage'].map((name) => ({

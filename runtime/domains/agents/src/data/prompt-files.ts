@@ -3,7 +3,7 @@
  *
  * A reference is resolved against the repository first and the pi-crust
  * package second. That is the whole override mechanism: a team that wants a
- * different planner prompt writes `.pi-crust/prompt-engineering/plan/
+ * different planner prompt writes `.pi-crust/prompts/plan/
  * system.md`, and nothing else changes — no registry, no flag, no config
  * edit. Absent that file, the prompt that ships is the one used, so an
  * improvement to a shipped prompt reaches every repository that did not
@@ -16,7 +16,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { TPromptEngineering } from '../../../../lib/contracts'
+import type { TPrompts } from '../../../../lib/contracts'
 import { ensureDir, isFile, readText, writeText } from '../../../../lib/system'
 
 /** The runtime directory inside the pi-crust package. */
@@ -24,14 +24,10 @@ const packageRoot = (): string =>
   dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))
 
 /**
- * Where a reference actually points.
+ * Where a prompt reference actually points.
  *
- * Prompts and harness extensions are the same kind of thing: a relative path
- * a team MAY place in its own `.pi-crust/`, falling back to the copy that
- * ships with the package. Nothing is stamped any more, so a reference handed
- * to a subprocess verbatim resolves against the repository and finds
- * nothing — which is how `harness-engineering/subagents.ts` became
- * "Extension path does not exist" on a tree that had never been wrong.
+ * Prompt references resolve against the repository's `.pi-crust/` first,
+ * falling back to the prompt that ships with the package.
  *
  * Exported because validation has to report the path it could not find, and
  * reporting the reference rather than the resolved path sends a developer
@@ -51,7 +47,7 @@ export const resolveReference = (reference: string): string => {
 /** The prompt-shaped name for the same resolution. */
 export const resolvePromptPath = resolveReference
 
-export const revisePromptReference = (prompts: TPromptEngineering): string => {
+export const revisePromptReference = (prompts: TPrompts): string => {
   if (prompts.revise !== undefined) return prompts.revise
   const besideUser = join(dirname(prompts.user), 'revise.md')
   return isFile(resolveReference(besideUser)) ? besideUser : prompts.user

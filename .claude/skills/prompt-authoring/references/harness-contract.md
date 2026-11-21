@@ -4,11 +4,11 @@ Everything here is observable in the runtime, with the file that settles it name
 
 ## Where prompts live and which copy runs
 
-An Activity's prompts are `runtime/prompt-engineering/<activity>/system.md` and `.../user.md`, named by `prompt_engineering.system` and `prompt_engineering.user` in the Activity's configuration.
+An Activity's prompts are `runtime/prompts/<activity>/system.md` and `.../user.md`, named by `prompts.system` and `prompts.user` in the Activity's configuration.
 
-A writer Activity may also name a revise prompt with `prompt_engineering.revise`. When that key is absent, `revisePromptReference` checks for a `revise.md` beside the `user` reference using the same resolution as other prompts; if that reference resolves to a file it is used, otherwise `user` is used. An explicit `revise` reference takes precedence over the sibling file. A revise round (review findings present, gate violations absent) renders this prompt in place of `user.md`. A first attempt or a gate-failure retry still renders `user.md`.
+A writer Activity may also name a revise prompt with `prompts.revise`. When that key is absent, `revisePromptReference` checks for a `revise.md` beside the `user` reference using the same resolution as other prompts; if that reference resolves to a file it is used, otherwise `user` is used. An explicit `revise` reference takes precedence over the sibling file. A revise round (review findings present, gate violations absent) renders this prompt in place of `user.md`. A first attempt or a gate-failure retry still renders `user.md`.
 
-`resolveReference` in `runtime/domains/agents/src/data/prompt-files.ts` resolves a relative reference against `<cwd>/.pi-crust/` first and the package second. A repository that writes `.pi-crust/prompt-engineering/plan/system.md` overrides that one file; every key it does not name keeps the shipped prompt. An absolute path is taken as given.
+`resolveReference` in `runtime/domains/agents/src/data/prompt-files.ts` resolves a relative reference against `<cwd>/.pi-crust/` first and the package second. A repository that writes `.pi-crust/prompts/plan/system.md` overrides that one file; every key it does not name keeps the shipped prompt. An absolute path is taken as given.
 
 The consequence for editing: a shipped prompt is used by every stamped repository that has not overridden it, on its next run. There is no release step between the edit and that.
 
@@ -54,11 +54,11 @@ Three absences are deliberate and worth knowing before inventing a placeholder:
 
 Three suites read prompt files and assert on their contents, so a heading or sentence they name is part of the contract:
 
-- `runtime/prompt-engineering/request-capture.test.ts` — the `## Carry the request forward` section in `identify/user.md` and `diagnose/user.md`, required to be byte-identical in both, and the equivalent instruction in `gh-issue/user.md`
-- `runtime/prompt-engineering/gh-pull-request/prompt-content.test.ts` — the prohibition on arguing the change should be merged, the statement that the harness owns the issue link and the `## Activities` and `## Checks` sections, and the no-attribution, no-envelope-JSON, no-git-or-`gh`, read-only instructions
-- `runtime/prompt-engineering/revise-round.test.ts` — the findings-only task, preservation and scope sentences in all three revise prompts, the tester-only restrictions and escalation sentences, and the copied Intake and Report spans from each Activity's `user.md`
+- `runtime/prompts/request-capture.test.ts` — the `## Carry the request forward` section in `identify/user.md` and `diagnose/user.md`, required to be byte-identical in both, and the equivalent instruction in `gh-issue/user.md`
+- `runtime/prompts/gh-pull-request/prompt-content.test.ts` — the prohibition on arguing the change should be merged, the statement that the harness owns the issue link and the `## Activities` and `## Checks` sections, and the no-attribution, no-envelope-JSON, no-git-or-`gh`, read-only instructions
+- `runtime/prompts/revise-round.test.ts` — the findings-only task, preservation and scope sentences in all three revise prompts, the tester-only restrictions and escalation sentences, and the copied Intake and Report spans from each Activity's `user.md`
 
-Run `RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompt-engineering --parallel | bunx buntap --agent --no-color` after any edit. A new assertion belongs with any instruction a later rewrite must not quietly drop.
+Run `RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompts --parallel | bunx buntap --agent --no-color` after any edit. A new assertion belongs with any instruction a later rewrite must not quietly drop.
 
 ## The house structure
 
@@ -66,4 +66,4 @@ Every shipped `system.md` carries `## Purpose`; all but one also carry `## Instr
 
 Every shipped `revise.md` carries the same four sections as `user.md` — `## Variables`, `## Intake`, `## Task` and `## Report`, in that order — and no `{{prompt}}` placeholder. Its task answers review findings rather than repeating the original request.
 
-`templates/stamp/prompt-engineering/example/system.md` is a scaffold with angle-bracket blanks rather than a working prompt, and is exempt from the section rules.
+`templates/stamp/prompts/example/system.md` is a scaffold with angle-bracket blanks rather than a working prompt, and is exempt from the section rules.

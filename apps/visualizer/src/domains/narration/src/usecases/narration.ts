@@ -12,7 +12,7 @@
  * time is not causation.
  */
 
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 import type { EventRow } from '@/domains/events'
 import { ts } from '@/lib/format'
 

@@ -50,21 +50,15 @@ test(
     const repo = realpathSync(
       mkdtempSync(join(tmpdir(), 'crust-prompt-files-override-')),
     )
-    mkdirSync(join(repo, '.pi-crust', 'prompt-engineering', 'plan'), {
+    mkdirSync(join(repo, '.pi-crust', 'prompts', 'plan'), {
       recursive: true,
     })
-    const overridePath = join(
-      repo,
-      '.pi-crust',
-      'prompt-engineering',
-      'plan',
-      'system.md',
-    )
+    const overridePath = join(repo, '.pi-crust', 'prompts', 'plan', 'system.md')
     writeFileSync(overridePath, 'team override\n')
     process.chdir(repo)
 
     // when
-    const actual = resolveReference('prompt-engineering/plan/system.md')
+    const actual = resolveReference('prompts/plan/system.md')
 
     // then
     expect(actual).toEqual(overridePath)
@@ -83,7 +77,7 @@ test(
     process.chdir(repo)
 
     // when
-    const actual = resolveReference('prompt-engineering/plan/system.md')
+    const actual = resolveReference('prompts/plan/system.md')
 
     // then — not inside the empty repository's .pi-crust/
     expect(isAbsolute(actual)).toBe(true)
@@ -103,8 +97,8 @@ test(
     process.chdir(repo)
 
     // when
-    const viaReference = resolveReference('prompt-engineering/plan/system.md')
-    const viaPromptPath = resolvePromptPath('prompt-engineering/plan/system.md')
+    const viaReference = resolveReference('prompts/plan/system.md')
+    const viaPromptPath = resolvePromptPath('prompts/plan/system.md')
 
     // then
     expect(viaPromptPath).toEqual(viaReference)

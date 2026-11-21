@@ -66,18 +66,8 @@ const review = (name: string, round: number, approved = false) =>
   })
 
 const shippedPrompts = (name: string) => ({
-  system: join(
-    import.meta.dir,
-    '../../../../prompt-engineering',
-    name,
-    'system.md',
-  ),
-  user: join(
-    import.meta.dir,
-    '../../../../prompt-engineering',
-    name,
-    'user.md',
-  ),
+  system: join(import.meta.dir, '../../../../prompts', name, 'system.md'),
+  user: join(import.meta.dir, '../../../../prompts', name, 'user.md'),
 })
 
 const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
@@ -85,7 +75,7 @@ const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   const entries = activities.map((entry) => ({
     model: `fixture/${String(entry.name)}`,
     purpose: `Carry out ${String(entry.name)}`,
-    prompt_engineering: {
+    prompts: {
       system: `${String(entry.name)}/system`,
       user: `${String(entry.name)}/user`,
     },
@@ -359,7 +349,7 @@ test(
       {
         name: 'plan',
         output: 'planOutput',
-        prompt_engineering: shippedPrompts('plan'),
+        prompts: shippedPrompts('plan'),
       },
     ])
     const { run } = fixture
@@ -531,7 +521,7 @@ test(
         name: 'build',
         output: 'buildOutput',
         attempts: 10,
-        prompt_engineering: shippedPrompts('build'),
+        prompts: shippedPrompts('build'),
       },
       { name: 'functional-check', output: 'reviewOutput' },
       { name: 'safety-check', output: 'reviewOutput' },

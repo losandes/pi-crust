@@ -16,10 +16,7 @@
  *      instead, from the session's own status.
  */
 
-import {
-  safeParseSettlement,
-  settledOr,
-} from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement, settledOr } from '../../../../../lib/typedefs'
 import type {
   TActivityRunLog,
   TActivityRunState,

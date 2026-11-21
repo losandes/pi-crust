@@ -92,7 +92,7 @@ const fixtureWith = (
     ...entry,
     model: `fixture/${entry.name}`,
     purpose: `Exercise ${entry.name} against the preceding work`,
-    prompt_engineering: {
+    prompts: {
       system: `${entry.name}/system`,
       user: `${entry.name}/user`,
     },

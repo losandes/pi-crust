@@ -14,10 +14,7 @@
  * called exactly once, by whoever owns the run.
  */
 
-import {
-  errorMessage,
-  safeParseSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TActivity,
   TActivityContext,

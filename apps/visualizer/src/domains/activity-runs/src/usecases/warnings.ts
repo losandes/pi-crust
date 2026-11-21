@@ -12,7 +12,7 @@
  * claimed — and a page that tried to rebuild it would be reading a tree that
  * has moved on since.
  */
-import { safeParseSettlement } from '@typedefs/settlement'
+import { safeParseSettlement } from '@typedefs'
 import { z } from 'zod'
 import type { EventRow } from '@/domains/events'
 

@@ -39,7 +39,7 @@ const configWith = (
       data_dir: '.pi-crust/data',
     },
     agents: agents.map((agent) => ({
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
       ...agent,
     })),
   })

@@ -10,7 +10,7 @@
  * fifteen kinds of it; a run has two, and a fold costs a click to reach the
  * thing you came for.
  */
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 import { useMemo, useState } from 'react'
 import type { EventRow } from '@/domains/events'
 import { Prose } from '@/lib/_components'

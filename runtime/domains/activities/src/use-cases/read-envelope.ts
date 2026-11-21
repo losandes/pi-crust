@@ -10,11 +10,8 @@
  */
 
 import { join } from 'node:path'
-import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
-import {
-  fail,
-  safeParseSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import type { TSettlement } from '../../../../../lib/typedefs'
+import { fail, safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TEnvelopeBase,
   TEnvelopeSpec,

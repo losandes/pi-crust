@@ -2,7 +2,7 @@
  * Every `just crust` recipe, its flags, its environment variables, and a
  * worked example where one exists — transcribed, not generated.
  *
- * `runtime/crust.just` carries the authoritative prose, but `just` only
+ * `runtime/commands/crust.just` carries the authoritative prose, but `just` only
  * attaches a contiguous comment block to the recipe directly beneath it, and
  * this file's own comments deliberately break that rule in places (the
  * `--handoff`/`--name` prose sits between `run` and `verify`; the `observe`

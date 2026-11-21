@@ -1,4 +1,4 @@
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 import { agentRole, paletteColor } from '@/lib/palette'
 import type {
   AgentStartPayload,

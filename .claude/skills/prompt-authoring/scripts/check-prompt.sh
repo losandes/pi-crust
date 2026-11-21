@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Blocking checker for Activity prompts under prompt-engineering/.
+# Blocking checker for Activity prompts under prompts/.
 #
 # A rewritten prompt fails quietly. It renders, the agent runs, and the thing
 # that changed is a variable the harness no longer substitutes, an envelope
@@ -59,9 +59,9 @@ if [[ "${1:-}" == "--base" ]]; then
   shift 2
 fi
 
-collect_changed() { changed_files 'prompt-engineering/.*\.md$' "$REPO_ROOT"; }
+collect_changed() { changed_files 'prompts/.*\.md$' "$REPO_ROOT"; }
 
-select_files -path '*prompt-engineering*' -name '*.md' -- "$@"
+select_files -path '*prompts*' -name '*.md' -- "$@"
 
 # A README beside the prompts documents the override mechanism; it is not a
 # prompt and has no contract to keep. Excluded in every mode, because pruning

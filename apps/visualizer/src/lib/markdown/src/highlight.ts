@@ -1,4 +1,4 @@
-import { isOk, safeParseSettlement } from '@typedefs/settlement'
+import { isOk, safeParseSettlement } from '@typedefs'
 
 /**
  * Dependency-free JSON syntax highlighting.

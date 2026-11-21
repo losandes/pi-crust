@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { fail, succeed } from '../../../../lib/typedefs/src/settlement'
+import { fail, succeed } from '../../../../lib/typedefs'
 import {
   activitiesFileSchema,
   importSourceSchema,
