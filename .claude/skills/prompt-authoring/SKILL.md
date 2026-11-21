@@ -1,17 +1,17 @@
 ---
 name: prompt-authoring
-description: Writes and optimizes the Activity prompts an agent executes — runtime/prompt-engineering/<activity>/system.md and user.md, a repository's own .pi-crust/prompt-engineering overrides, and any other prompt whose reader is a model rather than a person. Rewrites for precision and consistent execution across Claude, GPT and Kimi while preserving the harness contract, then runs a blocking checker over template variables, required sections, envelope fields, and the paths and commands a rewrite tends to drop. Use when asked to improve, tighten, clarify, shorten or rewrite a prompt, when adding an Activity that needs prompts, when an agent misread its instructions, and before reporting any prompt edit complete.
+description: Writes and optimizes the Activity prompts an agent executes — runtime/prompts/<activity>/system.md and user.md, a repository's own .pi-crust/prompts overrides, and any other prompt whose reader is a model rather than a person. Rewrites for precision and consistent execution across Claude, GPT and Kimi while preserving the harness contract, then runs a blocking checker over template variables, required sections, envelope fields, and the paths and commands a rewrite tends to drop. Use when asked to improve, tighten, clarify, shorten or rewrite a prompt, when adding an Activity that needs prompts, when an agent misread its instructions, and before reporting any prompt edit complete.
 ---
 
 # Authoring and Optimizing an Activity Prompt
 
-A prompt in `runtime/prompt-engineering/` is executed by a model, not read by a person. It is also an interface: `render` substitutes a fixed set of `{{variables}}` into it, the harness parses the JSON the agent returns against a zod schema, and tests assert that particular sentences are still in the file. Rewriting the prose is cheap; rewriting the interface by accident is the failure this skill exists to prevent.
+A prompt in `runtime/prompts/` is executed by a model, not read by a person. It is also an interface: `render` substitutes a fixed set of `{{variables}}` into it, the harness parses the JSON the agent returns against a zod schema, and tests assert that particular sentences are still in the file. Rewriting the prose is cheap; rewriting the interface by accident is the failure this skill exists to prevent.
 
 The prompts ship with the package, and every stamped repository that has not overridden one runs the copy in this clone. An edit here reaches every repository on its next run.
 
 ## Use this skill when
 
-- Improving, tightening, clarifying, shortening or rewriting any file under `runtime/prompt-engineering/` or a repository's `.pi-crust/prompt-engineering/`
+- Improving, tightening, clarifying, shortening or rewriting any file under `runtime/prompts/` or a repository's `.pi-crust/prompts/`
 - Adding an Activity that needs a `system.md` and a `user.md`
 - An agent misread, ignored, or inconsistently followed its instructions, and the prompt is the suspect
 - Porting a prompt between models, or making one behave the same on Claude, GPT and Kimi
@@ -43,7 +43,7 @@ Read, before editing anything:
 Find the tests before you start, not after the rewrite fails them:
 
 ```bash
-grep -rln "prompt-engineering" runtime --include='*.test.ts'
+grep -rln "prompts" runtime --include='*.test.ts'
 ```
 
 ## Step 2 — Rewrite against the brief
@@ -77,7 +77,7 @@ Both are blocking, and both run from the repository root.
 With no arguments it checks prompts changed against `HEAD`; pass `--base <ref>` for a whole branch, paths to narrow, `--all` to sweep. Exit 0 is clean, 1 is violations, 2 is a usage or environment error. The analysis is in `.claude/skills/prompt-authoring/scripts/prompt-contract.ts`; the shell script owns scope and extracts each baseline from git, so a prompt with no committed version gets the structural rules only.
 
 ```bash
-RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompt-engineering --parallel | bunx buntap --agent --no-color
+RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompts --parallel | bunx buntap --agent --no-color
 ```
 
 These suites read the prompt files and assert on their text. A test that now fails is a contract this rewrite changed: restore the sentence, or change the test deliberately and say which requirement made it stale.

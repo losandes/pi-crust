@@ -3,7 +3,7 @@
 export type {
   TActivityConfig,
   TPlannerConfig,
-  TPromptEngineering,
+  TPrompts,
   TTerminalConfig,
 } from './src/activity'
 export {

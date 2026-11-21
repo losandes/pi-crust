@@ -12,7 +12,7 @@ A run is identified by its `run_id` — the vocabulary the trace, the directory 
 
 ## Layout
 
-A stamped repository holds almost nothing. The installer copies in `config/` and `prompt-engineering/`, then writes `.pi-crust/data/pi-crust-home` — a pointer at the pi-crust package, not a copy of it. Every line of runtime code stays in the package, which is why an edit there is live for the next Activity any stamped repository starts. The two trees are not the same tree, and an orchestrator needs both.
+A stamped repository holds almost nothing. The installer copies in `config/` and `prompts/`, then writes `.pi-crust/data/pi-crust-home` — a pointer at the pi-crust package, not a copy of it. Every line of runtime code stays in the package, which is why an edit there is live for the next Activity any stamped repository starts. The two trees are not the same tree, and an orchestrator needs both.
 
 The package, where the code lives:
 
@@ -57,9 +57,9 @@ runtime/                      the package a stamp points at, never a copy
 │   ├── contracts/            activity-run · envelope · config · gate
 │   ├── system/               clock · files · ids · env-overrides
 │   └── terminal/             terminal · clipboard
-├── prompt-engineering/{activity}/{system.md,user.md}
+├── prompts/{activity}/{system.md,user.md}
 │                             what each agent is told, one directory each
-├── harness-engineering/      pi extensions an agent's harness can load
+├── extensions/               the package path-policy extension
 └── testing/                  the fakes and capture helpers the suites share
 ```
 
@@ -75,7 +75,7 @@ The stamp, which is all a target repository carries:
 │   ├── crust.config.yaml     defaults and routing
 │   ├── crust.observe.yaml    the trace db, the ports, the themes
 │   └── dracula.css · high-contrast.css        visualizer themes
-├── prompt-engineering/       overrides only; defaults ship with the package
+├── prompts/       overrides only; defaults ship with the package
 └── data/                     runtime only; nothing under here is authored
     ├── pi-crust-home         the path to the package above, read on every run
     ├── sessions/{run_id}/    gitignored runtime
@@ -105,14 +105,14 @@ Every run is a sequence of **activity runs**, each one `await activity run(activ
 
 An **Activity** is a discrete unit of work and the agent that performs it — one entry in `config/crust.activities.yaml`, carrying both halves:
 
-| Key                                                          | Says                                                                 |
-| ------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `model`, `thinking`, `tools`, `writes`, `prompt_engineering` | who performs it, and what it may reach                               |
-| `output`                                                     | the envelope contract it answers, by published name                  |
-| `gates`                                                      | what its envelope must survive, by published name                    |
-| `input`                                                      | `upstream` (the default), or `changes` for the run's own diff        |
-| `attempts`                                                   | Activity Runs of one instance this run may spend, the first included |
-| `commit`                                                     | land its own change, in its envelope's words, once its gates pass    |
+| Key                                               | Says                                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| `model`, `thinking`, `tools`, `writes`, `prompts` | who performs it, and what it may reach                               |
+| `output`                                          | the envelope contract it answers, by published name                  |
+| `gates`                                           | what its envelope must survive, by published name                    |
+| `input`                                           | `upstream` (the default), or `changes` for the run's own diff        |
+| `attempts`                                        | Activity Runs of one instance this run may spend, the first included |
+| `commit`                                          | land its own change, in its envelope's words, once its gates pass    |
 
 There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` or a gate nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names.
 
@@ -144,14 +144,14 @@ A run that stopped is picked up, not restarted:
 
 ```bash
 bun .pi-crust/report.ts                      # where did the last run stop?
-bun <pi-crust>/runtime/lifecycles/sdlc.ts "<the original request>" --run-id a1b2c3d4 --resume
+bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
 `--resume` skips every activity run already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
 
 ## When you have finished reading this
 
-You are done with startup. List the workflows (`ls <pi-crust>/runtime/stages/*.ts <pi-crust>/runtime/lifecycles/*.ts`, plus each `Activity Runs:` docstring line) as a table, and **wait for the engineer's request.**
+You are done with startup. List the available Activities and Lifecycles with `just crust list`, and **wait for the engineer's request.**
 
 Do not survey anything else — not the trace db, not the config, not past runs, not the repo tree. You do not yet know what the request is, so anything you gather now is a guess about what will matter, spent from the context the real work needs. Every cookbook and reference below is lazy-loaded, one per request, and that is the whole design.
 

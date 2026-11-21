@@ -41,7 +41,7 @@ const config = (
     name: 'gh-pull-request',
     purpose: 'Push the run and open or update a pull request',
     writes: [],
-    prompt_engineering: { system: 's.md', user: 'u.md' },
+    prompts: { system: 's.md', user: 'u.md' },
     delivery: { remote: 'origin', base: 'main', draft: false },
     ...overrides,
   })
@@ -151,7 +151,7 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
         agentConfigSchema.parse({
           name: 'gh-pull-request',
           writes: [],
-          prompt_engineering: { system: 's.md', user: 'u.md' },
+          prompts: { system: 's.md', user: 'u.md' },
           purpose: 'Push the run and open or update a pull request',
         }),
       ],

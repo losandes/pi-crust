@@ -5,15 +5,12 @@
  * even minted, so a misnamed agent costs a second rather than an activity run.
  */
 
-import {
-  errorMessage,
-  safeParseSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TAgentConfig, TPiCrustConfig } from '../../../../lib/contracts'
 import { isFile } from '../../../../lib/system'
 import { resolveAgent } from '../../../config'
 import { resolveModel } from '../data/pi-agent'
-import { resolvePromptPath, resolveReference } from '../data/prompt-files'
+import { resolvePromptPath } from '../data/prompt-files'
 /**
  * How a model pattern becomes a provider and a model id, or throws saying
  * why it cannot.
@@ -41,11 +38,11 @@ const problemsForAgent = (
 
   const prompts = (
     [
-      ['system', agent.prompt_engineering.system],
-      ['user', agent.prompt_engineering.user],
-      ...(agent.prompt_engineering.revise === undefined
+      ['system', agent.prompts.system],
+      ['user', agent.prompts.user],
+      ...(agent.prompts.revise === undefined
         ? []
-        : [['revise', agent.prompt_engineering.revise] as const]),
+        : [['revise', agent.prompts.revise] as const]),
     ] as const
   ).flatMap(([label, ref]) =>
     isFile(resolvePromptPath(ref))
@@ -59,26 +56,11 @@ const problemsForAgent = (
         ],
   )
 
-  /*
-   * An extension that cannot be opened kills the agent AFTER the session is
-   * minted and the spend has started — pi exits 1 with "Extension path does
-   * not exist", several paid Activity Runs into a chain. The same check the
-   * prompts get costs nothing and moves it to before the run.
-   */
-  const extensions = agent.harness_engineering.flatMap((ref) =>
-    isFile(resolveReference(ref))
-      ? []
-      : [
-          `agent '${name}': harness extension not found: ${ref} ` +
-            `(looked in ${resolveReference(ref)})`,
-        ],
-  )
-
   const model = safeParseSettlement(() => resolve(agent.model))
   const modelProblems =
     model.status === 'ok' ? [] : [`agent '${name}': ${model.error.message}`]
 
-  return [...codingAgent, ...prompts, ...extensions, ...modelProblems]
+  return [...codingAgent, ...prompts, ...modelProblems]
 }
 
 const problemsFor = (

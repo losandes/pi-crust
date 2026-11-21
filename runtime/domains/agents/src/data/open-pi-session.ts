@@ -1,7 +1,4 @@
-import {
-  settleAsync,
-  type TSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import { settleAsync, type TSettlement } from '../../../../../lib/typedefs'
 
 export const openPiSession = (
   argv: readonly string[],

@@ -10,7 +10,7 @@
  * so the only thing added here is `--run-id` and `--resume`.
  */
 
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileExists, readText } from '../../../../lib/system'
 import { longFlagArgv } from './parse-cli'
 
@@ -145,3 +145,7 @@ export const resumeRecordedRun = (
   })
   return { started: true, command, reason: '', finished: child.exited }
 }
+
+/** Where this run wrote down how it was started, from the trace it is in. */
+export const sessionDirOf = (dbPath: string, runId: string): string =>
+  join(dirname(dbPath), 'sessions', runId)

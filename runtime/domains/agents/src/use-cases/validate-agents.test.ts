@@ -19,17 +19,17 @@ const configWith = (
 ): TPiCrustConfig =>
   crustConfigSchema.parse({
     activities: agents.map((agent) => ({
-      prompt_engineering: {
-        system: 'prompt-engineering/plan/system.md',
-        user: 'prompt-engineering/plan/user.md',
+      prompts: {
+        system: 'prompts/plan/system.md',
+        user: 'prompts/plan/user.md',
       },
       writes: [],
       ...agent,
     })),
     agents: agents.map((agent) => ({
-      prompt_engineering: {
-        system: 'prompt-engineering/plan/system.md',
-        user: 'prompt-engineering/plan/user.md',
+      prompts: {
+        system: 'prompts/plan/system.md',
+        user: 'prompts/plan/user.md',
       },
       writes: [],
       ...agent,
@@ -56,7 +56,7 @@ for (const revise of ['missing', 'directory', 'present', 'absent'] as const) {
         const cfg = configWith([
           {
             name: 'build',
-            prompt_engineering: {
+            prompts: {
               system: user,
               user,
               ...(revise === 'absent' ? {} : { revise: reference }),
@@ -100,54 +100,6 @@ const problemsFrom = (
 test(
   [
     'given use-cases/validate-agents::validateAgents',
-    'when an agent names a harness extension nothing can open',
-    'it should refuse before the run, naming the reference and where it looked',
-  ].join(', '),
-  () => {
-    // given — pi exits 1 on a missing extension AFTER the session is minted
-    // and the spend has started, several paid Activity Runs into a chain
-    const cfg = configWith([
-      { name: 'plan', harness_engineering: ['harness-engineering/nope.ts'] },
-    ])
-
-    // when
-    const actual = problemsFrom(cfg, ['plan'])
-
-    // then — both the reference and the resolved path, because reporting one
-    // of them sends a developer looking in the wrong place
-    expect(actual).toContain('harness extension not found')
-    expect(actual).toContain('harness-engineering/nope.ts')
-    expect(actual).toContain('looked in')
-  },
-)
-
-test(
-  [
-    'given use-cases/validate-agents::validateAgents',
-    'when the extension is one the package ships',
-    'it should raise nothing about it, because a reference resolves there too',
-  ].join(', '),
-  () => {
-    // given — nothing is stamped any more, so a reference resolved against
-    // the repository alone finds nothing and the run dies mid-chain
-    const cfg = configWith([
-      {
-        name: 'plan',
-        harness_engineering: ['harness-engineering/subagents.ts'],
-      },
-    ])
-
-    // when
-    const actual = problemsFrom(cfg, ['plan'])
-
-    // then
-    expect(actual).not.toContain('harness extension')
-  },
-)
-
-test(
-  [
-    'given use-cases/validate-agents::validateAgents',
     'when a prompt cannot be found',
     'it should still report that, which is the check this one was modelled on',
   ].join(', '),
@@ -156,9 +108,9 @@ test(
     const cfg = configWith([
       {
         name: 'plan',
-        prompt_engineering: {
-          system: 'prompt-engineering/nope/system.md',
-          user: 'prompt-engineering/plan/user.md',
+        prompts: {
+          system: 'prompts/nope/system.md',
+          user: 'prompts/plan/user.md',
         },
       },
     ])

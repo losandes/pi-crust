@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * typecheck-harness — check `runtime/harness-engineering/` against the pi
+ * typecheck-harness — check `runtime/extensions/` against the pi
  * this machine actually runs.
  *
  * Usage:
@@ -68,7 +68,7 @@ const main = (): number => {
   const release = piReleaseDir()
   if (release === undefined) {
     say(
-      'typecheck-harness: no managed pi install found, so harness-engineering ' +
+      'typecheck-harness: no managed pi install found, so runtime/extensions ' +
         'was NOT checked. Set PI_PATH, or put pi on PATH, to check it.',
     )
     if (strict()) {
@@ -82,7 +82,7 @@ const main = (): number => {
     return 0
   }
 
-  say(`typecheck-harness: checking against ${release}`)
+  say(`typecheck-harness: checking runtime/extensions against ${release}`)
   writeFileSync(
     GENERATED,
     `${JSON.stringify(harnessProject(join(release, 'node_modules')), undefined, 2)}\n`,

@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import { isStepDocument, lockArtifacts, unlockArtifacts } from './artifact-lock'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-lock-'))

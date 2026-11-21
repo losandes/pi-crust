@@ -5,7 +5,7 @@
  * The alternative — the `bun <path>` line that actually executes — names an
  * install directory, and since the runtime left the stamp there is no install
  * directory a relative path can reach: `.pi-crust/` holds `config/`, `data/`
- * and `prompt-engineering/` and nothing else. A printed path there is a
+ * and `prompts/` and nothing else. A printed path there is a
  * command that cannot run, on the one output whose whole job is to be pasted.
  *
  * So the mapping from an entry point to its recipe lives here, used by the
@@ -26,7 +26,7 @@ export const RUN_RECIPE = 'run'
 
 /** Entry point file name (without `.ts`) -> the recipe in front of it. */
 const RECIPE_OF: Readonly<Record<string, string>> = {
-  compose: RUN_RECIPE,
+  run: RUN_RECIPE,
   operator: 'operator',
   triage: 'triage',
 }

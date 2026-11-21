@@ -1,4 +1,4 @@
-import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
+import type { TSettlement } from '../../../../../lib/typedefs'
 
 export type TWorkReference =
   | Readonly<{

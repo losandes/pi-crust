@@ -1,5 +1,5 @@
 /**
- * The TypeScript project that checks `harness-engineering/` against a pi
+ * The TypeScript project that checks `extensions/` against a pi
  * host, as data.
  *
  * The extensions in that directory import `@earendil-works/*` and `typebox`
@@ -26,7 +26,7 @@ export const harnessProject = (
   hostModules: string,
 ): Readonly<Record<string, unknown>> => ({
   extends: './tsconfig.json',
-  include: ['harness-engineering'],
+  include: ['extensions'],
   exclude: ['node_modules', 'data'],
   compilerOptions: {
     /*
@@ -34,7 +34,7 @@ export const harnessProject = (
      *
      * `composite` exists so the repository root can REFERENCE `runtime/`, and
      * it requires a project to list every file it pulls in. This project
-     * includes `harness-engineering` alone, while those extensions import
+     * includes `extensions` alone, while those extensions import
      * into `domains/` and `lib/` — so each reached file is reported as
      * `TS6307: not listed within the file list of project`, fifteen of them
      * the day a `domains/workspace/src/data/roots.ts` joined the graph.
@@ -43,7 +43,7 @@ export const harnessProject = (
      * maintained by hand, that goes stale on the next import. Nothing
      * references this project — it is generated, run once and deleted — so
      * the constraint buys nothing and is switched off rather than satisfied.
-     * Scope is unchanged: tsc still checks `harness-engineering` and still
+     * Scope is unchanged: tsc still checks `extensions` and still
      * type-checks everything those files reach.
      */
     composite: false,

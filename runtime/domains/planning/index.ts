@@ -11,3 +11,5 @@ export {
   plannedNames,
   unitsFrom,
 } from './src/use-cases/plan-units'
+
+export { plannedActivities } from './src/use-cases/planned-activities'

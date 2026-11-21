@@ -1,4 +1,4 @@
-import type { TSettlement } from '../../../../../lib/typedefs/src/settlement'
+import type { TSettlement } from '../../../../../lib/typedefs'
 import type { TActivityRunState } from '../../../../lib/contracts'
 import { sessionDirFor } from './consult'
 

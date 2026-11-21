@@ -465,7 +465,7 @@ test(
     // for and finds out by the chain sailing past it
     const argv = [
       'bun',
-      '/Users/andy/src/pi-crust/runtime/lifecycles/compose.ts',
+      '/Users/andy/src/pi-crust/runtime/commands/run.ts',
       'specs/stats.md',
       '--approve-after',
       'plan',
@@ -492,7 +492,7 @@ test(
     // given — the second gate of a run that was already picked up once
     const argv = [
       'bun',
-      '/Users/andy/src/pi-crust/runtime/lifecycles/compose.ts',
+      '/Users/andy/src/pi-crust/runtime/commands/run.ts',
       'specs/stats.md',
       '--run-id',
       '9afffac5',
@@ -520,7 +520,7 @@ test(
     // and the command fails in a way that looks like crust's fault
     const argv = [
       'bun',
-      '/Users/andy/src/pi-crust/runtime/stages/triage.ts',
+      '/Users/andy/src/pi-crust/runtime/commands/triage.ts',
       'name the top-level directories. change nothing.',
     ]
 
@@ -545,7 +545,7 @@ test(
     // given
     const argv = [
       'bun',
-      '/pkg/runtime/lifecycles/compose.ts',
+      '/pkg/runtime/commands/run.ts',
       'add a "health" endpoint',
     ]
 

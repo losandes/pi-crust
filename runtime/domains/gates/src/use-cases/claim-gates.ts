@@ -8,7 +8,7 @@
  */
 
 import { isAbsolute, join } from 'node:path'
-import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TEnvelopeBase,
   TGate,

@@ -59,7 +59,7 @@ just crust observe      # it opens; its working tree is shown as gone, not broke
     └── pi-crust-issue-42/<name>.log      the same, run from the (now deleted) worktree
 ```
 
-`sessions/` stays flat: a worktree's directory name is not stable (`git worktree move` renames it, two clones can share a worktree name), so pooling adds no segment there. `checks/` gains a `<tree>` segment because `runtime/checks.ts` has nowhere else to put two trees' logs that does not collide.
+`sessions/` stays flat: a worktree's directory name is not stable (`git worktree move` renames it, two clones can share a worktree name), so pooling adds no segment there. `checks/` gains a `<tree>` segment because `runtime/commands/verify.ts` has nowhere else to put two trees' logs that does not collide.
 
 ## Pruning a pooled store
 

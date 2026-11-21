@@ -19,7 +19,7 @@ const activity = (over: Readonly<Record<string, unknown>>) =>
   activityConfigSchema.parse({
     name: 'spike',
     purpose: 'Answer one throwaway question',
-    prompt_engineering: { system: 's.md', user: 'u.md' },
+    prompts: { system: 's.md', user: 'u.md' },
     ...over,
   })
 

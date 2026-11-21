@@ -1,4 +1,4 @@
-import { errorMessage, settleAsync } from '@typedefs/settlement'
+import { errorMessage, settleAsync } from '@typedefs'
 import { useEffect, useRef, useState } from 'react'
 
 export type TPoll<TValue> = Readonly<{

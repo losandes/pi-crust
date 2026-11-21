@@ -37,15 +37,15 @@ The report distinguishes `stamped`, `skipped (exists)` and `left to the reposito
 | `config/crust.observe.yaml`              | the trace db, the UI's ports, every theme it offers          | yes               |
 | `config/high-contrast.css`               | a worked theme, registered in `crust.observe.yaml`           | yes               |
 | `config/crust.config.local.example.yaml` | what a personal override may say                             | yes               |
-| `prompt-engineering/README.md`           | how to add or override a prompt                              | yes               |
-| `prompt-engineering/example/`            | the shape of a prompt                                        | no — illustrative |
+| `prompts/README.md`                      | how to add or override a prompt                              | yes               |
+| `prompts/example/`                       | the shape of a prompt                                        | no — illustrative |
 | `data/`                                  | this developer's runs, and where pi-crust is on this machine | no — never shared |
 | `.env.pi-crust.example`                  | the variables a roster may need, at the repository root      | yes               |
 | `justfile`                               | gains a `crust` recipe; created if the repository has none   | yes               |
 
 **No code is stamped.** The runtime — modules, the Activity runner, the Planners, the shipped prompts, the pi extensions, the recipes — lives in the pi-crust package. That is what makes an update safe: it can replace every file it owns without touching a file you wrote, because none of them are the same file.
 
-An install also **removes** paths an earlier version stamped into `.pi-crust/`: `modules/`, `stages/`, `lifecycles/`, `harness-engineering/`, `crust.just` and the root scripts. Those are dead copies no code reads. The list is explicit, so a file you created is never a deletion candidate.
+An install also **removes** paths an earlier version stamped into `.pi-crust/`: the old module, stage, lifecycle and extension directories, `crust.just` and the root scripts. Those are dead copies no code reads. The list is explicit, so a file you created is never a deletion candidate.
 
 ## Extending it
 
@@ -58,7 +58,7 @@ Nothing here needs a `.gitignore` edit. Every directory that receives your work 
 | Reorder the menu                  | Reorder the file; nothing else records a sequence                                                    |
 | Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner           |
 | Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                                  |
-| Override a prompt                 | Write `.pi-crust/prompt-engineering/<activity>/system.md`. It wins; nothing else changes             |
+| Override a prompt                 | Write `.pi-crust/prompts/<activity>/system.md`. It wins; nothing else changes                        |
 | Add a theme                       | Register it in `config/crust.observe.yaml` and put the `.css` beside it, as `high-contrast.css` does |
 | Move the trace UI's ports         | `ports:` in `config/crust.observe.yaml`; `CRUST_BE_PORT` / `CRUST_FE_PORT` win, for one shell        |
 | Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                                    |
@@ -79,7 +79,7 @@ Three capabilities are not configurable and cannot be removed: **Triage** recomm
    # crust runtime
    .pi-crust/data/
    .pi-crust/config/*.local.yaml
-   .pi-crust/prompt-engineering/example/
+   .pi-crust/prompts/example/
    ```
 
    Everything else in `.pi-crust/` is yours and belongs in the repository.
@@ -89,7 +89,7 @@ Three capabilities are not configurable and cannot be removed: **Triage** recomm
 
 ```bash
 just crust demo                                                    # both, end to end
-bun <pi-crust>/runtime/lifecycles/compose.ts "reply with a one-line summary of this repo" --activities scout   # the raw form
+bun <pi-crust>/runtime/commands/run.ts "reply with a one-line summary of this repo" --activities scout   # the raw form
 ```
 
 Green means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `.pi-crust/data/crust.db`. Verify the trace exists before trusting anything larger:

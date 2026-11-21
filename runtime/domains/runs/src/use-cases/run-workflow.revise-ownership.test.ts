@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { safeParseSettlement } from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TEnvelopeBase } from '../../../../lib/contracts'
 import {
   buildOutputSchema,
@@ -162,7 +162,7 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
     purpose: `Exercise ${entry.name} against the preceding work`,
     attempts: 3,
     writes: [],
-    prompt_engineering: { system, user },
+    prompts: { system, user },
   }))
   const config = join(dir, 'crust.config.yaml')
   writeFileSync(

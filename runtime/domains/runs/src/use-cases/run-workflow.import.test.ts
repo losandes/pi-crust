@@ -87,7 +87,7 @@ const fixture = () => {
           model: 'test/model',
           tools: [],
           writes: [],
-          prompt_engineering: { system, user },
+          prompts: { system, user },
         },
       ],
       activities: [
@@ -100,7 +100,7 @@ const fixture = () => {
           model: 'test/model',
           tools: [],
           writes: [],
-          prompt_engineering: { system, user },
+          prompts: { system, user },
         },
       ],
     }),

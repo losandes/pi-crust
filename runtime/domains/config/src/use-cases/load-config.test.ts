@@ -15,22 +15,20 @@ defaults:
   model: google/gemini-3.6-flash
   thinking: medium
   tools: [read, bash]
-  harness_engineering: [.pi-crust/harness-engineering/subagents.ts]
   data_dir: .pi-crust/data
 agents:
   - name: planner
     thinking: high
     writes: [specs/]
-    prompt_engineering:
-      system: .pi-crust/prompt-engineering/plan/system.md
-      user: .pi-crust/prompt-engineering/plan/user.md
+    prompts:
+      system: .pi-crust/prompts/plan/system.md
+      user: .pi-crust/prompts/plan/user.md
   - name: scout
     writes: []
     tools: [read]
-    harness_engineering: []
-    prompt_engineering:
-      system: .pi-crust/prompt-engineering/scout/system.md
-      user: .pi-crust/prompt-engineering/scout/user.md
+    prompts:
+      system: .pi-crust/prompts/scout/system.md
+      user: .pi-crust/prompts/scout/user.md
 `
 
 test(
@@ -49,9 +47,6 @@ test(
     // then
     expect(actual.model).toEqual('google/gemini-3.6-flash')
     expect(actual.tools).toEqual(['read', 'bash'])
-    expect(actual.harness_engineering).toEqual([
-      '.pi-crust/harness-engineering/subagents.ts',
-    ])
   },
 )
 
@@ -71,7 +66,6 @@ test(
     // then
     expect(actual.thinking).toEqual('medium')
     expect(actual.tools).toEqual(['read'])
-    expect(actual.harness_engineering).toEqual([])
   },
 )
 
@@ -141,7 +135,7 @@ test(
     const yaml = `
 agents:
   - name: drifter
-    prompt_engineering:
+    prompts:
       system: s.md
       user: u.md
 `
@@ -281,29 +275,29 @@ activities:
     gates: [artifactsExist]
     purpose: Turn the request into an implementable plan
     writes: ['{handoff}/plan.md']
-    prompt_engineering:
-      system: prompt-engineering/plan/system.md
-      user: prompt-engineering/plan/user.md
+    prompts:
+      system: prompts/plan/system.md
+      user: prompts/plan/user.md
 planners:
   - name: operator
     purpose: Choose the smallest chain that can produce the outcome
     writes: ['{handoff}/plan.md']
-    prompt_engineering:
-      system: prompt-engineering/operator/system.md
-      user: prompt-engineering/operator/user.md
+    prompts:
+      system: prompts/operator/system.md
+      user: prompts/operator/user.md
   - name: triage
     purpose: Choose the chain and hand it back as a command
     writes: ['{handoff}/plan.md']
-    prompt_engineering:
-      system: prompt-engineering/triage/system.md
-      user: prompt-engineering/triage/user.md
+    prompts:
+      system: prompts/triage/system.md
+      user: prompts/triage/user.md
 terminal:
   - name: gh-pull-request
     purpose: Push the run's branch and open or update one GitHub pull request
     writes: []
-    prompt_engineering:
-      system: prompt-engineering/gh-pull-request/system.md
-      user: prompt-engineering/gh-pull-request/user.md
+    prompts:
+      system: prompts/gh-pull-request/system.md
+      user: prompts/gh-pull-request/user.md
 `
 
 test(
@@ -329,9 +323,9 @@ activities:
     attempts: 1
     purpose: Answer one throwaway question without touching the repository
     writes: ['{handoff}/spike.md']
-    prompt_engineering:
-      system: prompt-engineering/spike/system.md
-      user: prompt-engineering/spike/user.md
+    prompts:
+      system: prompts/spike/system.md
+      user: prompts/spike/user.md
 `,
     })
 
@@ -401,9 +395,9 @@ test(
     // then
     expect(actual.terminal.map((one) => one.name)).toEqual(['gh-pull-request'])
     expect(actual.agents.map((one) => one.name)).toContain('gh-pull-request')
-    expect(
-      resolveAgent(actual, 'gh-pull-request').prompt_engineering.system,
-    ).toEqual('prompt-engineering/gh-pull-request/system.md')
+    expect(resolveAgent(actual, 'gh-pull-request').prompts.system).toEqual(
+      'prompts/gh-pull-request/system.md',
+    )
   },
 )
 
@@ -449,7 +443,7 @@ test(
           '  - name: gh-merge-request',
           '    purpose: Open a GitLab merge request, differently',
           '    writes: []',
-          '    prompt_engineering:',
+          '    prompts:',
           '      system: s.md',
           '      user: u.md',
           '  - name: gh-pull-request',
@@ -483,7 +477,7 @@ test(
           '  - name: strategist',
           '    purpose: Choose the chain, differently',
           '    writes: []',
-          '    prompt_engineering:',
+          '    prompts:',
           '      system: s.md',
           '      user: u.md',
           'terminal:',
@@ -542,30 +536,30 @@ test(
         'activities:',
         '  - name: plan',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
         '  - name: build',
         '    model: openai/gpt-5.6-terra',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
         'planners:',
         '  - name: operator',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
         '  - name: triage',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
         'terminal:',
         '  - name: gh-pull-request',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
       ].join('\n'),
@@ -605,7 +599,7 @@ test(
         'agents:',
         '  - name: builder',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
       ].join('\n'),
@@ -656,7 +650,7 @@ test(
         'agents:',
         '  - name: builder',
         '    writes: []',
-        '    prompt_engineering:',
+        '    prompts:',
         '      system: s.md',
         '      user: u.md',
       ].join('\n'),

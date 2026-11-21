@@ -340,12 +340,7 @@ for (const { name, args, refresh } of MODES) {
     () => {
       // given
       withFixture(({ root, config, templates, install }) => {
-        const promptTemplate = join(
-          templates,
-          '..',
-          'prompt-engineering',
-          'README.md',
-        )
+        const promptTemplate = join(templates, '..', 'prompts', 'README.md')
         put(promptTemplate, 'template prompt\n')
         install()
         const paths = {
@@ -354,8 +349,8 @@ for (const { name, args, refresh } of MODES) {
           example: join(config, 'nested/roster.example.yaml'),
           newExample: join(config, 'new/agents.example.yaml'),
           nestedExample: join(config, 'new/nested/agents.example.yaml'),
-          prompt: join(root, '.pi-crust', 'prompt-engineering', 'README.md'),
-          newPrompt: join(root, '.pi-crust', 'prompt-engineering', 'new.md'),
+          prompt: join(root, '.pi-crust', 'prompts', 'README.md'),
+          newPrompt: join(root, '.pi-crust', 'prompts', 'new.md'),
         }
         put(paths.setting, 'repository settings\r\n')
         put(paths.example, 'repository example\r\n')
@@ -366,10 +361,7 @@ for (const { name, args, refresh } of MODES) {
           join(templates, 'new/nested/agents.example.yaml'),
           'activities: [nested]\n',
         )
-        put(
-          join(templates, '..', 'prompt-engineering', 'new.md'),
-          'new prompt\n',
-        )
+        put(join(templates, '..', 'prompts', 'new.md'), 'new prompt\n')
 
         // when
         const report = install(...args)

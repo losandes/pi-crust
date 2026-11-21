@@ -117,7 +117,7 @@ test(
     const raw = {
       name: 'gh-pull-request',
       purpose: 'Deliver the change',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     }
     // when
     const omitted = terminalConfigSchema.parse(raw)
@@ -149,7 +149,7 @@ for (const present of [false, true]) {
       const terminal = terminalConfigSchema.parse({
         name: 'gh-pull-request',
         purpose: 'Deliver the change',
-        prompt_engineering: { system: 's.md', user: 'u.md' },
+        prompts: { system: 's.md', user: 'u.md' },
         delivery: { base: 'release', remote: 'up/stream' },
       })
       const cfg = crustConfigSchema.parse({

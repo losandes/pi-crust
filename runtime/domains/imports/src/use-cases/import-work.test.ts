@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { fail, succeed } from '../../../../../lib/typedefs/src/settlement'
+import { fail, succeed } from '../../../../../lib/typedefs'
 import { comment, issue, memory, params, section } from '../import-fixture.test'
 import type { TImportPorts } from '../typedefs/work-source'
 import { importWork } from './import-work'

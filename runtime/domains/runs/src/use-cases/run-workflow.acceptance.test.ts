@@ -2,7 +2,12 @@ import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { main as decide } from '../../../../decide'
+import { parseDecideArgs } from '../../../cli'
+import { decideRun } from '../../../runs'
+
+const decide = (argv: readonly string[]) =>
+  Promise.resolve(argv).then(parseDecideArgs).then(decideRun)
+
 import { EXIT, pullRequestOutput, type TStage } from '../../../../lib/contracts'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { terminalOutput } from '../../../../testing/terminal-capture'
@@ -42,7 +47,7 @@ const acceptanceFixture = (
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver work',
-    prompt_engineering: { system, user },
+    prompts: { system, user },
     writes: [],
   }
   const config = join(dir, 'acceptance.config.yaml')

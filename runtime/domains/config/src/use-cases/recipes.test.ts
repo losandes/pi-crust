@@ -56,7 +56,7 @@ const shippedLifecycles = (): readonly string[] =>
 /** Recipe names, which are the lines that start in column one and end in `:`. */
 const recipeNames = (): readonly string[] =>
   readFileSync(
-    join(import.meta.dir, '..', '..', '..', '..', 'crust.just'),
+    join(import.meta.dir, '..', '..', '..', '..', 'commands', 'crust.just'),
     'utf8',
   )
     .split('\n')
@@ -114,7 +114,7 @@ test(
     // given — `demo` is the one recipe that names a chain, and it is a fixed
     // first-run script rather than a route to an Activity
     const given = readFileSync(
-      join(import.meta.dir, '..', '..', '..', '..', 'crust.just'),
+      join(import.meta.dir, '..', '..', '..', '..', 'commands', 'crust.just'),
       'utf8',
     )
 

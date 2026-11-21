@@ -99,4 +99,4 @@ pids
 
 # crust runtime
 .pi-crust/config/*.local.yaml
-.pi-crust/prompt-engineering/example/
+.pi-crust/prompts/example/

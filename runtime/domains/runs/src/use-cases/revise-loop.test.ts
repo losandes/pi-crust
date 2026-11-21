@@ -26,32 +26,32 @@ const cfg = crustConfigSchema.parse({
     {
       name: 'plan',
       output: 'planOutput',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
     {
       name: 'build',
       output: 'buildOutput',
       purpose: 'Implement the plan and report every changed file',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
     {
       name: 'test',
       output: 'buildOutput',
       purpose: 'Write the tests that would prove the request was implemented',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
     {
       name: 'review',
       output: 'reviewOutput',
       purpose: 'Confirm that what was built is what was asked for',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
     {
       name: 'code-review',
       output: 'reviewOutput',
       purpose:
         'Judge the change against the conventions this repository ratified',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
     /*
      * A reviewer this package has never heard of, which is the whole point:
@@ -62,13 +62,13 @@ const cfg = crustConfigSchema.parse({
       name: 'ux-review',
       output: 'reviewOutput',
       purpose: 'Rule on whether the interface does what the spec described',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
     {
       name: 'document',
       output: 'buildOutput',
       purpose: 'Write up the change for the people who did not run it',
-      prompt_engineering: { system: 's.md', user: 'u.md' },
+      prompts: { system: 's.md', user: 'u.md' },
     },
   ],
 })

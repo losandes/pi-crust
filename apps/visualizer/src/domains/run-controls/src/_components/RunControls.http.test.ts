@@ -117,8 +117,10 @@ test.skipIf(!browserTestsEnabled)(
     )
     const receipt = join(root, 'children.jsonl')
     const recorder = `import { appendFileSync } from 'node:fs'; appendFileSync(${JSON.stringify(receipt)}, JSON.stringify(process.argv.slice(1)) + '\\n')`
-    for (const name of ['cli', 'resume', 'consult', 'steer'])
-      writeFileSync(join(runtime, `${name}.ts`), recorder)
+    writeFileSync(join(runtime, 'cli.ts'), recorder)
+    mkdirSync(join(runtime, 'commands'))
+    for (const name of ['resume', 'ask', 'amend', 'steer'])
+      writeFileSync(join(runtime, 'commands', `${name}.ts`), recorder)
     const tracer = createTracer(db, join(root, 'events.jsonl'))
     const runs = ['running', 'waiting', 'failed', 'finished'] as const
     for (const runId of runs) {
@@ -136,7 +138,7 @@ test.skipIf(!browserTestsEnabled)(
       writeFileSync(
         join(directory, 'invocation.json'),
         JSON.stringify({
-          argv: ['bun', join(runtime, 'resume.ts')],
+          argv: ['bun', join(runtime, 'commands', 'resume.ts')],
           cwd: root,
         }),
       )

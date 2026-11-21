@@ -58,7 +58,6 @@ export const resolveConfig = (document: unknown): TPiCrustConfig => {
         ),
       )
       return {
-        harness_engineering: defaults.harness_engineering ?? [],
         ...inherited,
         ...entry,
       }
@@ -337,7 +336,6 @@ const DEFAULTS_LEAF_KEYS = [
   'model',
   'thinking',
   'color',
-  'harness_engineering',
   'tools',
   'protected_files',
   'protected.read',

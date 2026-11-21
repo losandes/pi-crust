@@ -251,12 +251,11 @@ const structuralFindings = (
 
   /*
    * Section rules apply to the prompts the harness ships and to a repository's
-   * own overrides, not to `templates/stamp/prompt-engineering/`, which holds a
+   * own overrides, not to `templates/stamp/prompts/`, which holds a
    * scaffold with angle-bracket blanks rather than a working prompt.
    */
   const isScaffold =
-    file.includes('/templates/stamp/') ||
-    file.includes('/prompt-engineering/example/')
+    file.includes('/templates/stamp/') || file.includes('/prompts/example/')
   const basename = file.slice(file.lastIndexOf('/') + 1)
   const required = REQUIRED_SECTIONS[basename] ?? []
   const sectionFindings: readonly Finding[] = isScaffold
@@ -290,7 +289,7 @@ const structuralFindings = (
           ]
 
   const sourcePathFindings: readonly Finding[] =
-    isScaffold || !relativePath.startsWith('runtime/prompt-engineering/')
+    isScaffold || !relativePath.startsWith('runtime/prompts/')
       ? []
       : jsonSourcePaths(text).map((token) => ({
           file: relativePath,

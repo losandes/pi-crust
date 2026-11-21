@@ -2,12 +2,17 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import {
+  restoreTerminal,
+  silenceTerminal,
+} from '../../../../testing/terminal-capture'
 import { parseCli } from './parse-cli'
 import {
   INVOCATION_FILENAME,
   recordedInvocation,
   resumeArgv,
   resumeRecordedRun,
+  sessionDirOf,
 } from './resume-run'
 
 const sessionWith = (record: unknown): string => {
@@ -27,7 +32,7 @@ test(
     // it silently removes the gate the developer asked for
     const argv = [
       'bun',
-      '/pkg/runtime/lifecycles/compose.ts',
+      '/pkg/runtime/commands/run.ts',
       'specs/stats.md',
       '--approve-after',
       'plan',
@@ -38,7 +43,7 @@ test(
 
     // then
     expect(actual).toEqual([
-      '/pkg/runtime/lifecycles/compose.ts',
+      '/pkg/runtime/commands/run.ts',
       'specs/stats.md',
       '--approve-after',
       'plan',
@@ -87,7 +92,7 @@ test(
     // given — the second gate of a chain picked up once already
     const argv = [
       'bun',
-      '/pkg/runtime/lifecycles/compose.ts',
+      '/pkg/runtime/commands/run.ts',
       'spec.md',
       '--run-id',
       '9afffac5',
@@ -99,7 +104,7 @@ test(
 
     // then — two commands that do the same thing should look the same
     expect(actual).toEqual([
-      '/pkg/runtime/lifecycles/compose.ts',
+      '/pkg/runtime/commands/run.ts',
       'spec.md',
       '--run-id',
       '9afffac5',
@@ -166,7 +171,7 @@ test(
     const dir = sessionWith({
       argv: [
         'bun',
-        '/pkg/runtime/stages/triage.ts',
+        '/pkg/runtime/commands/triage.ts',
         'name the directories. change nothing.',
       ],
       cwd: '/app',
@@ -264,5 +269,27 @@ test(
     expect(resumed.finished).toBeUndefined()
     expect(resumed.reason).toContain(INVOCATION_FILENAME)
     rmSync(dir, { recursive: true, force: true })
+  },
+)
+
+test(
+  [
+    'given report::sessionDirOf',
+    'when asked where a run recorded how it was started',
+    'it should resolve under sessions/<run-id>, beside the db',
+  ].join(', '),
+  () => {
+    // given
+    silenceTerminal()
+    try {
+      // given
+      // when
+      const actual = sessionDirOf('/data/crust.db', 'fbf49583')
+
+      // then
+      expect(actual).toEqual(join('/data', 'sessions', 'fbf49583'))
+    } finally {
+      restoreTerminal()
+    }
   },
 )

@@ -30,7 +30,7 @@ import { runActivities, runUnits } from './run-activities'
 const fixtureWith = (activities: readonly Record<string, unknown>[] = []) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-envelope-succession-'))
   const entries = activities.map((entry) => ({
-    prompt_engineering: { system: 's.md', user: 'u.md' },
+    prompts: { system: 's.md', user: 'u.md' },
     writes: [],
     ...entry,
   }))
@@ -405,7 +405,7 @@ const agentEntry = (name: string, output: string) => ({
   name,
   output,
   purpose: `Run ${name} against the upstream work`,
-  prompt_engineering: { system: `${name}/system`, user: `${name}/user` },
+  prompts: { system: `${name}/system`, user: `${name}/user` },
 })
 
 test(

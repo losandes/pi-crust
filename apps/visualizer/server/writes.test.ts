@@ -527,7 +527,7 @@ test(
     expect(spy.calls).toHaveLength(1)
     expect(spy.calls[0]?.command).toBe('bun')
     expect(spy.calls[0]?.args).toEqual([
-      join(home, 'runtime', 'steer.ts'),
+      join(home, 'runtime', 'commands', 'steer.ts'),
       'a1b2c3d4',
       'plan',
       '--overwrite',
@@ -575,7 +575,7 @@ test(
     expect(actual.started).toBe(true)
     expect(actual.branch_run_id).toBe('deadbeef')
     expect(spy.calls[0]?.args).toEqual([
-      join(home, 'runtime', 'steer.ts'),
+      join(home, 'runtime', 'commands', 'steer.ts'),
       'a1b2c3d4',
       'plan',
       '--branch',
@@ -592,7 +592,7 @@ test(
   [
     'given server/writes::startConsult',
     'when the runtime is found',
-    "it should spawn consult.ts with the mode, run id, activity and question, in the run's tree (1.3.3)",
+    "it should spawn ask.ts with the run id, activity and question, in the run's tree (1.3.3)",
   ].join(', '),
   () => {
     // given
@@ -615,8 +615,7 @@ test(
     // then
     expect(actual.started).toBe(true)
     expect(spy.calls[0]?.args).toEqual([
-      join(home, 'runtime', 'consult.ts'),
-      'ask',
+      join(home, 'runtime', 'commands', 'ask.ts'),
       'a1b2c3d4',
       'plan',
       'why did this fail?',
@@ -695,7 +694,7 @@ test(
   [
     'given server/writes::startRun',
     'when the runtime is found',
-    'it should spawn compose.ts with the lifecycle, prompt, minted run id and extra args, carrying CRUST_DB (1.3.3)',
+    'it should spawn run.ts with the lifecycle, prompt, minted run id and extra args, carrying CRUST_DB (1.3.3)',
   ].join(', '),
   () => {
     // given
@@ -719,7 +718,7 @@ test(
     expect(actual.run_id).not.toBe('')
     expect(spy.calls[0]?.command).toBe('bun')
     expect(spy.calls[0]?.args).toEqual([
-      join(home, 'runtime', 'lifecycles', 'compose.ts'),
+      join(home, 'runtime', 'commands', 'run.ts'),
       'add a /health endpoint',
       '--lifecycle',
       'sdlc',
@@ -793,7 +792,7 @@ test(
  * whatever was there before — `refuseUnlessAuthorised` reads it directly
  * rather than through an injected parameter, so this is the only seam a
  * test has. Centralised here rather than repeated per test, matching
- * `runtime/decide.test.ts`'s own pattern for borrowing an environment
+ * `runtime/commands/approve.test.ts`'s own pattern for borrowing an environment
  * variable: one assignment, one ignore, one reason.
  */
 const withCrustToken = async (

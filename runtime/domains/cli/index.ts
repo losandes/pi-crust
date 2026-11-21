@@ -16,7 +16,16 @@ export {
   runArgv,
   TRUST_CHOICES,
 } from './src/use-cases/compose-request'
+export {
+  DECIDE_USAGE,
+  isVerb,
+  parseDecideArgs,
+  type TDecideArgs,
+  type TVerb,
+  VERBS,
+} from './src/use-cases/decide-args'
 export { findFollowUpCommand } from './src/use-cases/find-follow-up-command'
+export { topicOf } from './src/use-cases/help-topic'
 export {
   chosenLifecycle,
   chosenPlanner,
@@ -29,14 +38,37 @@ export type { TModelOverride } from './src/use-cases/model-overrides'
 export { parseModelOverrides } from './src/use-cases/model-overrides'
 export type { TCliArgs, TWorkflowArgs } from './src/use-cases/parse-cli'
 export { runCli, workflowArgs } from './src/use-cases/parse-cli'
+export {
+  askWhichRun,
+  NEW_RUN,
+  planNewRun,
+  planResume,
+  type TAskPorts,
+} from './src/use-cases/please-wizard'
 export { RECIPE_DOCS, recipeDoc } from './src/use-cases/recipe-docs'
 export { RUN_RECIPE, recipeArgv, shellLine } from './src/use-cases/recipe-line'
 export { renderHelp } from './src/use-cases/render-help'
+export {
+  parseReportArgs,
+  REPORT_USAGE,
+  resolveDbPath,
+  resolveSessionDir,
+  type TReportArgs,
+  type TScan,
+  VALUE_FLAGS,
+} from './src/use-cases/report-args'
 export { resolvePrompt } from './src/use-cases/resolve-prompt'
 export {
   INVOCATION_FILENAME,
   recordedInvocation,
   resumeArgv,
   resumeRecordedRun,
+  sessionDirOf,
 } from './src/use-cases/resume-run'
 export { displayLabel } from './src/use-cases/run-label'
+export {
+  JOIN_USAGE,
+  LIST_USAGE,
+  PRUNE_USAGE,
+  reportUsageError,
+} from './src/use-cases/usage'

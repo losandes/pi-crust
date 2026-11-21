@@ -18,7 +18,7 @@
  * defect in the run and hiding it would be the one thing worse than showing
  * it.
  */
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 import type { EventRow } from '@/domains/events'
 import type { Envelope, HandoffFile } from '../typedefs/handoff'
 

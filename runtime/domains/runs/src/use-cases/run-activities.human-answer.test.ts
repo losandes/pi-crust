@@ -1,7 +1,12 @@
 import { expect, test } from 'bun:test'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { main as answerRun } from '../../../../decide'
+import { parseDecideArgs } from '../../../cli'
+import { decideRun } from '../../../runs'
+
+const answerRun = (argv: readonly string[]) =>
+  Promise.resolve(argv).then(parseDecideArgs).then(decideRun)
+
 import {
   activityRunParams,
   contextEnvelopeSchema,

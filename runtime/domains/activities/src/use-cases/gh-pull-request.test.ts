@@ -38,7 +38,7 @@ const config = (
     name: 'gh-pull-request',
     purpose: 'Push the run and open or update a pull request',
     writes: [],
-    prompt_engineering: { system: 's.md', user: 'u.md' },
+    prompts: { system: 's.md', user: 'u.md' },
     delivery: { remote: 'origin', base: 'main', draft: false },
     ...overrides,
   })
@@ -752,14 +752,14 @@ test(
     // given
     const base = aRun()
     const terminal = config({
-      prompt_engineering: {
+      prompts: {
         system: join(
           import.meta.dir,
-          '../../../../prompt-engineering/gh-pull-request/system.md',
+          '../../../../prompts/gh-pull-request/system.md',
         ),
         user: join(
           import.meta.dir,
-          '../../../../prompt-engineering/gh-pull-request/user.md',
+          '../../../../prompts/gh-pull-request/user.md',
         ),
       },
     })

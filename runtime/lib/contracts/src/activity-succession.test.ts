@@ -49,7 +49,7 @@ for (const given of cases) {
       // given
       const config = activityConfigSchema.parse({
         ...given,
-        prompt_engineering: PROMPTS,
+        prompts: PROMPTS,
       })
 
       // when
@@ -72,7 +72,7 @@ test(
     // given
     const given = {
       name: 'custom',
-      prompt_engineering: PROMPTS,
+      prompts: PROMPTS,
       succession: 'sometimes',
     }
 
@@ -95,7 +95,7 @@ for (const schema of [plannerConfigSchema, terminalConfigSchema]) {
       // given
       const given = {
         name: 'engine-entry',
-        prompt_engineering: PROMPTS,
+        prompts: PROMPTS,
         succession: 'annotates',
       }
 

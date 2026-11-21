@@ -14,7 +14,7 @@ import {
 const activity = (name: string, over: Record<string, unknown> = {}) =>
   activityConfigSchema.parse({
     name,
-    prompt_engineering: { system: 's.md', user: 'u.md' },
+    prompts: { system: 's.md', user: 'u.md' },
     ...over,
   })
 

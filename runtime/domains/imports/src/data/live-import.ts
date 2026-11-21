@@ -8,7 +8,7 @@ import {
   safeParseSettlement,
   succeed,
   type TSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+} from '../../../../../lib/typedefs'
 import { fileExists, nowIso, writeText } from '../../../../lib/system'
 import { headAt, matchesHead } from '../../../workspace'
 import type {

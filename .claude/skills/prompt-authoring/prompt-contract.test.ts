@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 
 const CHECKER = join(import.meta.dir, 'scripts', 'prompt-contract.ts')
 const SHELL_CHECKER = join(import.meta.dir, 'scripts', 'check-prompt.sh')
-const SHIPPED_PROMPT = 'runtime/prompt-engineering/build/user.md'
+const SHIPPED_PROMPT = 'runtime/prompts/build/user.md'
 
 const withReport = (example: string): string =>
   [
@@ -99,7 +99,7 @@ for (const { name, text, exitCode, rule } of [
     ].join(', '),
     () => {
       // given
-      const relativePath = 'runtime/prompt-engineering/build/revise.md'
+      const relativePath = 'runtime/prompts/build/revise.md'
 
       // when
       const actual = checkPrompt(text, { relativePath })
@@ -376,9 +376,9 @@ for (const scope of ['all', 'given'] as const) {
 }
 
 for (const relativePath of [
-  'templates/stamp/prompt-engineering/example/system.md',
-  'templates/stamp/prompt-engineering/example/user.md',
-  '.pi-crust/prompt-engineering/build/user.md',
+  'templates/stamp/prompts/example/system.md',
+  'templates/stamp/prompts/example/user.md',
+  '.pi-crust/prompts/build/user.md',
 ]) {
   test(
     [

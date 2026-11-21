@@ -1,9 +1,5 @@
 import { isAbsolute, relative, resolve } from 'node:path'
-import {
-  fail,
-  succeed,
-  type TSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import { fail, succeed, type TSettlement } from '../../../../../lib/typedefs'
 import type {
   TActivityConfig,
   TImportOutput,

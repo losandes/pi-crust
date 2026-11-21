@@ -15,7 +15,7 @@
 #   config/   the registries belong to the repository; the template ships
 #             starting points a team then edits
 #   data/     runtime — sessions and the trace database
-#   prompt-engineering/
+#   prompts/
 #             a team's own prompts. The template stamps only a README and an
 #             example, and anything else there was written by the repository.
 #
@@ -49,7 +49,7 @@ if [[ ! -d "$INSTALLED" ]]; then
 fi
 
 skip_find=(-not -path './node_modules/*' -not -path './data/*'
-           -not -path './config/*' -not -path './prompt-engineering/*'
+           -not -path './config/*' -not -path './prompts/*'
            -not -name '*.test.ts' -not -name 'bun.lock')
 
 drift=0

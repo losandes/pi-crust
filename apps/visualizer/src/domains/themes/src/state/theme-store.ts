@@ -10,7 +10,7 @@
  * distinctly from "I picked dark and my system happens to agree".
  */
 
-import { safeParseSettlement, settledOr } from '@typedefs/settlement'
+import { safeParseSettlement, settledOr } from '@typedefs'
 
 /**
  * The themes that ship. A repository may register others, and may remove

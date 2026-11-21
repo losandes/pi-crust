@@ -16,7 +16,7 @@
  * plainly is. An open fence is a code block, flagged so the view can say so.
  */
 
-import { safeParseSettlement } from '@typedefs/settlement'
+import { safeParseSettlement } from '@typedefs'
 
 export type TSegment = Readonly<{
   kind: 'prose' | 'code'

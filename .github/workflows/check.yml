@@ -55,6 +55,6 @@ jobs:
 
       # No CRUST_STRICT here, deliberately: no pi is installed on the runner,
       # so typecheck:harness reports that it did not check
-      # harness-engineering/ and the build carries that gap knowingly.
+      # extensions/ and the build carries that gap knowingly.
       - name: Check the code
         run: mise run check

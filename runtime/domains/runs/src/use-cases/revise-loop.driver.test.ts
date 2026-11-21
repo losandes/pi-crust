@@ -145,7 +145,7 @@ test(
       {
         name: 'build',
         output: 'buildOutput',
-        prompt_engineering: PROMPT_ENGINEERING,
+        prompts: PROMPT_ENGINEERING,
       },
     ])
     const run = aRun(cfg)
@@ -181,7 +181,7 @@ test(
       {
         name: 'review',
         output: 'reviewOutput',
-        prompt_engineering: PROMPT_ENGINEERING,
+        prompts: PROMPT_ENGINEERING,
       },
     ])
     const run = aRun(cfg)
@@ -215,13 +215,13 @@ test(
       {
         name: 'build',
         output: 'buildOutput',
-        prompt_engineering: PROMPT_ENGINEERING,
+        prompts: PROMPT_ENGINEERING,
         attempts: 1,
       },
       {
         name: 'review',
         output: 'reviewOutput',
-        prompt_engineering: PROMPT_ENGINEERING,
+        prompts: PROMPT_ENGINEERING,
       },
     ])
     const run = aRun(cfg)
@@ -286,13 +286,13 @@ test(
         name: 'build',
         output: 'buildOutput',
         purpose: 'Implement the plan',
-        prompt_engineering: PROMPT_ENGINEERING,
+        prompts: PROMPT_ENGINEERING,
       },
       {
         name: 'review',
         output: 'reviewOutput',
         purpose: 'Confirm the work',
-        prompt_engineering: PROMPT_ENGINEERING,
+        prompts: PROMPT_ENGINEERING,
       },
     ])
     /*

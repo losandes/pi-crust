@@ -9,10 +9,7 @@
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import {
-  safeParseSettlement,
-  settledOr,
-} from '../../../../../lib/typedefs/src/settlement'
+import { safeParseSettlement, settledOr } from '../../../../../lib/typedefs'
 import {
   monotonicMs,
   nowIso,

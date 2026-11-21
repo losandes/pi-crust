@@ -21,10 +21,7 @@
  */
 
 import { resolve } from 'node:path'
-import {
-  errorMessage,
-  safeParseSettlement,
-} from '../../../../../lib/typedefs/src/settlement'
+import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TEnvelopeBase,
   TRun,
