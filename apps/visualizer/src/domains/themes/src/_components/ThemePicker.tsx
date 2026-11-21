@@ -1,4 +1,4 @@
-import { Monitor, Moon, MoonStar,Palette, Sun } from 'lucide-react'
+import { Contrast, Monitor, Moon, MoonStar, Palette, Sun } from 'lucide-react'
 import type { ComponentType, KeyboardEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { cx } from '@/lib/cx'
@@ -19,6 +19,7 @@ const ICONS: Readonly<Record<string, ComponentType<{ size?: number }>>> = {
   light: Sun,
   dark: Moon,
   dracula: MoonStar,
+  'high-contrast': Contrast,
 }
 
 /**
@@ -165,7 +166,7 @@ export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
           id={listId}
           role="listbox"
           aria-label="Theme"
-          className="absolute top-full right-0 z-20 m-0 mt-1.5 max-h-80 min-w-44 list-none overflow-y-auto rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2 p-1 shadow-(--shadow-panel)"
+          className="absolute top-full right-0 z-20 m-0 mt-1.5 max-h-80 min-w-50 list-none overflow-y-auto rounded-lg border-[length:var(--border-width)] border-border-soft bg-panel-2 p-1 shadow-(--shadow-panel)"
           onKeyDown={onListKeyDown}
         >
           {registered.map((option, index) => {
