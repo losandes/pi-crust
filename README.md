@@ -1,6 +1,6 @@
 # pi-crust
 
-Run a structured SDLC of autonomous, specialist AI agents in your repo. Watch it run, ask it questions, and steer it in mid-flight in the terminal or with the included web app. Connect from anywhere on your network. Revisit past sessions, branch new ones, or dive into how it produced it's outcomes with SQLite traces, archived sessions files, and web design that pulls what's important to the foreground.
+Run a structured SDLC of observable, autonomous, optionally-unattended, specialist AI agents in your repo. Watch it run, ask it questions, and steer it in mid-flight in the terminal or with the included web app. Connect from anywhere on your network. Revisit past sessions, branch new ones, or dive into how it produced it's outcomes with SQLite traces, archived sessions files, and web design that pulls what's important to the foreground.
 
 ## Why
 
@@ -8,11 +8,11 @@ Four problems, and none of them is "write better code than a developer working w
 
 **An agent follows a process differently every time.** You agree on plan, build, test, review — and then it is followed approximately. An Activity gets skipped because the change looked small; a suite is reported passing from a run three edits ago. Nothing stops it, because the process lives in prose that a model interprets.
 
-**A claim and a fact are indistinguishable in prose.** "All 97 files are correct" reads the same whether anything was checked. This is the failure that costs the most and shows the least.
+**A claim and a fact are indistinguishable in prose.** "All 97 files are correct" reads the same whether anything was checked. Failures like these increase costs when we ship bugs to production.
 
 **Authority asserted in a prompt is not authority.** "You are a reviewer; do not change code" is a sentence a model may ignore, and nobody finds out until it has.
 
-**Working memory is the most fragile thing in the room.** Everything an agent knows lives in a context window. Compaction eats it, a new session starts blind, and the thread gets rebuilt from `git log`.
+**Working memory is fragile.** Everything an agent knows lives in a context window. Compaction eats it, a new session starts blind, and the thread gets rebuilt from `git log`.
 
 ### What it does not solve
 
