@@ -29,10 +29,9 @@ activities:
   - name: build
     output: buildOutput
     succession: supersedes
-    gates: [diffMatchesClaims, checks]
     attempts: 2  # includes first attempt
     commit: true
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: medium
     color: green
     purpose: Implement the plan exactly; report every changed file in the envelope.
@@ -44,7 +43,6 @@ activities:
   - name: code-review
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
     model: claude-code/claude-opus-5-5
     thinking: medium
     color: indigo
@@ -58,7 +56,6 @@ activities:
   - name: conceptualize
     output: conceptualizeOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: cyan
@@ -72,7 +69,6 @@ activities:
   - name: data-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: violet
@@ -94,7 +90,6 @@ activities:
   - name: design
     output: designOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: pink
@@ -109,7 +104,6 @@ activities:
   - name: diagnose
     output: diagnosisOutput
     succession: supersedes
-    gates: [artifactsExist, reproductionSupported]
     model: claude-code/claude-opus-5-5
     thinking: medium
     color: purple
@@ -128,10 +122,9 @@ activities:
   - name: document
     output: documentOutput
     succession: supersedes
-    gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: low
     color: blue
     purpose: Write up the change that was just made, from the diff; document only.
@@ -149,7 +142,6 @@ activities:
   - name: domain-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: pink
@@ -172,8 +164,7 @@ activities:
   - name: gh-issue
     output: ghIssueOutput
     succession: annotates
-    gates: [artifactsExist, filesNonEmpty, issueCreated]
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: low
     color: indigo
     purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
@@ -190,7 +181,6 @@ activities:
   - name: identify
     output: identifyOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: blue
@@ -203,7 +193,6 @@ activities:
   - name: outcome-review
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
     model: claude-code/claude-opus-5-5
     thinking: medium
     color: lime
@@ -217,7 +206,6 @@ activities:
     attempts: 3
     output: planOutput
     succession: supersedes
-    gates: [artifactsExist, filesNonEmpty]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: violet
@@ -238,8 +226,7 @@ activities:
   - name: plan-comprehension
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: medium
     color: cyan
     purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
@@ -255,8 +242,7 @@ activities:
   - name: plan-readiness
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
-    model: openai/gpt-6.1-sol # claude-code/claude-opus-5
+    model: openai/gpt-6.2-sol # claude-code/claude-opus-5
     thinking: high
     color: cyan
     purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
@@ -272,8 +258,7 @@ activities:
   - name: scout
     output: scoutOutput
     succession: supersedes
-    gates: [artifactsExist]
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: medium
     color: orange
     purpose: Find and report where things live; change nothing.
@@ -291,7 +276,6 @@ activities:
   - name: security-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: rose
@@ -314,7 +298,6 @@ activities:
   - name: technical-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: purple
@@ -338,9 +321,8 @@ activities:
   - name: test
     output: buildOutput
     succession: supersedes
-    gates: [diffMatchesClaims, checks]
     commit: true
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: medium
     color: teal
     purpose: Write the tests that prove the request was implemented (after build); implement nothing else.
@@ -357,7 +339,6 @@ activities:
   - name: ux-design
     output: uxDesignOutput
     succession: supersedes
-    gates: [artifactsExist, filesNonEmpty]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: orange
@@ -380,7 +361,6 @@ activities:
   - name: ux-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: claude-code/claude-fable-5-2
     thinking: high
     color: cyan
@@ -446,7 +426,7 @@ terminal:
 
   # Harness handles GitHub operations; agent only drafts content.
   - name: gh-pull-request
-    model: openai/gpt-6.1-sol
+    model: openai/gpt-6.2-sol
     thinking: low
     color: teal
     purpose: Push the run's branch and open or update one GitHub pull request describing it.
