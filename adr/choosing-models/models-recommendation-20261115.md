@@ -2,7 +2,9 @@
 
 ## Status
 
-proposed
+superseded
+
+Replaced by [models-recommendation-20261122.md](models-recommendation-20261122.md), which moves every GPT-6.1 Sol binding to GPT-6.2 Sol at the same thinking level.
 
 ## What this supersedes, and why
 
