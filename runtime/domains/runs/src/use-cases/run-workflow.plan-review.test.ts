@@ -89,7 +89,16 @@ const fixtureWith = (
       if (name === 'build')
         builtFrom = JSON.parse(JSON.parse(request.prompt).previous_envelope)
       return Promise.resolve({
-        text: JSON.stringify(response(name, attempt)),
+        text: JSON.stringify(
+          name === 'test'
+            ? (() => {
+                const report = response(name, attempt)
+                const path = join(dir, 'work.test.ts')
+                writeFileSync(path, 'test fixture\n')
+                return { ...report, changed_files: [path] }
+              })()
+            : response(name, attempt),
+        ),
         returncode: 0,
         sessionId: 'fixture',
         tokens: 0,

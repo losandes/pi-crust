@@ -169,6 +169,7 @@ const aRun = (root: string, work: string, cfg = cfgWith()): TRun => {
       agentFinished: () => undefined,
       retry: () => undefined,
       envelopeSummary: () => undefined,
+      gateResult: () => undefined,
     },
     tracer: {
       event: () => 'evt',
@@ -176,6 +177,7 @@ const aRun = (root: string, work: string, cfg = cfgWith()): TRun => {
       processEnd: () => undefined,
       agentSessionRow: () => undefined,
       envelopeRow: () => undefined,
+      gateRow: () => undefined,
       eventsNamed: () => [],
       sessionAddUsage: () => undefined,
     },

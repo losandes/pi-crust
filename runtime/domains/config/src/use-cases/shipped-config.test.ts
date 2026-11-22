@@ -1,5 +1,13 @@
 import { expect, test } from 'bun:test'
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  cpSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TPiCrustConfig } from '../../../../lib/contracts'
@@ -13,6 +21,7 @@ import { isFile } from '../../../../lib/system'
 import { registryFaults } from '../../../activities'
 import { resolvePromptPath, revisePromptReference } from '../../../agents'
 import { loadLifecycles } from '../../../planning'
+import { loadConfigWithNotes } from './load-config'
 
 /*
  * The templates a team is actually given, not a fixture shaped like them.
@@ -23,6 +32,58 @@ import { loadLifecycles } from '../../../planning'
  * `concurrent` the suite says so rather than the run doing.
  */
 const STAMP = join(import.meta.dir, '../../../../../templates/stamp/config')
+
+for (const directory of ['templates/stamp/config', 'cookbooks/examples']) {
+  test(
+    [
+      `given every file shipped under ${directory}`,
+      'when inspecting its settings and comments',
+      'it should carry no removed settings or configurable gate names',
+    ].join(', '),
+    () => {
+      // given
+      const root = join(import.meta.dir, '../../../../..', directory)
+      const paths = readdirSync(root, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => join(entry.parentPath, entry.name))
+      // when
+      const offending = paths.filter((path) =>
+        /\b(?:skills|gates|operation|area):|artifactsExist|filesNonEmpty|jsonParses|diffMatchesClaims|reproductionSupported|verdictConsistent|issueCreated/.test(
+          readFileSync(path, 'utf8'),
+        ),
+      )
+      // then
+      expect(offending).toEqual([])
+    },
+  )
+}
+
+test(
+  [
+    'given a fresh copy of the shipped configuration',
+    'when loading it without a machine layer',
+    'it should load with no removed settings',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-clean-stamp-'))
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    cpSync(STAMP, dir, { recursive: true })
+    // biome-ignore lint/plugin/no-object-mutation: process.env is the external configuration API; isolate the machine layer for this test
+    process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine.yaml')
+    try {
+      // when
+      const actual = loadConfigWithNotes(join(dir, 'crust.config.yaml'))
+      // then
+      expect(actual.config.activities.length).toBeGreaterThan(0)
+    } finally {
+      if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
+      // biome-ignore lint/plugin/no-object-mutation: restore the external configuration API after this test
+      else process.env.CRUST_MACHINE_CONFIG = previous
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
 /** Examples live in cookbooks/ (issue #24, 1.10.1) — documentation, not a stamp. */
 const EXAMPLES = join(import.meta.dir, '../../../../../cookbooks/examples')
 
@@ -392,11 +453,6 @@ test(
       'reviewOutput',
       'reviewOutput',
     ])
-    expect(comprehension?.gates).toEqual([
-      'artifactsExist',
-      'verdictConsistent',
-    ])
-    expect(readiness?.gates).toEqual(['artifactsExist', 'verdictConsistent'])
     expect(cfg.activities.find((one) => one.name === 'plan')?.attempts).toBe(3)
     expect(cfg.activities.some((one) => one.name === 'plan-review')).toBe(false)
   },

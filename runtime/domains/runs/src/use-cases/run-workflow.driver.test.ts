@@ -1876,7 +1876,6 @@ test(
       {
         name: 'open-issue',
         output: 'ghIssueOutput',
-        gates: ['issueCreated'],
         attempts: 1,
         commit: false,
       },

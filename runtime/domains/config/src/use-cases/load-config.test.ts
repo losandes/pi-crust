@@ -1,14 +1,89 @@
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { runnableActivities } from '../../../activities'
 import {
   configProvenance,
   loadConfig,
+  loadConfigWithNotes,
   parseConfig,
   resolveAgent,
 } from './load-config'
+
+for (const scenario of [
+  {
+    name: 'shared registry gates',
+    files: {
+      'crust.activities.yaml': 'activities: [{name: build, gates: []}]',
+    },
+    expected: ['crust.activities.yaml: activities[build].gates'],
+  },
+  {
+    name: 'routing skills',
+    files: { 'crust.config.yaml': 'routing: {skills: []}' },
+    expected: ['crust.config.yaml: routing.skills'],
+  },
+  {
+    name: 'local registry gates',
+    files: {
+      'crust.activities.local.yaml': 'activities: [{name: spike, gates: []}]',
+    },
+    expected: ['crust.activities.local.yaml: activities[spike].gates'],
+  },
+  {
+    name: 'machine override',
+    files: { 'machine.yaml': 'override: {agents: [{name: build, gates: []}]}' },
+    expected: ['machine.yaml (override:): agents[build].gates'],
+  },
+  {
+    name: 'faults across files',
+    files: {
+      'crust.config.yaml': 'routing: {skills: []}',
+      'crust.config.local.yaml':
+        'routing: {checks: [{name: lint, area: backend}]}',
+    },
+    expected: [
+      'crust.config.yaml: routing.skills',
+      'crust.config.local.yaml: routing.checks[lint].area',
+    ],
+  },
+]) {
+  test(
+    [
+      `given removed settings in ${scenario.name}`,
+      'when loading configuration layers',
+      'it should refuse before resolution and name every occurrence and file',
+    ].join(', '),
+    () => {
+      // given
+      const dir = mkdtempSync(join(tmpdir(), 'crust-removed-layers-'))
+      const previous = process.env.CRUST_MACHINE_CONFIG
+      writeFileSync(join(dir, 'crust.config.yaml'), 'agents: []')
+      for (const [name, text] of Object.entries(scenario.files)) {
+        writeFileSync(join(dir, name), text)
+      }
+      // biome-ignore lint/plugin/no-object-mutation: process.env is the external configuration API; isolate the machine layer for this test
+      process.env.CRUST_MACHINE_CONFIG = join(dir, 'machine.yaml')
+      try {
+        // when
+        const actual = () => loadConfigWithNotes(join(dir, 'crust.config.yaml'))
+        // then
+        expect(actual).toThrow(
+          'this configuration still carries settings pi-crust has removed:',
+        )
+        for (const location of scenario.expected)
+          expect(actual).toThrow(location)
+        expect(actual).toThrow('delete this key.')
+      } finally {
+        if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
+        // biome-ignore lint/plugin/no-object-mutation: restore the external configuration API after this test
+        else process.env.CRUST_MACHINE_CONFIG = previous
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 const ROSTER = `
 defaults:
@@ -185,9 +260,10 @@ test(
       'no-machine-config.yaml',
     )
 
-    // when / then
+    // when
     try {
       const actual = loadConfig(path)
+      // then
       expect(actual.observability.db).toEqual('.pi-crust/data/other.db')
       expect(actual.observability.poll_ms).toBe(100)
       expect(actual.observability.ports).toEqual({
@@ -249,9 +325,10 @@ test(
       'no-machine-config.yaml',
     )
 
-    // when / then
+    // when
     try {
       const actual = loadConfig(path)
+      // then
       expect(actual.observability.db).toEqual('.pi-crust/data/crust.db')
       expect(actual.observability.ports).toEqual({
         backend: 4600,
@@ -272,7 +349,6 @@ const ACTIVITIES = `
 activities:
   - name: plan
     output: planOutput
-    gates: [artifactsExist]
     purpose: Turn the request into an implementable plan
     writes: ['{handoff}/plan.md']
     prompts:
@@ -307,8 +383,9 @@ test(
     'it should be registered, resolvable and runnable without editing this package',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — this is the whole point of the registry being configuration.
+     * This is the whole point of the registry being configuration.
      * Before it, a team could add an agent and never reach it: nothing bound
      * a activity to it.
      */
@@ -319,7 +396,6 @@ test(
 activities:
   - name: spike
     output: researchOutput
-    gates: [artifactsExist]
     attempts: 1
     purpose: Answer one throwaway question without touching the repository
     writes: ['{handoff}/spike.md']
@@ -343,6 +419,8 @@ activities:
     expect(actual[1]?.attempts).toEqual(1)
     expect(actual[1]?.gates.map((gate) => gate.name)).toEqual([
       'artifacts_exist',
+      'files_non_empty',
+      'json_parses',
     ])
   },
 )
@@ -619,7 +697,7 @@ test(
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_MACHINE_CONFIG = machinePath
 
-    // when / then — the repository's own value beats the ordinary layer
+    // when, then — the repository's own value beats the ordinary layer
     try {
       const ordinaryBeaten = loadConfig(configPath)
       expect(ordinaryBeaten.defaults.data_dir).toEqual('machine-override-dir')
@@ -664,9 +742,10 @@ test(
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_MACHINE_CONFIG = machinePath
 
-    // when / then
+    // when
     try {
       const actual = loadConfig(configPath)
+      // then
       expect(actual.defaults.data_dir).toEqual('machine-ordinary-dir')
     } finally {
       if (previous === undefined) {
@@ -721,10 +800,11 @@ test(
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_MACHINE_CONFIG = join(dir, 'no-machine-config.yaml')
 
-    // when / then
+    // when
     try {
       const actual = configProvenance(configPath)
       const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
+      // then
       expect(dataDir?.value).toEqual('repo-stated-dir')
       expect(dataDir?.source).toEqual(`${configPath} (repository, committed)`)
     } finally {
@@ -763,10 +843,11 @@ test(
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_MACHINE_CONFIG = machinePath
 
-    // when / then
+    // when
     try {
       const actual = configProvenance(configPath)
       const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
+      // then
       expect(dataDir?.value).toEqual('machine-override-dir')
       expect(dataDir?.source).toEqual(`${machinePath} (machine, override:)`)
     } finally {

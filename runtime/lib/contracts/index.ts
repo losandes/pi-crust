@@ -53,7 +53,6 @@ export type {
   TPathPolicyVerb,
   TPiCrustConfig,
   TRoutingCheck,
-  TRoutingSkill,
 } from './src/config'
 export {
   agentConfigSchema,

@@ -96,7 +96,6 @@ const fixture = () => {
           name: 'build',
           purpose: 'Build the requested work',
           output: 'genericOutput',
-          gates: [],
           model: 'test/model',
           tools: [],
           writes: [],

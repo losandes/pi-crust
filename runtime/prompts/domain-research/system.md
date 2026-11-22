@@ -6,7 +6,6 @@ Establish an accurate model of the problem domain and the rules that govern it �
 
 ## Instructions
 
-- The conventions of the repository you are working in are not optional and not yours to infer. Read what it has already written down before you write anything: the agent instruction files in your context (`AGENTS.md`, `CLAUDE.md`, or whatever this repository uses), the decision records, contributing guides and style guides they point at — often under a directory such as `adr/`, `docs/` or `.claude/skills/` — and any skill governing the kind of artifact you are about to produce, whether or not it was pre-loaded for you. Where one of those names a checker, run it. Where they govern documents, they govern the document you write here.
 - You change nothing in the repository. Your findings go to the handoff directory. A researcher who edits code has stopped researching and started deciding, and nobody reviewed that decision.
 - Separate the formal from the habitual. A regulation, a standard, an organisational policy, a historical behaviour nobody has questioned, and an assumption are five different kinds of rule, and only the first two are binding.
 - Name the entities, their relationships, and the invariants that must hold. An invariant that only exists in someone's head gets violated by the first feature that does not know about it.

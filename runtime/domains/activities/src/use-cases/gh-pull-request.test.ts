@@ -6,6 +6,7 @@ import type {
   TActivityContext,
   TActivityOptions,
   TActivityRunHandle,
+  TGateReport,
   TRun,
   TTerminalConfig,
 } from '../../../../lib/contracts'
@@ -17,7 +18,9 @@ import {
   terminalConfigSchema,
 } from '../../../../lib/contracts'
 import { ensureDir, readText, writeText } from '../../../../lib/system'
-import { emptyUsage, render } from '../../../agents'
+import { runWithTracer } from '../../../../testing/fake-activity'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
+import { emptyUsage, render, type TPiRequest } from '../../../agents'
 import { createTracer } from '../../../trace'
 import type { TAgentPorts } from './execute-agent'
 import type {
@@ -106,10 +109,10 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
     resume: new Set<string>(),
     cfg: {
       observability: { db: join(contextHandoffDir, 'no-such.db') },
-      routing: { skills: [], checks: [], unmatched: 'warn' },
+      routing: { checks: [], unmatched: 'warn' },
     },
-    console: { note: () => undefined },
-    tracer: { event: () => undefined },
+    console: { note: () => undefined, gateResult: () => undefined },
+    tracer: { event: () => undefined, gateRow: () => undefined },
     ...overrides,
   } as unknown as TRun
 }
@@ -158,6 +161,217 @@ const resumedEnvelope = (
   writeText(
     join(dir, 'envelope.json'),
     JSON.stringify({ ...CONTEXT_ENVELOPE_DEFAULTS, ...body }),
+  )
+}
+
+for (const mode of [
+  'empty',
+  'missing-corrected',
+  'missing-twice',
+  'empty-file',
+  'bad-json',
+  'resume',
+  'exists',
+  'created-on-correction',
+]) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given a terminal report with ${mode} artifacts`,
+      'when delivering through the real agent boundary',
+      'it should record artifact judgments, correct once and deliver the latest verdict',
+    ].join(', '),
+    async () => {
+      // given
+      const dir = mkdtempSync(join(tmpdir(), 'crust-terminal-artifacts-'))
+      const terminal = config()
+      const created = runWithTracer(
+        dir,
+        crustConfigSchema.parse({
+          defaults: { data_dir: join(dir, 'data'), protected_files: [] },
+          observability: { db: join(dir, 'crust.db') },
+          agents: [terminal],
+          terminal: [terminal],
+        }),
+      )
+      let requests: readonly TPiRequest[] = []
+      let rows: readonly Readonly<{ name: string; report: TGateReport }>[] = []
+      let notes: readonly string[] = []
+      let delivered = ''
+      const run: TRun = {
+        ...created,
+        repoRoot: dir,
+        vcsRoot: dir,
+        sessionDir: join(dir, 'session'),
+        contextHandoffDir: join(dir, 'handoff'),
+        resume: new Set(mode === 'resume' ? ['gh-pull-request'] : []),
+        console: {
+          ...created.console,
+          note: (note) => {
+            notes = [...notes, note]
+          },
+          gateResult: () => undefined,
+          agentStarted: () => undefined,
+          agentFinished: () => undefined,
+          envelopeSummary: () => undefined,
+        },
+        tracer: {
+          ...created.tracer,
+          gateRow: (activityRun, name, report) => {
+            rows = [...rows, { name, report }]
+            return created.tracer.gateRow(activityRun, name, report)
+          },
+        },
+      }
+      run.tracer.sessionStart(run.runId, 'tester', 'compose')
+      const handle: TActivityRunHandle = {
+        activityRun: {
+          activity_run_id: 'terminal-artifact-run',
+          run_id: run.runId,
+          seq: 1,
+          params: activityRunParams({
+            name: terminal.name,
+            owner: terminal.name,
+            kind: 'agent',
+            description: 'Compose the terminal pull request from accepted work',
+          }),
+          status: 'running',
+          error: undefined,
+          started_at: undefined,
+          ended_at: undefined,
+        },
+        log: () => undefined,
+      }
+      run.tracer.activityRunUpsert(handle.activityRun)
+      const artifact = join(
+        dir,
+        mode === 'bad-json' ? 'artifact.json' : 'artifact.md',
+      )
+      if (mode === 'empty-file') writeText(artifact, '')
+      if (mode === 'bad-json') writeText(artifact, '{broken')
+      if (mode === 'exists') writeText(artifact, 'evidence\n')
+      const report = (artifacts: readonly string[]) => ({
+        ...CONTEXT_ENVELOPE_DEFAULTS,
+        status: 'success',
+        title: 'Implement the change',
+        body: 'The requested change.',
+        artifacts,
+      })
+      if (mode === 'resume') resumedEnvelope(run, report([artifact]))
+      const agentPorts: TAgentPorts = {
+        run: (request) => {
+          requests = [...requests, request]
+          if (mode === 'created-on-correction' && requests.length === 2)
+            writeText(artifact, 'corrected\n')
+          const artifacts =
+            mode === 'empty' ||
+            mode === 'resume' ||
+            (mode === 'missing-corrected' && requests.length === 2)
+              ? []
+              : [artifact]
+          return Promise.resolve({
+            text: JSON.stringify(report(artifacts)),
+            returncode: 0,
+            sessionId: request.sessionId,
+            tokens: 0,
+            cost: 0,
+            usage: emptyUsage,
+            contextTokens: 0,
+            contextWindow: 0,
+          })
+        },
+        changed: () => [],
+        untracked: () => [],
+        render: (path) => path,
+        savePrompt: (directory, name) => join(directory, name),
+        snapshot: () => ({}),
+        rev: () => '',
+        head: () => '',
+        history: () => () => [],
+        content: () => ({ status: 'ok', data: {} }),
+      }
+      const { ports } = fakePorts(
+        {},
+        {
+          create: (params) => {
+            delivered = readText(params.bodyPath)
+            return 'https://example.com/owner/repo/pull/1'
+          },
+        },
+      )
+      try {
+        // when
+        const actual = await ghPullRequestActivity(
+          terminal,
+          OPTIONS,
+          ports,
+          agentPorts,
+        ).deliver(aCtx(run), handle)
+        // then
+        const failsTwice = ['missing-twice', 'empty-file', 'bad-json'].includes(
+          mode,
+        )
+        const corrected = [
+          'missing-corrected',
+          'missing-twice',
+          'empty-file',
+          'bad-json',
+          'created-on-correction',
+        ].includes(mode)
+        expect(requests).toHaveLength(corrected ? 2 : 1)
+        expect(rows.map((row) => row.name)).toEqual(
+          Array.from({ length: corrected || mode === 'resume' ? 2 : 1 }, () => [
+            'artifacts_exist',
+            'files_non_empty',
+            'json_parses',
+          ]).flat(),
+        )
+        expect(actual.action).toBe('created')
+        expect(actual.fallback).toBe(failsTwice)
+        if (mode === 'empty')
+          expect(rows.every((row) => row.report.checks.length === 0)).toBe(true)
+        if (corrected || mode === 'resume') {
+          expect(requests.at(-1)?.prompt).toContain(artifact)
+          expect(requests.at(-1)?.prompt).toContain(
+            mode === 'empty-file'
+              ? 'empty'
+              : mode === 'bad-json'
+                ? 'JSON'
+                : 'declared artifact does not exist',
+          )
+        }
+        if (corrected)
+          expect(requests[0]?.sessionId).toBe(requests[1]?.sessionId)
+        if (mode === 'missing-corrected' || mode === 'missing-twice') {
+          expect(rows[0]?.report.checks).toContainEqual(
+            expect.objectContaining({ item: artifact, ok: false }),
+          )
+          expect(delivered).toContain(
+            `- [ ] ${artifact} — declared artifact does not exist (artifacts_exist gate, `,
+          )
+        }
+        if (mode === 'exists' || mode === 'created-on-correction') {
+          expect(delivered).toContain(`- [x] ${artifact} — exists`)
+          expect(delivered).toContain('(artifacts_exist gate, ')
+          expect(delivered).not.toContain(
+            `- [ ] ${artifact} — declared artifact does not exist (artifacts_exist gate, `,
+          )
+        }
+        if (failsTwice) expect(notes.join('\n')).toContain(artifact)
+        if (mode === 'empty-file')
+          expect(
+            rows.find((row) => row.name === 'files_non_empty')?.report.checks[0]
+              ?.ok,
+          ).toBe(false)
+        if (mode === 'bad-json')
+          expect(
+            rows.find((row) => row.name === 'json_parses')?.report.checks[0]
+              ?.ok,
+          ).toBe(false)
+      } finally {
+        run.tracer.close()
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
   )
 }
 

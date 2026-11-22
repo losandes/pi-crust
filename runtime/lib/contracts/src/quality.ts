@@ -1,21 +1,8 @@
 /** Deterministic quality blocks: one command, one captured result. */
 
-export const QUALITY_AREAS = ['frontend', 'backend'] as const
-export const QUALITY_OPERATIONS = [
-  'lint',
-  'typecheck',
-  'build',
-  'test',
-] as const
-
-export type TQualityArea = (typeof QUALITY_AREAS)[number]
-export type TQualityOperation = (typeof QUALITY_OPERATIONS)[number]
-
 /** One deterministic quality command. */
 export type TQualityCheckSpec = Readonly<{
   name: string
-  area: TQualityArea
-  operation: TQualityOperation
   argv: readonly string[]
   timeoutSeconds: number
   /** relative to the repo root; empty runs at the root */
@@ -25,8 +12,6 @@ export type TQualityCheckSpec = Readonly<{
 /** Captured evidence from one quality command. */
 export type TQualityCheckResult = Readonly<{
   name: string
-  area: TQualityArea
-  operation: TQualityOperation
   command: string
   returncode: number
   passed: boolean

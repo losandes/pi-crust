@@ -192,6 +192,7 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
       eventsNamed: () => [],
       activityRunsFor: () => [],
       activityRunUpsert: () => undefined,
+      gateRow: () => undefined,
       envelopeRow: () => undefined,
       agentSessionRow: () => undefined,
     },

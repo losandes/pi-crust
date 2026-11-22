@@ -51,7 +51,6 @@ import {
   claimedPaths,
   enforcePermissions,
   handoffDocument,
-  matchingSkills,
   observedPayload,
   PATHS_TOUCHED,
   refusalLine,
@@ -404,17 +403,10 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   })
 
   // Judges receive the run's change or the named scope; absent a run change,
-  // use the uncommitted working tree. This one list also selects skills.
+  // use the uncommitted working tree.
   const changedPaths =
     call.changedPaths ??
     [...ports.changed(), ...ports.untracked()].toSorted().filter(Boolean)
-  const skills = matchingSkills(
-    run.cfg,
-    agent.name,
-    changedPaths,
-    activityRun.params.name,
-  )
-
   const variables = {
     prompt: call.prompt,
     previous_envelope: call.previous
@@ -453,18 +445,6 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       repoRoot: run.repoRoot,
       handoffDir: run.contextHandoffDir,
     }),
-    // Named, never hardcoded: a prompt says "load every skill listed here",
-    // and the config decides what that list contains.
-    //
-    // An empty list means nothing was PRIMED, never that the agent has no
-    // conventions: pi discovers this repository's skills either way, because
-    // `-ns` is never passed. Rendering a bare `(none)` here once convinced a
-    // code reviewer it had no conventions to apply, and it declined to rule.
-    skills:
-      skills.length > 0
-        ? skills.join('\n')
-        : '(none pre-loaded — every skill in this repository is still ' +
-          'discoverable, and you are expected to reach for the ones that apply)',
     changed_files: changedPaths.length > 0 ? changedPaths.join('\n') : '(none)',
     // What the call is ABOUT, which is not always what is in the working tree:
     // a committed range is absent from it, and the agent has to be told to go
@@ -542,7 +522,6 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
       session_id: sessionId,
       coding_agent: agent.coding_agent,
       purpose: agent.purpose,
-      skills,
       changed_paths: changedPaths.length,
       change_base: call.changeBase ?? '',
       tools: agent.tools ?? null, // null = all tools
@@ -619,7 +598,6 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
          * the extensions ship with the package rather than with the stamp.
          */
         extensions: [PATH_POLICY_EXTENSION],
-        skills,
         cwd: run.repoRoot,
         env: policy.env,
       },

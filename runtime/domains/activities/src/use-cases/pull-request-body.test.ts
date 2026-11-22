@@ -148,7 +148,8 @@ test(
     'it should repeat the closing keyword per issue',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = issueLine([54, 55])
 
     // then
@@ -183,7 +184,8 @@ test(
     'it should return an empty string',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = issueLine([])
 
     // then
@@ -198,7 +200,8 @@ test(
     'it should append it',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = titleWithIssues('Ship the feature', [54])
 
     // then
@@ -232,7 +235,8 @@ test(
     'it should add no suffix',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = titleWithIssues('Ship the feature', [1, 2, 3, 4])
 
     // then
@@ -247,7 +251,8 @@ test(
     'it should not add a second suffix',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = titleWithIssues('Ship the feature (#54)', [54])
 
     // then
@@ -612,6 +617,47 @@ test(
     expect(actual).toContain(
       '- [ ] diff_matches_claims — claimed files do not match the diff',
     )
+  },
+)
+
+test(
+  [
+    'given a failed check followed by a passing check in one Activity Run',
+    'when rendering the delivered checks',
+    'it should retain only the later passing verdict at equal sequence',
+  ].join(', '),
+  () => {
+    // given
+    const state = aState({
+      activityRuns: [
+        activityRun({
+          gates: [
+            {
+              gate: 'artifacts_exist',
+              activityRun: 'build',
+              passed: false,
+              violations: ['missing'],
+              checks: [{ item: 'artifact.md', ok: false, note: 'missing' }],
+            },
+            {
+              gate: 'artifacts_exist',
+              activityRun: 'build',
+              passed: true,
+              violations: [],
+              checks: [{ item: 'artifact.md', ok: true, note: 'exists' }],
+            },
+          ],
+        }),
+      ],
+    })
+    // when
+    const actual = checksSection(aFacts({ state }))
+    // then
+    expect(actual).toContain(
+      '- [x] artifact.md — exists (artifacts_exist gate, build)',
+    )
+    expect(actual).not.toContain('- [ ] artifact.md')
+    expect(actual.match(/artifact\.md/g)).toHaveLength(1)
   },
 )
 

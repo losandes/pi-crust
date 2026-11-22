@@ -14,7 +14,6 @@ import {
   promptsSchema,
   terminalConfigSchema,
 } from './activity'
-import { QUALITY_AREAS, QUALITY_OPERATIONS } from './quality'
 
 export type { TCodingAgent, TPrompts } from './activity'
 export {
@@ -186,34 +185,18 @@ export type TObservabilityConfig = Readonly<
   z.infer<typeof observabilityConfigSchema>
 >
 
-// ── routing: what agents LOAD and what the `checks` gate RUNS ──────────────
-// Both are selected by the paths a change actually touched. crust is stamped
-// into other repositories, so neither a skill path nor a checker command may
-// appear in a prompt or a module — a repo that has no such skill simply
-// declares none here, and the activity still runs.
+// ── routing: what the `checks` gate RUNS ──────────────────────────────────
+// Commands are selected by the paths a change actually touched. A stamped
+// repository declares its own checkers rather than naming them in a module.
 //
 // `when` globs use the same matcher as `writes` (use-cases/enforce-permissions):
 // `*` does NOT cross `/`, `**` does. `**/*.ts` is therefore required to reach a
 // nested file; `*.ts` matches only the repository root. An empty `when` always
 // matches.
 
-export const routingSkillSchema = z.object({
-  name: z.string(),
-  /** path to a skill file or directory, passed to the coding agent verbatim */
-  path: z.string(),
-  /** agents that receive it; empty = every agent */
-  agents: z.array(z.string()).default([]),
-  when: z.array(z.string()).default([]),
-  /** Activity names that receive it; empty = every Activity. `build_2` matches `build`. */
-  activity_runs: z.array(z.string()).default([]),
-})
-export type TRoutingSkill = Readonly<z.infer<typeof routingSkillSchema>>
-
 export const routingCheckSchema = z.object({
   name: z.string(),
   when: z.array(z.string()).default([]),
-  operation: z.enum(QUALITY_OPERATIONS).default('lint'),
-  area: z.enum(QUALITY_AREAS).default('backend'),
   /** argv LIST, never a shell string. Binaries by bare name. */
   argv: z.array(z.string()).min(1),
   // Where to run it, relative to the git root. Empty means the git root
@@ -239,7 +222,6 @@ export type TRoutingUnmatchedPolicy =
   (typeof ROUTING_UNMATCHED_POLICIES)[number]
 
 export const routingConfigSchema = z.object({
-  skills: z.array(routingSkillSchema).default([]),
   checks: z.array(routingCheckSchema).default([]),
   unmatched: z.enum(ROUTING_UNMATCHED_POLICIES).default('warn'),
 })

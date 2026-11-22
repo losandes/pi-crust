@@ -14,14 +14,6 @@ export type TPiRequest = Readonly<{
   rawOutputPath: string
   tools: readonly string[] | undefined
   extensions: readonly string[]
-  /**
-   * Skill files or directories the agent must load (pi `--skill`).
-   *
-   * Resolved per call from `routing.skills` in the config, by the paths the
-   * change actually touched. Nothing in this tree names a skill; a stamped
-   * repository declares its own, or none.
-   */
-  skills: readonly string[]
   /** set from run.repoRoot — the codebase root agents work in */
   cwd: string
   /**

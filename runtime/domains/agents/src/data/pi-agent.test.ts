@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -21,8 +21,6 @@ import {
   toolLabel,
 } from './pi-agent'
 
-const originalPiModelsPath = process.env.PI_MODELS_PATH
-
 /**
  * `process.env` is the external API `contextWindow` reads, and pointing it at
  * a fixture is the only way to exercise the registry path without a real
@@ -37,10 +35,6 @@ const setPiModelsPath = (value: string | undefined): void => {
   // biome-ignore lint/plugin/no-object-mutation: process.env is the external API contextWindow reads, and this function is the adapter that owns the assignment
   process.env.PI_MODELS_PATH = value
 }
-
-afterEach(() => {
-  setPiModelsPath(originalPiModelsPath)
-})
 
 const assistantTurn = (
   usage: Readonly<Record<string, unknown>>,
@@ -309,7 +303,6 @@ const piRequest = (overrides: Partial<TPiRequest> = {}): TPiRequest => ({
   rawOutputPath: '/tmp/raw.jsonl',
   tools: undefined,
   extensions: [],
-  skills: [],
   cwd: '/repo',
   ...overrides,
 })
@@ -317,27 +310,7 @@ const piRequest = (overrides: Partial<TPiRequest> = {}): TPiRequest => ({
 test(
   [
     'given data/pi-agent::buildArgv',
-    'when routing resolved skills for this call',
-    'it should pass each one with its own --skill flag',
-  ].join(', '),
-  () => {
-    // given
-    const request = piRequest({ skills: ['skills/code-review', 'skills/fp'] })
-
-    // when
-    const actual = buildArgv(request, { provider: 'p', modelId: 'm' }, 'pi')
-
-    // then
-    expect(actual).toContain('--skill')
-    expect(actual.join(' ')).toContain('--skill skills/code-review')
-    expect(actual.join(' ')).toContain('--skill skills/fp')
-  },
-)
-
-test(
-  [
-    'given data/pi-agent::buildArgv',
-    'when the change matched no skill rule',
+    'when an agent request is built',
     'it should pass no --skill flag at all',
   ].join(', '),
   () => {
@@ -452,14 +425,18 @@ test(
         },
       }),
     )
+    const originalPiModelsPath = process.env.PI_MODELS_PATH
     setPiModelsPath(path)
+    try {
+      // when
+      const actual = contextWindow('anthropic', 'opus')
 
-    // when
-    const actual = contextWindow('anthropic', 'opus')
-
-    // then
-    expect(actual).toEqual(200_000)
-    rmSync(dir, { recursive: true, force: true })
+      // then
+      expect(actual).toEqual(200_000)
+    } finally {
+      setPiModelsPath(originalPiModelsPath)
+      rmSync(dir, { recursive: true, force: true })
+    }
   },
 )
 
@@ -470,7 +447,8 @@ test(
     'it should return an empty string rather than throw',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = textOf({ role: 'assistant' })
 
     // then
@@ -485,7 +463,9 @@ test(
     'it should read the text out of every shape pi sends',
   ].join(', '),
   () => {
-    // given, when, then
+    // given
+    // when
+    // then
     expect(deltaText('plain')).toEqual('plain')
     expect(deltaText(undefined)).toEqual('')
     expect(deltaText(null)).toEqual('')
@@ -503,7 +483,9 @@ test(
     'it should parse the object, and skip everything else without throwing',
   ].join(', '),
   () => {
-    // given, when, then
+    // given
+    // when
+    // then
     expect(parseJsonLine('{"type":"agent_settled"}')).toEqual({
       type: 'agent_settled',
     })
@@ -677,7 +659,8 @@ test(
     'it should read each row, expanding K and M into whole numbers',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = catalogRows(LISTING)
 
     // then
@@ -726,7 +709,8 @@ test(
     'it should return that pair without searching',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = resolveModel('anthropic/claude-haiku-4-5', ROWS)
 
     // then
@@ -744,7 +728,8 @@ test(
     'it should resolve it to that row’s provider',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = resolveModel('gpt-5.6-terra', ROWS)
 
     // then
@@ -759,7 +744,8 @@ test(
     'it should resolve it, because one candidate is not ambiguous',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = resolveModel('gemini', ROWS)
 
     // then
@@ -777,7 +763,9 @@ test(
     'it should fall through to matching and report it as not found',
   ].join(', '),
   () => {
-    // given, when, then
+    // given
+    // when
+    // then
     expect(() => resolveModel('anthropic/claude-opus-9', ROWS)).toThrow(
       /not found in pi --list-models/,
     )

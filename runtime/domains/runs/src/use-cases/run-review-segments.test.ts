@@ -1,5 +1,11 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -80,6 +86,8 @@ const fixtureWith = (
   response: (name: string, attempt: number) => TEnvelopeBase,
 ) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-review-segments-'))
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'src/work.ts'), 'export const built = true\n')
   const entries = [
     { name: 'plan', output: 'planOutput', attempts: 3 },
     { name: 'plan-comprehension', output: 'reviewOutput' },

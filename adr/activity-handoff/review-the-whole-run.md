@@ -10,7 +10,7 @@ accepted
 
 ## Decision
 
-A judging Activity is identified by its declared review output, never by its name. Give every judge the run's net repository change on every execution, including re-reviews. A writer's report does not select that scope. The same file list selects primed skills and the recorded changed-path count.
+A judging Activity is identified by its declared review output, never by its name. Give every judge the run's net repository change on every execution, including re-reviews. A writer's report does not select that scope. The same file list gives the recorded changed-path count.
 
 Record the run's start commit and content digests under its first request Activity Run. Keep the first valid start state: a later invocation joining the run must not replace it, and resume and branching retain it through the trace. Compare current content against that original commit and compare the resulting digests with the recorded digests using the existing path comparison. Include additions, deletions and changed values, whether committed or uncommitted. Exclude the session and handoff directories on whole path segments and sort the remaining paths.
 

@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TRun } from '../../../../lib/contracts'
 import { crustConfigSchema } from '../../../../lib/contracts'
+import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { runCommand, runVerification } from './run-checks'
 
 /** `runVerification` reads only the config in the two no-command cases. */
@@ -59,9 +60,7 @@ test(
   () => {
     // given a rule that cannot reach a nested file
     const run = runWith({
-      checks: [
-        { name: 'lint', when: ['*.ts'], operation: 'lint', argv: ['true'] },
-      ],
+      checks: [{ name: 'lint', when: ['*.ts'], argv: ['true'] }],
     })
 
     // when
@@ -81,9 +80,7 @@ test(
   () => {
     // given
     const run = runWith({
-      checks: [
-        { name: 'lint', when: ['*.ts'], operation: 'lint', argv: ['true'] },
-      ],
+      checks: [{ name: 'lint', when: ['*.ts'], argv: ['true'] }],
     })
 
     // when — the path never reaches a declared rule
@@ -131,9 +128,7 @@ test(
     // different claims, but neither is evidence of a failure under the
     // default policy
     const run = runWith({
-      checks: [
-        { name: 'lint', when: ['**/*.md'], operation: 'lint', argv: ['true'] },
-      ],
+      checks: [{ name: 'lint', when: ['**/*.md'], argv: ['true'] }],
     })
 
     // when
@@ -157,7 +152,6 @@ test(
         {
           name: 'tests',
           when: ['**/*.ts'],
-          operation: 'test',
           argv: ['sh', '-c', 'echo "1 test failed" && exit 1'],
         },
       ],
@@ -185,7 +179,6 @@ test(
         {
           name: 'typecheck',
           when: ['**/*.ts'],
-          operation: 'typecheck',
           argv: ['true'],
         },
       ],
@@ -210,9 +203,7 @@ test(
     // given — the opt-in setting lives beside the rules it governs (1.3.1)
     const run = runWith({
       unmatched: 'block',
-      checks: [
-        { name: 'lint', when: ['**/*.md'], operation: 'lint', argv: ['true'] },
-      ],
+      checks: [{ name: 'lint', when: ['**/*.md'], argv: ['true'] }],
     })
 
     // when
@@ -241,13 +232,41 @@ test(
         argv: ['true'],
         cwd: '',
         timeoutSeconds: 5,
-        area: 'backend',
-        operation: 'test',
       },
       { repoRoot: dir, outputArtifact: join(dir, 'command.log') },
     )
 
     // then
     expect(actual.passed).toBe(true)
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given a repository command declared without labels',
+    'when its matching command exits non-zero',
+    'it should preserve failure evidence without operation or area',
+  ].join(', '),
+  () => {
+    // given
+    const run = runnableWith({
+      checks: [
+        { name: 'unlabelled', when: ['**/*.ts'], argv: ['sh', '-c', 'exit 7'] },
+      ],
+    })
+    try {
+      // when
+      const actual = runVerification(run, ['src/a.ts'])
+
+      // then
+      expect(actual.passed).toBe(false)
+      expect(actual.failures[0]).toContain('unlabelled:')
+      expect(actual.failures[0]).toContain("sh -c 'exit 7'")
+      expect(actual.failures[0]).toContain('exited 7')
+      expect(actual.checks[0]).not.toHaveProperty('operation')
+      expect(actual.checks[0]).not.toHaveProperty('area')
+    } finally {
+      rmSync(run.repoRoot, { recursive: true, force: true })
+    }
   },
 )

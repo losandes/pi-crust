@@ -70,8 +70,6 @@ The first row is the one most often skipped, and it is the one with the widest r
 
 There is one review skill rather than one per layer, because which records apply is decided by the paths a change touches, which is mechanical. "fp review", "be review" and "fe review" all resolve to `ts-code-review`.
 
-An Activity in a run may be *primed* with a skill: `routing.skills` in `.pi-crust/config/crust.config.yaml` selects skills by agent and by changed path, and the engine passes each one to the coding agent as `--skill <path>`. Priming is a convenience and nothing more. Every skill in `.claude/skills/` stays discoverable whether or not it was pre-loaded, and an agent is expected to reach for the one that governs what it is about to do. A rule that matched nothing is not permission to skip the skill.
-
 Do not report work complete without running the check the relevant skill names. A convention that is only ever read is a convention that is only sometimes followed, which is the failure these skills exist to close.
 
 ## Existing code is not precedent

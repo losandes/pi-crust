@@ -14,7 +14,7 @@ Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed
 
 ## The rule
 
-**One Activity, one prompt, one purpose.** An entry defines both halves of it: who performs it — coding agent, model, thinking level, exactly one system prompt and one user prompt — and what the work is, through `output`, `gates`, `input`, `attempts` and `commit`. They are one thing, because a Lifecycle names `plan` and `plan` IS the entry.
+**One Activity, one prompt, one purpose.** An entry defines both halves of it: who performs it — coding agent, model, thinking level, exactly one system prompt and one user prompt — and what the work is, through `output`, `input`, `attempts` and `commit`. The engine attaches [output checks](../references/config.md#output-checks) from `output`. They are one thing, because a Lifecycle names `plan` and `plan` IS the entry.
 
 ## Schema
 
@@ -40,7 +40,6 @@ activities:
       system: <pi-crust>/runtime/prompts/plan/system.md
       user: <pi-crust>/runtime/prompts/plan/user.md
     output: planOutput             # the envelope contract it answers, by published name
-    gates: [artifactsExist, filesNonEmpty]
 
   - name: scout
     thinking: high                 # unset keys fall through to defaults
@@ -49,7 +48,6 @@ activities:
       system: <pi-crust>/runtime/prompts/scout/system.md
       user: <pi-crust>/runtime/prompts/scout/user.md
     output: scoutOutput
-    gates: [artifactsExist]
     tools:                         # optional allowlist — omit the key entirely for all tools
       - read
       - bash

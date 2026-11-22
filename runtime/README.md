@@ -115,17 +115,19 @@ bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc
 
 ## Where to edit what
 
-| Change                                                                                       | File                                         |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| What an Activity is told                                                                     | `prompts/<activity>/{system.md,user.md}`     |
-| Which model an Activity runs, what it may write                                              | `config/crust.activities.yaml`               |
-| What an Activity answers with, what gates it, how often it may run again, whether it commits | `config/crust.activities.yaml`               |
-| Which commands the `checks` gate runs, and which skills an Activity loads                    | `config/crust.config.yaml`, under `routing:` |
-| A Lifecycle's Stages and Activities                                                          | `config/crust.lifecycles.yaml`               |
+| Change                                                                        | File                                         |
+| ----------------------------------------------------------------------------- | -------------------------------------------- |
+| What an Activity is told                                                      | `prompts/<activity>/{system.md,user.md}`     |
+| Which model an Activity runs, what it may write                               | `config/crust.activities.yaml`               |
+| What an Activity answers with, how often it may run again, whether it commits | `config/crust.activities.yaml`               |
+| Which commands the `checks` gate runs                                         | `config/crust.config.yaml`, under `routing:` |
+| A Lifecycle's Stages and Activities                                           | `config/crust.lifecycles.yaml`               |
 
 **Package defaults live in `runtime/prompts/`; repository overrides live in `.pi-crust/prompts/`.** A relative prompt reference resolves against the repository's `.pi-crust/` first, then this runtime directory. Editing a shipped default affects repositories that have not overridden it.
 
 Authored files and runtime files are kept apart on purpose: everything under `data/` is written by a run and is yours to read, never to edit.
+
+The engine derives [output checks](../references/config.md#output-checks) from each Activity's envelope spec; they are not configuration fields.
 
 ## What is gitignored, and why
 

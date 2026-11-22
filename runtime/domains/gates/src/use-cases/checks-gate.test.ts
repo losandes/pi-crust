@@ -48,8 +48,9 @@ test(
     'it should fail the gate with the command output, which is what the Activity is told',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — `verify` used to be an Activity producing a verdict nothing
+     * `verify` used to be an Activity producing a verdict nothing
      * consumed. What it actually does is decide whether an Activity's work
      * holds, which is what a gate is, and a failing gate feeds its
      * violations back to the Activity it gates.
@@ -59,7 +60,6 @@ test(
         {
           name: 'tests',
           when: ['**/*.ts'],
-          operation: 'test',
           argv: ['sh', '-c', 'echo "1 test failed" && exit 1'],
         },
       ],
@@ -89,7 +89,6 @@ test(
         {
           name: 'typecheck',
           when: ['**/*.ts'],
-          operation: 'typecheck',
           argv: ['true'],
         },
       ],
@@ -113,9 +112,7 @@ test(
   () => {
     // given — a rule that cannot reach a nested file
     const run = runWith({
-      checks: [
-        { name: 'lint', when: ['*.ts'], operation: 'lint', argv: ['true'] },
-      ],
+      checks: [{ name: 'lint', when: ['*.ts'], argv: ['true'] }],
     })
 
     // when
@@ -148,7 +145,6 @@ test(
         {
           name: 'typecheck',
           when: ['**/*.ts'],
-          operation: 'typecheck',
           argv: ['true'],
         },
       ],

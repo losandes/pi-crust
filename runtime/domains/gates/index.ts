@@ -15,10 +15,11 @@ export {
 } from './src/use-cases/dispute-ledger'
 export { REPORT_FILENAME, renderReport } from './src/use-cases/dispute-report'
 export {
-  GATE_CATALOGUE,
-  GATE_NAMES,
-  gateNamed,
-} from './src/use-cases/gate-registry'
+  ARTIFACT_CHECKS,
+  activityChecks,
+  COMMANDS_SKIP,
+  outputChecks,
+} from './src/use-cases/output-checks'
 export { plannedNames, stepsValid } from './src/use-cases/plan-gates'
 export type { TRegressionRecord } from './src/use-cases/regression'
 export { regressionNote, regressionVerdict } from './src/use-cases/regression'

@@ -2,10 +2,6 @@
 
 ## Variables
 
-### skills
-
-{{skills}}
-
 ### previous_envelope
 
 {{previous_envelope}}
@@ -35,9 +31,6 @@ Your task in this round is to answer the blocking findings listed under `## Bloc
 Leave every part of the existing work that no finding names exactly as it is.
 
 Confine your changes, and the verification you run yourself, to what the findings name and what your changes to them affect.
-
-Load every skill path listed in `skills` and follow it. If the list is `(none)`, say so in your summary rather than inventing conventions of your own.
-
 
 You are revising. `previous_envelopes` carries every verdict on this work, and a concurrent review Stage produces more than one. Answer every blocking item in all of them — `previous_envelope` is one reviewer, not the review.
 

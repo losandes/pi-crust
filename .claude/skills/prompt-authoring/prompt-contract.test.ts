@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../runtime/testing/integration'
 
 const CHECKER = join(import.meta.dir, 'scripts', 'prompt-contract.ts')
 const SHELL_CHECKER = join(import.meta.dir, 'scripts', 'check-prompt.sh')
@@ -135,6 +136,83 @@ test(
     expect(actual.stderr).toBe('')
   },
 )
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given a baseline with the removed skills variable',
+    'when removing it from a prompt',
+    'it should not report a dropped supported variable',
+  ].join(', '),
+  () => {
+    // given
+    const current = withReport('```json\n{}\n```')
+    const baseline = current.replace(
+      '## Variables\n',
+      '## Variables\n\n{{skills}}\n',
+    )
+    // when
+    const actual = checkPrompt(current, { baseline })
+    // then
+    expect(actual.exitCode).toBe(0)
+    expect(actual.stdout).not.toContain('[dropped-variable]')
+  },
+)
+
+for (const guidance of [
+  '- The conventions of the repository refer to `AGENTS.md`, `CLAUDE.md`, `adr/`, `docs/` and `.claude/skills/`.',
+  '1. Read the agent instruction files already in your context: `AGENTS.md`, `CLAUDE.md`.',
+  '2. Read the decision records, contributing guides and style guides they point at, often under `adr/`, `docs/` or `.claude/skills/`.',
+  '- Repository conventions matter to the steps you choose. `CLAUDE.md` describes the repository.',
+]) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given obsolete repository-discovery guidance: ${guidance}`,
+      'when removing it from an Activity prompt',
+      'it should not classify its discovery hints as task interfaces',
+    ].join(', '),
+    () => {
+      // given
+      const current = withReport('```json\n{}\n```')
+      const baseline = current.replace('## Task\n', `## Task\n\n${guidance}\n`)
+      // when
+      const actual = checkPrompt(current, { baseline })
+      // then
+      expect(actual.exitCode).toBe(0)
+      expect(actual.stdout).not.toContain('[dropped-literal]')
+    },
+  )
+}
+
+for (const path of [
+  'AGENTS.md',
+  'CLAUDE.md',
+  'adr/',
+  'docs/',
+  '.claude/skills/',
+  'specs/request.md',
+]) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given an explicit task requiring ${path} after repository-discovery guidance`,
+      'when the required task path is removed',
+      'it should still report a dropped literal',
+    ].join(', '),
+    () => {
+      // given
+      const current = withReport('```json\n{}\n```')
+      const baseline = current.replace(
+        '## Task\n',
+        `## Task\n\n- The conventions of the repository refer to \`${path}\`.\n\nRead \`${path}\` to complete this task.\n`,
+      )
+      // when
+      const actual = checkPrompt(current, { baseline })
+      // then
+      expect(actual.exitCode).toBe(1)
+      expect(actual.stdout).toContain('[dropped-literal]')
+      expect(actual.stdout).toContain(`\`${path}\` was removed`)
+    },
+  )
+}
 
 for (const extension of [
   'ts',

@@ -172,7 +172,7 @@ test(
   [
     'given typedefs/activity::activityConfigSchema',
     'when the shipped gh-issue entry is parsed',
-    'it should declare gates: [artifactsExist, filesNonEmpty, issueCreated]',
+    'it should derive artifact and issue checks from its output',
   ].join(', '),
   () => {
     // given
@@ -181,10 +181,17 @@ test(
     )
 
     // when
-    const actual = given?.gates
+    const actual = resolveActivities(
+      given === undefined ? [] : [given],
+    )[0]?.gates.map((gate) => gate.name)
 
     // then
-    expect(actual).toEqual(['artifactsExist', 'filesNonEmpty', 'issueCreated'])
+    expect(actual).toEqual([
+      'artifacts_exist',
+      'files_non_empty',
+      'json_parses',
+      'issue_created',
+    ])
   },
 )
 

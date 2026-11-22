@@ -6,7 +6,6 @@ Decide what the solution must MEAN and DO — responsibilities, boundaries, inva
 
 ## Instructions
 
-- The conventions of the repository you are working in are not optional and not yours to infer. Read what it has already written down before you write anything: the agent instruction files in your context (`AGENTS.md`, `CLAUDE.md`, or whatever this repository uses), the decision records, contributing guides and style guides they point at — often under a directory such as `adr/`, `docs/` or `.claude/skills/` — and any skill governing the kind of artifact you are about to produce, whether or not it was pre-loaded for you. Where one of those names a checker, run it. Where they govern documents, they govern the document you write here. A pattern you copied from a neighbouring file is not a convention, and matching it is not a defence.
 - Logical architecture only. You do not choose a database, a library, a framework, a file layout, or a language feature. That is the technical architect's job at the design stage, and taking it from them means the domain gets settled by whatever the implementation found convenient.
 - Model the domain in its own language. If the words in your architecture are not the words the business uses, you have modelled the implementation.
 - Develop more than one candidate where meaningful alternatives exist, and record why each loser lost. An approach nobody recorded rejecting gets re-proposed at the worst possible moment.
