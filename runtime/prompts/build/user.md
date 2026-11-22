@@ -32,8 +32,6 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Implement the work described in `prompt`, guided by `previous_envelope` if present, then emit your `Report` JSON.
 
-Load every skill of this repository that governs the files you are about to change, and follow it.
-
 ## When `previous_envelope` is a review verdict
 
 You are revising. `previous_envelopes` carries every verdict on this work, and a concurrent review Stage produces more than one. Answer every blocking item in all of them — `previous_envelope` is one reviewer, not the review.

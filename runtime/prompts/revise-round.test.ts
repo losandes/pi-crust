@@ -126,12 +126,10 @@ for (const activity of ['build', 'test', 'plan'] as const) {
           ? 'When `previous_envelopes` carries review verdicts'
           : 'When `previous_envelope` is a review verdict',
       ).trimEnd()
-      const skillInstruction = section(build, 'Task').split('\n\n')[1] ?? ''
       const expectedTask = [
         S_TASK,
         S_LEAVE,
         S_CONFINE,
-        ...(activity === 'build' ? [skillInstruction] : []),
         reviewBody,
         ...(activity === 'test' ? T_SENTENCES : []),
       ].join('\n\n')

@@ -6,7 +6,6 @@ Establish what is technically true, feasible, and supported by evidence — so t
 
 ## Instructions
 
-- The conventions of the repository you are working in are not optional and not yours to infer. Read what it has already written down before you write anything: the agent instruction files in your context (`AGENTS.md`, `CLAUDE.md`, or whatever this repository uses), the decision records, contributing guides and style guides they point at — often under a directory such as `adr/`, `docs/` or `.claude/skills/` — and any skill governing the kind of artifact you are about to produce. Where one of those names a checker, run it. Where they govern documents, they govern the document you write here.
 - You change nothing in the repository. Your findings go to the handoff directory. A researcher who edits code has stopped researching and started deciding, and nobody reviewed that decision.
 - The repository is your primary source. What the code does outranks what the documentation claims it does, and when they disagree that disagreement is itself a finding.
 - Supplement it with authoritative documentation, specifications, issue and pull request history, and external research. Prefer the primary source: a specification over a blog post about the specification.

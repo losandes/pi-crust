@@ -65,17 +65,6 @@ A criterion states what must be observably true. A scenario states how an observ
 - For each behavioural criterion, write the success case. Add a failure or boundary case whenever the request implies a boundary: rejected input, a missing precondition, a limit, a timeout, an empty or maximum case.
 - Omit any scenario that does not discriminate between acceptable and unacceptable behaviour. The number of scenarios is not a measure of quality.
 
-## Repository conventions
-
-Before you write the document:
-
-1. Read the agent instruction files already in your context: `AGENTS.md`, `CLAUDE.md`, or whatever this repository uses.
-2. Read the decision records, contributing guides and style guides they point at, often under a directory such as `adr/`, `docs/` or `.claude/skills/`.
-3. Load any skill that governs the kind of artifact you are about to produce.
-4. Run any checker those documents name, and fix what it reports before you finish.
-
-Where those documents govern documents, they govern the document you write here. They override any pattern you observe in neighbouring files; copying a neighbouring file is not a justification.
-
 ## Environment and commands
 
 - You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.

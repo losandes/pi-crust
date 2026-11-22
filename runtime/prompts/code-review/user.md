@@ -36,12 +36,11 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Judge the change in `changed_files` against this repository's ratified conventions.
 
-1. Load every skill of this repository that governs reviewing a change or the kinds of file in `changed_files`, and follow it, including any records it routes you to for the layers these paths touch.
-2. Read every file in `changed_files` and its diff. That list is the whole scope. `change_base` says where the change is: when it gives a `git diff` command, run that command for each path; when it names a ref or a range, read it with `git diff <change_base>`. In both cases the work may already be committed and absent from the working tree.
-3. If `previous_envelope` carries `disputes`, answer each one before you rule. Check the evidence it cites. Then either withdraw the finding, or restate it with **new** evidence. Repeating a disputed finding with the same evidence ends the loop and sends it to the developer — the harness counts that, not you.
-4. The blocking automated checks have already run — their output is in `previous_envelope`. Read it. Do not re-run them.
-5. Rule on each convention the skill names, with a `file:line` for every finding.
-6. Write the review to `{{output_document}}`, then emit your `Report` JSON.
+1. Read every file in `changed_files` and its diff. That list is the whole scope. `change_base` says where the change is: when it gives a `git diff` command, run that command for each path; when it names a ref or a range, read it with `git diff <change_base>`. In both cases the work may already be committed and absent from the working tree.
+2. If `previous_envelope` carries `disputes`, answer each one before you rule. Check the evidence it cites. Then either withdraw the finding, or restate it with **new** evidence. Repeating a disputed finding with the same evidence ends the loop and sends it to the developer — the harness counts that, not you.
+3. The blocking automated checks have already run — their output is in `previous_envelope`. Read it. Do not re-run them.
+4. Rule on each applicable repository convention, with a `file:line` for every finding.
+5. Write the review to `{{output_document}}`, then emit your `Report` JSON.
 
 ## Report
 

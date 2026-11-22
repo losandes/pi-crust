@@ -32,9 +32,6 @@ Leave every part of the existing work that no finding names exactly as it is.
 
 Confine your changes, and the verification you run yourself, to what the findings name and what your changes to them affect.
 
-Load every skill of this repository that governs the files you are about to change, and follow it.
-
-
 You are revising. `previous_envelopes` carries every verdict on this work, and a concurrent review Stage produces more than one. Answer every blocking item in all of them — `previous_envelope` is one reviewer, not the review.
 
 Every item gets exactly one of two answers, and no item may be left without one.

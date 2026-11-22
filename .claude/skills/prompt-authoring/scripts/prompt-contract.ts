@@ -165,14 +165,22 @@ const literals = (text: string): readonly Token[] =>
       INTERFACE_SHAPED.some((pattern) => pattern.test(token.text)),
     )
     .filter((token) => {
+      const line = text.split('\n')[token.line - 1] ?? ''
+      // Retired discovery boilerplate is not a task interface. Explicit task
+      // references to these same paths must still survive a prompt rewrite.
+      const discoveryHint =
+        ['AGENTS.md', 'CLAUDE.md', 'adr/', 'docs/', '.claude/skills/'].includes(
+          token.text,
+        ) &&
+        /^(?:- The conventions of the repository\b|- Repository conventions matter\b|[12]\. Read the (?:agent instruction files already in your context|decision records, contributing guides and style guides they point at)\b)/.test(
+          line,
+        )
       // This advice illustrates command categories, not commands to execute.
       const examples =
-        text
-          .split('\n')
-          [token.line - 1]?.match(
-            /^- \*\*Make every change provable\.\*\* .*the one command that settles it: (.*), a specific assertion\./,
-          )?.[1] ?? ''
-      return !examples.includes(`\`${token.text}\``)
+        line.match(
+          /^- \*\*Make every change provable\.\*\* .*the one command that settles it: (.*), a specific assertion\./,
+        )?.[1] ?? ''
+      return !(discoveryHint || examples.includes(`\`${token.text}\``))
     })
 
 const unique = (tokens: readonly Token[]): readonly Token[] => {
