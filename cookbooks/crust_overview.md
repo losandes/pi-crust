@@ -37,7 +37,7 @@ runtime/                      the package a stamp points at, never a copy
 │   ├── config/               reading crust.config.yaml and merging its layers
 │   │   └── use-cases/        load-config · merge-config · machine-config
 │   ├── gates/                acceptance — gates, disputes, regressions
-│   │   └── use-cases/        gate-registry · claim-gates · dispute-ledger
+│   │   └── use-cases/        output-checks · claim-gates · dispute-ledger
 │   ├── handoff/              the session directory and inter-activity artifacts
 │   │   ├── data/             handoff-snapshot · handoff-pointer · artifact-lock
 │   │   └── use-cases/        consult · steer · handoff-location
@@ -109,17 +109,16 @@ An **Activity** is a discrete unit of work and the agent that performs it — on
 | ------------------------------------------------- | -------------------------------------------------------------------- |
 | `model`, `thinking`, `tools`, `writes`, `prompts` | who performs it, and what it may reach                               |
 | `output`                                          | the envelope contract it answers, by published name                  |
-| `gates`                                           | what its envelope must survive, by published name                    |
 | `input`                                           | `upstream` (the default), or `changes` for the run's own diff        |
 | `attempts`                                        | Activity Runs of one instance this run may spend, the first included |
 | `commit`                                          | land its own change, in its envelope's words, once its gates pass    |
 
-There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` or a gate nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names.
+There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names. The engine derives [output checks](../references/config.md#output-checks) from each Activity's `output`; a registry entry does not list them.
 
 Three things are NOT Activities, deliberately:
 
 - **The Planners** — `operator`, `triage`, and the Composer. They decide what happens and perform none of it, they are a closed set in code, and a Lifecycle cannot name one. Configuration tunes their model, tools, writes and prompts under `planners:`.
-- **The repository's checks** — a known command is the `checks` gate, declared per Activity. It used to be a `verify` Activity producing a verdict nothing read.
+- **The repository's checks** — a known command runs through the `checks` gate, attached by the engine. It used to be a `verify` Activity producing a verdict nothing read.
 - **Delivery** — an Activity with `commit: true` lands its own change once its gates pass, so granularity follows the chain. `--commit false` turns it off for a whole run; there is no flag that turns it on.
 
 A chain that ENDS in reviewing Activities — any declaring `output: reviewOutput` — gets the bounded revise loop from `use-cases/revise-loop.ts`, which re-asks all of them each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.

@@ -21,6 +21,7 @@ import {
 } from '../../../../lib/system'
 import { applyMachineLayer, readMachineConfig } from './machine-config'
 import { applyLocalOverrides, localConfigPath } from './merge-config'
+import { removedSettingFaults } from './removed-settings'
 
 /** Keys an agent inherits from `defaults` only when it has not stated its own. */
 const INHERITED = [
@@ -266,6 +267,38 @@ const assembleBaseDocument = (path: string): unknown => {
 export const loadConfigWithNotes = (
   path: string = DEFAULT_CONFIG_PATH,
 ): TLoadedConfig => {
+  const machine = readMachineConfig()
+  const localPath = localConfigPath(path)
+  const files = [
+    path,
+    join(dirname(path), 'crust.activities.yaml'),
+    join(dirname(path), 'crust.activities.local.yaml'),
+  ]
+  const faults = removedSettingFaults([
+    ...files.filter(fileExists).map((file) => ({
+      file,
+      document: Bun.YAML.parse(readText(file)),
+    })),
+    ...(machine.path === ''
+      ? []
+      : [
+          { file: machine.path, document: machine.ordinary },
+          { file: `${machine.path} (override:)`, document: machine.override },
+        ]),
+    ...(fileExists(localPath)
+      ? [
+          {
+            file: localPath,
+            document: Bun.YAML.parse(readText(localPath)),
+          },
+        ]
+      : []),
+  ])
+  if (faults.length > 0) {
+    throw new Error(
+      `this configuration still carries settings pi-crust has removed:\n- ${faults.join('\n- ')}`,
+    )
+  }
   const base = assembleBaseDocument(path)
   /*
    * The machine layer (1.2.1–1.2.7) sits between the schema's own defaults
@@ -275,9 +308,7 @@ export const loadConfigWithNotes = (
    * environment variable or flag — which is why it is applied here, before
    * `.local`, rather than after.
    */
-  const machine = readMachineConfig()
   const layered = applyMachineLayer(base, machine)
-  const localPath = localConfigPath(path)
   if (!fileExists(localPath)) {
     return {
       config: resolveConfig(layered.document),

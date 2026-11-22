@@ -22,7 +22,7 @@ import type {
   TPlannerConfig,
 } from '../../../../lib/contracts'
 import { DEFAULT_ATTEMPTS, operatorPlanOutput } from '../../../../lib/contracts'
-import { stepsValid } from '../../../gates'
+import { ARTIFACT_CHECKS, stepsValid } from '../../../gates'
 import { agentActivity } from './agent-activity'
 
 export const plannerActivity = (
@@ -34,14 +34,13 @@ export const plannerActivity = (
       config: {
         ...planner,
         output: operatorPlanOutput.name,
-        gates: ['stepsValid'],
         input: 'upstream',
         attempts: DEFAULT_ATTEMPTS,
         commit: false,
         aliases: [],
       },
       spec: operatorPlanOutput,
-      gates: [stepsValid],
+      gates: [...ARTIFACT_CHECKS, stepsValid],
     },
     options,
   )

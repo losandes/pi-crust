@@ -2,10 +2,10 @@
 # Repository Activity roster. Lifecycles reference these definitions by name.
 # Entries may override the default agent configuration and specify:
 #   output   Required result schema; unknown names are rejected
-#   gates    Explicit validation steps; `checks` runs routing.checks
+# Output checks are not configured: they follow from output (references/config.md).
 #   input    `upstream` (default) or `changes` (this run's diff)
 #   attempts Maximum executions per Activity instance, including first (default: 2)
-#   commit  Commit the Activity's changes after its gates pass; --commit false disables
+#   commit  Commit the Activity's changes after its output checks pass; --commit false disables
 #   aliases Alternate CLI/Lifecycle names; canonical names appear in logs and lists
 #           No prefix matching or Planner aliases
 #
@@ -14,23 +14,12 @@
 # Local overrides: crust.activities.local.yaml (gitignored).
 # Example: <pi-crust>/cookbooks/examples/crust.activities.local.example.yaml
 #
-# Gates:
-#   artifactsExist        required artifacts exist
-#   filesNonEmpty         declared artifacts are nonempty
-#   jsonParses            declared .json artifacts parse
-#   diffMatchesClaims     diff matches reported changes
-#   checks                run repository checks from routing.checks
-#   reproductionSupported diagnosis evidence is internally consistent
-#   verdictConsistent     review verdict follows repository conventions
-#   issueCreated          GitHub issue URL, number, and repository agree
-
 # ── Activities ────────────────────────────────────────────────────────────────
 activities:
 
   - name: build
     output: buildOutput
     succession: supersedes
-    gates: [diffMatchesClaims, checks]
     attempts: 2  # includes first attempt
     commit: true
     model: openai/gpt-6.1-sol
@@ -45,7 +34,6 @@ activities:
   - name: code-review
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
     model: anthropic/claude-opus-5-5
     thinking: xhigh
     color: indigo
@@ -59,7 +47,6 @@ activities:
   - name: conceptualize
     output: conceptualizeOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: xhigh
     color: cyan
@@ -73,7 +60,6 @@ activities:
   - name: data-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: high
     color: violet
@@ -95,7 +81,6 @@ activities:
   - name: design
     output: designOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: xhigh
     color: pink
@@ -110,7 +95,6 @@ activities:
   - name: diagnose
     output: diagnosisOutput
     succession: supersedes
-    gates: [artifactsExist, reproductionSupported]
     model: anthropic/claude-opus-5-5
     thinking: xhigh
     color: purple
@@ -129,7 +113,6 @@ activities:
   - name: document
     output: documentOutput
     succession: supersedes
-    gates: [artifactsExist, filesNonEmpty]
     input: changes  # this run’s diff
     commit: true
     model: google/gemini-4-argon
@@ -150,7 +133,6 @@ activities:
   - name: domain-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: xhigh
     color: pink
@@ -173,7 +155,6 @@ activities:
   - name: gh-issue
     output: ghIssueOutput
     succession: annotates
-    gates: [artifactsExist, filesNonEmpty, issueCreated]
     model: google/gemini-4-argon
     thinking: high
     color: indigo
@@ -191,7 +172,6 @@ activities:
   - name: identify
     output: identifyOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: xhigh
     color: blue
@@ -204,7 +184,6 @@ activities:
   - name: outcome-review
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
     model: anthropic/claude-opus-5-5
     thinking: xhigh
     color: lime
@@ -218,7 +197,6 @@ activities:
     attempts: 3
     output: planOutput
     succession: supersedes
-    gates: [artifactsExist, filesNonEmpty]
     model: anthropic/claude-fable-5-2
     thinking: xhigh
     color: violet
@@ -239,7 +217,6 @@ activities:
   - name: plan-comprehension
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
     model: anthropic/claude-opus-5
     thinking: medium
     color: cyan
@@ -256,7 +233,6 @@ activities:
   - name: plan-readiness
     output: reviewOutput
     succession: annotates
-    gates: [artifactsExist, verdictConsistent]
     model: anthropic/claude-opus-5
     thinking: high
     color: cyan
@@ -273,7 +249,6 @@ activities:
   - name: scout
     output: scoutOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: openai/gpt-6.1-sol
     thinking: max
     color: orange
@@ -292,7 +267,6 @@ activities:
   - name: security-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: high
     color: rose
@@ -315,7 +289,6 @@ activities:
   - name: technical-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: high
     color: purple
@@ -338,7 +311,6 @@ activities:
   - name: test-tdd
     output: buildOutput
     succession: supersedes
-    gates: [diffMatchesClaims]  # tests expected to fail before build
     commit: true
     model: anthropic/claude-opus-5-5
     thinking: xhigh
@@ -359,7 +331,6 @@ activities:
   - name: test
     output: buildOutput
     succession: supersedes
-    gates: [diffMatchesClaims, checks]
     commit: true
     model: openai/gpt-6.1-sol
     thinking: max
@@ -378,7 +349,6 @@ activities:
   - name: ux-design
     output: uxDesignOutput
     succession: supersedes
-    gates: [artifactsExist, filesNonEmpty]
     model: openai/gpt-6-astra
     thinking: xhigh
     color: orange
@@ -401,7 +371,6 @@ activities:
   - name: ux-research
     output: researchOutput
     succession: supersedes
-    gates: [artifactsExist]
     model: anthropic/claude-fable-5-2
     thinking: high
     color: cyan
@@ -425,7 +394,7 @@ activities:
 # triage returns a proposed chain without running it. Composer executes a supplied
 # plan and has no agent configuration here.
 # You may tune existing Planners, but cannot add or remove them.
-# Their output, gates, attempts, and commit behavior are engine-controlled.
+# Their output, output checks, attempts, and commit behavior are engine-controlled.
 planners:
 
 

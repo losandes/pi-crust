@@ -6,10 +6,6 @@
 
 {{prompt}}
 
-### skills
-
-{{skills}}
-
 ### previous_envelope
 
 {{previous_envelope}}
@@ -39,7 +35,7 @@ The plan is at `{{context_handoff_dir}}/plan.md`. If it does not exist or is emp
 Rule on whether `{{context_handoff_dir}}/plan.md` can be executed by a builder who decides nothing.
 
 1. Read the plan in full, then read `prompt` — the request the plan answers — and `previous_envelopes`, which carries what the Activities before the planner established. A plan that is executable but answers a different request is blocking.
-2. Load every skill path listed in `skills` and apply it to the plan, including any records it routes you to for the paths the plan will touch. If the list is `(none)`, say so in your summary and continue against the rubric in your instructions.
+2. Load every skill of this repository that governs the plan or the paths it will touch, and apply it to the plan, including any records it routes you to. Where none governs, continue against the rubric in your instructions.
 3. Audit every step for decisions left to the builder, for the repository-relative paths it will create, modify or delete, and for what proves each step is done. Cite the heading or line of each finding.
 4. Verify what the plan claims about this repository, within the bounds your instructions set. Open the files it names, confirm the symbols, commands and configuration it depends on, and record what you checked and how in `facts`, with the `path:line` you read. A claim you could not verify is an assumption, not a finding.
 5. Check that each phase of the plan leaves the repository in a state some command can pass, and that the commands the plan names exist in this repository. Confirm a command exists by listing the task or the script. Run one only when a step's proof depends on it passing on the unchanged tree, and then run its narrowest form — the named test file, or the named checker on the named paths. Do not run repository-wide gates.

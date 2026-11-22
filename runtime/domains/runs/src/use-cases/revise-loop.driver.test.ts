@@ -304,10 +304,13 @@ test(
      * checks (`activity.params.name`), not what `reAskedInstances` intended.
      */
     const run = aRun(cfg, new Set(['revise', 'review']))
+    const changedFile = join(run.sessionDir, 'fixed.ts')
+    mkdirSync(run.sessionDir, { recursive: true })
+    writeFileSync(changedFile, 'export const revised = true\n')
     planted(
       run,
       'build',
-      buildEnvelope({ summary: 'revised', changed_files: ['src/fixed.ts'] }),
+      buildEnvelope({ summary: 'revised', changed_files: [changedFile] }),
     )
     planted(
       run,

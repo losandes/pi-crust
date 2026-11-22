@@ -17,9 +17,33 @@ import {
   outcomeReason,
   reAskedInstances,
   reviewGroups,
+  reviseActivity,
   reviseName,
   reviserFor,
 } from './revise-loop'
+
+test(
+  [
+    'given a buildOutput writer in a revise round',
+    'when constructing its Activity',
+    'it should attach artifact and build checks before disputes but never commands',
+  ].join(', '),
+  () => {
+    // given
+    const reviser = cfg.activities.find((one) => one.name === 'build')
+    if (reviser === undefined) throw new Error('missing build fixture')
+    // when
+    const actual = reviseActivity(reviser, {}).gates.map((gate) => gate.name)
+    // then
+    expect(actual).toEqual([
+      'artifacts_exist',
+      'files_non_empty',
+      'json_parses',
+      'diff_matches_claims',
+      'disputes_supported',
+    ])
+  },
+)
 
 const cfg = crustConfigSchema.parse({
   activities: [

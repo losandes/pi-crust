@@ -1,10 +1,8 @@
 /**
- * Routing by changed path: which skills an agent loads, which checks run.
+ * Routing by changed path: which checks run.
  *
- * Both answers come out of `routing:` in the config and nowhere else. This is
- * what makes the factory portable — a stamped repository declares its own
- * review skill and its own checkers, and no module or prompt in this tree names
- * either one.
+ * A stamped repository declares its own checkers in `routing:`; no module or
+ * prompt in this tree names them.
  *
  * Glob semantics are the ones `writes:` already uses (`enforce-permissions`):
  * `*` stops at a path separator and `**` crosses it, so a double-star pattern
@@ -17,7 +15,6 @@ import type {
   TPiCrustConfig,
   TQualityCheckSpec,
   TRoutingCheck,
-  TRoutingSkill,
 } from '../../../../lib/contracts'
 import { matchesPattern } from './enforce-permissions'
 
@@ -36,33 +33,6 @@ const applies = (
   paths: readonly string[],
   patterns: readonly string[],
 ): boolean => patterns.length === 0 || matchingPaths(paths, patterns).length > 0
-
-/** `revise_2` -> `revise`: an instance suffix is numbering, not a new activityRun. */
-export const baseActivityRunName = (name: string): string =>
-  name.replace(/_\d+$/, '')
-
-/**
- * Skill paths this agent should load for this change, in declared order.
- *
- * `activityRun` narrows a skill to the activity runs it is about — a skill on how to answer
- * a review belongs to a revise and nowhere else. Omitted, and for any skill
- * declaring no `activityRuns`, the behaviour is exactly what it was.
- */
-export const matchingSkills = (
-  cfg: TPiCrustConfig,
-  agentName: string,
-  paths: readonly string[],
-  activityRun = '',
-): readonly string[] =>
-  cfg.routing.skills
-    .filter(
-      (skill: TRoutingSkill) =>
-        (skill.agents.length === 0 || skill.agents.includes(agentName)) &&
-        (skill.activity_runs.length === 0 ||
-          skill.activity_runs.includes(baseActivityRunName(activityRun))) &&
-        applies(paths, skill.when),
-    )
-    .map((skill) => skill.path)
 
 /**
  * A changed path, spelled from the directory the command will run in.
@@ -85,8 +55,6 @@ export const checkSpec = (
   paths: readonly string[],
 ): TQualityCheckSpec => ({
   name: check.name,
-  area: check.area,
-  operation: check.operation,
   argv: check.with_changed_paths
     ? [
         ...check.argv,

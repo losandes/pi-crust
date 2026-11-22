@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test'
 import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { contextEnvelopeSchema, EXIT } from '../../../../lib/contracts'
+import { writeText } from '../../../../lib/system'
 import { readLedger } from '../../../gates'
 import { readRunState } from '../../../trace'
 import { engineerName } from '../../../workspace'
@@ -41,7 +43,9 @@ for (const status of ['success', 'fail'] as const) {
             roundsAtRestart = readLedger(run).length
           }
           // a revise answers its review with a rewrite (`disputesSupported`)
-          return work({ changed_files: ['src/retention.ts'] })
+          const path = join(run.contextHandoffDir, 'retention.ts')
+          writeText(path, 'export const retention = 30\n')
+          return work({ changed_files: [path] })
         }
         if (attempt === 1) return review()
         if (attempt === 2) {

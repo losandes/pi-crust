@@ -17,7 +17,6 @@ import {
 } from '../../../../testing/terminal-capture'
 import type { TAgentPorts } from '../../../activities'
 import { liveAgent, runnableActivities } from '../../../activities'
-import type { TPiRequest } from '../../../agents'
 import { emptyUsage } from '../../../agents'
 import { RUN_START, recordRunStart, runChangeBase } from '../../../policy'
 import { resolveBaseBranch, selectedPaths } from '../../../workspace'
@@ -41,7 +40,6 @@ type TScenario = Readonly<{
   expected: readonly string[]
   judge?: string
   scope?: 'directory' | 'range'
-  skill?: 'match' | 'miss'
   diff?: boolean
   resume?: boolean
 }>
@@ -246,14 +244,12 @@ const scenarios: readonly TScenario[] = [
       { name: 'test', edits: { 'tests/a.test.ts': 'tested\n' } },
     ],
     expected: ['src/a.ts', 'tests/a.test.ts'],
-    skill: 'match',
   },
   {
     tag: 'SC8',
     title: "No routing rule matches the run's change",
     steps: [{ name: 'build', edits: { 'src/a.ts': 'built\n' } }],
     expected: ['src/a.ts'],
-    skill: 'miss',
   },
   {
     tag: 'SC9',
@@ -270,7 +266,6 @@ const scenarios: readonly TScenario[] = [
     title: 'The run was stopped and resumed before the review',
     steps: [{ name: 'build', edits: { 'src/a.ts': 'built\n' }, commit: true }],
     expected: ['src/a.ts'],
-    skill: 'match',
     resume: true,
   },
 ]
@@ -296,7 +291,6 @@ for (const scenario of scenarios) {
         path: string
         variables: Readonly<Record<string, string>>
       }>[] = []
-      let requests: readonly TPiRequest[] = []
       let runToClose: TRun | undefined
       silenceTerminal()
       try {
@@ -343,16 +337,6 @@ for (const scenario of scenarios) {
           observability: { db: join(dir, 'crust.db') },
           activities: entries,
           agents: entries,
-          routing: {
-            skills: [
-              {
-                name: 'review',
-                path: 'review-skill',
-                agents: [scenario.judge ?? 'code-review'],
-                when: scenario.skill === 'miss' ? ['never/**'] : ['src/**'],
-              },
-            ],
-          },
         })
         const created = runWithTracer(dir, cfg)
         const run = {
@@ -371,7 +355,6 @@ for (const scenario of scenarios) {
         const ports: TAgentPorts = {
           ...liveAgent,
           run: (request) => {
-            requests = [...requests, request]
             edit(request.cwd, currentStep.edits ?? {})
             if (currentStep.commit) {
               git('add', '--', ...Object.keys(currentStep.edits ?? {}))
@@ -458,7 +441,6 @@ for (const scenario of scenarios) {
         const first = renders
           .filter((one) => one.path === `${judge.name}/user`)
           .at(-1)?.variables
-        const firstSkills = requests.at(-1)?.skills
         if (scenario.resume) {
           const resumed = createRun({
             cfg,
@@ -497,14 +479,9 @@ for (const scenario of scenarios) {
           expect(actual?.changed_files).toBe(
             selectedPaths(resolveBaseBranch(cfg, ''))(scope).join('\n'),
           )
-        if (scenario.skill)
-          expect(requests.at(-1)?.skills).toEqual(
-            scenario.skill === 'match' ? ['review-skill'] : [],
-          )
         if (scenario.resume) {
           expect(actual?.changed_files).toBe(first?.changed_files)
           expect(actual?.change_base).toBe(first?.change_base)
-          expect(requests.at(-1)?.skills).toEqual(firstSkills)
           expect(run.tracer.eventsNamed(run.runId, RUN_START)).toHaveLength(1)
         }
         if (scenario.diff) {

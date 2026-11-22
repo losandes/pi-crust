@@ -632,16 +632,16 @@ export const parseJsonLine = (line: string): TUsagePayload | undefined => {
 /**
  * The exact argv one pi turn is spawned with.
  *
- * Extracted so it can be asserted without spawning anything: `--skill` is how a
- * repository's own conventions reach an agent, and whether one was actually
- * passed is otherwise invisible until the model's output disappoints.
+ * Extracted so it can be asserted without spawning anything: which flags reach pi,
+ * and which are deliberately absent, is otherwise invisible until the model's
+ * output disappoints.
  *
  * Three things are load-bearing by ABSENCE, which is why they are named here
  * and asserted in the tests rather than left to be rediscovered:
  *
  *   - `-nc` is never passed, so `AGENTS.md` and `CLAUDE.md` are discovered.
  *   - `-ns` is never passed, so every skill this repository configures stays
- *     reachable. `--skill` only PRE-LOADS; it cannot subtract.
+ *     reachable.
  *   - `--append-system-prompt` rather than `--system-prompt`, so an agent keeps
  *     pi's own system prompt and adds its role to it. Replacing it removed the
  *     part that teaches an agent to reach for a skill at all, and no amount of
@@ -684,9 +684,6 @@ export const buildArgv = (
     ? ['--tools', request.tools.join(',')]
     : []),
   ...request.extensions.flatMap((extension) => ['-e', extension]),
-  // A repository's own conventions, routed by changed path from
-  // `routing.skills`. Never a literal path in this module.
-  ...request.skills.flatMap((skill) => ['--skill', skill]),
 ]
 
 export type { TPiControl, TPiHooks } from './pi-agent-run'

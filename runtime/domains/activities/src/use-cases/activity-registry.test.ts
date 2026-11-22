@@ -4,9 +4,7 @@ import { join } from 'node:path'
 import {
   activitiesFileSchema,
   activityConfigSchema,
-  ENVELOPE_NAMES,
 } from '../../../../lib/contracts'
-import { GATE_NAMES } from '../../../gates'
 import {
   registryFaults,
   resolveActivities,
@@ -30,8 +28,9 @@ test(
     'it should refuse at load, naming what was available',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — this refusal is what replaces the compiler's union of activity
+     * This refusal is what replaces the compiler's union of activity
      * names. It has to be as loud as the compiler was, or moving the
      * registry into configuration is a straight loss.
      */
@@ -43,25 +42,6 @@ test(
     // then
     expect(actual).toThrow(/output 'spikeOutput' is not an envelope/)
     expect(actual).toThrow(/planOutput/)
-  },
-)
-
-test(
-  [
-    'given use-cases/activity-registry::resolveActivities',
-    'when an Activity names a gate nothing publishes',
-    'it should refuse at load, naming what was available',
-  ].join(', '),
-  () => {
-    // given
-    const given = [activity({ output: 'planOutput', gates: ['looksRight'] })]
-
-    // when
-    const actual = () => resolveActivities(given)
-
-    // then
-    expect(actual).toThrow(/gate 'looksRight' is not a gate/)
-    expect(actual).toThrow(/artifactsExist/)
   },
 )
 
@@ -129,31 +109,6 @@ test(
           one.spec.name !== '' && one.gates.every((gate) => gate.name !== ''),
       ),
     ).toBe(true)
-  },
-)
-
-test(
-  [
-    'given use-cases/activity-registry::resolveActivities',
-    'when every published envelope and gate is named by an Activity',
-    'it should resolve all of them, so the catalogues are reachable by name',
-  ].join(', '),
-  () => {
-    // given — one Activity per envelope, each naming every gate
-    const given = ENVELOPE_NAMES.map((output, at) =>
-      activity({ name: `activity-${at}`, output, gates: GATE_NAMES }),
-    )
-
-    // when
-    const actual = resolveActivities(given)
-
-    // then
-    expect(actual.map((one) => one.spec.name)).toHaveLength(
-      ENVELOPE_NAMES.length,
-    )
-    expect(actual[0]?.gates.map((gate) => gate.name)).toHaveLength(
-      GATE_NAMES.length,
-    )
   },
 )
 

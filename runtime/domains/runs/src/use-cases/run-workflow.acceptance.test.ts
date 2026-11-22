@@ -41,6 +41,8 @@ const acceptanceFixture = (
   const environment = gateFixture({ attempts })
   const repository = deliveryFixture()
   const { run, dir } = environment
+  const changedFile = join(dir, 'retention.ts')
+  writeFileSync(changedFile, 'export const retention = 30\n')
   const system = join(dir, 'system.md')
   const user = join(dir, 'user.md')
   const terminal = {
@@ -90,7 +92,7 @@ const acceptanceFixture = (
                     },
                   ],
                 }
-              : { changed_files: ['src/retention.ts'] },
+              : { changed_files: [changedFile] },
           ),
   )
   let refused = false

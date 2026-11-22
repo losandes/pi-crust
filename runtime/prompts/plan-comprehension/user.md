@@ -6,10 +6,6 @@
 
 {{prompt}}
 
-### skills
-
-{{skills}}
-
 ### previous_envelope
 
 {{previous_envelope}}
@@ -40,7 +36,7 @@ Report whether `{{context_handoff_dir}}/plan.md` explains itself to a reader who
 
 1. Read the plan in full. Read nothing else in the repository — not a source file, not a record, not a README. The handoff directory is the only place you may open a file.
 2. Read `prompt`, the request the plan answers, and `previous_envelopes`, which carries what the Activities before the planner established. Those are context the planner had; they are not a substitute for the plan saying what it means.
-3. Load every skill path listed in `skills` and apply it to the document. If the list is `(none)`, say so in your summary and continue against the rubric in your instructions.
+3. Load every skill of this repository that governs the kind of document a plan is, and apply it to the document. Where none governs, continue against the rubric in your instructions.
 4. Write the paraphrase, under `## What this plan proposes` and `## How the existing system works, per this plan`, two to five sentences each, from the plan alone and before any audit. Report any section you cannot paraphrase as blocking, naming the section.
 5. Audit the plan for terms specific to this project that it never defines, for steps that assume unstated prerequisites, for descriptions that explain nothing, and for any gap between what `prompt` asked and what the plan proposes. Cite the heading or line of each.
 6. If `previous_envelope` carries `disputes`, answer each one before you rule. Check the plan text it cites. Then either withdraw the finding, or restate it with **new** evidence. Repeating a disputed finding with the same evidence ends the loop and sends it to the developer — the harness counts that, not you.

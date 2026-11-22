@@ -61,6 +61,7 @@ import type { TRoundRecord } from '../../../gates'
 import {
   disputeFilename,
   disputesSupported,
+  outputChecks,
   readLedger,
   renderReport,
   roundRecord,
@@ -218,13 +219,12 @@ export const reviseActivity = (
     {
       config: {
         ...reviser,
-        gates: [...reviser.gates, 'disputesSupported'],
         purpose:
           'Answer every blocking finding the review named — fix it, or ' +
           'dispute it with evidence',
       },
       spec,
-      gates: [disputesSupported],
+      gates: [...outputChecks(spec), disputesSupported],
     },
     { ...DEFAULT_ACTIVITY_OPTIONS, ...options, instance: 1 },
     agentPorts,

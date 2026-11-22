@@ -50,7 +50,6 @@ const SUPPORTED_VARIABLES = [
   'context_handoff_dir',
   'output_document',
   'annotating_handoffs',
-  'skills',
   'changed_files',
   'change_base',
   'step_catalogue',
@@ -316,6 +315,9 @@ const comparativeFindings = (
   envelopeSource: string,
 ): readonly Finding[] => {
   const droppedVariables = unique(placeholders(baseline))
+    .filter((token) =>
+      (SUPPORTED_VARIABLES as readonly string[]).includes(token.text),
+    )
     .filter((token) => !current.includes(`{{${token.text}}}`))
     .map((token) => ({
       file: relativePath,

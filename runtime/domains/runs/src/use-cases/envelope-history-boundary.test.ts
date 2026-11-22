@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type {
@@ -72,6 +72,8 @@ const shippedPrompts = (name: string) => ({
 
 const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-history-boundary-'))
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'src/claimed.ts'), 'export const built = true\n')
   const entries = activities.map((entry) => ({
     model: `fixture/${String(entry.name)}`,
     purpose: `Carry out ${String(entry.name)}`,

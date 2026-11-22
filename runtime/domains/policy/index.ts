@@ -1,4 +1,4 @@
-/** What an agent may touch and which checks and skills a change routes to */
+/** What an agent may touch and which checks a change routes to */
 
 export type { TRepoAfter } from './src/use-cases/enforce-permissions'
 export {
@@ -34,7 +34,6 @@ export {
 } from './src/use-cases/path-policy-run'
 export {
   matchingChecks,
-  matchingSkills,
   unmatchedPaths,
 } from './src/use-cases/route-by-path'
 export type {

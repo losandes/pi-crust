@@ -33,7 +33,6 @@ const VARIABLES = {
   previous_envelopes: 'SENTINEL_PREVIOUS_ENVELOPES',
   context_handoff_dir: 'SENTINEL_HANDOFF',
   output_document: 'SENTINEL_OUTPUT',
-  skills: 'SENTINEL_SKILLS',
   changed_files: 'SENTINEL_CHANGED_FILES',
   change_base: 'SENTINEL_CHANGE_BASE',
   step_catalogue: 'SENTINEL_CATALOGUE',
@@ -105,7 +104,6 @@ for (const activity of ['build', 'test', 'plan'] as const) {
       const build = source('build', 'user.md')
       const revise = source(activity, 'revise.md')
       const expectedVariables = [
-        ...(activity === 'build' ? ['skills'] : []),
         'previous_envelope',
         'previous_envelopes',
         'context_handoff_dir',

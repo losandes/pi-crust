@@ -74,7 +74,7 @@ activities:
       - read
       - write
 
-  # Spend less on something that keeps failing its gates for a reason no
+  # Spend less on something that keeps failing its output checks for a reason no
   # second attempt is going to fix, or more on something worth another go.
   # The first run is an attempt, so `attempts: 1` means no retry at all.
   - name: test
@@ -86,14 +86,12 @@ activities:
   - name: document
     commit: false
 
-  # Something only you run. `output` and `gates` name what the package
-  # publishes; leave them out and you get `genericOutput` with no gates.
+  # Something only you run. `output` names what the package publishes; leaving it out gives `genericOutput`.
   # Nothing references it until you name it in --activities or a Lifecycle.
   - name: spike
     model: anthropic/claude-haiku-4-5
     purpose: Answer one throwaway question without touching the repository.
     output: researchOutput
-    gates: [artifactsExist]
     prompts:
       system: prompts/spike/system.md
       user: prompts/spike/user.md

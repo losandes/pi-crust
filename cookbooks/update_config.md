@@ -63,7 +63,7 @@ Every agent loads the package's path-policy extension. Configuration cannot add 
 Two steps, and then it is runnable. There is no third edit anywhere in the package — that is the whole point of the registry being configuration.
 
 1. **Prompts.** Create `.pi-crust/prompts/{name}/system.md` (Purpose + Instructions — the Activity's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
-2. **Registry entry** in `crust.activities.yaml`. Name it for the WORK, give it a `purpose`, its prompt refs, its `writes`, and the work half: `output`, `gates`, and `attempts` or `commit` where the defaults are wrong. An `output` or a gate the package does not publish is refused at load, listing what it does publish — so a typo costs a second, not a run.
+2. **Registry entry** in `crust.activities.yaml`. Name it for the WORK, give it a `purpose`, its prompt refs, its `writes`, and the work half: `output`, and `attempts` or `commit` where the defaults are wrong. The engine derives [output checks](../references/config.md#output-checks) from `output`. An `output` the package does not publish is refused at load, listing what it does publish — so a typo costs a second, not a run.
 
 Then name it in `--activities`, or in a Stage in `crust.lifecycles.yaml`. If none of the published envelope specs fits its report, add one — see `update_modules.md` — and the user prompt's `Report` section must show exactly that shape.
 

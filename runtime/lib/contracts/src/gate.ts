@@ -120,7 +120,7 @@ export type TAgentCall<TEnvelope extends TEnvelopeBase = TEnvelopeBase> =
      */
     committing?: boolean
     /**
-     * The paths this call presents and uses for `routing.skills`.
+     * The paths this call presents.
      * Judges receive the run's net change, committed or not, unless a named
      * scope overrides it. With no run change, use captured input paths when
      * present; otherwise omission selects the uncommitted working tree.

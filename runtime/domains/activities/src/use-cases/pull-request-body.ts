@@ -259,7 +259,7 @@ const dedupChecks = (rows: readonly TCheckRow[]): readonly TCheckRow[] => {
   for (const row of rows) {
     const key = `${row.gate}\u0000${row.item}`
     const existing = byKey.get(key)
-    if (existing === undefined || row.seq > existing.seq) {
+    if (existing === undefined || row.seq >= existing.seq) {
       byKey.set(key, row)
     }
   }

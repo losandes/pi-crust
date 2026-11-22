@@ -36,18 +36,18 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 
 ### The SDLC stages
 
-| Stage | Activity |
-|---|---|
-| 1.1 Evaluate | `scout` |
-| 1.2 Identify | `identify` |
-| 1.3 Conceptualize | `conceptualize` |
-| 2.1 Plan | `plan` |
-| 2.2 Design | `design` |
-| 2.3 Build | `test-tdd` or `test`, `build` — and the `checks` gate, which runs your own commands |
-| 3.1 Verify | `review`, `code-review` |
-| 3.2 Launch | `document` + a human; an Activity with `commit: true` lands its own change |
+| Stage             | Activity                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| 1.1 Evaluate      | `scout`                                                                             |
+| 1.2 Identify      | `identify`                                                                          |
+| 1.3 Conceptualize | `conceptualize`                                                                     |
+| 2.1 Plan          | `plan`                                                                              |
+| 2.2 Design        | `design`                                                                            |
+| 2.3 Build         | `test-tdd` or `test`, `build` — and the `checks` gate, which runs your own commands |
+| 3.1 Verify        | `review`, `code-review`                                                             |
+| 3.2 Launch        | `document` + a human; an Activity with `commit: true` lands its own change          |
 
-An Activity is named for the work and IS its agent: one entry in `crust.activities.yaml` says who performs it (model, tools, writes, prompts) and what the work is (`output`, `gates`, `attempts`, `commit`). Add an entry and it is runnable; delete one and the capability is gone. Nothing in the package holds a list of them.
+An Activity is named for the work and IS its agent: one entry in `crust.activities.yaml` says who performs it (model, tools, writes, prompts) and what the work is (`output`, `attempts`, `commit`). Add an entry and it is runnable; delete one and the capability is gone. Nothing in the package holds a list of them. The engine derives [output checks](references/config.md#output-checks) from what each Activity reports.
 
 ### Other Activities
 
@@ -55,22 +55,22 @@ The lifecycle above is a structured set of Activities. The registry ships more, 
 
 **Research, when the problem is that nobody knows yet.** Each discipline establishes what is true in its own subject and decides nothing — "find out" and "decide" are different jobs, and a stage asked to do both will quietly do the second while appearing to do the first.
 
-| Activity | Establishes |
-|---|---|
+| Activity             | Establishes                                                   |
+| -------------------- | ------------------------------------------------------------- |
 | `technical-research` | what is technically true, feasible, and supported by evidence |
-| `domain-research` | an accurate model of the domain and the rules that govern it |
-| `ux-research` | what users need, experience, understand, and struggle with |
-| `security-research` | how this could fail, be misused, or be attacked |
-| `data-research` | what the empirical evidence says, and what it cannot say |
+| `domain-research`    | an accurate model of the domain and the rules that govern it  |
+| `ux-research`        | what users need, experience, understand, and struggle with    |
+| `security-research`  | how this could fail, be misused, or be attacked               |
+| `data-research`      | what the empirical evidence says, and what it cannot say      |
 
 **The rest.**
 
-| Activity | For |
-|---|---|
-| `diagnose` | reproducing a reported behaviour and naming its cause, with evidence. The first Activity of `bugfix` |
+| Activity    | For                                                                                                            |
+| ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `diagnose`  | reproducing a reported behaviour and naming its cause, with evidence. The first Activity of `bugfix`           |
 | `ux-design` | turning validated needs into an interface specification somebody can implement. Decides, so it is not research |
-| `document` | writing up what the diff shows, from the run's own baseline |
-| `gh-issue` | opening one GitHub issue carrying a discovery chain's findings; changes nothing in the repository |
+| `document`  | writing up what the diff shows, from the run's own baseline                                                    |
+| `gh-issue`  | opening one GitHub issue carrying a discovery chain's findings; changes nothing in the repository              |
 
 Two more are **Planners** rather than Activities: `operator` chooses the chain and runs it in the same trace, `triage` chooses the same chain and hands it back as a command. A Lifecycle cannot name either — they are what chooses a Lifecycle — and configuration can tune them but never add a third.
 
@@ -106,4 +106,3 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 **Declare your checks.** `routing.checks` is where the `checks` gate gets its commands, and a path that matches no rule fails rather than passing quietly. The convention checkers belong here: a violation caught by a command costs nothing, and the same violation caught by a reviewer costs a build-sized call.
 
 **Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each Activity.
-

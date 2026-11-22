@@ -78,7 +78,6 @@ const plan = await activity run(planParams, (ph) =>
   callAgent(run, ph, {
     outputType: planOutput,
     prompt,
-    gates: [artifactsExist],
   }),
 )
 ```
@@ -98,7 +97,6 @@ In v1 there is no separate continue call to make: `data/pi-agent.ts` passes `--s
 | `{{prompt}}`              | the engineer's ask (or the workflow's per-call prompt)                                                                                               |
 | `{{previous_envelope}}`   | the upstream envelope JSON, from `callAgent(..., { previous })`                                                                                      |
 | `{{context_handoff_dir}}` | absolute path to this session's `context_handoff/`                                                                                                   |
-| `{{skills}}`              | the skill paths `routing.skills` selected for this agent, activity run and change; `(none)` when it selected none                                    |
 | `{{changed_files}}`       | the paths this call is about, one per line, or `(none)`                                                                                              |
 | `{{change_base}}`         | where the change is: the scope `--scope` named, the commit the run started from with the command for reading it, or `(the uncommitted working tree)` |
 

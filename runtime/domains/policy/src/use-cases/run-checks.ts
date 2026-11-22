@@ -119,8 +119,6 @@ export const runCommand = (
 
   return {
     name: spec.name,
-    area: spec.area,
-    operation: spec.operation,
     command,
     returncode,
     passed,
@@ -147,8 +145,6 @@ export const runCheck = (
     type: 'tool_call',
     name: `quality:${spec.name}`,
     payload: {
-      area: spec.area,
-      operation: spec.operation,
       command: result.command,
       returncode: result.returncode,
       passed: result.passed,

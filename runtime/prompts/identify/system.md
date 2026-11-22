@@ -71,7 +71,7 @@ Before you write the document:
 
 1. Read the agent instruction files already in your context: `AGENTS.md`, `CLAUDE.md`, or whatever this repository uses.
 2. Read the decision records, contributing guides and style guides they point at, often under a directory such as `adr/`, `docs/` or `.claude/skills/`.
-3. Load any skill that governs the kind of artifact you are about to produce, whether or not it was pre-loaded for you.
+3. Load any skill that governs the kind of artifact you are about to produce.
 4. Run any checker those documents name, and fix what it reports before you finish.
 
 Where those documents govern documents, they govern the document you write here. They override any pattern you observe in neighbouring files; copying a neighbouring file is not a justification.

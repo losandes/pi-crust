@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -29,6 +29,9 @@ import { runActivities, runUnits } from './run-activities'
 
 const fixtureWith = (activities: readonly Record<string, unknown>[] = []) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-envelope-succession-'))
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'src/work.ts'), 'export const original = true\n')
+  writeFileSync(join(dir, 'src/fixed.ts'), 'export const revised = true\n')
   const entries = activities.map((entry) => ({
     prompts: { system: 's.md', user: 'u.md' },
     writes: [],
@@ -487,11 +490,14 @@ test(
       agentEntry('style-check', 'reviewOutput'),
     ])
     const { run } = fixture
-    const built = work('original work')
+    const built = {
+      ...work('original work'),
+      changed_files: [join(run.repoRoot, 'src/work.ts')],
+    }
     const revisions = buildOutputSchema.parse({
       ...CONTEXT,
       summary: 'revised work',
-      changed_files: ['src/fixed.ts'],
+      changed_files: [join(run.repoRoot, 'src/fixed.ts')],
     })
     const rejected = (name: string) =>
       reviewOutputSchema.parse({

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TEnvelopeBase, TRun } from '../../../../lib/contracts'
@@ -10,6 +10,76 @@ import {
   filesNonEmpty,
   jsonParses,
 } from './claim-gates'
+
+for (const { name, artifacts, content, gate } of [
+  {
+    name: 'missing artifact',
+    artifacts: ['missing.md'],
+    content: undefined,
+    gate: artifactsExist,
+  },
+  {
+    name: 'empty artifact',
+    artifacts: ['empty.md'],
+    content: '',
+    gate: filesNonEmpty,
+  },
+  {
+    name: 'invalid JSON artifact',
+    artifacts: ['broken.json'],
+    content: '{broken',
+    gate: jsonParses,
+  },
+]) {
+  test(
+    [
+      `given a report with a ${name}`,
+      'when judging its artifact check',
+      'it should reject the claim and name the artifact',
+    ].join(', '),
+    () => {
+      // given
+      const dir = mkdtempSync(join(tmpdir(), 'crust-artifact-failure-'))
+      if (content !== undefined)
+        writeFileSync(join(dir, artifacts[0] ?? ''), content)
+      try {
+        // when
+        const actual = gate.check(
+          envelopeWithArtifacts(artifacts),
+          runWithRepoRoot(dir),
+          [],
+        )
+        // then
+        expect(violationsOf(actual)).toHaveLength(1)
+        expect(actual.checks[0]).toMatchObject({
+          item: artifacts[0],
+          ok: false,
+        })
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+}
+
+for (const gate of [artifactsExist, filesNonEmpty, jsonParses]) {
+  test(
+    [
+      `given no artifacts for ${gate.name}`,
+      'when judging the report',
+      'it should pass without inventing any item',
+    ].join(', '),
+    () => {
+      // given
+      const envelope = envelopeWithArtifacts([])
+      // when
+      const actual = gate.check(envelope, runWithRepoRoot('/unused'), [])
+      // then
+      expect(actual.checks).toEqual([])
+      expect(violationsOf(actual)).toEqual([])
+    },
+  )
+}
 
 const traced = (): {
   run: TRun
@@ -69,8 +139,9 @@ test(
     'it should resolve a claimed path against run.repoRoot rather than process.cwd() -- the defect commit 49b2ab0 fixed',
   ].join(', '),
   () => {
+    // given
     /*
-     * given -- the INVERSE of the nesting that motivated this spec
+     * The INVERSE of the nesting that motivated this spec
      * (specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md): here the WORKSPACE is the
      * repo root and the ORCHESTRATOR's own cwd is one level below it in
      * `_newstack`. That is the layout commit 49b2ab0 fixed -- resolving
@@ -212,8 +283,9 @@ test(
     'it should resolve both and treat them as one path, not two strings',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — a deleted file the agent claimed by its workspace-relative
+     * A deleted file the agent claimed by its workspace-relative
      * spelling, and an observed path for the same file given as the
      * resolved absolute path (the spelling `changedPaths` may carry). Both
      * must resolve through the same root resolution (1.1.4) to be
@@ -429,9 +501,10 @@ test(
     'it should resolve against the VCS root, naming it in the check, and warn without failing the gate',
   ].join(', '),
   () => {
+    // given
     /*
-     * given — the real shape of the run that motivated this spec: a VCS root
-     * containing the claimed file, and a workspace ONE LEVEL BELOW it (the
+     * The real shape of the run that motivated this spec: a VCS root
+     * containing the claimed file, and a workspace ONE LEVEL BELOW the VCS root (the
      * `_newstack` layout), the inverse of the pre-existing fixture above.
      */
     const vcsRootDir = mkdtempSync(join(tmpdir(), 'crust-claims-nested-vcs-'))

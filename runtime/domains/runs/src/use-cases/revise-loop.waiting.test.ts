@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { EXIT } from '../../../../lib/contracts'
+import { EXIT, type TRun } from '../../../../lib/contracts'
+import { writeText } from '../../../../lib/system'
 import { REPORT_FILENAME, readLedger } from '../../../gates'
 import { readRunState } from '../../../trace'
 import { answerPath, decisionPath } from './human-gate'
@@ -10,16 +11,32 @@ import {
   gateFixture,
   portsFor,
   QUESTION,
-  review,
+  review as rawReview,
   work,
 } from './human-gate-fixture.test'
 import { runReviseLoop } from './revise-loop'
 import type { TWaiting } from './run-activities'
 import { runWorkflow } from './run-workflow'
 
+const review = (overrides: Readonly<Record<string, unknown>> = {}) => {
+  const report = rawReview(overrides)
+  return report.approved
+    ? {
+        ...report,
+        findings: report.findings.map((finding) => ({ ...finding, met: true })),
+      }
+    : report
+}
+
 /** A revise answers its review with a rewrite, as `disputesSupported` requires. */
-const revised = (overrides: Readonly<Record<string, unknown>> = {}) =>
-  work({ changed_files: ['src/retention.ts'], ...overrides })
+const revised = (
+  run: TRun,
+  overrides: Readonly<Record<string, unknown>> = {},
+) => {
+  const path = join(run.contextHandoffDir, 'retention.ts')
+  writeText(path, 'export const retention = 30\n')
+  return work({ changed_files: [path], ...overrides })
+}
 
 for (const status of ['success', 'fail'] as const) {
   test(
@@ -97,7 +114,7 @@ for (const activity of ['revise', 'review']) {
       const rejected = review()
       const { ports, requests } = portsFor((model) =>
         model === 'fixture/build'
-          ? revised()
+          ? revised(run)
           : review({ approved: true, blocking: [] }),
       )
       let waiting: TWaiting | undefined
@@ -144,7 +161,7 @@ test(
     const { run } = fixture
     const { ports, requests } = portsFor((model) =>
       model === 'fixture/build'
-        ? revised()
+        ? revised(run)
         : review({ status: 'fail', unresolved: [QUESTION] }),
     )
     let waiting: TWaiting | undefined
@@ -193,7 +210,7 @@ test(
     const { run } = fixture
     const { ports, requests } = portsFor((model) =>
       model === 'fixture/build'
-        ? revised({ unresolved: [QUESTION] })
+        ? revised(run, { unresolved: [QUESTION] })
         : review({ approved: true, blocking: [] }),
     )
 
@@ -237,12 +254,12 @@ for (const trust of [50, 100]) {
       const { ports, requests, renders } = portsFor((model, attempt) => {
         if (model === 'fixture/build') {
           return attempt === 2
-            ? revised({
+            ? revised(run, {
                 status: 'fail',
                 summary: 'Need the retention decision',
                 unresolved: [QUESTION],
               })
-            : revised()
+            : revised(run)
         }
         return review({
           approved: attempt > 1,

@@ -1,8 +1,8 @@
 /**
  * The Activity registry, resolved: configuration becomes something runnable.
  *
- * `crust.activities.yaml` names an envelope spec and some gates. This is
- * where those names become the spec and the gates themselves, and where a
+ * `crust.activities.yaml` names an envelope spec. This is where that name
+ * becomes the spec and its output checks, and where a
  * name nothing publishes is refused — at load, naming what was available,
  * because that refusal is what replaces the compiler's old union of activity
  * names. An unknown Activity used to be a type error; it is now this.
@@ -24,7 +24,7 @@ import {
   PLANNER_NAMES,
   TERMINAL_NAMES,
 } from '../../../../lib/contracts'
-import { GATE_NAMES, gateNamed } from '../../../gates'
+import { activityChecks } from '../../../gates'
 
 /** What a activity is built from: the entry, with its names resolved. */
 export type TResolvedActivity = Readonly<{
@@ -51,14 +51,6 @@ export const activityFaults = (
             `envelope this package publishes — available: ${ENVELOPE_NAMES.join(', ')}`,
         ]
       : []
-  const gates = activity.gates.flatMap((name) =>
-    gateNamed(name) === undefined
-      ? [
-          `activity '${activity.name}': gate '${name}' is not a gate this ` +
-            `package publishes — available: ${GATE_NAMES.join(', ')}`,
-        ]
-      : [],
-  )
   const input = isActivityInput(activity.input)
     ? []
     : [
@@ -96,7 +88,7 @@ export const activityFaults = (
         "activity 'import': that name is the engine's import step, not an Activity — a Lifecycle names it first to import referenced work, and configuration cannot define it",
       ]
     : []
-  return [...importing, ...planner, ...terminal, ...output, ...gates, ...input]
+  return [...importing, ...planner, ...terminal, ...output, ...input]
 }
 
 /**
@@ -202,11 +194,10 @@ export const resolveActivities = (
     )
   }
 
-  return activities.map((config) => ({
-    config,
-    spec: envelopeNamed(config.output) as TEnvelopeSpec<TEnvelopeBase>,
-    gates: config.gates.map((name) => gateNamed(name) as TGate),
-  }))
+  return activities.map((config) => {
+    const spec = envelopeNamed(config.output) as TEnvelopeSpec<TEnvelopeBase>
+    return { config, spec, gates: activityChecks({ name: config.name, spec }) }
+  })
 }
 
 export const resolvedNamed = (

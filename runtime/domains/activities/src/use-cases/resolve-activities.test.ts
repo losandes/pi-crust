@@ -4,6 +4,7 @@ import {
   crustConfigSchema,
   DEFAULT_ACTIVITY_OPTIONS,
 } from '../../../../lib/contracts'
+import { resolveActivities } from './activity-registry'
 import {
   offeredActivities,
   requiredAgents,
@@ -12,6 +13,31 @@ import {
 } from './resolve-activities'
 
 const prompts = { system: 'p/system.md', user: 'p/user.md' }
+
+test(
+  [
+    'given a repository reviewer with only a name, prompts and reviewOutput',
+    'when resolving it',
+    'it should receive verdict consistency without configuring checks',
+  ].join(', '),
+  () => {
+    // given
+    const config = crustConfigSchema.parse({
+      activities: [{ name: 'custom-review', prompts, output: 'reviewOutput' }],
+    })
+    // when
+    const actual = resolveActivities(config.activities)[0]?.gates.map(
+      (gate) => gate.name,
+    )
+    // then
+    expect(actual).toEqual([
+      'artifacts_exist',
+      'files_non_empty',
+      'json_parses',
+      'verdict_consistent',
+    ])
+  },
+)
 
 const anActivity = (
   name: string,
@@ -57,10 +83,9 @@ test(
   () => {
     // given
     const given = aConfig([
-      anActivity('plan', { output: 'planOutput', gates: ['artifactsExist'] }),
+      anActivity('plan', { output: 'planOutput' }),
       anActivity('build', {
         output: 'buildOutput',
-        gates: ['diffMatchesClaims', 'checks'],
         attempts: 3,
         commit: true,
       }),
@@ -76,6 +101,9 @@ test(
       ),
     ).toEqual(['agent:plan', 'agent:build'])
     expect(actual[1]?.gates.map((gate) => gate.name)).toEqual([
+      'artifacts_exist',
+      'files_non_empty',
+      'json_parses',
       'diff_matches_claims',
       'checks',
     ])
@@ -146,8 +174,9 @@ test(
     'it should number both as instances of the one Activity, canonical throughout',
   ].join(', '),
   () => {
+    // given
     /*
-     * given \u2014 'build' with alias 'b', rather than the spec's illustrative
+     * 'build' with alias 'b', rather than the spec's illustrative
      * 'gh-pr'/'gh-pull-request' pair: that pair names a reserved terminal
      * Activity, and any entry literally called 'gh-pull-request' is refused
      * by the existing terminal-name fault before aliasing ever runs.
@@ -204,7 +233,12 @@ test(
 
     // then
     expect(actual[0]?.params.owner).toEqual('operator')
-    expect(actual[0]?.gates.map((gate) => gate.name)).toEqual(['steps_valid'])
+    expect(actual[0]?.gates.map((gate) => gate.name)).toEqual([
+      'artifacts_exist',
+      'files_non_empty',
+      'json_parses',
+      'steps_valid',
+    ])
     expect(actual[0]?.commit).toEqual(false)
   },
 )
@@ -216,7 +250,9 @@ test(
     'it should default to the empty selector so a activity can tell that apart from --scope main',
   ].join(', '),
   () => {
-    // given, when, then
+    // given
+    // when
+    // then
     expect(DEFAULT_ACTIVITY_OPTIONS.base).toEqual('')
   },
 )

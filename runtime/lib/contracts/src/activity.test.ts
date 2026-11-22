@@ -454,7 +454,7 @@ test(
   [
     'given typedefs/activity::activityConfigSchema',
     'when an entry says nothing about the work half',
-    'it should default to two attempts, no gates, no commit and the generic envelope',
+    'it should default to two attempts, no commit and the generic envelope',
   ].join(', '),
   () => {
     // given
@@ -475,7 +475,6 @@ test(
     expect(actual.attempts).toEqual(DEFAULT_ATTEMPTS)
     expect(actual.attempts).toEqual(2)
     expect(actual.commit).toEqual(false)
-    expect(actual.gates).toEqual([])
     expect(actual.output).toEqual('genericOutput')
     expect(actual.input).toEqual('upstream')
   },

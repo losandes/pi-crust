@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -21,8 +21,10 @@ import {
   PROMPT_BODY_LINES,
 } from './report-to-console'
 
-beforeEach(silenceTerminal)
-afterEach(restoreTerminal)
+const capturedTerminal = () => {
+  silenceTerminal()
+  return { [Symbol.dispose]: restoreTerminal }
+}
 
 /** A tracer that records every `message` the console emitted, as plain text. */
 const tracedMessages = (): Readonly<{
@@ -53,6 +55,7 @@ test(
     'it should print both, named, in the start-of-run banner (1.5.1)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -73,6 +76,7 @@ test(
     'it should print the banner exactly as before this spec \u2014 no root line at all (1.5.3, 1.6.2)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given — the ordinary, unnested case
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -150,6 +154,7 @@ test(
     'it should carry a run warning naming those paths all the way to the end-of-run report (1.2.1, 1.2.2)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given — the same tracer feeds both the gate that observes the gap and
     // the console that is supposed to report it at the end of the run
     const { tracer, messages } = tracedRunTracer()
@@ -161,7 +166,6 @@ test(
             {
               name: 'lint',
               when: ['**/*.md'],
-              operation: 'lint',
               argv: ['true'],
             },
           ],
@@ -195,6 +199,7 @@ test(
     'it should count only the rows the verdict counted, so the printed total agrees with the printed status (1.4.1, 1.4.2)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given — a run shaped like 867e452d/b6f8f617: nine would read 9/9 fail
     // when the right count, excluding the superseded attempt, is 8/8 success.
     const dir = mkdtempSync(join(tmpdir(), 'crust-report-console-test-'))
@@ -255,6 +260,7 @@ test(
     'it should trace the whole prompt verbatim, as one exact substring (1.1.2, 1.1.5)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -275,6 +281,7 @@ test(
     'it should still trace the whole prompt, and the header should report the full character count (1.1.3, 1.1.5)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -301,6 +308,7 @@ test(
     'it should emit exactly one event whose message contains 0 chars, and should not throw (1.1.4)',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -321,6 +329,7 @@ test(
     'it should print the start banner and a success mark, and clear the current lane',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -354,6 +363,7 @@ test(
     'it should print the error alongside the failure mark',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -385,6 +395,7 @@ test(
     'it should print it, clipped the same way every other line is',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -406,6 +417,7 @@ test(
     'it should print every line verbatim, with no clipping',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -430,6 +442,7 @@ test(
     'it should print its model and session id, then its usage',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -453,6 +466,7 @@ test(
     'it should name the agent, the attempt, the limit and the reason, same session',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -473,6 +487,7 @@ test(
     'it should print the gate summary and every check, including the note',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -501,6 +516,7 @@ test(
     'it should summarise as checked rather than as a failure count',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -523,6 +539,7 @@ test(
     'it should print a thinking header, then the text wrapped under it',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -547,6 +564,7 @@ test(
     'it should print the agent\u2019s own name as the header',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')
@@ -571,6 +589,7 @@ test(
     'it should print the failure mark, the summary, and the artifact list',
   ].join(', '),
   () => {
+    using _terminal = capturedTerminal()
     // given
     const { tracer, messages } = tracedMessages()
     const console_ = createConsole(tracer, 'aaaa1111')

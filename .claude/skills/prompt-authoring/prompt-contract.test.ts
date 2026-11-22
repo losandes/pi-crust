@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { SKIP_INTEGRATION } from '../../../runtime/testing/integration'
 
 const CHECKER = join(import.meta.dir, 'scripts', 'prompt-contract.ts')
 const SHELL_CHECKER = join(import.meta.dir, 'scripts', 'check-prompt.sh')
@@ -133,6 +134,27 @@ test(
     expect(actual.exitCode).toBe(0)
     expect(actual.stdout).toContain('violations=0')
     expect(actual.stderr).toBe('')
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given a baseline with the removed skills variable',
+    'when removing it from a prompt',
+    'it should not report a dropped supported variable',
+  ].join(', '),
+  () => {
+    // given
+    const current = withReport('```json\n{}\n```')
+    const baseline = current.replace(
+      '## Variables\n',
+      '## Variables\n\n{{skills}}\n',
+    )
+    // when
+    const actual = checkPrompt(current, { baseline })
+    // then
+    expect(actual.exitCode).toBe(0)
+    expect(actual.stdout).not.toContain('[dropped-variable]')
   },
 )
 

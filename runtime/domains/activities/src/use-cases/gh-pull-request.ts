@@ -33,8 +33,10 @@ import {
   narrowEnvelope,
   PULL_REQUEST_EVENT,
   pullRequestOutput,
+  violationsOf,
 } from '../../../../lib/contracts'
 import { writeText } from '../../../../lib/system'
+import { ARTIFACT_CHECKS } from '../../../gates'
 import { readRunState } from '../../../trace'
 import {
   baseBranchFrom,
@@ -461,43 +463,68 @@ export const ghPullRequestActivity = (
      * turned into the settlement the rest of this function already
      * reasons in.
      */
-    const composed: TSettlement<TPullRequestOutput> = run.resume.has(
-      config.name,
+    const ask = async (
+      feedback: readonly string[],
+    ): Promise<TSettlement<TPullRequestOutput>> => {
+      // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — a failed agent call must become a fallback, not a thrown activity-run failure (1.6.5)
+      try {
+        return succeed(
+          await callAgent(
+            run,
+            handle,
+            {
+              outputType: pullRequestOutput,
+              prompt: ctx.prompt,
+              ...(ctx.previous === undefined ? {} : { previous: ctx.previous }),
+              upstream: ctx.upstream,
+              cohort: ctx.cohort,
+              feedback,
+              blockingFindings: [],
+              committing: false,
+            },
+            agentPorts,
+          ),
+        )
+      } catch (error) {
+        return fail(error instanceof Error ? error : new Error(String(error)))
+      }
+    }
+    const judge = (composed: TSettlement<TPullRequestOutput>) => {
+      const answered =
+        composed.status === 'ok'
+          ? narrowEnvelope(pullRequestOutput, composed.data)
+          : undefined
+      const violations =
+        answered === undefined
+          ? []
+          : ARTIFACT_CHECKS.flatMap((gate) => {
+              const report = gate.check(answered, run, [])
+              const faults = violationsOf(report)
+              run.tracer.gateRow(handle.activityRun, gate.name, report)
+              run.tracer.event({
+                run_id: run.runId,
+                activity_run_id: handle.activityRun.activity_run_id,
+                type: faults.length > 0 ? 'gate_fail' : 'gate_pass',
+                name: gate.name,
+                payload: { violations: faults, checks: report.checks },
+              })
+              run.console.gateResult(gate.name, report)
+              return faults
+            })
+      return { composed, answered, violations }
+    }
+    const first = judge(
+      run.resume.has(config.name)
+        ? readEnvelope(run, config.name, pullRequestOutput)
+        : await ask(ctx.feedback),
     )
-      ? readEnvelope(run, config.name, pullRequestOutput)
-      : await (async () => {
-          // biome-ignore lint/plugin/no-intermediate-try-catch: the boundary — a failed agent call must become a fallback, not a thrown activity-run failure (1.6.5)
-          try {
-            const envelope = await callAgent(
-              run,
-              handle,
-              {
-                outputType: pullRequestOutput,
-                prompt: ctx.prompt,
-                ...(ctx.previous === undefined
-                  ? {}
-                  : { previous: ctx.previous }),
-                upstream: ctx.upstream,
-                cohort: ctx.cohort,
-                feedback: ctx.feedback,
-                blockingFindings: [],
-                committing: false,
-              },
-              agentPorts,
-            )
-            return succeed(envelope)
-          } catch (error) {
-            return fail(
-              error instanceof Error ? error : new Error(String(error)),
-            )
-          }
-        })()
-
-    const answered =
-      composed.status === 'ok'
-        ? narrowEnvelope(pullRequestOutput, composed.data)
-        : undefined
+    const final =
+      first.violations.length === 0
+        ? first
+        : judge(await ask([...ctx.feedback, ...first.violations]))
+    const { composed, answered, violations } = final
     const usable =
+      violations.length === 0 &&
       answered !== undefined &&
       answered.status === 'success' &&
       answered.title.trim() !== '' &&
@@ -506,23 +533,24 @@ export const ghPullRequestActivity = (
     const fallbackBecause =
       composed.status === 'error'
         ? `the agent call failed: ${composed.error.message}`
-        : answered === undefined || answered.status !== 'success'
-          ? 'the agent reported status: fail, or its envelope could not be read'
-          : 'the agent answered with an empty title or body'
+        : violations.length > 0
+          ? `the agent's report failed its output checks: ${violations.join('; ')}`
+          : answered === undefined || answered.status !== 'success'
+            ? 'the agent reported status: fail, or its envelope could not be read'
+            : 'the agent answered with an empty title or body'
 
+    const deliveredFacts: TBodyFacts = {
+      ...facts,
+      state: readRunState(run.tracer.dbPath, run.runId),
+    }
     const chosen = usable
       ? {
           title: answered.title.trim(),
-          body: composedBody(answered.body.trim(), facts),
+          body: composedBody(answered.body.trim(), deliveredFacts),
         }
       : fallbackPullRequest({
-          runId: run.runId,
-          prompt: ctx.prompt,
+          ...deliveredFacts,
           because: fallbackBecause,
-          state,
-          declaredChecks: facts.declaredChecks,
-          uncommitted: facts.uncommitted,
-          composedBy: facts.composedBy,
         })
     const fellBack = !usable
     if (fellBack) {

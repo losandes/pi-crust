@@ -6,10 +6,6 @@
 
 {{prompt}}
 
-### skills
-
-{{skills}}
-
 ### previous_envelope
 
 {{previous_envelope}}
@@ -36,7 +32,7 @@ Do not reject over style, completeness you do not need, or work you would have d
 
 Implement the work described in `prompt`, guided by `previous_envelope` if present, then emit your `Report` JSON.
 
-Load every skill path listed in `skills` and follow it. If the list is `(none)`, say so in your summary rather than inventing conventions of your own.
+Load every skill of this repository that governs the files you are about to change, and follow it.
 
 ## When `previous_envelope` is a review verdict
 

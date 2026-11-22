@@ -29,7 +29,6 @@ activities:
       - read
       - bash
     output: planOutput                    # the envelope contract it answers
-    gates: [artifactsExist, filesNonEmpty]
     attempts: 2                           # Activity Runs of this instance, first included
     commit: false                         # land its own change once its gates pass
 
@@ -109,12 +108,30 @@ An Activity entry carries what the work IS as well as who performs it, because t
 | Field      | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `output`   | no       | The envelope spec it answers, by published name. Default `genericOutput`. A name the package does not publish is refused at load, listing the ones it does.                                                                                                                                                                                                                                                                          |
-| `gates`    | no       | What its envelope must survive, by published name. `checks` runs this repository's `routing.checks` commands and is deliberately opt-in: after `test` the suite is red on purpose.                                                                                                                                                                                                                                                   |
 | `input`    | no       | `upstream` (the default) or `changes` — the run's own diff since its baseline, which is what the documenter reads.                                                                                                                                                                                                                                                                                                                   |
 | `attempts` | no       | Activity Runs of ONE instance this run may spend, the first included. Default 2. A gate failure, a revise round and a regression all come out of it. Declare 1 where re-execution is expensive.                                                                                                                                                                                                                                      |
 | `commit`   | no       | Land this Activity's own change, in its envelope's `commit_message`, once every gate on it has passed. `--commit false` takes it away for a run; nothing grants it. A refused or timed-out commit raises an `uncommitted` warning without stopping the chain. A run ending in a terminal Activity retries it once before delivering; any still refused stops the run `waiting` before anything is pushed, and `--resume` retries it. |
 
 Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
+
+### Output checks
+
+Output checks follow from what an Activity reports: the envelope spec named by `output`. They are engine-owned, not configured in a registry entry.
+
+| What is judged                           | Checks, in order                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------ |
+| Any Activity                             | `artifactsExist`, `filesNonEmpty`, `jsonParses`                                |
+| plus, when its spec is `reviewOutput`    | `verdictConsistent`                                                            |
+| plus, when its spec is `ghIssueOutput`   | `issueCreated`                                                                 |
+| plus, when its spec is `diagnosisOutput` | `reproductionSupported`                                                        |
+| plus, when its spec is `buildOutput`     | `diffMatchesClaims`, then `checks` unless the Activity is named `test-tdd`     |
+| A Planner (`operatorPlanOutput`)         | `artifactsExist`, `filesNonEmpty`, `jsonParses`, `stepsValid`                  |
+| A revise round                           | the artifact checks, the spec's own check, `disputesSupported`; never `checks` |
+| Terminal Activity `gh-pull-request`      | artifact checks inside delivery, then `pull_request_opened`                    |
+
+Every other envelope spec gets only the artifact checks. The `test-tdd` exception uses the Activity's canonical name, so its aliases and numbered repeats keep the exception. A repository's own `buildOutput` Activity runs repository commands too, unless it is named `test-tdd`.
+
+A configuration layer that still carries skill routing, command labels or per-Activity gate lists is refused at load, including empty lists and local or machine overrides. The error lists every occurrence with its file, entry and replacement, and directs the developer to delete the obsolete key.
 
 ### The engine step `import`
 
@@ -122,9 +139,9 @@ Planners carry none of these: `operator` and `triage` are a closed set, their wo
 
 ### `terminal[]`
 
-A second closed set, beside the Planners: `gh-pull-request` is the only member. A terminal Activity runs once, after a run's revise loop has settled with an accepted result, outside the fold entirely — after `runReviseLoop` returns and before `finish`. A Lifecycle may only name it as the LAST entry of its LAST Stage, and never inside a `concurrent` Stage; naming it anywhere else is refused at load, with the reason. Configuration tunes `model`, `thinking`, `color`, `tools`, `writes` and `prompts`, exactly as it tunes a Planner — it carries no `output`, `gates`, `input`, `attempts` or `commit`, and cannot add a second terminal Activity. A name under `terminal:` that is not in the closed set, or a member with no entry at all, is refused at load.
+A second closed set, beside the Planners: `gh-pull-request` is the only member. A terminal Activity runs once, after a run's revise loop has settled with an accepted result, outside the fold entirely — after `runReviseLoop` returns and before `finish`. A Lifecycle may only name it as the LAST entry of its LAST Stage, and never inside a `concurrent` Stage; naming it anywhere else is refused at load, with the reason. Configuration tunes `model`, `thinking`, `color`, `tools`, `writes` and `prompts`, exactly as it tunes a Planner — it carries no `output`, `input`, `attempts` or `commit`, and cannot add a second terminal Activity. A name under `terminal:` that is not in the closed set, or a member with no entry at all, is refused at load.
 
-After delivery the engine judges `pull_request_opened`, an engine-owned gate that is not configurable. A violation fails the terminal Activity Run and the run. An outstanding refused commit, a failed `gh auth status`, or a failed push stops the run `waiting` instead: `decision-request.md` names the blocker, no answer is needed, and `--resume` retries the refused commits and delivers again. A Lifecycle ending in a terminal Activity that requires commits rejects `--commit false` at startup, before a session starts.
+After delivery the engine judges `pull_request_opened`, an engine-owned gate that is not configurable. A violation fails the terminal Activity Run and the run. Before delivery the engine judges the artifact checks on the agent's report; a report that fails them twice is replaced by the trace-generated body. An outstanding refused commit, a failed `gh auth status`, or a failed push stops the run `waiting` instead: `decision-request.md` names the blocker, no answer is needed, and `--resume` retries the refused commits and delivers again. A Lifecycle ending in a terminal Activity that requires commits rejects `--commit false` at startup, before a session starts.
 
 Each entry also carries `delivery`, the deterministic half's own settings — where it pushes and what it opens against:
 
@@ -282,31 +299,15 @@ The prefix exists because Activities and Stages share a namespace. A bare `accep
 
 Every agent loads only the path policy shipped in `runtime/extensions/path-policy.ts`. Its path is resolved from the package, not from repository overrides or configuration. Configuration cannot load additional extensions.
 
-## `routing:` — what agents load, what the `checks` gate runs
+## `routing:` — what the `checks` gate runs
 
-The one section that may name a skill path or a checker command. Nothing in `<pi-crust>/runtime/domains/`, `<pi-crust>/runtime/lib/`, `<pi-crust>/runtime/commands/` or `<pi-crust>/runtime/prompts/` may name either: the factory is stamped into repositories whose conventions and toolchain it cannot know, so a path written into the tree is a path that does not exist there.
-
-Both lists are selected by **the paths the change actually touched**.
+A repository declares its checker commands here, selected by **the paths the change actually touched**. Package modules and prompts do not name repository-specific checker commands. Skills belong where the coding agent discovers them; the engine does not route them.
 
 ```yaml
 routing:
-  skills:
-    - name: code-review
-      path: .claude/skills/code-review   # passed to the coding agent as --skill
-      agents: [code-reviewer]            # omit to give it to every agent
-      when: ["**/*.ts", "**/*.tsx"]
-      activity runs: []                         # omit to give it to every activity run
-
-    - name: respond-to-pr-comments       # how to ANSWER a review, so no `when:`
-      path: .claude/skills/respond-to-pr-comments
-      agents: [builder]
-      activity runs: [revise]                   # `revise_2` matches this too
-
   checks:
     - name: test
       when: ["**/*.ts"]
-      operation: test                    # lint | typecheck | build | test
-      area: backend                      # frontend | backend (default: backend)
       argv: [bun, test]                  # argv LIST, binaries by BARE NAME
       cwd: ""                            # where to run it, from the git root
       with_changed_paths: false          # true appends the matched paths to argv
@@ -316,10 +317,6 @@ routing:
 
 | Key                           | Default | Meaning                                                                                                                           |
 | ----------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `skills[].path`               | —       | file or directory handed to the agent's harness, once per entry                                                                   |
-| `skills[].agents`             | `[]`    | which agents receive it; empty means every agent                                                                                  |
-| `skills[].when`               | `[]`    | path globs; empty always matches                                                                                                  |
-| `skills[].activity runs`      | `[]`    | activity run names that receive it; empty is every activity run. An instance suffix is stripped, so `revise` matches `revise_2`   |
 | `checks[].argv`               | —       | at least one token; never a shell string                                                                                          |
 | `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                                         |
 | `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                                           |
@@ -351,14 +348,6 @@ Set `routing.unmatched: block` to restore the old, failing behaviour for a repos
 | declared       | some          | 0       | `warn` (default)    | **passed**, with a check and a warning naming the unverified paths          |
 | declared       | some          | 0       | `block`             | **failed**: N path(s) changed but no rule matched them                      |
 | declared       | some          | N       | either              | whatever the commands said, plus a warning for any remainder left unmatched |
-
-### How a skill reaches the agent
-
-`executeAgent` resolves the list for the agent it is about to call — by agent name, by changed path, and by the activity run it is running — and passes each entry as `--skill <path>`. Two render variables carry the same information into the prompt, so an agent can be told to follow them without any prompt naming a path: `{{skills}}` (newline-separated, or `(none)`) and `{{changed_files}}`.
-
-`activity runs:` is what makes "this skill is about how to answer a review" expressible: a skill routed to the builder's `revise` activity run reaches it and nothing else, where a `when:` glob would have given it to every build that touched the same files.
-
-A code-review agent handed `(none)` must say so and withhold approval. A review with no conventions loaded is not a review, and inventing them is worse than declining.
 
 ## Overriding the roster on one machine
 
