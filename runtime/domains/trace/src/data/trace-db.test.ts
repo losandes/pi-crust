@@ -703,7 +703,11 @@ test(
       "INSERT INTO events(event_id, run_id, type) VALUES ('a-1', 'a', 'log'), ('b-1', 'b', 'log')",
     )
     const columns = db.query('PRAGMA table_info(sessions)').all()
-    const rows = db.query('SELECT * FROM sessions ORDER BY run_id').all()
+    const rows = db
+      .query<Record<string, unknown>, []>(
+        'SELECT * FROM sessions ORDER BY run_id',
+      )
+      .all()
     const events = db.query('SELECT * FROM events ORDER BY event_id').all()
     db.close()
     const reader = new Database(path, { readonly: true })

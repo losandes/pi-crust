@@ -60,7 +60,7 @@ for (const [name, document, expected, problem] of [
         const result = machineThemes({ CRUST_MACHINE_CONFIG: root })
         // then
         expect(result.themes.length).toBe(expected)
-        expect(result.themes.slice(0, 5)).toEqual(BUILTIN_THEMES)
+        expect(result.themes.slice(0, 5)).toEqual([...BUILTIN_THEMES])
         expect(BUILTIN_THEMES.map((theme) => theme.name)).toEqual([
           'auto',
           'light',

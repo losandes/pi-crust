@@ -23,6 +23,7 @@ export const BUILTIN_THEMES: readonly TRegisteredTheme[] = [
   { name: 'dracula', label: 'Dracula', builtin: true, css: '' },
   { name: 'high-contrast', label: 'High contrast', builtin: true, css: '' },
 ]
+type TThemeEntry = Readonly<{ theme?: TRegisteredTheme; problem?: string }>
 const table = (value: unknown): Readonly<Record<string, unknown>> => {
   const parsed = z.record(z.string(), z.unknown()).safeParse(value)
   return parsed.success ? parsed.data : {}
@@ -44,8 +45,8 @@ export const machineThemes = (
       themes: BUILTIN_THEMES,
       problem: `${file}: ${String(document.error)}`,
     }
-  const entries = Object.entries(table(document.data.themes)).map(
-    ([name, value]) => {
+  const entries = Object.entries(table(table(document.data).themes)).map(
+    ([name, value]): TThemeEntry => {
       const entry = table(value)
       if (BUILTIN_THEMES.some((theme) => theme.name === name))
         return { problem: `${name}: built-in theme cannot be replaced` }
@@ -59,7 +60,7 @@ export const machineThemes = (
         return { problem: `${name}: stylesheet is outside ${directory}` }
       if (!existsSync(path))
         return { problem: `${name}: stylesheet is missing` }
-      const stylesheet = safeParseSettlement(() => {
+      const stylesheet = safeParseSettlement((): TThemeEntry => {
         if (!statSync(path).isFile())
           return { problem: `${name}: stylesheet is not a regular file` }
         return {

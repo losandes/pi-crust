@@ -678,7 +678,8 @@ test(
     )
     const spy = spawnSpy()
     const { spawnChild } = spy
-    const env = { ...withHome(track(packageTree())), CRUST_DB: dbOf(root) }
+    const home = track(packageTree())
+    const env = { ...withHome(home), CRUST_DB: dbOf(root) }
 
     // when
     const actual = resumeRun(
@@ -694,7 +695,7 @@ test(
     expect(actual.resumed).toBe(true)
     expect(spy.calls[0]?.command).toBe('bun')
     expect(spy.calls[0]?.args).toEqual([
-      join(env.CRUST_HOME ?? '', 'runtime/cli.ts'),
+      join(home, 'runtime/cli.ts'),
       '--lifecycle',
       'sdlc',
       '--run-id',
