@@ -42,7 +42,7 @@ for (const keyed of [false, true]) {
               terminal: { 'gh-pull-request': { prompts: '/terminal' } },
             }
           : {}),
-        observability: { db: 'fixture.db', poll_ms: 250 },
+        observability: { poll_ms: 250 },
         lifecycles: [
           {
             name: 'quick',
@@ -56,7 +56,6 @@ for (const keyed of [false, true]) {
       const actual = Bun.TOML.parse(configText(document))
       // then
       expect(actual).toMatchObject({
-        db: 'fixture.db',
         poll_ms: 250,
         activities: { build: { prompts: '/prompts/build', writes: ['src/'] } },
         planners: { operator: { prompts: '/operator' } },

@@ -30,7 +30,7 @@ test(
       cfg: crustConfigSchema.parse({
         defaults: { data_dir: join(dir, 'data') },
         agents: [],
-        observability: { db: join(dir, 'crust.db') },
+        observability: {},
       }),
       runId: 'aaaa1111',
       tracer,

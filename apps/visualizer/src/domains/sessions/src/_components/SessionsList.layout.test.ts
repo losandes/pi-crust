@@ -56,11 +56,6 @@ const withDashboard = (
         (selector) => document.querySelectorAll(selector).length === 4,
         CARDS,
       )
-      await page.waitForFunction(() =>
-        document
-          .getElementById('crust-custom-themes')
-          ?.textContent?.includes('high-contrast'),
-      )
       await page.evaluate(() => document.fonts.ready)
       await check(page)
     },

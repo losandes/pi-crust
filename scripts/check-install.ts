@@ -16,11 +16,12 @@ const packageRoot = resolve(import.meta.dir, '..')
 
 const main = (): number => {
   const probe = mkdtempSync(join(tmpdir(), 'crust-check-install-'))
+  const home = mkdtempSync(join(tmpdir(), 'crust-check-home-'))
   try {
     const installed = spawnSync(
       'bun',
       [join(packageRoot, 'scripts/install.ts')],
-      { cwd: probe, stdio: 'inherit' },
+      { cwd: probe, env: { ...process.env, HOME: home }, stdio: 'inherit' },
     )
     if (installed.status !== 0) {
       process.stderr.write(
@@ -38,6 +39,8 @@ const main = (): number => {
       )
     const faults = installFaults({
       files,
+      home: packageRoot,
+      record: readFileSync(join(home, '.pi-crust', 'pi-crust-home'), 'utf8'),
       installed: existsSync(path) ? readFileSync(path, 'utf8') : '',
       template: readFileSync(
         join(packageRoot, 'templates/pi-crust.toml'),
@@ -56,6 +59,7 @@ const main = (): number => {
         cwd: probe,
         env: {
           ...environment,
+          HOME: home,
           CRUST_MACHINE_CONFIG: join(probe, 'no-machine-config'),
         },
         stdio: 'inherit',
@@ -72,6 +76,7 @@ const main = (): number => {
     })
     return all.length === 0 ? 0 : 1
   } finally {
+    rmSync(home, { recursive: true, force: true })
     rmSync(probe, { recursive: true, force: true })
   }
 }

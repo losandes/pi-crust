@@ -10,9 +10,22 @@
  * so the only thing added here is `--run-id` and `--resume`.
  */
 
-import { dirname, join } from 'node:path'
+import { statSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileExists, readText } from '../../../../lib/system'
 import { longFlagArgv } from './parse-cli'
+
+export const OWN_RUNTIME = resolve(import.meta.dir, '..', '..', '..', '..')
+export const installedEntry = (
+  script: string,
+  runtime: string,
+): string | undefined => {
+  const parts = script.split('/')
+  const index = parts.lastIndexOf('runtime')
+  if (index < 0) return script
+  const entry = join(runtime, ...parts.slice(index + 1))
+  return fileExists(entry) && statSync(entry).isFile() ? entry : undefined
+}
 
 export const INVOCATION_FILENAME = 'invocation.json'
 
@@ -99,6 +112,7 @@ export const recordedInvocation = (
 export const resumeRecordedRun = (
   sessionDir: string,
   attachment: TAttachment = 'attached',
+  runtime: string = OWN_RUNTIME,
 ): TResumption => {
   const recorded = recordedInvocation(sessionDir)
   if (recorded === undefined) {
@@ -109,7 +123,15 @@ export const resumeRecordedRun = (
     }
   }
   const runId = sessionDir.split('/').filter(Boolean).at(-1) ?? ''
-  const argv = resumeArgv(recorded.argv, runId)
+  const script = recorded.argv[1] ?? ''
+  const entry = installedEntry(script, runtime)
+  if (entry === undefined)
+    return {
+      started: false,
+      command: '',
+      reason: `${script} is not an entry point of the pi-crust at ${dirname(runtime)}`,
+    }
+  const argv = [entry, ...resumeArgv(recorded.argv, runId).slice(1)]
   const command = `bun ${argv.join(' ')}`
 
   if (attachment === 'detached') {

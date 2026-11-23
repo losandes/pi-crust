@@ -1,19 +1,5 @@
-/**
- * Which working trees this server is watching.
- *
- * One database per tree, never one shared database. A run's trace lives
- * beside the work it describes, so the session directories, the inboxes and
- * the handoff files a write has to reach are all found the same way they
- * always were — relative to that tree's own db. Pointing several trees at one
- * shared file would merge the rows and break every one of those paths, since
- * each is derived from where the database sits.
- *
- * It also means a run's workspace is not a column that can be wrong or
- * missing: it is which database the row came from.
- */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { existsSync, realpathSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { DEFAULT_DB_RELATIVE, resolveDbPath } from './db.ts'
 
@@ -30,8 +16,7 @@ export type TWorkspace = Readonly<{
    * Carried rather than derived, because `data_dir` is relocatable: a pooled
    * store puts the db at `<clone>/.pi-crust/data/issues/41/crust.db`, two
    * levels above which is `<clone>/.pi-crust/data`, a directory with no
-   * stamp in it. The registry already records the true root; this is where
-   * it survives to the reader.
+   * stamp in it. Explicit store specifications carry the root here for compatibility.
    */
   root: string
 }>
@@ -55,7 +40,7 @@ export const slugify = (value: string): string =>
  *
  * `<tree>/.pi-crust/data/crust.db` by default, so the tree is two levels up
  * from the file. This is the fallback for a workspace whose root nothing
- * recorded \u2014 a registry record that omits `root`, a `--workspace` spec that
+ * recorded \u2014 a `--workspace` spec that
  * names a file rather than a directory. It is wrong for a relocated or
  * pooled `data_dir`, which is why every other producer of a `TWorkspace`
  * carries its own root instead of calling this.
@@ -199,82 +184,7 @@ const gitRoot = (from: string): string | undefined => {
   }
 }
 
-/**
- * Where the factory records the trees that have run on this machine.
- *
- * Read, never written, by this process. The factory owns the format; this is
- * a second reader of it, duplicated rather than imported because the server
- * and the factory are separate packages that ship independently — the same
- * reason the inbox is written here in the format the factory reads.
- */
-export const registryPath = (
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): string => {
-  const override = (env.CRUST_REGISTRY ?? '').trim()
-  return override === ''
-    ? join(env.HOME ?? homedir(), '.pi-crust', 'workspaces.jsonl')
-    : resolve(override)
-}
-
-/** The registered trees, newest record per database, tolerating a torn line. */
-export const readRegistry = (path: string): readonly TWorkspace[] => {
-  if (!existsSync(path)) return []
-  const byDb = new Map<string, TWorkspace>()
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
-    if (line.trim() === '') continue
-    // biome-ignore lint/plugin/no-intermediate-try-catch: a half-written or newer-than-this-reader line is tolerated, not reported \u2014 this IS the boundary that decides a torn line does not refuse the rest
-    try {
-      const parsed = JSON.parse(line) as { db?: unknown; root?: unknown }
-      if (typeof parsed.db !== 'string' || parsed.db === '') continue
-      const root =
-        typeof parsed.root === 'string' && parsed.root !== ''
-          ? parsed.root
-          : workspaceRootOf(parsed.db)
-      byDb.set(parsed.db, {
-        label: slugify(root.split(sep).at(-1) ?? ''),
-        dbPath: parsed.db,
-        root,
-      })
-    } catch {
-      // Half written, or written by a version that knows more than this one.
-      // Neither is a reason to refuse to serve the trees that did parse.
-    }
-  }
-  return [...byDb.values()]
-}
-
-/**
- * When the registry last changed, as a cheap gate on re-reading it.
- *
- * Zero when there is no file, which is also the value for "nothing has
- * registered yet" — the two are the same state and need no distinction.
- */
-export const registryStamp = (path: string): number => {
-  // biome-ignore lint/plugin/no-intermediate-try-catch: no file and "nothing has registered yet" are the same state \u2014 this IS the boundary that collapses a missing file into that zero
-  try {
-    return statSync(path).mtimeMs
-  } catch {
-    return 0
-  }
-}
-
-/**
- * What this server watches, in precedence order:
- *
- *   --workspace <spec>   repeatable; wins over everything
- *   CRUST_WORKSPACES     the same specs, separated by commas
- *   (otherwise)          every tree registered on this machine, plus the
- *                        --db / CRUST_DB / cwd one, which is always included
- *   --all-worktrees      additionally sweeps sibling worktrees holding a db
- *
- * Watching every registered tree by default is the point: a developer with
- * five agents running wants one page, not five flags. The registry only
- * contains trees where the factory has actually run, so this cannot sprawl
- * into unrelated checkouts.
- *
- * The local database is always in the list even when nothing has registered,
- * so a single-tree invocation behaves exactly as it always did.
- */
+/** Explicit stores, or the shared database, plus an optional worktree sweep. */
 export const resolveWorkspaces = (
   argv: readonly string[] = Bun.argv,
   env: Readonly<Record<string, string | undefined>> = process.env,
@@ -292,31 +202,8 @@ export const resolveWorkspaces = (
     argv.includes('--all-worktrees') ||
     (env.CRUST_ALL_WORKTREES ?? '').trim() !== ''
   const swept = everywhere ? discover(fallback) : []
-  const registered = readRegistry(registryPath(env))
-  const parsedHere = parseSpec(fallback)
-  // CRUST_WORKSPACE_ROOT, when set, names the tree the caller was actually
-  // run in more reliably than anything derivable from the database path \u2014
-  // the whole reason this variable exists is a pooled `data_dir` that sits
-  // nowhere near the tree it belongs to.
-  const workspaceRootEnv = (env.CRUST_WORKSPACE_ROOT ?? '').trim()
-  const here =
-    parsedHere === undefined
-      ? undefined
-      : workspaceRootEnv === ''
-        ? parsedHere
-        : {
-            ...parsedHere,
-            root: resolve(workspaceRootEnv),
-            label: slugify(resolve(workspaceRootEnv).split(sep).at(-1) ?? ''),
-          }
-  // The local database is listed FIRST and unconditionally, so an empty
-  // registry never means an empty UI and the tree you are standing in is
-  // never the one missing from the page.
-  return dedupe([
-    ...(here === undefined ? [] : [here]),
-    ...registered,
-    ...swept,
-  ])
+  const here = parseSpec(fallback)
+  return dedupe([...(here === undefined ? [] : [here]), ...swept])
 }
 
 const commaSpecs = (value: string | undefined): readonly string[] =>

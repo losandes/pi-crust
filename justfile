@@ -6,4 +6,17 @@
 set positional-arguments
 
 crust *ARGS:
-    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    home="${CRUST_HOME:-}"
+    pointer="${HOME}/.pi-crust/pi-crust-home"
+    if [[ -z "$home" && -f "$pointer" ]]; then
+      home="$(cat "$pointer")"
+    fi
+    if [[ -z "$home" ]]; then
+      echo "crust: cannot find the package home." >&2
+      echo "  looked at CRUST_HOME (not set) and $pointer (not found)." >&2
+      echo "  repair: run 'bun <pi-crust>/scripts/install.ts' in this repository, or set CRUST_HOME to the pi-crust directory." >&2
+      exit 2
+    fi
+    exec bun "$home/runtime/cli.ts" "$@"

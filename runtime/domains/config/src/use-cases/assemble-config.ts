@@ -93,7 +93,7 @@ export const assembleConfig = (
         ...(sections.terminal ?? []),
       ],
       observability: Object.fromEntries(
-        ['db', 'poll_ms', 'ports']
+        ['poll_ms', 'ports']
           .filter((key) => Object.hasOwn(merged, key))
           .map((key) => [key, merged[key]]),
       ),

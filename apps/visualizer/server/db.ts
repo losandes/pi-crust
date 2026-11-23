@@ -1,5 +1,5 @@
 /**
- * SQLite reader over a target repo's crust.db.
+ * Read-only queries over a shared or explicitly selected trace.
  *
  * The read connection is opened readonly and every query on it is a SELECT —
  * the writers are the tracers of running lifecycle processes, and WAL lets us read
@@ -46,14 +46,12 @@ const DEFAULT_LIMIT = 500
  * shares, not for a one-off flag or environment variable a single developer
  * types at a shell, which is all `resolveDbPath` ever sees.
  */
-const expandHome = (value: string): string =>
-  value === '~' || value.startsWith('~/')
-    ? join(homedir(), value.slice(1))
-    : value
+const expandHome = (value: string, home: string): string =>
+  value === '~' || value.startsWith('~/') ? join(home, value.slice(1)) : value
 
 /**
- * Resolve the db path: --db arg wins, then CRUST_DB, then <cwd>/.pi-crust/data/crust.db.
- * The db lives in the TARGET repo, so cwd is the repo the visualizer is pointed at.
+ * Resolve the db path: --db arg wins, then CRUST_DB, then ~/.pi-crust/data/crust.db.
+ * Relative explicit overrides resolve against the caller's working directory.
  */
 export function resolveDbPath(
   argv: readonly string[] = Bun.argv,
@@ -65,10 +63,22 @@ export function resolveDbPath(
     (flagIndex === -1 ? undefined : argv[flagIndex + 1]) ??
       inline?.slice('--db='.length) ??
       env.CRUST_DB ??
-      DEFAULT_DB_RELATIVE,
+      join(env.HOME ?? homedir(), '.pi-crust', 'data', 'crust.db'),
+    env.HOME ?? homedir(),
   )
 
   return isAbsolute(raw) ? raw : resolve(process.cwd(), raw)
+}
+
+const withRepository = (session: Readonly<Session>): Session => {
+  const { repository_root: root, ...rest } = session
+  return typeof root === 'string' && root !== ''
+    ? {
+        ...rest,
+        repository_root: root,
+        repository: root.split('/').filter(Boolean).at(-1) ?? root,
+      }
+    : rest
 }
 
 export class PiCrustDb {
@@ -83,9 +93,7 @@ export class PiCrustDb {
   readonly label: string
   /**
    * Where the lifecycle session dirs live: `{data_dir}/sessions/{run_id}/{agent}/`.
-   * The db sits in the same data_dir (config's `observability.db` defaults to
-   * `.pi-crust/data/crust.db`), so deriving it as a sibling of the db file keeps
-   * working when the whole data_dir is relocated.
+   * The database always sits in data_dir, so session directories are its siblings.
    */
   readonly sessionsDir: string
   readonly journalMode: string
@@ -99,8 +107,7 @@ export class PiCrustDb {
     if (!existsSync(path)) {
       throw new Error(
         `crust.db not found at ${path}\n` +
-          `Point the visualizer at a target repo: --db <path> or CRUST_DB=<path>, ` +
-          `or run it from a repo root containing ${DEFAULT_DB_RELATIVE}`,
+          `The default trace is ~/.pi-crust/data/crust.db; use CRUST_DATA_DIR when starting a run, or --db <path> or CRUST_DB=<path> to read another trace.`,
       )
     }
     this.path = path
@@ -206,7 +213,8 @@ export class PiCrustDb {
                 ${this.optionalColumn('sessions', 'archived')},
                 ${this.optionalColumn('sessions', 'workspace_root')},
                 ${this.optionalColumn('sessions', 'branch')},
-                ${this.optionalColumn('sessions', 'name')}
+                ${this.optionalColumn('sessions', 'name')},
+                ${this.optionalColumn('sessions', 'repository_root')}
            FROM sessions
           ${where}
           ORDER BY started_at DESC, rowid DESC
@@ -243,7 +251,7 @@ export class PiCrustDb {
     return rows.map((session) => {
       const activityRuns = byRun.get(session.run_id) ?? []
       return {
-        ...session,
+        ...withRepository(session),
         workspace: this.label,
         activityRuns,
         activity_run_count: activityRuns.length,
@@ -261,13 +269,14 @@ export class PiCrustDb {
                 ${this.optionalColumn('sessions', 'archived')},
                 ${this.optionalColumn('sessions', 'workspace_root')},
                 ${this.optionalColumn('sessions', 'branch')},
-                ${this.optionalColumn('sessions', 'name')}
+                ${this.optionalColumn('sessions', 'name')},
+                ${this.optionalColumn('sessions', 'repository_root')}
            FROM sessions WHERE run_id = ?`,
       )
       .get(runId)
     return row === null || row === undefined
       ? null
-      : { ...row, workspace: this.label }
+      : { ...withRepository(row), workspace: this.label }
   }
 
   activityRuns(runId: string): ActivityRun[] {

@@ -127,7 +127,7 @@ const aRun = (root: string, work: string, cfg = cfgWith()): TRun => {
   return {
     cfg: {
       ...cfg,
-      observability: { ...cfg.observability, db: join(root, 'absent.db') },
+      observability: { ...cfg.observability },
     },
     runId: 'aaaa2222',
     engineer: 'tester',

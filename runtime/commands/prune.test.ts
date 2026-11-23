@@ -280,13 +280,12 @@ test(
     try {
       // given
       const dataDir = scratch()
-      const dbPath = join(dataDir, 'crust.db')
       const configPath = join(dataDir, 'pi-crust.toml')
       writeFileSync(
         configPath,
         configText({
           defaults: { data_dir: dataDir },
-          observability: { db: dbPath },
+          observability: {},
           agents: [],
         }),
       )

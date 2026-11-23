@@ -7,6 +7,7 @@
  */
 
 import { basename, join, resolve } from 'node:path'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TPiCrustConfig, TRun, TRunState } from '../../../../lib/contracts'
 import { TRUST_DEFAULT } from '../../../../lib/contracts'
 import { fileExists, newId, writeText } from '../../../../lib/system'
@@ -20,7 +21,7 @@ import { createTracer, readRunState, runHasLiveProcess } from '../../../trace'
 import {
   currentBranch,
   engineerName,
-  registerWorkspace,
+  primaryWorktree,
   repoRoot,
   resolveDataPaths,
 } from '../../../workspace'
@@ -256,19 +257,14 @@ export const startSession = (
   // Where the work is happening, not where the observer is. One UI can watch
   // several working trees at once, and a run that cannot name its own tree is
   // a run the reader cannot act on.
+  const repository = safeParseSettlement(() => primaryWorktree(run.repoRoot))
   tracer.sessionWorkspace(
     id,
     run.repoRoot,
     currentBranch(),
     run.vcsRoot === run.repoRoot ? '' : run.vcsRoot,
+    repository.status === 'ok' ? repository.data : '',
   )
-  /*
-   * Tell the machine this tree exists, so an observer started later can find
-   * it. Registration happens here rather than from the UI because the first
-   * run in a new worktree is both the one most worth watching and the one
-   * that happens before anybody opens the UI.
-   */
-  registerWorkspace(run.repoRoot, tracer.dbPath)
   // This process is the run. Record it before any activityRun opens, so a run that
   // hangs in its first agent call is still killable by run_id.
   tracer.processStart(

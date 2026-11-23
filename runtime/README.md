@@ -4,9 +4,11 @@ This directory holds the package code for pi-crust's repeatable **agents plus co
 
 ## The package and the stamp
 
-The runtime ships with pi-crust; it is not copied into a target repository. The installer writes one comment-only `pi-crust.toml`, the credential example, the justfile passthrough and the package pointer in `.pi-crust/data/pi-crust-home`. It creates no configuration directory or prompt files.
+The runtime ships with pi-crust; it is not copied into a target repository. The installer writes one comment-only `pi-crust.toml`, the credential example, the justfile passthrough and the machine record at `~/.pi-crust/pi-crust-home`, and nothing under the repository's `.pi-crust/`. It creates no configuration directory or prompt files.
 
 Configuration is read on every command from `runtime/config/`, then `~/.pi-crust/config/`, then the repository file. Both directories hold `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge recursively; arrays replace whole. Package updates need no re-stamp. The installer never replaces an existing `pi-crust.toml`, even with `--refresh` or its deprecated `--force` alias. See [the install cookbook](../cookbooks/install.md).
+
+Viewer settings and added themes live in the machine configuration. Leftover `.pi-crust/config/crust.observe.yaml` and `.pi-crust/data/pi-crust-home` files are not read or deleted.
 
 ## The `/skill:crust` capability
 
@@ -45,7 +47,7 @@ runtime/
 │   ├── policy/       governed paths and deterministic checks
 │   ├── runs/         run execution and orchestration
 │   ├── trace/        the trace store and its readers
-│   └── workspace/    Git, worktrees, roots and workspace registration
+│   └── workspace/    Git, worktrees, roots and data paths
 ├── lib/
 │   ├── contracts/    shared types and schemas
 │   ├── system/       process, filesystem, clock and ID primitives
@@ -133,7 +135,7 @@ The engine derives [output checks](../references/config.md#output-checks) from e
 
 ## What is gitignored, and why
 
-In a stamped repository, `.pi-crust/data/` holds execution history rather than source. Commit the repository-owned `pi-crust.toml`, not session transcripts or the trace database. Machine preferences stay under `~/.pi-crust/config/`. Runtime code stays in the package this README describes; it is not duplicated in the stamp.
+Execution history lives at `~/.pi-crust/data/` by default, with earlier traces left in repository `.pi-crust/data/` directories. Commit the repository-owned `pi-crust.toml`, not session transcripts or the trace database. Machine preferences stay under `~/.pi-crust/config/`. Runtime code stays in the package this README describes; it is not duplicated in the stamp.
 
 ## The one prohibition
 
@@ -141,4 +143,4 @@ In a stamped repository, `.pi-crust/data/` holds execution history rather than s
 
 ## Where to read more
 
-pi-crust itself carries the rest — `cookbooks/` for how to do a thing, `references/` for the config schema, the envelope contract, and the trace tables. `cat .pi-crust/data/pi-crust-home` says where to find them.
+pi-crust itself carries the rest — `cookbooks/` for how to do a thing, `references/` for the config schema, the envelope contract, and the trace tables. `cat ~/.pi-crust/pi-crust-home` says where to find them.

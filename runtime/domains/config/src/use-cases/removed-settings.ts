@@ -29,6 +29,10 @@ export const removedSettingFaults = (
 ): readonly string[] =>
   layers.flatMap(({ file, document }) =>
     Object.entries(record(document)).flatMap(([section, value]) => {
+      if (section === 'db')
+        return [
+          `${file}: db — the setting was removed; the trace database is crust.db inside defaults.data_dir. Delete this key; set defaults.data_dir to move the database and the session directories together.`,
+        ]
       if (section === 'routing') {
         const routing = record(value)
         const faults = Object.keys(routing).flatMap((key) =>

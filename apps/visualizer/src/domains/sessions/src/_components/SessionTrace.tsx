@@ -21,6 +21,7 @@ import { paletteColor } from '@/lib/palette'
 import { navigate } from '@/lib/router'
 import { runNoticesOf } from '../usecases/notices'
 import { resolveBranchLabel } from '../usecases/resolve-branch-label'
+import { resolveRepositoryLabel } from '../usecases/resolve-repository-label'
 import { useTrace } from '../usecases/use-trace'
 import {
   blockLayout,
@@ -359,6 +360,13 @@ export const SessionTrace = ({
             {session.request}
           </span>
           <StatusChip status={session.status ?? 'fail'} />
+          <span
+            data-testid="session-repository"
+            title={session.repository_root || 'repository not recorded'}
+            className="truncate text-dim"
+          >
+            {resolveRepositoryLabel(session)}
+          </span>
           <span
             className="max-w-full min-w-0 truncate rounded-full bg-panel-2 px-2 py-0.5 font-mono text-xs leading-normal text-dim"
             data-testid="session-branch"

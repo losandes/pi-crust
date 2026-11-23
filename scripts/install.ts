@@ -21,6 +21,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
 const TEMPLATES = resolve(
@@ -96,15 +97,8 @@ const GITIGNORE_ENTRIES = ['.pi-crust/data/']
  */
 const JUST_SETTING = 'set positional-arguments'
 
-/**
- * The recipe body: resolve the package home through CRUST_HOME, this tree's
- * own stamp pointer, then the pointer beside the shared git directory every
- * worktree of one clone names through `git rev-parse --git-common-dir`
- * (1.6.1–1.6.4) — so a linked worktree that was never re-stamped still
- * runs `just crust ...`. Mirrors the chain `crust.just`'s own `crust`
- * variable resolves.
- */
-const HOME_RESOLUTION_BODY = [
+/** Earlier recipe body retained only for exact-match upgrade repair. */
+const LEGACY_HOME_RESOLUTION_BODY = [
   '    #!/usr/bin/env bash',
   '    set -euo pipefail',
   // A template literal with the dollar escaped, so what reaches the file is
@@ -127,6 +121,23 @@ const HOME_RESOLUTION_BODY = [
   '      echo "crust: cannot find the package home." >&2',
   '      echo "  checked CRUST_HOME, .pi-crust/data/pi-crust-home, and \\$(git rev-parse --git-common-dir)/../.pi-crust/data/pi-crust-home." >&2',
   '      echo "  set CRUST_HOME to repair it." >&2',
+  '      exit 2',
+  '    fi',
+  '    exec bun "$home/runtime/cli.ts" "$@"',
+].join('\n')
+
+const HOME_RESOLUTION_BODY = [
+  '    #!/usr/bin/env bash',
+  '    set -euo pipefail',
+  `    home="\${CRUST_HOME:-}"`,
+  `    pointer="\${HOME}/.pi-crust/pi-crust-home"`,
+  '    if [[ -z "$home" && -f "$pointer" ]]; then',
+  '      home="$(cat "$pointer")"',
+  '    fi',
+  '    if [[ -z "$home" ]]; then',
+  '      echo "crust: cannot find the package home." >&2',
+  '      echo "  looked at CRUST_HOME (not set) and $pointer (not found)." >&2',
+  '      echo "  repair: run \'bun <pi-crust>/scripts/install.ts\' in this repository, or set CRUST_HOME to the pi-crust directory." >&2',
   '      exit 2',
   '    fi',
   '    exec bun "$home/runtime/cli.ts" "$@"',
@@ -166,18 +177,20 @@ const JUST_RECIPE_ONLY = [
  * not read the install output.
  *
  * The installer is the one process that knows the answer, so it writes the
- * answer down. Under `data/`, because it describes this machine rather than
- * this repository: it is gitignored, and the drift check already treats
- * `data/` as runtime rather than as something the skill ships.
+ * answer down once under the user's machine home, outside every repository.
  */
-const HOME_FILENAME = join('data', 'pi-crust-home')
+const HOME_FILENAME = 'pi-crust-home'
 
-const recordHome = (root: string): TTally => {
+const recordHome = (): TTally => {
   const home = resolve(dirname(new URL(import.meta.url).pathname), '..')
-  const path = join(root, '.pi-crust', HOME_FILENAME)
+  const path = join(process.env.HOME ?? homedir(), '.pi-crust', HOME_FILENAME)
+  const previous = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, `${home}\n`, 'utf8')
-  return tallyOf('stamped', `${path} (${home})`)
+  return tallyOf(
+    'stamped',
+    `${path} (${home})${previous !== '' && previous !== home ? ` was ${previous}` : ''}`,
+  )
 }
 
 type TTally = Readonly<{
@@ -290,16 +303,19 @@ const repairInterpolation = (justfile: string, existing: string): TTally => {
  * same way `repairInterpolation` replaces the `{{ARGS}}` body today.
  */
 const repairHomeResolution = (justfile: string, existing: string): TTally => {
-  const target = `    ${NEW_PASSTHROUGH}`
-  if (!existing.includes(target)) {
+  const match = /^crust \*ARGS:\n((?:[ \t].*(?:\n|$))+)/m.exec(existing)
+  const body = match?.[1]?.replace(/\n$/, '')
+  if (body !== `    ${NEW_PASSTHROUGH}` && body !== LEGACY_HOME_RESOLUTION_BODY)
     return EMPTY_TALLY
-  }
-  const repaired = existing.replace(target, HOME_RESOLUTION_BODY)
+  const repaired = existing.replace(
+    `crust *ARGS:\n${body}`,
+    `crust *ARGS:\n${HOME_RESOLUTION_BODY}`,
+  )
   writeFileSync(justfile, repaired, 'utf8')
   return tallyOf(
     'stamped',
     `${justfile} (crust recipe repaired: package home now resolves through ` +
-      'CRUST_HOME, the stamp pointer, and the shared git directory)',
+      'CRUST_HOME or the machine record)',
   )
 }
 
@@ -366,7 +382,7 @@ const main = (): number => {
     removeOrphans(root),
     ensureGitignore(root),
     ensureJustRecipe(root),
-    recordHome(root),
+    recordHome(),
   ])
 
   say(`crust installed into ${root}`)
@@ -394,6 +410,11 @@ const main = (): number => {
         `  ${path}: no longer read, left untouched. Migrate by hand; see <pi-crust>/references/config.md.`,
       )
   }
+  const legacyPointer = join(root, '.pi-crust', 'data', 'pi-crust-home')
+  if (existsSync(legacyPointer))
+    say(
+      `  ${legacyPointer}: no longer read, left untouched. pi-crust is found through CRUST_HOME or ${join(process.env.HOME ?? homedir(), '.pi-crust', HOME_FILENAME)}.`,
+    )
   say('\nnext steps:')
   say(
     '  1. cp .env.pi-crust.example .env     # then set the key(s) your roster needs',
@@ -403,7 +424,7 @@ const main = (): number => {
   say('  4. just crust observe       # the trace UI, needs bun')
   say('\n  no just? the raw form of step 2 is:')
   say(
-    '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/commands/run.ts" \\\n' +
+    '     bun "$(cat ~/.pi-crust/pi-crust-home)/runtime/commands/run.ts" \\\n' +
       '       "list the top-level directories in this repo" --activities scout',
   )
   say(

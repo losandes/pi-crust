@@ -34,7 +34,7 @@ for (const missing of [false, true]) {
       const dir = mkdtempSync(join(tmpdir(), 'crust-output-check-wiring-'))
       const cfg: TPiCrustConfig = crustConfigSchema.parse({
         defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-        observability: { db: join(dir, 'crust.db') },
+        observability: {},
         activities: [
           {
             name: 'research',

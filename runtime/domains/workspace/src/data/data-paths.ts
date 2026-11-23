@@ -1,5 +1,5 @@
 /**
- * Resolving `defaults.data_dir` and `observability.db` to absolute paths.
+ * Resolving `defaults.data_dir` and its database to absolute paths.
  *
  * Issue #24 (1.1): every consumer composed the configured value itself —
  * sometimes against the repository root, sometimes against `process.cwd()` —
@@ -21,6 +21,7 @@ import {
   dbPathFromEnv,
   type TEnv,
 } from '../../../../lib/system'
+export const DB_FILENAME = 'crust.db'
 export const PRIMARY_WORKTREE_TOKEN = '{primary_worktree}'
 
 const run = (
@@ -65,9 +66,9 @@ export const primaryWorktree = (repoRoot: string): string => {
   return resolve(dirname(absoluteCommonDir))
 }
 
-const expandHome = (value: string): string =>
+const expandHome = (value: string, env: TEnv): string =>
   value === '~' || value.startsWith('~/')
-    ? join(homedir(), value.slice(1))
+    ? join(env.HOME ?? homedir(), value.slice(1))
     : value
 
 /**
@@ -80,8 +81,9 @@ const expandHome = (value: string): string =>
 export const resolveConfiguredPath = (
   value: string,
   repoRoot: string,
+  env: TEnv = process.env,
 ): string => {
-  const withHome = expandHome(value)
+  const withHome = expandHome(value, env)
   const withToken = withHome.includes(PRIMARY_WORKTREE_TOKEN)
     ? withHome.replaceAll(PRIMARY_WORKTREE_TOKEN, primaryWorktree(repoRoot))
     : withHome
@@ -95,14 +97,13 @@ export type TResolvedDataPaths = Readonly<{
 
 export type TDataPathsConfig = Readonly<{
   defaults: Readonly<{ data_dir: string }>
-  observability: Readonly<{ db: string }>
 }>
 
 /**
- * `defaults.data_dir` and `observability.db`, resolved to absolute paths.
+ * The trace database and session directories move together with `defaults.data_dir`.
  *
  * `CRUST_DATA_DIR` overrides the configured `data_dir` before resolution
- * (1.1.7); there is no equivalent override for `db` here — `CRUST_DB`
+ * before resolving the database as its child. `CRUST_DB`
  * already exists and is handled by each consumer alongside its other
  * flag/env precedence, same as it always was.
  */
@@ -112,10 +113,8 @@ export const resolveDataPaths = (
   env: TEnv = process.env,
 ): TResolvedDataPaths => {
   const dataDirValue = dataDirFromEnv(env) ?? cfg.defaults.data_dir
-  return {
-    dataDir: resolveConfiguredPath(dataDirValue, repoRoot),
-    db: resolveConfiguredPath(cfg.observability.db, repoRoot),
-  }
+  const dataDir = resolveConfiguredPath(dataDirValue, repoRoot, env)
+  return { dataDir, db: join(dataDir, DB_FILENAME) }
 }
 
 export const resolveLookupPaths = (

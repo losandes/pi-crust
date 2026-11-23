@@ -36,7 +36,7 @@ const scratchRun = (): Readonly<{ run: TRun; dbPath: string }> => {
   const dbPath = join(dir, 'crust.db')
   const cfg = crustConfigSchema.parse({
     defaults: { data_dir: join(dir, 'data') },
-    observability: { db: dbPath },
+    observability: {},
     agents: [],
   })
   const tracer = createTracer(
@@ -406,7 +406,7 @@ test(
     const dbPath = join(dir, 'crust.db')
     const cfg = crustConfigSchema.parse({
       defaults: { data_dir: join(dir, 'data') },
-      observability: { db: dbPath },
+      observability: {},
       agents: [],
     })
     const firstTracer = createTracer(

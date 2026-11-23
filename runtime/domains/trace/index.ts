@@ -20,6 +20,7 @@ export type { TObserveEnv } from './src/data/visualizer'
 export {
   backendPort,
   frontendPort,
+  observeDbPath,
   observeEnv,
   runLink,
   visualizerIsUp,

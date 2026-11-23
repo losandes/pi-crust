@@ -63,7 +63,7 @@ export const terminalContext = (run: TRun): TActivityContext => ({
 export const deliveryConfig = (dir: string) =>
   crustConfigSchema.parse({
     defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-    observability: { db: join(dir, 'crust.db') },
+    observability: {},
     agents: [],
   })
 
@@ -149,7 +149,10 @@ export const deliveryFixture = () => {
   process.chdir(dir)
   silenceTerminal()
   const cfg = deliveryConfig(dir)
-  const tracer = createTracer(cfg.observability.db, join(dir, 'events.jsonl'))
+  const tracer = createTracer(
+    join(cfg.defaults.data_dir, 'crust.db'),
+    join(dir, 'events.jsonl'),
+  )
   const run = createRun({ cfg, runId: 'eecc125a', tracer, engineer: 'tester' })
   tracer.sessionStart(run.runId, run.engineer, 'deliver')
   return {

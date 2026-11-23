@@ -8,6 +8,7 @@
 
 import { Database } from 'bun:sqlite'
 import { dirname } from 'node:path'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TActivityRun,
   TAgentConfig,
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   archived      INTEGER DEFAULT 0,  -- review triage, set by the UI; never by a run
   workspace_root TEXT,              -- the working tree this run ran in
   branch        TEXT,               -- the branch it was on when it started
+  repository_root TEXT,             -- primary working tree of the repository
   name          TEXT                -- --name, verbatim; display clips, storage does not
 );
 CREATE TABLE IF NOT EXISTS activity_runs (
@@ -128,6 +130,7 @@ export const MIGRATIONS: ReadonlyArray<readonly [string, string, string]> = [
   // case where the two are equal; see
   // specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md -- 1.5.2.
   ['sessions', 'vcs_root', 'TEXT'],
+  ['sessions', 'repository_root', 'TEXT'],
 ]
 
 /** Additive column migrations, so a db from an older pi-crust still opens. */
@@ -138,9 +141,29 @@ const migrate = (db: Database): void => {
       .all()
       .map((row) => row.name)
     if (!columns.includes(column)) {
-      db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`)
+      const result = safeParseSettlement(() =>
+        db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`),
+      )
+      if (
+        result.status === 'error' &&
+        !result.error.message.includes('duplicate column name')
+      )
+        throw result.error
     }
   }
+}
+
+/** SQLite's WAL transition can return BUSY without invoking its busy handler. */
+const enableWal = (db: Database, deadline = Date.now() + 5000): void => {
+  const result = safeParseSettlement(() => db.run('PRAGMA journal_mode=WAL;'))
+  if (result.status === 'ok') return
+  if (
+    !result.error.message.includes('database is locked') ||
+    Date.now() >= deadline
+  )
+    throw result.error
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25)
+  enableWal(db, deadline)
 }
 
 export const createTracer = (
@@ -150,9 +173,9 @@ export const createTracer = (
   ensureDir(dirname(dbPath))
   ensureDir(dirname(eventsJsonlPath))
   const db = new Database(dbPath, { create: true })
-  db.run('PRAGMA journal_mode=WAL;')
-  db.run('PRAGMA synchronous=NORMAL;')
   db.run('PRAGMA busy_timeout=5000;')
+  enableWal(db)
+  db.run('PRAGMA synchronous=NORMAL;')
   db.run(SCHEMA)
   migrate(db)
 
@@ -269,10 +292,16 @@ export const createTracer = (
      * column, which is why a reader must treat it as unknown rather than as
      * the observer's own tree.
      */
-    sessionWorkspace: (runId, workspaceRoot, branch, vcsRoot = '') => {
+    sessionWorkspace: (
+      runId,
+      workspaceRoot,
+      branch,
+      vcsRoot = '',
+      repositoryRoot = '',
+    ) => {
       db.run(
-        'UPDATE sessions SET workspace_root=?, branch=?, vcs_root=? WHERE run_id=?',
-        [workspaceRoot, branch, vcsRoot, runId],
+        'UPDATE sessions SET workspace_root=?, branch=?, vcs_root=?, repository_root=? WHERE run_id=?',
+        [workspaceRoot, branch, vcsRoot, repositoryRoot, runId],
       )
     },
 

@@ -52,7 +52,7 @@ const runIn = (
     vcsRoot: '/does-not-matter',
     contextHandoffDir,
     resume: new Set<string>(),
-    cfg: { observability: { db: '/unused.db' } },
+    cfg: { observability: {} },
     tokens: () => 0,
     cost: () => 0,
     nextSeq: () => {

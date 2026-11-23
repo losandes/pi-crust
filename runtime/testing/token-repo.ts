@@ -32,7 +32,7 @@ export const tokenRepo = (
       : configuredData
   const dbPath = options.overrideDb
     ? join(root, 'other-store', 'crust.db')
-    : join(configuredData, 'crust.db')
+    : join(options.separateData ? configuredData : dataDir, 'crust.db')
   const runId = 'aaaa1111'
   const sessionDir = join(dataDir, 'sessions', runId)
   const configPath = join(root, 'fixture.pi-crust.toml')
@@ -45,9 +45,6 @@ export const tokenRepo = (
       defaults: {
         data_dir: options.separateData ? dataDir : `${prefix}.pi-crust/data`,
       },
-      db: options.separateData
-        ? join(configuredData, 'crust.db')
-        : `${prefix}.pi-crust/data/crust.db`,
     }),
   )
   writeFileSync(
@@ -119,7 +116,7 @@ export const tokenRepo = (
     ...process.env,
     CRUST_CONFIG: configPath,
     CRUST_MACHINE_CONFIG: '/nonexistent/crust-machine-config',
-    CRUST_DB: options.overrideDb ? dbPath : '',
+    CRUST_DB: options.overrideDb || options.separateData ? dbPath : '',
     CRUST_DATA_DIR: options.overrideData ? dataDir : '',
     PI_PATH: join(root, 'fake-pi'),
   }

@@ -32,7 +32,7 @@ test.skipIf(SKIP_INTEGRATION)(
       const original = createRun({
         cfg: crustConfigSchema.parse({
           defaults: { data_dir: join(root, 'data') },
-          observability: { db: tracer.dbPath },
+          observability: {},
           agents: [],
         }),
         runId: 'aaaa1111',
@@ -43,7 +43,7 @@ test.skipIf(SKIP_INTEGRATION)(
         ...original,
         cfg: crustConfigSchema.parse({
           defaults: { data_dir: '{primary_worktree}/.pi-crust/data' },
-          observability: { db: '{primary_worktree}/.pi-crust/data/crust.db' },
+          observability: {},
           agents: [],
         }),
       }

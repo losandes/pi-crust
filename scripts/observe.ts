@@ -24,7 +24,8 @@ import { dirname, join, resolve } from 'node:path'
 
 import { safeParseSettlement } from '../lib/typedefs'
 import { loadConfig } from '../runtime/domains/config'
-import { observeEnv } from '../runtime/domains/trace'
+import { observeDbPath, observeEnv } from '../runtime/domains/trace'
+import { repoRoot, resolveDataPaths } from '../runtime/domains/workspace'
 import { DEFAULT_CONFIG_PATH } from '../runtime/lib/contracts'
 import { configPathFromEnv } from '../runtime/lib/system'
 
@@ -68,9 +69,15 @@ const main = (): number => {
     return 2
   }
 
-  const db = process.env.CRUST_DB ?? resolve('.pi-crust/data/crust.db')
   const loaded = safeParseSettlement(() =>
     loadConfig(configPathFromEnv() ?? DEFAULT_CONFIG_PATH),
+  )
+
+  const db = observeDbPath(
+    process.env,
+    loaded.status === 'ok'
+      ? resolveDataPaths(loaded.data, repoRoot()).db
+      : undefined,
   )
 
   const installed = spawnSync('bun', ['install'], {
@@ -86,7 +93,6 @@ const main = (): number => {
   const env = {
     ...process.env,
     CRUST_DB: db,
-    CRUST_WORKSPACE_ROOT: process.cwd(),
     ...observeEnv(
       loaded.status === 'ok' ? loaded.data.observability : undefined,
     ),

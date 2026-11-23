@@ -35,13 +35,12 @@ originalFetch = globalThis.fetch
  * re-rendering it — the distinction the workspace-change test depends on.
  */
 const Probe = ({
-  workspace,
   onThemes,
 }: {
   readonly workspace: string | undefined
   readonly onThemes: (themes: readonly TRegisteredTheme[]) => void
 }) => {
-  onThemes(useRegisteredThemes(workspace))
+  onThemes(useRegisteredThemes())
   return null
 }
 
@@ -79,8 +78,9 @@ test(
     'it should request the unscoped endpoint',
   ].join(', '),
   () => {
-    // given / when
-    const actual = themesUrl(undefined)
+    // given
+    // when
+    const actual = themesUrl()
 
     // then
     expect(actual).toBe('/api/themes')
@@ -94,11 +94,12 @@ test(
     'it should scope the request to it',
   ].join(', '),
   () => {
-    // given / when
-    const actual = themesUrl('my-tree')
+    // given
+    // when
+    const actual = themesUrl()
 
     // then
-    expect(actual).toBe('/api/themes?workspace=my-tree')
+    expect(actual).toBe('/api/themes')
   },
 )
 
@@ -109,11 +110,12 @@ test(
     'it should encode it rather than splitting the query string',
   ].join(', '),
   () => {
-    // given / when
-    const actual = themesUrl('feat/crust agent')
+    // given
+    // when
+    const actual = themesUrl()
 
     // then
-    expect(actual).toBe('/api/themes?workspace=feat%2Fcrust%20agent')
+    expect(actual).toBe('/api/themes')
   },
 )
 
@@ -197,7 +199,7 @@ test(
     // biome-ignore lint/plugin/no-object-mutation: globalThis.fetch is the external seam these tests stub; this is the adapter that owns the assignment
     globalThis.fetch = (async () =>
       new Response(
-        JSON.stringify({ problem: 'crust.observe.yaml: bad theme' }),
+        JSON.stringify({ problem: 'crust.config.toml: bad theme' }),
         {
           status: 200,
         },
@@ -251,7 +253,7 @@ test(
   [
     'given theme::useRegisteredThemes',
     'when the route changes to a different workspace',
-    'it should abort the in-flight request for the old one',
+    'it should retain the machine request until unmount',
   ].join(', '),
   async () => {
     // given
@@ -285,9 +287,10 @@ test(
     })
 
     // then
-    expect(aborted).toBe(true)
+    expect(aborted).toBe(false)
     await act(() => {
       root.unmount()
     })
+    expect(aborted).toBe(true)
   },
 )

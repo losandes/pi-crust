@@ -71,7 +71,14 @@ test(
   },
 )
 
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { TRunState } from '../../../../lib/contracts'
@@ -108,16 +115,9 @@ const stateWith = (
 const scratchConfig = () => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-start-session-'))
   const dataDir = join(dir, 'data')
-  /*
-   * `startSession` registers the working tree in `~/.pi-crust/workspaces.jsonl`
-   * on every call. Pointed at a scratch file instead, so running this suite
-   * never appends a tmp-directory entry to the developer's real registry.
-   */
-  // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-  process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
   return crustConfigSchema.parse({
     defaults: { data_dir: dataDir },
-    observability: { db: join(dataDir, 'crust.db') },
+    observability: {},
     agents: [],
   })
 }
@@ -330,7 +330,8 @@ test(
     'it should refuse',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = resumeVerdict(undefined, 'fbf49583', false)
 
     // then
@@ -497,4 +498,103 @@ test(
     expect(actual).toEqual('free0000')
     expect(calls).toEqual(1)
   },
+)
+
+// Integration proves both the shared shipped default and the distinction between repository and worktree.
+test.skipIf(
+  !process.env.RUN_INTEGRATION_TESTS ||
+    process.env.RUN_INTEGRATION_TESTS === 'false',
+)(
+  [
+    'given two repositories and a linked worktree with a scratch machine home',
+    'when runs start with the shipped data default',
+    'it should leave the workspaces unchanged and record one repository identity per clone',
+  ].join(', '),
+  async () => {
+    // given
+    const { execFileSync } = await import('node:child_process')
+    const { Database } = await import('bun:sqlite')
+    const scratch = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-shared-origin-')),
+    )
+    const primary = join(scratch, 'primary')
+    const other = join(scratch, 'other')
+    const linked = join(scratch, 'linked')
+    const home = join(scratch, 'user')
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, { cwd, stdio: 'pipe' })
+    for (const root of [primary, other]) {
+      mkdirSync(root)
+      git(root, 'init', '-q', '-b', 'main')
+      git(
+        root,
+        '-c',
+        'user.name=tester',
+        '-c',
+        'user.email=tester@example.com',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--allow-empty',
+        '-qm',
+        'fixture',
+      )
+    }
+    git(primary, 'worktree', 'add', '-qb', 'linked', linked)
+    const roots = [primary, linked, other]
+    const before = roots.map((root) =>
+      readdirSync(root, { recursive: true }).map(String).toSorted(),
+    )
+    const entry = join(import.meta.dir, 'start-session.ts')
+    const loader = join(import.meta.dir, '../../../config/index.ts')
+    const packageConfig = resolve(import.meta.dir, '../../../../config')
+    const empty = resolve(
+      import.meta.dir,
+      '../../../../testing/empty-repository.toml',
+    )
+    try {
+      // when
+      for (const [index, root] of roots.entries()) {
+        const code = `import { startSession } from ${JSON.stringify(entry)}; import { loadConfigWithNotes } from ${JSON.stringify(loader)}; const run = startSession(loadConfigWithNotes(${JSON.stringify(empty)}).config, 'origin' + ${index}); run.tracer.sessionFinish(run.runId, true); run.tracer.close()`
+        const result = Bun.spawnSync(['bun', '-e', code], {
+          cwd: root,
+          env: {
+            ...process.env,
+            HOME: home,
+            CRUST_DATA_DIR: '',
+            CRUST_PACKAGE_CONFIG: packageConfig,
+            CRUST_MACHINE_CONFIG: join(home, 'absent-config'),
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        })
+        expect(new TextDecoder().decode(result.stderr)).toBe('')
+        expect(result.exitCode).toBe(0)
+      }
+      // then
+      expect(
+        roots.map((root) =>
+          readdirSync(root, { recursive: true }).map(String).toSorted(),
+        ),
+      ).toEqual(before)
+      const db = new Database(join(home, '.pi-crust/data/crust.db'), {
+        readonly: true,
+      })
+      expect(
+        db
+          .query(
+            'SELECT repository_root, workspace_root FROM sessions ORDER BY run_id',
+          )
+          .all(),
+      ).toEqual([
+        { repository_root: primary, workspace_root: primary },
+        { repository_root: primary, workspace_root: linked },
+        { repository_root: other, workspace_root: other },
+      ])
+      db.close()
+    } finally {
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  },
+  20_000,
 )

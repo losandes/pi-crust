@@ -86,35 +86,6 @@ test.skipIf(!browserTestsEnabled)(
     const runtime = join(root, 'runtime')
     mkdirSync(data, { recursive: true })
     mkdirSync(runtime)
-    const config = join(root, '.pi-crust', 'config')
-    mkdirSync(config)
-    writeFileSync(
-      join(config, 'high-contrast.css'),
-      readFileSync(
-        new URL(
-          '../../../../../../../templates/stamp/config/high-contrast.css',
-          import.meta.url,
-        ),
-      ),
-    )
-    writeFileSync(
-      join(config, 'crust.observe.yaml'),
-      Bun.YAML.stringify({
-        default_theme: 'dark',
-        themes: [
-          ...['auto', 'dark', 'light'].map((name) => ({
-            name,
-            label: name[0]?.toUpperCase() + name.slice(1),
-            builtin: true,
-          })),
-          {
-            name: 'high-contrast',
-            label: 'High contrast',
-            stylesheet: 'config/high-contrast.css',
-          },
-        ],
-      }),
-    )
     const receipt = join(root, 'children.jsonl')
     const recorder = `import { appendFileSync } from 'node:fs'; appendFileSync(${JSON.stringify(receipt)}, JSON.stringify(process.argv.slice(1)) + '\\n')`
     writeFileSync(join(runtime, 'cli.ts'), recorder)
@@ -172,12 +143,11 @@ test.skipIf(!browserTestsEnabled)(
           CRUST_DB: db,
           CRUST_BE_PORT: '0',
           CRUST_HOME: root,
+          HOME: join(root, 'user'),
           CRUST_TOKEN: 'disposable-token',
-          CRUST_REGISTRY: join(root, 'absent-registry.jsonl'),
           CRUST_MACHINE_CONFIG: join(root, 'absent-config.yaml'),
           CRUST_WORKSPACES: '',
           CRUST_ALL_WORKTREES: '',
-          CRUST_WORKSPACE_ROOT: root,
         },
         stdout: 'pipe',
         stderr: 'pipe',
@@ -210,7 +180,12 @@ test.skipIf(!browserTestsEnabled)(
               width: viewportWidths[tier],
               height: phoneViewport.height,
             })
-            for (const theme of ['Dark', 'Light', 'Auto', 'High contrast']) {
+            for (const theme of [
+              'Dark',
+              'Light',
+              'Match the system',
+              'High contrast',
+            ]) {
               await openRun('running')
               await page.getByRole('button', { name: /^Theme:/ }).click()
               await page

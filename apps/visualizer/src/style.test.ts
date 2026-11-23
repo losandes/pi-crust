@@ -1,5 +1,4 @@
 import { afterAll, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
@@ -15,14 +14,8 @@ import {
 const registeredTheme = {
   name: 'high-contrast',
   label: 'High contrast',
-  builtin: false,
-  css: readFileSync(
-    new URL(
-      '../../../templates/stamp/config/high-contrast.css',
-      import.meta.url,
-    ),
-    'utf8',
-  ),
+  builtin: true,
+  css: '',
 }
 
 // Issue #85, section 2.1: every bridged colour, not the palette's extra rungs.
@@ -778,7 +771,6 @@ test.skipIf(!browserTestsEnabled)(
         await page.setContent(`<!doctype html>
 <html data-theme="dark"><body>${COLOR_PROBES}${THEME_PROBES}</body></html>`)
         await page.addStyleTag({ content: css })
-        await page.addStyleTag({ content: registeredTheme.css })
         const dark = await readColorProbes(page)
 
         // when

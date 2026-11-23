@@ -1,4 +1,8 @@
 import { expect, test } from 'bun:test'
+import {
+  EMPTY_REPOSITORY_PATH,
+  shippedEnv,
+} from '../../../../testing/shipped-layer'
 import { layersFixture } from './config-layer-fixture.test'
 import { configProvenance } from './config-provenance'
 
@@ -13,7 +17,7 @@ for (const variable of ['none', 'valid', 'invalid']) {
       // given
       using f = layersFixture({
         'package/crust.config.toml':
-          'db = "package.db"\n[defaults]\nmodel = "package-model"\nthinking = "high"\n',
+          '[defaults]\nmodel = "package-model"\nthinking = "high"\n',
         'package/crust.activities.toml':
           '[activities.build]\nwrites = []\n[planners.operator]\nwrites = []\n[planners.triage]\nwrites = []\n[terminal.gh-pull-request]\nwrites = []\n',
         'machine/crust.config.toml':
@@ -60,9 +64,7 @@ for (const variable of ['none', 'valid', 'invalid']) {
       expect(entry('ports.frontend')?.source).toContain(
         variable === 'valid' ? 'environment — CRUST_FE_PORT' : 'machine —',
       )
-      expect(entry('db')?.source).toContain(
-        variable === 'none' ? 'shipped default —' : 'environment — CRUST_DB',
-      )
+      expect(entry('db')).toBeUndefined()
       expect(entry('defaults.data_dir')?.source).toBe(
         variable === 'none'
           ? 'shipped default — built in'
@@ -71,3 +73,24 @@ for (const variable of ['none', 'valid', 'invalid']) {
     },
   )
 }
+
+test(
+  [
+    'given the shipped data location and no overrides',
+    'when configuration provenance is reported',
+    'it should show exactly one location from the shipped defaults',
+  ].join(', '),
+  () => {
+    // given
+    const env = shippedEnv({})
+    // when
+    const entries = configProvenance(EMPTY_REPOSITORY_PATH, env)
+    const locations = entries.filter((entry) => entry.key.includes('data_dir'))
+    // then
+    expect(locations.length).toBe(1)
+    expect(locations[0]?.value).toBe('~/.pi-crust/data')
+    expect(locations[0]?.source).toStartWith('shipped default — ')
+    expect(locations[0]?.source).toEndWith('runtime/config/crust.config.toml')
+    expect(entries.some((entry) => entry.key === 'db')).toBe(false)
+  },
+)

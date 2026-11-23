@@ -254,7 +254,7 @@ test(
         configPath,
         configText({
           defaults: { data_dir: dataDir },
-          observability: { db: dbPath },
+          observability: {},
           agents: [],
         }),
       )
@@ -318,7 +318,7 @@ test(
         configPath,
         configText({
           defaults: { data_dir: dataDir },
-          observability: { db: dbPath },
+          observability: {},
           agents: [],
         }),
       )

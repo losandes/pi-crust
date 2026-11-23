@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import {
   EMPTY_REPOSITORY_PATH,
+  SCRATCH_DATA_DIR,
   SHIPPED_CONFIG_DIR,
   shippedConfig,
   shippedEnv,
@@ -18,6 +19,7 @@ for (const throws of [false, true]) {
     () => {
       // given
       const previous = process.env.CRUST_PACKAGE_CONFIG
+      const previousData = process.env.CRUST_DATA_DIR
       // when
       const actual = () =>
         withShippedPackage(() => {
@@ -28,6 +30,7 @@ for (const throws of [false, true]) {
       if (throws) expect(actual).toThrow('fixture failure')
       else expect(actual()).toBe(SHIPPED_CONFIG_DIR)
       expect(process.env.CRUST_PACKAGE_CONFIG).toBe(previous)
+      expect(process.env.CRUST_DATA_DIR).toBe(previousData)
     },
   )
 }
@@ -71,6 +74,10 @@ test(
     expect(env.CRUST_PACKAGE_CONFIG).toBe(SHIPPED_CONFIG_DIR)
     expect(existsSync(env.CRUST_MACHINE_CONFIG ?? '')).toBe(false)
     expect(existsSync(EMPTY_REPOSITORY_PATH)).toBe(true)
+    expect(cfg.defaults.data_dir).toBe(SCRATCH_DATA_DIR)
+    expect(withShippedPackage(() => process.env.CRUST_DATA_DIR)).toBe(
+      process.env.CRUST_DATA_DIR ?? SCRATCH_DATA_DIR,
+    )
     expect(cfg.activities.some((entry) => entry.name === 'build')).toBe(true)
   },
 )

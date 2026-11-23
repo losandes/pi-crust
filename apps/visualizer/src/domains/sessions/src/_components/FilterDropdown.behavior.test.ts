@@ -30,6 +30,11 @@ const session = (overrides: Partial<SessionSummary>): SessionSummary => ({
   workspace_root: '/repo/a',
   branch: 'main',
   name: null,
+  repository_root:
+    overrides.workspace === 'beta'
+      ? '/projects/b/shared'
+      : '/projects/a/shared',
+  repository: 'shared',
   workspace: 'alpha',
   activityRuns: [],
   activity_run_count: 0,
@@ -307,6 +312,62 @@ test.skipIf(!browserTestsEnabled)(
       await waitFor(async () => (await cardCount(page)) === 2)
       expect(
         await page.getByRole('button', { name: 'tree · 1' }).isVisible(),
+      ).toBe(true)
+    })
+  },
+  30_000,
+)
+
+test.skipIf(!browserTestsEnabled)(
+  [
+    'given two repository paths with the same final segment',
+    'when searching and selecting the repository filter',
+    'it should label options by segment but search and filter by their full paths',
+  ].join(', '),
+  async () => {
+    await withPage(async (page) => {
+      // given
+      await page
+        .getByRole('button', { name: 'repository', exact: true })
+        .click()
+      expect(
+        await page
+          .locator('label')
+          .getByTitle('/projects/a/shared', { exact: true })
+          .textContent(),
+      ).toBe('shared')
+      // when
+      await page
+        .getByRole('searchbox', { name: 'search repository' })
+        .pressSequentially('/projects/b')
+      // then
+      expect(
+        await page
+          .locator('label')
+          .getByTitle('/projects/a/shared', { exact: true })
+          .count(),
+      ).toBe(0)
+      expect(
+        await page
+          .locator('label')
+          .getByTitle('/projects/b/shared', { exact: true })
+          .count(),
+      ).toBe(1)
+      await page
+        .getByRole('searchbox', { name: 'search repository' })
+        .press('ControlOrMeta+A')
+      await page
+        .getByRole('searchbox', { name: 'search repository' })
+        .press('Backspace')
+      await page
+        .locator('label')
+        .getByTitle('/projects/a/shared', { exact: true })
+        .locator('..')
+        .getByRole('checkbox')
+        .click()
+      await waitFor(async () => (await cardCount(page)) === 2)
+      expect(
+        await page.getByRole('button', { name: 'repository · 1' }).isVisible(),
       ).toBe(true)
     })
   },

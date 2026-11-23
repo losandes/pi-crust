@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 /**
  * Where to watch this run, when there is somewhere to watch it.
  *
@@ -130,3 +132,12 @@ export const visualizerIsUp = async (
     return false
   }
 }
+
+export const observeDbPath = (
+  env: TEnv,
+  configured: string | undefined,
+): string =>
+  env.CRUST_DB?.trim()
+    ? resolve(env.CRUST_DB)
+    : (configured ??
+      join(env.HOME ?? homedir(), '.pi-crust', 'data', 'crust.db'))

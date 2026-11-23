@@ -9,8 +9,13 @@ import type { SessionSummary } from '../typedefs/session'
 
 /** The value a session carries for a category, normalised to one string. */
 // biome-ignore lint/suspicious/noShadowRestrictedNames: `valueOf` is this module's public name for the operation, fixed by the target signature this change is built against
-export const valueOf = (session: SessionSummary, key: TFilterKey): string => {
+export const valueOf = (
+  session: Readonly<SessionSummary>,
+  key: TFilterKey,
+): string => {
   switch (key) {
+    case 'repository':
+      return session.repository_root ?? ''
     case 'workspace':
       return session.workspace ?? ''
     case 'lifecycle':
@@ -59,7 +64,7 @@ export const optionsFor = (
  * category is unconstrained.
  */
 export const matchesFilters = (
-  session: SessionSummary,
+  session: Readonly<SessionSummary>,
   filters: TFilters,
 ): boolean =>
   FILTER_KEYS.every((key) => {
@@ -111,6 +116,6 @@ export const needsArchived = (filters: TFilters): boolean =>
  * they just archived instead of a row invisible until remount.
  */
 export const isOptimisticallyHidden = (
-  session: SessionSummary,
+  session: Readonly<SessionSummary>,
   justArchived: readonly string[],
 ): boolean => justArchived.includes(session.run_id) && !session.archived

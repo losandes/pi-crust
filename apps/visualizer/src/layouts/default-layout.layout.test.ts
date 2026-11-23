@@ -1,5 +1,4 @@
 import { afterAll, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
@@ -15,14 +14,8 @@ import {
 const registeredTheme = {
   name: 'high-contrast',
   label: 'High contrast',
-  builtin: false,
-  css: readFileSync(
-    new URL(
-      '../../../../templates/stamp/config/high-contrast.css',
-      import.meta.url,
-    ),
-    'utf8',
-  ),
+  builtin: true,
+  css: '',
 }
 const themes = [
   { name: 'auto', label: 'Auto', builtin: true, css: '' },
@@ -83,11 +76,6 @@ const withShell = (check: (page: Page) => Promise<void>) => {
       )
       await page.goto(`${base}/__shell__/index.html`)
       await page.locator('header button').waitFor()
-      await page.waitForFunction(() =>
-        document
-          .getElementById('crust-custom-themes')
-          ?.textContent?.includes('high-contrast'),
-      )
       await page
         .locator('style[data-vite-dev-id], link[rel="stylesheet"]')
         .evaluateAll((elements) => {
@@ -95,9 +83,6 @@ const withShell = (check: (page: Page) => Promise<void>) => {
         })
       expect(productionCss).not.toBe('')
       await page.addStyleTag({ content: productionCss })
-      await page.locator('#crust-custom-themes').evaluate((element) => {
-        document.head.appendChild(element)
-      })
       await page.evaluate(() => document.fonts.ready)
       await check(page)
     },

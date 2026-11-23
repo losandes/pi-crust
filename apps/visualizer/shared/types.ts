@@ -50,6 +50,8 @@ export type EventType =
   | 'error'
 
 export interface Session {
+  repository_root?: string
+  repository?: string
   run_id: string
   /** Stage(s) or lifecycle(s) that ran this session, e.g. "plan + build". */
   lifecycle: string | null

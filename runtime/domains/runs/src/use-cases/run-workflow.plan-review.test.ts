@@ -37,18 +37,12 @@ const fixtureWith = (
   planAttempts = 3,
 ) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-workflow-plan-review-'))
-  const keys = [
-    'CRUST_MACHINE_CONFIG',
-    'CRUST_DATA_DIR',
-    'CRUST_REGISTRY',
-  ] as const
+  const keys = ['CRUST_MACHINE_CONFIG', 'CRUST_DATA_DIR'] as const
   const before = keys.map((key) => [key, process.env[key]] as const)
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment adapter loadConfigWithNotes reads
   process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine')
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment adapter resolveDataPaths reads
   process.env.CRUST_DATA_DIR = join(dir, 'data')
-  // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment adapter registerWorkspace reads
-  process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
   const system = join(dir, 'system.md')
   const user = join(dir, 'user.md')
   writeFileSync(system, '# System\n')
@@ -73,7 +67,7 @@ const fixtureWith = (
     config,
     configText({
       defaults: { data_dir: join(dir, 'data') },
-      observability: { db: join(dir, 'data', 'crust.db') },
+      observability: {},
       activities,
       agents: activities,
     }),

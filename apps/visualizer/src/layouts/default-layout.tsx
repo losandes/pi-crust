@@ -71,7 +71,7 @@ export default function DefaultLayout({
             <span className="size-2 animate-[crust-pulse_1.6s_ease-in-out_infinite] rounded-full bg-ok shadow-[0_0_--spacing(2.5)_rgb(var(--ok-rgb)/0.7)]" />{' '}
             live
           </span>
-          <ThemePicker workspace={route.workspace} />
+          <ThemePicker />
         </div>
       </header>
       <main>{children}</main>

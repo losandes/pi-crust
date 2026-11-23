@@ -11,7 +11,7 @@
  *   CRUST_DB=/path/to/crust.db CRUST_BE_PORT=4600 bun run server/index.ts
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { isAbsolute, join, resolve, sep } from 'node:path'
 import type {
   AgentPrompts,
   ApiError,
@@ -24,14 +24,17 @@ import type { PiCrustDb } from './db.ts'
 import { handoffDirFor } from './handoff.ts'
 import { pollMsFromEnv } from './poll-interval.ts'
 import { WorkspaceRegistry } from './registry.ts'
-import { BUILTIN_THEMES, themesForWorkspace } from './themes.ts'
-import { registryPath, registryStamp, resolveWorkspaces } from './workspaces.ts'
+import { machineThemes } from './themes.ts'
+import { resolveWorkspaces } from './workspaces.ts'
 import {
   isInboxKind,
+  NO_WORKING_TREE,
   postMessage,
   recordDecision,
   refuseUnlessAuthorised,
   resumeRun,
+  runWorkingTree,
+  sessionDir,
   startConsult,
   startRun,
   startSteer,
@@ -74,13 +77,7 @@ const warn = (line: string): void => {
  * than a column that can disagree with where the run actually is. With no
  * new flags this resolves to exactly the single database it always did.
  */
-const registry = new WorkspaceRegistry(resolveWorkspaces(), {
-  // A worktree added while this is running appears within one poll, because
-  // the factory registers a tree as its first run starts. Restarting the UI
-  // to see a new tree would mean restarting it exactly when it is in use.
-  rescan: () => resolveWorkspaces(),
-  stamp: () => registryStamp(registryPath()),
-})
+const registry = new WorkspaceRegistry(resolveWorkspaces())
 const initial = registry.states()
 
 /*
@@ -291,30 +288,7 @@ const server = Bun.serve({
     /** Every watched tree, including the ones that cannot currently be read. */
     '/api/workspaces': safely(() => json(describeWorkspaces())),
 
-    /*
-     * The themes a workspace registers.
-     *
-     * Per workspace rather than per server: this app observes one repository
-     * at a time but can watch several, and a theme is the repository's
-     * statement about itself. Absent a workspace, the first one answers —
-     * the picker has to show something before anything is selected.
-     */
-    '/api/themes': safely((req) => {
-      const label = workspaceQuery(req)
-      const watched = registry.states()
-      if (watched.length === 0) {
-        return json({
-          default: 'auto',
-          themes: BUILTIN_THEMES,
-          problem: 'no workspace is being watched',
-        })
-      }
-      const found = themesForWorkspace(watched, label)
-      if (found === undefined) {
-        return notFound(`no workspace ${label}`)
-      }
-      return json(found)
-    }),
+    '/api/themes': safely(() => json(machineThemes())),
 
     '/api/sessions': safely((req) => {
       const label = workspaceQuery(req)
@@ -461,7 +435,14 @@ const server = Bun.serve({
         // Resume re-launches the run in ITS tree, read from the invocation
         // record that tree holds.
         const resumed = resumeRun(owner.path, runId)
-        return json({ run_id: runId, action, recorded: path, ...resumed })
+        return resumed.resumed
+          ? json({ run_id: runId, action, recorded: path, ...resumed })
+          : json(
+              {
+                error: `decision recorded in ${path}, but the run was not resumed: ${resumed.reason}`,
+              },
+              503,
+            )
       }),
     },
 
@@ -514,7 +495,22 @@ const server = Bun.serve({
           prompt?: unknown
           args?: unknown
           workspace?: unknown
+          workspace_root?: unknown
         }
+        const cwd = body.workspace_root
+        if (
+          typeof cwd !== 'string' ||
+          !isAbsolute(cwd) ||
+          !existsSync(cwd) ||
+          !statSync(cwd).isDirectory()
+        )
+          return json(
+            {
+              error:
+                'workspace_root is required: the absolute path of the working tree to run in',
+            },
+            400,
+          )
         const lifecycle =
           typeof body.lifecycle === 'string' ? body.lifecycle : ''
         const prompt = typeof body.prompt === 'string' ? body.prompt : ''
@@ -550,7 +546,7 @@ const server = Bun.serve({
             400,
           )
         }
-        const started = startRun(target.path, lifecycle, prompt, args)
+        const started = startRun(target.path, cwd, lifecycle, prompt, args)
         // A refusal is a 503, not a 200 with a falsy field. The UI shows what
         // the server says; a success-shaped body for a run that never started
         // is the defect this whole route had.
@@ -594,8 +590,15 @@ const server = Bun.serve({
         }
         const owner = forRun(req, runId)
         if (!owner) return notFound(`no session ${runId}`)
+        const cwd = runWorkingTree(
+          owner.session(runId)?.workspace_root ?? undefined,
+          sessionDir(owner.path, runId),
+        )
+        if (cwd === undefined)
+          return json({ error: NO_WORKING_TREE(runId) }, 503)
         const started = startConsult(
           owner.path,
+          cwd,
           runId,
           activity,
           mode,
@@ -653,8 +656,15 @@ const server = Bun.serve({
           body.target === 'branch'
             ? Math.random().toString(16).slice(2, 10)
             : undefined
+        const cwd = runWorkingTree(
+          owner.session(runId)?.workspace_root ?? undefined,
+          sessionDir(owner.path, runId),
+        )
+        if (cwd === undefined)
+          return json({ error: NO_WORKING_TREE(runId) }, 503)
         const started = startSteer(
           owner.path,
+          cwd,
           runId,
           activity,
           body.target,

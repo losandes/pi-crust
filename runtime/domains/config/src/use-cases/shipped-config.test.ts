@@ -71,12 +71,16 @@ test(
   () => {
     // given
     // when
-    const actual = shippedConfig()
+    const actual = loadConfigWithNotes(
+      EMPTY_REPOSITORY_PATH,
+      shippedEnv(),
+    ).config
     // then
-    expect(actual.defaults.data_dir).toBe('{primary_worktree}/.pi-crust/data')
-    expect(actual.observability.db).toBe(
-      '{primary_worktree}/.pi-crust/data/crust.db',
-    )
+    expect(actual.defaults.data_dir).toBe('~/.pi-crust/data')
+    expect(Object.keys(actual.observability).toSorted()).toEqual([
+      'poll_ms',
+      'ports',
+    ])
     expect(actual.tasks).toEqual({})
     expect(actual.task_config.timeout_seconds).toBe(300)
     expect(actual.terminal[0]?.delivery).toEqual({ draft: false })

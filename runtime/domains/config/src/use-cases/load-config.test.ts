@@ -341,3 +341,61 @@ test(
     expect(notices[0]).toContain('not read')
   },
 )
+
+for (const layer of ['package', 'machine', 'repository'] as const) {
+  test(
+    [
+      `given db in the ${layer} configuration`,
+      'when loading',
+      'it should refuse it once with the removal message',
+    ].join(', '),
+    () => {
+      // given
+      using f = layersFixture({
+        [`${layer}/${layer === 'repository' ? 'pi-crust.toml' : 'crust.config.toml'}`]:
+          'db = "old.db"',
+      })
+      // when
+      const load = () => loadConfigWithNotes(f.repositoryPath, f.env)
+      // then
+      expect(load).toThrow(
+        'the trace database is crust.db inside defaults.data_dir',
+      )
+      expect(load).not.toThrow('unknown top-level key')
+    },
+  )
+  test(
+    [
+      `given themes in the ${layer} configuration`,
+      'when loading',
+      'it should ignore the table and warn only outside the machine layer',
+    ].join(', '),
+    () => {
+      // given
+      using f = layersFixture({
+        [`${layer}/${layer === 'repository' ? 'pi-crust.toml' : 'crust.config.toml'}`]:
+          '[themes.x]\nstylesheet = "x.css"',
+      })
+      // when
+      const loaded = loadConfigWithNotes(f.repositoryPath, f.env)
+      // then
+      expect(loaded.warnings.length).toBe(layer === 'machine' ? 0 : 1)
+      expect(Object.keys(loaded.config)).not.toContain('themes')
+    },
+  )
+}
+test(
+  [
+    'given malformed machine themes',
+    'when runtime configuration loads',
+    'it should not validate viewer registrations',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({ 'machine/crust.config.toml': 'themes = 42' })
+    // when
+    const loaded = loadConfigWithNotes(f.repositoryPath, f.env)
+    // then
+    expect(loaded.warnings).toEqual([])
+  },
+)

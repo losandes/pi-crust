@@ -159,7 +159,7 @@ for (const status of ['running', 'waiting', 'success', 'fail'] as const) {
       status === 'success'
         ? 'when the run link is opened directly without visiting the dashboard'
         : 'when opening its run page',
-      'it should show the recorded branch immediately between status and start date',
+      'it should show the recorded branch after its repository and before the start date',
     ].join(', '),
     async () => {
       // given
@@ -167,10 +167,18 @@ for (const status of ['running', 'waiting', 'success', 'fail'] as const) {
         'base',
         async (page) => {
           // when
+          const origin = page.getByTestId('session-repository')
+          expect(await origin.textContent()).toBe('unknown')
+          expect(
+            await origin.evaluate((element) =>
+              element.nextElementSibling?.getAttribute('data-testid'),
+            ),
+          ).toBe('session-branch')
           const branch = page.getByTestId('session-branch')
           const strip = await branch.evaluate((element) => ({
             text: element.textContent,
-            previous: element.previousElementSibling?.textContent?.trim(),
+            previous:
+              element.previousElementSibling?.previousElementSibling?.textContent?.trim(),
             next: element.nextElementSibling?.textContent?.trim(),
           }))
 
@@ -192,7 +200,7 @@ for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
     [
       `given a successful run at the ${tier} tier`,
       'when opening its run page directly',
-      'it should keep its branch visible immediately between status and start date',
+      'it should keep its branch visible after its repository and before the start date',
     ].join(', '),
     async () => {
       // given
@@ -204,7 +212,8 @@ for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
           const strip = await branch.evaluate((element) => ({
             width: element.getBoundingClientRect().width,
             height: element.getBoundingClientRect().height,
-            previous: element.previousElementSibling?.textContent?.trim(),
+            previous:
+              element.previousElementSibling?.previousElementSibling?.textContent?.trim(),
             next: element.nextElementSibling?.textContent?.trim(),
           }))
 
@@ -226,7 +235,7 @@ test.skipIf(!browserTestsEnabled)(
   [
     'given a run without a recorded branch at the base tier',
     'when opening its run page directly',
-    'it should show exactly one working-tree name between status and start date',
+    'it should show exactly one working-tree name after its repository and before the start date',
   ].join(', '),
   async () => {
     // given
@@ -239,14 +248,15 @@ test.skipIf(!browserTestsEnabled)(
           text: element.textContent,
           title: element.getAttribute('title'),
           width: element.getBoundingClientRect().width,
-          previous: element.previousElementSibling?.textContent?.trim(),
+          previous:
+            element.previousElementSibling?.previousElementSibling?.textContent?.trim(),
           next: element.nextElementSibling?.textContent?.trim(),
         }))
 
         // then
         expect(await branch.count()).toBe(1)
-        expect(strip.text).toBe('fixture')
-        expect(strip.title).toBe('fixture')
+        expect(strip.text).toBe('trace')
+        expect(strip.title).toBe('trace')
         expect(strip.width).toBeGreaterThan(0)
         expect(strip.previous).toBe('success')
         expect(strip.next).toStartWith('started')

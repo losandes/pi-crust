@@ -10,7 +10,7 @@ for (const repositoryFiles of [
     [
       `given unread repository files ${repositoryFiles.join(', ')}`,
       'when notices are formatted',
-      'it should name unread paths and preserve the theme exception',
+      'it should name unread paths and explain that legacy viewer files are not read',
     ].join(', '),
     () => {
       // given
@@ -28,9 +28,13 @@ for (const repositoryFiles of [
       // then
       expect(actual.length).toBe(repositoryFiles.length === 0 ? 2 : 3)
       expect(actual.every((notice) => notice.includes('not read'))).toBe(true)
-      expect(actual.join('\n').includes('themes and default_theme')).toBe(
-        repositoryFiles.includes('crust.observe.yaml'),
-      )
+      expect(
+        actual
+          .join('\n')
+          .includes(
+            'Themes are registered in ~/.pi-crust/config/crust.config.toml',
+          ),
+      ).toBe(repositoryFiles.includes('crust.observe.yaml'))
       expect(actual.join('\n')).toContain(
         'CRUST_MACHINE_CONFIG=/old/machine.yml',
       )

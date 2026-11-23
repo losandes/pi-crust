@@ -502,25 +502,6 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     examples: ['just crust prune 14d', 'just crust prune 14d --yes'],
   },
   {
-    name: 'trees',
-    group: 'housekeeping',
-    summary:
-      'the working trees this machine has run in \u2014 the observer watches them all',
-    usage: 'just crust trees',
-    flags: [],
-    env: [],
-    examples: ['just crust trees'],
-  },
-  {
-    name: 'forget-tree',
-    group: 'housekeeping',
-    summary: 'stop watching a tree',
-    usage: 'just crust forget-tree <path>...',
-    flags: [],
-    env: [],
-    examples: ['just crust forget-tree /path/to/worktree'],
-  },
-  {
     name: 'update',
     group: 'housekeeping',
     summary: 'bring this tree up to date with the pi-crust it was stamped from',

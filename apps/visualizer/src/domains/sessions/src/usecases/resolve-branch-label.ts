@@ -1,4 +1,5 @@
 import type { Session } from '../typedefs/session'
+import { lastPathSegment } from './resolve-repository-label'
 
 /**
  * The text shown where a run's git branch goes. A run with no recorded branch
@@ -7,8 +8,12 @@ import type { Session } from '../typedefs/session'
  */
 export const resolveBranchLabel = ({
   branch,
-  workspace,
-}: Readonly<Pick<Session, 'branch' | 'workspace'>>): string => {
+  workspace_root,
+}: Readonly<Pick<Session, 'branch' | 'workspace_root'>>): string => {
   const recorded = branch ?? ''
-  return recorded.trim() === '' ? workspace : recorded
+  return recorded.trim() === ''
+    ? workspace_root
+      ? lastPathSegment(workspace_root)
+      : 'unknown'
+    : recorded
 }

@@ -40,7 +40,7 @@ const fixture = (resume = false) => {
   silenceTerminal()
   const cfg = crustConfigSchema.parse({
     defaults: { data_dir: dir },
-    observability: { db: join(dir, 'crust.db') },
+    observability: {},
     activities,
   })
   const run = runWithTracer(dir, cfg, resume ? new Set(['import']) : undefined)

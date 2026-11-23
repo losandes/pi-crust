@@ -14,6 +14,7 @@ import { layerFaults } from './layer-faults'
 import { legacyConfigNotices } from './legacy-config-notices'
 import { tableOf } from './merge-layers'
 import { removedSettingFaults } from './removed-settings'
+import { themeNotices } from './theme-notices'
 
 const INHERITED = [
   'coding_agent',
@@ -117,7 +118,10 @@ export const loadConfigWithNotes = (
     machinePath: layers.find((layer) => layer.name === 'machine')?.files.length
       ? machineDirectory
       : '',
-    warnings: legacyConfigNotices(legacy, { repositoryPath, machineDirectory }),
+    warnings: [
+      ...legacyConfigNotices(legacy, { repositoryPath, machineDirectory }),
+      ...themeNotices(layers, machineDirectory),
+    ],
   }
 }
 

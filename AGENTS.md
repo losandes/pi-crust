@@ -89,7 +89,7 @@ Before the first edit of a task, confirm where you are with `git rev-parse --sho
 
 ## Editing while runs are in flight
 
-A run executes from the **stamp** — the `.pi-crust/` directory inside the target repository — but the stamp holds no runtime code. `templates/pi-crust.toml` supplies the repository's single configuration file, package defaults live in `runtime/config/`, and `templates/stamp/` retains only uninstalled theme examples; `runtime/` (including its `domains/`, `lib/` and `extensions/`), `cookbooks/` and `SKILL.md` all live in this clone, and `.pi-crust/data/pi-crust-home` (or `CRUST_HOME`) is a pointer at it, not a copy. An edit to any of them is live for every process a stamped repository starts after the write — including the agent spawned for the next Activity of a run already going, and including the prompts under `runtime/prompts/`.
+A run executes from the **stamp** — the `.pi-crust/` directory inside the target repository — but the stamp holds no runtime code. `templates/pi-crust.toml` supplies the repository's single configuration file, package defaults live in `runtime/config/`, and `runtime/` (including its `domains/`, `lib/` and `extensions/`), `cookbooks/` and `SKILL.md` all live in this clone, and `~/.pi-crust/pi-crust-home` (or `CRUST_HOME`) is a pointer at it, not a copy. An edit to any of them is live for every process a stamped repository starts after the write — including the agent spawned for the next Activity of a run already going, and including the prompts under `runtime/prompts/`.
 
 The corollary is the trap this file used to walk a reader into: a process already running keeps the modules it imported at startup. A fix a run writes to `runtime/` does not govern the run that wrote it — it has to be re-run before it is exercised. A run that dies against the bug it is fixing in the same breath is not a sign the fix is wrong.
 
@@ -108,11 +108,11 @@ git worktree add ../pi-crust-wip -b <topic>
 
 This should be rare. Most changes are invisible to a running run.
 
-This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` is set explicitly above so the worktree deliberately does not fall back to the live checkout it was branched from. It is not the general case: a worktree of a repository pi-crust has been STAMPED INTO (an ordinary target repository, not this package) no longer needs its own stamp at all to run `just crust ...` — `crust.just`'s passthrough recipe resolves the package home through `CRUST_HOME`, then its own stamp pointer, then the pointer beside the shared git directory `git rev-parse --git-common-dir` names, which finds the main clone a linked worktree was branched from with no re-install (issue #24, `references/config.md`). `git worktree add` followed directly by `just crust run ...`, with no `bun <pi-crust>/scripts/install.ts` in between, is the supported shape for that case.
+This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` is set explicitly above so the worktree deliberately does not fall back to the live checkout it was branched from. A worktree of an ordinary target repository needs no stamp: the package record is machine-level at `~/.pi-crust/pi-crust-home`, with `CRUST_HOME` taking precedence. `git worktree add` followed by `just crust run ...` is supported without reinstalling. Earlier-stamped repositories need the direct installer upgrade in `cookbooks/install.md` to repair their legacy root recipe.
 
 ## Never destroy a user's data
 
-`.pi-crust/data/` holds the trace database and every session directory. It is worth more than any config file, because it cannot be regenerated.
+`~/.pi-crust/data/` holds the trace database and every session directory by default; `.pi-crust/data/` in repositories stamped earlier holds their existing history. Neither location may be deleted by installation or update. It is worth more than any config file, because it cannot be regenerated.
 
 `install.ts` contains no deletion of any kind — only copies and appends — and `data/` has no counterpart in the template, so there is nothing for an update to overwrite. Keep it that way:
 

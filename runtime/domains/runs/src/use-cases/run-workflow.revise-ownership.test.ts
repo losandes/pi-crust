@@ -136,18 +136,12 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
   const data = join(dir, 'data')
   const handoff = join(data, 'sessions', 'abcd1234', 'context_handoff')
   const dbPath = join(data, 'crust.db')
-  const keys = [
-    'CRUST_MACHINE_CONFIG',
-    'CRUST_DATA_DIR',
-    'CRUST_REGISTRY',
-  ] as const
+  const keys = ['CRUST_MACHINE_CONFIG', 'CRUST_DATA_DIR'] as const
   const before = keys.map((key) => [key, process.env[key]] as const)
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment boundary loadConfigWithNotes reads
   process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine')
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment boundary resolveDataPaths reads
   process.env.CRUST_DATA_DIR = data
-  // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment boundary registerWorkspace reads
-  process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
   const system = join(dir, 'system.md')
   const user = join(dir, 'user.md')
   writeFileSync(system, '# System\n')
@@ -170,7 +164,7 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
     config,
     configText({
       defaults: { data_dir: data },
-      observability: { db: dbPath },
+      observability: {},
       activities,
       agents: activities,
     }),

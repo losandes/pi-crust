@@ -22,7 +22,7 @@ const aRun = (workspace: string) => {
   return createRun({
     cfg: crustConfigSchema.parse({
       defaults: { data_dir: join(workspace, '.pi-crust', 'data') },
-      observability: { db: join(workspace, 'crust.db') },
+      observability: {},
       agents: [],
     }),
     runId: 'aaaa1111',
@@ -238,7 +238,7 @@ test(
       createRun({
         cfg: crustConfigSchema.parse({
           defaults: { data_dir: join(workspace, '.pi-crust', 'data') },
-          observability: { db: join(workspace, 'crust.db') },
+          observability: {},
           agents: [],
         }),
         runId: 'bbbb2222',
@@ -275,7 +275,7 @@ test(
       createRun({
         cfg: crustConfigSchema.parse({
           defaults: { data_dir: join(workspace, '.pi-crust', 'data') },
-          observability: { db: join(workspace, 'crust.db') },
+          observability: {},
           agents: [],
         }),
         runId: 'cccc3333',

@@ -1,147 +1,89 @@
-/**
- * The themes a workspace registers, read from its stamp.
- *
- * The `themes` list in `crust.observe.yaml` names every theme the picker
- * offers, including the ones that ship — which is what lets a team remove one. The server reads it
- * because the file belongs to the repository being observed, not to this app,
- * and the app is pointed at a different repository on every run.
- *
- * A custom theme's styles are returned as text, not as a path. The browser
- * cannot read the observed repository's filesystem, and serving the file
- * separately would mean a second round trip and a path-traversal surface for
- * no benefit: a theme is a short block of custom properties.
- *
- * Plain CSS, not SCSS. Nesting and variables buy nothing when a theme is a
- * list of channel triples, and compiling would put a build activity between a
- * developer editing a file and seeing the colour change.
- */
-
-import { existsSync, readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+/** Machine registrations add to the built-in palettes; malformed entries never stop the viewer. */
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve, sep } from 'node:path'
+import { z } from 'zod'
 
 export type TRegisteredTheme = Readonly<{
   name: string
   label: string
   builtin: boolean
-  /** CSS for a theme this repository defines. Empty for a builtin. */
   css: string
 }>
-
-export type TWorkspaceThemes = Readonly<{
-  /** The theme a workspace starts on. */
-  default: string
+export type TThemes = Readonly<{
   themes: readonly TRegisteredTheme[]
-  /** Why the registrations could not be read, when they could not be. */
   problem: string
 }>
-
-/** What the app falls back to: exactly what it shipped with. */
 export const BUILTIN_THEMES: readonly TRegisteredTheme[] = [
   { name: 'auto', label: 'Match the system', builtin: true, css: '' },
   { name: 'light', label: 'Light', builtin: true, css: '' },
   { name: 'dark', label: 'Dark', builtin: true, css: '' },
+  { name: 'dracula', label: 'Dracula', builtin: true, css: '' },
+  { name: 'high-contrast', label: 'High contrast', builtin: true, css: '' },
 ]
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-
-const asString = (value: unknown, fallback = ''): string =>
-  typeof value === 'string' ? value : fallback
-
-/**
- * A stylesheet a registration names, read from inside the stamp.
- *
- * Resolved and then checked to still be inside `.pi-crust/`, because the
- * value comes from a file in the observed repository and `../../../etc` is a
- * valid-looking string. A theme that escapes the directory is dropped rather
- * than reported: it is a configuration mistake, and a styling fault should
- * not take out the page that would show it.
- */
-const readStylesheet = (stampDir: string, reference: string): string => {
-  if (reference === '') {
-    return ''
-  }
-  const full = resolve(join(stampDir, reference))
-  if (!full.startsWith(resolve(stampDir))) {
-    return ''
-  }
-
-  return existsSync(full) ? readFileSync(full, 'utf8') : ''
+const table = (value: unknown): Readonly<Record<string, unknown>> => {
+  const parsed = z.record(z.string(), z.unknown()).safeParse(value)
+  return parsed.success ? parsed.data : {}
 }
-
-const toTheme = (
-  stampDir: string,
-  entry: Record<string, unknown>,
-): TRegisteredTheme => {
-  const name = asString(entry.name)
-
-  return {
-    name,
-    label: asString(entry.label) === '' ? name : asString(entry.label),
-    builtin: entry.builtin === true,
-    css:
-      entry.builtin === true
-        ? ''
-        : readStylesheet(stampDir, asString(entry.stylesheet)),
-  }
-}
-
-/**
- * Read a workspace's registrations, falling back to what shipped.
- *
- * A workspace with no themes file is the normal case for an older stamp, and
- * it gets the builtins rather than an empty picker. A file that cannot be
- * parsed also gets the builtins, with the reason attached — a broken theme
- * registration must not be able to stop somebody reading a trace.
- */
-export const workspaceThemes = (workspaceRoot: string): TWorkspaceThemes => {
-  const stampDir = join(workspaceRoot, '.pi-crust')
-  const path = join(stampDir, 'config', 'crust.observe.yaml')
-  if (!existsSync(path)) {
-    return {
-      default: 'auto',
-      themes: BUILTIN_THEMES,
-      problem: `${path}: no themes file`,
-    }
-  }
-  // biome-ignore lint/plugin/no-intermediate-try-catch: this is the boundary the rule names — the file belongs to the observed repository and may be anything, and a broken registration must not stop a trace being read
+export const machineThemes = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): TThemes => {
+  const directory = resolve(
+    env.CRUST_MACHINE_CONFIG?.trim() ||
+      join(env.HOME ?? homedir(), '.pi-crust', 'config'),
+  )
+  const file = join(directory, 'crust.config.toml')
+  if (!existsSync(file)) return { themes: BUILTIN_THEMES, problem: '' }
+  // biome-ignore lint/plugin/no-intermediate-try-catch: the configuration reader is the I/O boundary that reports unreadable or invalid TOML without stopping the viewer
   try {
-    const parsed = asRecord(Bun.YAML.parse(readFileSync(path, 'utf8')))
-    const entries = Array.isArray(parsed.themes) ? parsed.themes : []
-    const themes = entries
-      .map((entry) => toTheme(stampDir, asRecord(entry)))
-      .filter((theme) => theme.name !== '')
-
+    const document = Bun.TOML.parse(readFileSync(file, 'utf8'))
+    const entries = Object.entries(table(document.themes)).map(
+      ([name, value]) => {
+        const entry = table(value)
+        // biome-ignore lint/plugin/no-intermediate-try-catch: each unreadable registration is reported independently, preserving the other themes
+        try {
+          if (BUILTIN_THEMES.some((theme) => theme.name === name))
+            return { problem: `${name}: built-in theme cannot be replaced` }
+          if (
+            typeof entry.stylesheet !== 'string' ||
+            entry.stylesheet.trim() === ''
+          )
+            return { problem: `${name}: stylesheet is required` }
+          const path = resolve(directory, entry.stylesheet)
+          if (!path.startsWith(directory + sep))
+            return { problem: `${name}: stylesheet is outside ${directory}` }
+          if (!statSync(path).isFile())
+            return { problem: `${name}: stylesheet is not a regular file` }
+          return {
+            theme: {
+              name,
+              label:
+                typeof entry.label === 'string' && entry.label.trim() !== ''
+                  ? entry.label
+                  : name,
+              builtin: false,
+              css: readFileSync(path, 'utf8'),
+            },
+          }
+        } catch (error) {
+          return { problem: `${name}: ${String(error)}` }
+        }
+      },
+    )
     return {
-      default: asString(parsed.default_theme, 'auto'),
-      themes: themes.length === 0 ? BUILTIN_THEMES : themes,
-      problem: themes.length === 0 ? `${path}: no usable themes entries` : '',
+      themes: [
+        ...BUILTIN_THEMES,
+        ...entries.flatMap((entry) =>
+          entry.theme === undefined ? [] : [entry.theme],
+        ),
+      ],
+      problem: entries
+        .flatMap((entry) =>
+          entry.problem === undefined ? [] : [entry.problem],
+        )
+        .join('; '),
     }
   } catch (error) {
-    return {
-      default: 'auto',
-      themes: BUILTIN_THEMES,
-      problem: `${path}: ${String(error)}`,
-    }
+    return { themes: BUILTIN_THEMES, problem: `${file}: ${String(error)}` }
   }
-}
-
-/**
- * The registrations one watched workspace carries, chosen by label.
- *
- * Takes the watched list rather than the registry, so it needs no open
- * database and can be tested without a server. `undefined` means the label
- * named no watched workspace, which is the endpoint's 404.
- */
-export const themesForWorkspace = (
-  watched: readonly Readonly<{ label: string; root: string }>[],
-  label: string | undefined,
-): TWorkspaceThemes | undefined => {
-  const found =
-    label === undefined
-      ? watched[0]
-      : watched.find((workspace) => workspace.label === label)
-  return found === undefined ? undefined : workspaceThemes(found.root)
 }

@@ -81,12 +81,12 @@ const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   }))
   const cfg = crustConfigSchema.parse({
     defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-    observability: { db: join(dir, 'unused.db') },
+    observability: {},
     activities: entries,
     agents: entries,
   })
   const tracer: TTracer = {
-    dbPath: cfg.observability.db,
+    dbPath: join(cfg.defaults.data_dir, 'crust.db'),
     event: () => 'fixture-event',
     sessionStart: () => undefined,
     sessionWorkspace: () => undefined,

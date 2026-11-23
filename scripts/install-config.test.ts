@@ -32,6 +32,7 @@ const fixture = () => {
     mkdtempSync(join(tmpdir(), 'crust-install-toml-')),
   )
   const home = join(scratch, 'package')
+  const userHome = join(scratch, 'user')
   const root = join(scratch, 'repository')
   mkdirSync(join(home, 'scripts'), { recursive: true })
   mkdirSync(root)
@@ -47,14 +48,17 @@ const fixture = () => {
   return {
     root,
     home,
+    userHome,
     install: (...args: readonly string[]) =>
       execFileSync('bun', [join(home, 'scripts/install.ts'), ...args], {
         cwd: root,
+        env: { ...process.env, HOME: userHome },
         encoding: 'utf8',
       }),
     make: (...args: readonly string[]) =>
       spawnSync('bun', [join(home, 'scripts/make-config.ts'), ...args], {
         cwd: root,
+        env: { ...process.env, HOME: userHome },
         encoding: 'utf8',
       }),
     [Symbol.dispose]: () => rmSync(scratch, { recursive: true, force: true }),
@@ -66,7 +70,7 @@ for (const args of MODES) {
     [
       `given @SC1 @SC2 a fresh repository and installer flags ${args.join(' ')}`,
       'when installed',
-      'it should create exactly five files with one empty TOML configuration and no prompt or configuration directory',
+      'it should create exactly four files with one empty TOML configuration and no prompt or configuration directory',
     ].join(', '),
     () => {
       // given
@@ -81,6 +85,11 @@ for (const args of MODES) {
       expect(
         installFaults({
           files,
+          home: f.home,
+          record: readFileSync(
+            join(f.userHome, '.pi-crust/pi-crust-home'),
+            'utf8',
+          ),
           installed,
           template: readFileSync(
             join(f.home, 'templates/pi-crust.toml'),

@@ -15,6 +15,8 @@ const LONG_BRANCH = `feature/${'x'.repeat(112)}`
 
 const session: SessionSummary = {
   run_id: 'run-diag-1',
+  repository_root: '/repos/alpha',
+  repository: 'alpha',
   lifecycle: 'plan + build',
   request: 'diagnose the card layout',
   status: 'success',
@@ -80,5 +82,11 @@ const mount = (
 
 mount('single', 'blue')
 mount('multi', 'amber')
-mount('unrecorded', 'blue', { ...session, branch: null, workspace: 'pi-crust' })
+mount('unrecorded', 'blue', {
+  ...session,
+  branch: null,
+  workspace: 'pi-crust',
+  repository_root: undefined,
+  repository: undefined,
+})
 mount('long', 'blue', { ...session, branch: LONG_BRANCH })
