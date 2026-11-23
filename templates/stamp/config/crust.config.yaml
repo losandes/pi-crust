@@ -63,32 +63,28 @@ defaults:
 # Observability: crust.observe.yaml
 # Declaration order determines menu order (`just crust list`).
 
-# Route repository commands (the `checks` gate) by changed paths.
-# Keep repository-specific commands here, not in prompts.
-# `when` globs are relative to the Git root; * does not cross directories.
-# An empty `when` matches all paths.
-routing:
-  # Repository commands selected by changed paths.
-  checks: []
-
-  # EXAMPLES — customize paths and commands for this repository.
-  #
-  # checks:
-  #   - name: test
-  #     when: ["**/*.ts"]
-  #     argv: [bun, run, test]                # argument list; bare binary names
-  #     timeout_seconds: 600
-  #
-  #   - name: lint
-  #     when: ["**/*.ts", "**/*.tsx"]
-  #     argv: [node_modules/.bin/biome, lint]
-  #     with_changed_paths: true        # append matching paths
-  #     timeout_seconds: 300
-  #
-  # Commands use the repository root unless `cwd` is specified.
-  # Changed paths are rebased to `cwd` when passed to the command.
-  #
-  #   - name: typecheck
-  #     when: ["packages/api/**/*.ts"]
-  #     cwd: packages/api
-  #     argv: [bun, x, tsc, --noEmit]
+# Repository tasks run at `change`, after an Activity changes matching paths.
+# `match` globs are Git-root-relative: * does not cross directories; ** does.
+# An empty `match` selects every changed path that still exists.
+# Use {{changed_paths}} and {{base_ref}} as unquoted shell arguments.
+# `cwd` respells selected paths relative to the command's working directory.
+#
+# task_config:
+#   timeout_seconds: 300
+#
+# tasks:
+#   lint:
+#     when:
+#       - { on: change }
+#     match: ["**/*.ts", "**/*.tsx"]
+#     run: "<your lint command> {{changed_paths}}"
+#
+#   test:
+#     when:
+#       - { on: change, skip: [diagnose, test-tdd] }
+#     match: ["packages/api/**/*.ts"]
+#     cwd: packages/api
+#     run:
+#       - "<your test command> {{changed_paths}} | <your reporter>"
+#       - "<your coverage command> {{base_ref}}"
+#     timeout_seconds: 600

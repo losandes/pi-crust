@@ -179,14 +179,14 @@ test(
 test(
   [
     'given pull-request-body::checksSection',
-    'when several declared routing checks never ran in this run',
+    'when several declared tasks never ran in this run',
     'it should render each one unchecked, in sorted order',
   ].join(', '),
   () => {
     // given
     const facts = aFacts({
       state: aState(),
-      declaredChecks: ['typecheck', 'lint'],
+      declaredChecks: ['task typecheck', 'task lint'],
     })
 
     // when
@@ -195,10 +195,10 @@ test(
     // then
     const lines = actual
       .split('\n')
-      .filter((line) => line.includes('declared in routing.checks'))
+      .filter((line) => line.includes('declared as a task'))
     expect(lines).toEqual([
-      '- [ ] lint — declared in routing.checks; no gate recorded it in this run',
-      '- [ ] typecheck — declared in routing.checks; no gate recorded it in this run',
+      '- [ ] task lint — declared as a task; it did not run in this run',
+      '- [ ] task typecheck — declared as a task; it did not run in this run',
     ])
   },
 )
@@ -285,7 +285,7 @@ test(
     const facts = aFacts({
       prompt: 'ship it, closes #54',
       state,
-      declaredChecks: ['typecheck'],
+      declaredChecks: ['task typecheck'],
       uncommitted: ['runtime/a.ts', 'runtime/b.ts'],
     })
     const agentBody = [
@@ -339,7 +339,7 @@ test(
       '- [ ] verdict_consistent — the envelope claimed success but a gate failed (verdict_consistent gate, code-review)',
     )
     expect(actual).toContain(
-      '- [ ] typecheck — declared in routing.checks; no gate recorded it in this run',
+      '- [ ] task typecheck — declared as a task; it did not run in this run',
     )
     expect(actual).toContain(
       '- [ ] every change committed — 2 path(s) are not in this pull request: runtime/a.ts, runtime/b.ts',

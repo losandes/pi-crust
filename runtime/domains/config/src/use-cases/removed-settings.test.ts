@@ -3,22 +3,28 @@ import { removedSettingFaults } from './removed-settings'
 
 for (const { document, location, replacement } of [
   {
-    document: { routing: { skills: [] } },
-    location: 'routing.skills',
+    document: { routing: {} },
+    location: 'routing',
     replacement:
-      'skill routing was removed. A skill belongs where the coding agent discovers skills; delete this key.',
+      'the section was removed and tasks (`tasks:`) replace it; delete this key.',
   },
   {
-    document: { routing: { checks: [{ name: 'lint', operation: 'lint' }] } },
-    location: 'routing.checks[lint].operation',
+    document: { routing: { checks: [] } },
+    location: 'routing.checks',
     replacement:
-      'labels on repository commands were removed and nothing replaced them; delete this key.',
+      'tasks replace routing.checks. Declare each command under `tasks:` with `when: [{ on: change }]`, `match` and `run` (references/config.md, Tasks); delete this key.',
   },
   {
-    document: { routing: { checks: [{ area: 'backend' }] } },
-    location: 'routing.checks[0].area',
+    document: { routing: { unmatched: 'warn' } },
+    location: 'routing.unmatched',
     replacement:
-      'labels on repository commands were removed and nothing replaced them; delete this key.',
+      'tasks replace routing.checks, and the unmatched-path policy went with it: a run reports how many changed paths no task matched and never fails on it; delete this key.',
+  },
+  {
+    document: { agents: [{ name: 'build', gates: ['checks'] }] },
+    location: 'agents[build].gates',
+    replacement:
+      'the `checks` gate was removed. Repository commands are tasks (`tasks:`) that fire at `change` after any Activity; delete this key.',
   },
   ...['activities', 'agents'].map((section) => ({
     document: { [section]: [{ name: 'build', gates: [] }] },
@@ -56,7 +62,6 @@ test(
       undefined,
       42,
       {
-        routing: { checks: [{ name: 'lint', argv: ['true'] }] },
         activities: [{ name: 'build' }],
       },
     ].map((document) => ({ file: 'config.yaml', document }))
@@ -80,7 +85,7 @@ test(
         file: 'one',
         document: {
           agents: [{ gates: [] }],
-          routing: { skills: [], checks: [{ area: '', operation: '' }] },
+          routing: { skills: [], checks: [] },
         },
       },
       { file: 'two', document: { activities: [{ name: 'build', gates: [] }] } },
@@ -93,8 +98,7 @@ test(
     expect(actual).toEqual([
       'one: agents[0].gates',
       'one: routing.skills',
-      'one: routing.checks[0].area',
-      'one: routing.checks[0].operation',
+      'one: routing.checks',
       'two: activities[build].gates',
     ])
   },

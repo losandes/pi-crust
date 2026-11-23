@@ -23,7 +23,7 @@ export type TBodyFacts = Readonly<{
   /** the Activity's prompt, one of two places an issue number may be named */
   prompt: string
   state: TRunState | undefined
-  /** `routing.checks[].name` — declared checks, so one that never ran is unchecked */
+  /** Declared task items, so one that never ran is unchecked */
   declaredChecks: readonly string[]
   /** uncommitted + untracked paths at delivery time */
   uncommitted: readonly string[]
@@ -309,7 +309,7 @@ export const checksSection = (facts: TBodyFacts): string => {
     .toSorted()
     .map(
       (name) =>
-        `- [ ] ${name} — declared in routing.checks; no gate recorded it in this run`,
+        `- [ ] ${name} — declared as a task; it did not run in this run`,
     )
 
   const lines = [

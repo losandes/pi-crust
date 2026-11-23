@@ -1,42 +1,33 @@
 #!/usr/bin/env bun
 
-/**
- * pi-crust Checks — run this repository's own commands, with no Lifecycle.
- *
- * Usage:
- *     just crust verify [--scope <ref|range|path|glob>] [--config <path>]
- *
- * The same commands the `checks` gate runs inside a run, run on their own.
- * `verify` used to be an Activity for this, which produced a verdict nothing
- * consumed; what a person wants from it is not an Activity Run in a trace,
- * it is the exit status of their own test suite against what they changed.
- *
- * No session, no agent, no trace: there is nothing here an observer would
- * want to watch, and minting a run to shell out to `bun test` would put a
- * row in the trace claiming work that nobody asked an agent for.
- */
+/** Evaluate change tasks without starting a run, agent or trace. */
 
-import { basename, join } from 'node:path'
-import { errorMessage, safeParseSettlement } from '../../lib/typedefs'
+import { basename, join, relative, resolve } from 'node:path'
+import { errorMessage, settleAsync } from '../../lib/typedefs'
 import { loadConfig } from '../domains/config'
 import {
-  matchingChecks,
-  NOTHING_DECLARED,
-  NOTHING_MATCHED,
-  runCommand,
-  unmatchedPaths,
-} from '../domains/policy'
+  liveTaskPorts,
+  NO_TASKS_DECLARED,
+  runChangeTasks,
+  taskArtifactName,
+  taskResultNote,
+} from '../domains/tasks'
 import {
-  changedFiles,
+  diffFiles,
+  filesUnder,
+  headAt,
   repoRoot,
   requireSelected,
   resolveBaseBranch,
   resolveDataPaths,
+  rev,
   selectRange,
+  snapshotTree,
   untrackedFiles,
+  vcsRoot,
 } from '../domains/workspace'
 import type { TPiCrustConfig } from '../lib/contracts'
-import { DEFAULT_CONFIG_PATH, EXIT } from '../lib/contracts'
+import { DEFAULT_CONFIG_PATH, EXIT, isRange } from '../lib/contracts'
 import { configPathFromEnv, ensureDir } from '../lib/system'
 import { paint, writeLine } from '../lib/terminal'
 
@@ -45,108 +36,107 @@ const flagValue = (
   flag: string,
 ): string | undefined => {
   const at = argv.indexOf(flag)
-
   return at === -1 ? undefined : argv[at + 1]
 }
 
-const checkedPaths = (
+const workingChange = (
   cfg: Readonly<Pick<TPiCrustConfig, 'terminal'>>,
   scope: string,
-): readonly string[] => {
+) => {
+  const workspaceRoot = repoRoot()
+  const root = vcsRoot(workspaceRoot)
+  const fromRoot = (source: string) => (path: string) =>
+    relative(root, resolve(source, path))
+  const fromWorkspace = fromRoot(workspaceRoot)
+  const fromVcs = fromRoot(root)
+  const fromCwd = fromRoot(process.cwd())
+  const head = headAt(root)
+  if (scope === '') {
+    const paths = Object.keys(
+      snapshotTree({ workspaceRoot, vcsRoot: root }),
+    ).map(fromWorkspace)
+    return {
+      workspaceRoot,
+      root,
+      baseRef: head,
+      paths: head === '' ? [...paths, ...filesUnder(':/').map(fromCwd)] : paths,
+    }
+  }
   const selection = selectRange(resolveBaseBranch(cfg, ''))(scope)
-
-  return scope === ''
-    ? [...changedFiles(), ...untrackedFiles()].filter(Boolean).toSorted()
-    : requireSelected(selection)
+  const selected = requireSelected(selection)
+  const paths = isRange(scope)
+    ? selected.map(fromVcs)
+    : selection.from === ''
+      ? selected.map(fromCwd)
+      : [
+          ...diffFiles(selection.from).map(fromVcs),
+          ...untrackedFiles().map(fromWorkspace),
+        ]
+  return {
+    workspaceRoot,
+    root,
+    paths,
+    baseRef: selection.from === '' ? head : rev(`${selection.from}^{commit}`),
+  }
 }
 
-export const main = (argv: readonly string[]): number => {
+export const main = async (argv: readonly string[]): Promise<number> => {
   const configPath =
     flagValue(argv, '--config') ?? configPathFromEnv() ?? DEFAULT_CONFIG_PATH
   const scope = flagValue(argv, '--scope') ?? flagValue(argv, '--base') ?? ''
-  const settled = safeParseSettlement(() => {
+  const settled = await settleAsync(async () => {
     const cfg = loadConfig(configPath)
-    if (cfg.routing.checks.length === 0) {
-      writeLine(paint(NOTHING_DECLARED, 'yellow'))
-
-      return EXIT.SUCCESS
-    }
-    const paths = checkedPaths(cfg, scope)
-    if (paths.length === 0) {
-      writeLine(paint('nothing changed — no checks apply', 'dim'))
-
-      return EXIT.SUCCESS
-    }
-    const specs = matchingChecks(cfg, paths)
-    const gaps = unmatchedPaths(cfg, paths)
-    if (specs.length === 0) {
-      /*
-       * Rules exist and none of them covers this change. Zero checks passing
-       * is not the same claim as zero checks failing, but under the default
-       * policy neither is a failure — the same finding the `checks` gate
-       * reports for the same change (1.1.1, 1.2.3). `routing.unmatched:
-       * "block"` opts a repository back into the old, failing behaviour.
-       */
-      const blocked = cfg.routing.unmatched === 'block'
-      writeLine(
-        paint(
-          `${NOTHING_MATCHED(gaps.length)} (${gaps.join(', ')})`,
-          blocked ? 'red' : 'yellow',
+    const { workspaceRoot, root, baseRef, paths } = workingChange(cfg, scope)
+    const { dataDir } = resolveDataPaths(cfg, workspaceRoot)
+    const instance = 'working tree'
+    const outcome = await runChangeTasks(liveTaskPorts)({
+      cfg,
+      root,
+      baseRef,
+      contributions: [{ instance, activity: undefined, paths }],
+      artifactFor: (task) =>
+        join(
+          ensureDir(join(dataDir, 'checks', basename(workspaceRoot))),
+          taskArtifactName(task),
         ),
-      )
-
-      return blocked ? EXIT.FAILED : EXIT.SUCCESS
-    }
-    /*
-     * The logs land under the data directory the config already owns, and
-     * not in a session: there is no session here, and writing one would be
-     * a trace row claiming an Activity Run that never happened.
-     *
-     * <tree> is this repository root's basename (1.5.1): a pooled store
-     * holds several working trees, and `checks/<name>.log` is unique to
-     * nothing once two of them share it — nor is it unique within ONE tree,
-     * since two concurrent `just crust verify` invocations here still
-     * overwrite each other's log (1.5.4). That collision is not fixed here;
-     * `run-checks.ts` writes gate checks to a per-run, per-Activity-Run path
-     * instead (1.5.2), which is why only the standalone runner needs this.
-     */
-    const root = repoRoot()
-    const { dataDir } = resolveDataPaths(cfg, root)
-    const logs = ensureDir(join(dataDir, 'checks', basename(root)))
-    const results = specs.map((spec) =>
-      runCommand(spec, {
-        repoRoot: root,
-        outputArtifact: join(logs, `${spec.name}.log`),
-        note: (line) => writeLine(paint(line, 'dim')),
-      }),
-    )
-    const failed = results.filter((result) => !result.passed)
-    writeLine(
-      failed.length === 0
-        ? paint(`all ${results.length} check(s) passed`, 'green')
-        : paint(`${failed.length} of ${results.length} check(s) failed`, 'red'),
-    )
-    const blockedGaps = cfg.routing.unmatched === 'block' && gaps.length > 0
-    if (gaps.length > 0) {
-      writeLine(
-        paint(
-          `${NOTHING_MATCHED(gaps.length)} (${gaps.join(', ')})`,
-          blockedGaps ? 'red' : 'yellow',
+      onCommandStart: ({ task, command }) =>
+        writeLine(paint(`task ${task}: ${command}`, 'dim')),
+      onCommandEnd: ({ task, result }) =>
+        writeLine(
+          paint(
+            `task ${task}: ${result.passed ? 'passed' : 'failed'} (exit ${result.returncode}, ${result.durationSeconds.toFixed(3)}s)`,
+            'dim',
+          ),
         ),
+    })
+    if (outcome.declared === 0) writeLine(paint(NO_TASKS_DECLARED, 'yellow'))
+    if (outcome.existing[instance] === 0)
+      writeLine(paint('nothing changed — no tasks apply', 'dim'))
+    const failed = outcome.results.filter(({ passed }) => !passed)
+    for (const task of failed)
+      writeLine(paint(`task ${task.name}: ${taskResultNote(task)}`, 'red'))
+    if (outcome.results.length > 0) {
+      writeLine(
+        failed.length === 0
+          ? paint(`all ${outcome.results.length} task(s) passed`, 'green')
+          : paint(
+              `${failed.length} of ${outcome.results.length} task(s) failed`,
+              'red',
+            ),
       )
     }
-
-    return failed.length === 0 && !blockedGaps ? EXIT.SUCCESS : EXIT.FAILED
+    const unmatched = outcome.unmatched[instance]?.length ?? 0
+    if (unmatched > 0)
+      writeLine(
+        paint(`${unmatched} path(s) changed that no task matched`, 'yellow'),
+      )
+    return failed.length === 0 ? EXIT.SUCCESS : EXIT.FAILED
   })
   if (settled.status === 'error') {
     process.stderr.write(`${errorMessage(settled.error)}\n`)
-
     return EXIT.FAILED
   }
-
   return settled.data
 }
 
-if (import.meta.main) {
-  process.exit(main(process.argv.slice(2)))
-}
+if (import.meta.main) process.exit(await main(process.argv.slice(2)))

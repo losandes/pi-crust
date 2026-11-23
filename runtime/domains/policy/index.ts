@@ -1,4 +1,4 @@
-/** What an agent may touch and which checks a change routes to */
+/** What an agent may touch and which paths it changed */
 
 export type { TRepoAfter } from './src/use-cases/enforce-permissions'
 export {
@@ -32,10 +32,6 @@ export {
   refusalsIn,
   stopMessage,
 } from './src/use-cases/path-policy-run'
-export {
-  matchingChecks,
-  unmatchedPaths,
-} from './src/use-cases/route-by-path'
 export type {
   TRunChange,
   TRunChangePorts,
@@ -49,9 +45,3 @@ export {
   runStartIn,
   runStartSchema,
 } from './src/use-cases/run-change'
-export {
-  NOTHING_DECLARED,
-  NOTHING_MATCHED,
-  runCommand,
-  runVerification,
-} from './src/use-cases/run-checks'

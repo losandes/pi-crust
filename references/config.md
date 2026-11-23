@@ -118,20 +118,20 @@ Planners carry none of these: `operator` and `triage` are a closed set, their wo
 
 Output checks follow from what an Activity reports: the envelope spec named by `output`. They are engine-owned, not configured in a registry entry.
 
-| What is judged                           | Checks, in order                                                               |
-| ---------------------------------------- | ------------------------------------------------------------------------------ |
-| Any Activity                             | `artifactsExist`, `filesNonEmpty`, `jsonParses`                                |
-| plus, when its spec is `reviewOutput`    | `verdictConsistent`                                                            |
-| plus, when its spec is `ghIssueOutput`   | `issueCreated`                                                                 |
-| plus, when its spec is `diagnosisOutput` | `reproductionSupported`                                                        |
-| plus, when its spec is `buildOutput`     | `diffMatchesClaims`, then `checks` unless the Activity is named `test-tdd`     |
-| A Planner (`operatorPlanOutput`)         | `artifactsExist`, `filesNonEmpty`, `jsonParses`, `stepsValid`                  |
-| A revise round                           | the artifact checks, the spec's own check, `disputesSupported`; never `checks` |
-| Terminal Activity `gh-pull-request`      | artifact checks inside delivery, then `pull_request_opened`                    |
+| What is judged                           | Checks, in order                                               |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| Any Activity                             | `artifactsExist`, `filesNonEmpty`, `jsonParses`                |
+| plus, when its spec is `reviewOutput`    | `verdictConsistent`                                            |
+| plus, when its spec is `ghIssueOutput`   | `issueCreated`                                                 |
+| plus, when its spec is `diagnosisOutput` | `reproductionSupported`                                        |
+| plus, when its spec is `buildOutput`     | `diffMatchesClaims`                                            |
+| A Planner (`operatorPlanOutput`)         | `artifactsExist`, `filesNonEmpty`, `jsonParses`, `stepsValid`  |
+| A revise round                           | the artifact checks, the spec's own check, `disputesSupported` |
+| Terminal Activity `gh-pull-request`      | artifact checks inside delivery, then `pull_request_opened`    |
 
-Every other envelope spec gets only the artifact checks. The `test-tdd` exception uses the Activity's canonical name, so its aliases and numbered repeats keep the exception. A repository's own `buildOutput` Activity runs repository commands too, unless it is named `test-tdd`.
+Every other envelope spec gets only the artifact checks. Repository [tasks](#tasks) run independently of the output checks, including on revise rounds.
 
-A configuration layer that still carries skill routing, command labels or per-Activity gate lists is refused at load, including empty lists and local or machine overrides. The error lists every occurrence with its file, entry and replacement, and directs the developer to delete the obsolete key.
+Configuration layers that still carry `routing`, `routing.checks`, `routing.unmatched`, `routing.skills`, or per-Activity `gates` lists (including lists naming `checks`) are refused at load. This applies to empty lists and local or machine overrides too. The error identifies each obsolete setting and its file.
 
 ### The engine step `import`
 
@@ -299,55 +299,43 @@ The prefix exists because Activities and Stages share a namespace. A bare `accep
 
 Every agent loads only the path policy shipped in `runtime/extensions/path-policy.ts`. Its path is resolved from the package, not from repository overrides or configuration. Configuration cannot load additional extensions.
 
-## `routing:` — what the `checks` gate runs
+## Tasks
 
-A repository declares its checker commands here, selected by **the paths the change actually touched**. Package modules and prompts do not name repository-specific checker commands. Skills belong where the coding agent discovers them; the engine does not route them.
+Declare repository commands under `tasks:` in `crust.config.yaml`. Matching tasks fire at `change`: after all Activities in the current Unit finish and their output checks are judged, but before their work is accepted or committed. Disabling commits does not disable tasks. `just crust verify` uses the same tasks over the working tree or an explicit `--scope`, without starting an agent or recording a run.
 
 ```yaml
-routing:
-  checks:
-    - name: test
-      when: ["**/*.ts"]
-      argv: [bun, test]                  # argv LIST, binaries by BARE NAME
-      cwd: ""                            # where to run it, from the git root
-      with_changed_paths: false          # true appends the matched paths to argv
-      timeout_seconds: 600
-  unmatched: warn                        # warn (default) | block restores the old failing behaviour
+task_config:
+  timeout_seconds: 300
+
+tasks:
+  lint:
+    when: [{ on: change }]
+    match: ["**/*.ts", "**/*.tsx"]
+    run: "<your lint command> {{changed_paths}}"
+
+  test:
+    when: [{ on: change, skip: [diagnose, test-tdd] }]
+    match: ["packages/api/**/*.ts"]
+    cwd: packages/api
+    run:
+      - "<your test command> {{changed_paths}} | <your reporter>"
+      - "<your coverage command> {{base_ref}}"
+    timeout_seconds: 600
 ```
 
-| Key                           | Default | Meaning                                                                                                                           |
-| ----------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `checks[].argv`               | —       | at least one token; never a shell string                                                                                          |
-| `checks[].with_changed_paths` | `false` | append the paths THIS rule matched, for checkers that take file arguments                                                         |
-| `checks[].cwd`                | `""`    | directory to run in, relative to the git root; empty is the root itself                                                           |
-| `checks[].timeout_seconds`    | `300`   | a timeout reports exit 124, with the output captured                                                                              |
-| `unmatched`                   | `warn`  | `warn` reports an uncovered change without failing the gate (1.1.1); `block` restores the pre-issue-#2 behaviour of failing on it |
+- `task_config.timeout_seconds`: positive integer, default `300` seconds per command.
+- `tasks`: a map, empty by default. Names start with an ASCII letter and can then include ASCII letters, digits, `_`, `.`, `:` and `-`. Tasks run in declaration order; a local layer can override fields or append a task.
+- `when`: a required non-empty list of triggers, with at most one entry per moment. `on: change` is the only supported moment. `skip` defaults to `[]` and excludes paths from Activities by canonical name, including aliases, numbered instances and revise rounds. Unknown names do not prevent loading. `verify` ignores `skip` because no Activity produced the change.
+- `match`: Git-root-relative globs over changed paths that still exist. `*` does not cross `/`; `**` does. An omitted or empty list matches every existing changed path. A task with no selected paths does not run.
+- `cwd`: a directory relative to the Git root, with no `..` segment. An omitted or empty value runs at the root. Selected paths are made relative to this directory before substitution.
+- `run`: a non-empty shell string or non-empty list of non-empty shell strings. The task runs every command in order, even when one fails.
+- `timeout_seconds`: positive integer overriding `task_config.timeout_seconds` for each command in this task.
 
-### `cwd`, and why changed paths are rebased onto it
+Use `{{changed_paths}}` and `{{base_ref}}` as their own words, outside quotes, where `sh` reads arguments. Optional whitespace inside the braces is allowed. `{{changed_paths}}` expands to one argument per distinct selected path, sorted before respelling for `cwd`. `{{base_ref}}` expands to one argument: the run's starting commit, or for `verify` the selected base or `HEAD`. If no commit resolves, it is an empty argument. Other brace text is left unchanged. Empty values expand to `''`; values made up solely of ASCII letters, digits or `_@%+=:,./-` are unchanged. Other values are single-quoted, with each embedded single quote rendered as `'\''`. Variables detected inside quotes are refused at load. Every other placement is unsupported, including joining a variable to other text, even if it happens to work for a commit ID.
 
-Changed paths are collected from the **git root**, so that is the spelling `when:` globs must use. A check that runs somewhere below the root — a nested workspace, a package with its own `tsconfig.json` or linter config — sets `cwd:`, and the paths appended by `with_changed_paths` are rebased onto it.
+Commands run as `sh -c` with the operator's environment and no added shell options. Exit status zero passes. On timeout the runner sends `SIGTERM` to the command's process group, then sends `SIGKILL` at command close or after at most ten seconds and reports exit `124`. Full stdout and stderr are saved with the command's status and duration; feedback includes the output tail.
 
-Without the rebase, a root-relative path handed to a command running in a subdirectory names a file that does not exist, and the tool reports a missing file rather than a misconfiguration. `.pi-crust/` sitting at the git root is the common case and needs neither key.
-
-### Glob semantics, and the trap in them
-
-`when` uses the same matcher as `writes:`: **`*` does not cross `/`, `**` does.** So `when: ["*.ts"]` matches `server.ts` at the repository root and nothing nested — and because the result is "no rule matched", it reads as silence rather than as an error. Write `**/*.ts` unless you mean the root only.
-
-### Declaring nothing is not the same as declaring a rule that misses
-
-An empty `routing.checks` passes, saying it had nothing to run. A declared rule that matches nothing **also passes** by default — it says which paths went unverified, as a warning carried to the end of the run, rather than failing the gate (issue #2, 1.1.1).
-
-Those are different claims, even though neither fails on its own. Nothing declared is a repository that has not opted in to verification — and `checks: []` is what an install stamps, in a file `protected_files` keeps the agents out of, so failing on it made the shipped configuration unrunnable by construction. A rule that matched nothing is a repository that opted in and left this change uncovered, which used to fail the gate outright — the first time a change landed outside every declared rule, the build agent met a gate it could not pass and could not fix, which is a worse outcome than the gap it was trying to catch.
-
-Set `routing.unmatched: block` to restore the old, failing behaviour for a repository that wants an uncovered change to stop the gate rather than warn about it.
-
-| routing.checks | Changed paths | Matched | `routing.unmatched` | Verdict                                                                     |
-| -------------- | ------------- | ------- | ------------------- | --------------------------------------------------------------------------- |
-| empty          | —             | —       | —                   | passed: nothing was declared, so nothing was promised                       |
-| declared       | none          | —       | —                   | passed: nothing changed, no checks apply                                    |
-| declared       | some          | 0       | `warn` (default)    | **passed**, with a check and a warning naming the unverified paths          |
-| declared       | some          | 0       | `block`             | **failed**: N path(s) changed but no rule matched them                      |
-| declared       | some          | N       | either              | whatever the commands said, plus a warning for any remainder left unmatched |
+After a concurrent stage, a task runs once per settlement round over the union of the paths it selected. A failed task and any failed output checks are combined as feedback for each affected Activity; only Activities with violations spend another attempt. An exhausted Activity stops the run. Resuming evaluates replayed Activities' tasks again over all their recorded paths in the run, including earlier attempts. Existing changed paths no task selected are counted in the run summary without failing the run. When no tasks are declared, the run reports that no commands ran.
 
 ## Overriding the roster on one machine
 

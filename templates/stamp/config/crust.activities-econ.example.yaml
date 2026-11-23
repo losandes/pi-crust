@@ -311,7 +311,7 @@ activities:
       - fetch_content
       - source_check
 
-  # Author tests before implementation; `checks` is intentionally omitted.
+  # Author tests before implementation; list test-tdd in `skip` for change tasks that require passing tests.
   - name: test-tdd
     output: buildOutput
     succession: supersedes
@@ -330,8 +330,7 @@ activities:
       - "**/__tests__/"
       - "**/tests/"
 
-  # Author tests after implementation; `checks` must pass.
-  # Running test commands is a gate, not an Activity.
+  # Author tests after implementation; matching change tasks verify them before acceptance.
   - name: test
     output: buildOutput
     succession: supersedes

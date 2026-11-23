@@ -31,7 +31,7 @@ The report distinguishes `stamped`, `skipped (exists)` and `left to the reposito
 
 | Stamped                                  | What it is                                                   | Tracked?          |
 | ---------------------------------------- | ------------------------------------------------------------ | ----------------- |
-| `config/crust.config.yaml`               | defaults and routing                                         | yes               |
+| `config/crust.config.yaml`               | defaults and tasks                                           | yes               |
 | `config/crust.activities.yaml`           | every Activity this repository offers                        | yes               |
 | `config/crust.lifecycles.yaml`           | every Lifecycle, as Stages and dependencies                  | yes               |
 | `config/crust.observe.yaml`              | the trace db, the UI's ports, every theme it offers          | yes               |

@@ -52,7 +52,7 @@ export type {
   TPathPolicy,
   TPathPolicyVerb,
   TPiCrustConfig,
-  TRoutingCheck,
+  TTask,
 } from './src/config'
 export {
   agentConfigSchema,
@@ -61,6 +61,11 @@ export {
   DEFAULT_CONFIG_PATH,
   DEFAULT_DB,
   DEFAULT_FE_PORT,
+  TASK_MOMENTS,
+  TASK_NAME,
+  taskConfigSchema,
+  taskSchema,
+  taskTriggerSchema,
 } from './src/config'
 export type {
   TBuildOutput,
@@ -132,11 +137,6 @@ export {
   renderOpened,
 } from './src/opened-artifact'
 export type {
-  TQualityCheckResult,
-  TQualityCheckSpec,
-  TQualityResult,
-} from './src/quality'
-export type {
   TActivityRunHandle,
   TAgentMapEntry,
   TConsole,
@@ -165,6 +165,7 @@ export {
   allAccepted,
   DEFAULT_ACTIVITY_OPTIONS,
 } from './src/runnable-activity'
+export { hasQuotedTaskVariable, TASK_VARIABLE } from './src/task-command'
 export type { TEventInput, TEventPayload, TTracer } from './src/trace'
 export {
   describeTrust,

@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test'
-import { execFileSync } from 'node:child_process'
 import {
   chmodSync,
   mkdtempSync,
@@ -9,9 +8,9 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { safeParseSettlement } from '../../../../../lib/typedefs'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
-
-const source = new URL('./git.ts', import.meta.url).href
+import { commitPaths, currentBranch, pushBranch } from './git'
 
 for (const operation of [
   'currentBranch',
@@ -36,39 +35,33 @@ for (const operation of [
         writeFileSync(
           stub,
           [
-            `#!${process.execPath}`,
-            "if (process.argv.includes('--git-dir')) process.exit(0)",
+            '#!/bin/sh',
+            '[ "$2" != --git-dir ] || exit 0',
             outcome === 'signal'
-              ? "process.kill(process.pid, 'SIGTERM')"
-              : "process.stderr.write('fixture Git failure\\n'); process.exit(23)",
+              ? 'kill -TERM "$$"'
+              : "printf 'fixture Git failure\\n' >&2; exit 23",
             '',
           ].join('\n'),
         )
         chmodSync(stub, 0o755)
-        const script = `
-          import { ${operation} } from ${JSON.stringify(source)}
-          process.env.PATH = ${JSON.stringify(outcome === 'spawn-error' ? join(dir, 'absent') : dir)}
-          try {
-            ${
-              operation === 'currentBranch'
-                ? 'currentBranch()'
-                : operation === 'commitPaths'
-                  ? "commitPaths('fixture commit', ['work.txt'], process.cwd())"
-                  : "pushBranch('fixture-remote', 'fixture-branch', process.cwd())"
-            }
-            process.stdout.write('unexpected success')
-          } catch (error) {
-            process.stdout.write(error.message)
-          }
-        `
+        const cwd = operation === 'currentBranch' ? process.cwd() : dir
+        const invoke = {
+          currentBranch,
+          commitPaths: () => commitPaths('fixture commit', ['work.txt'], cwd),
+          pushBranch: () => pushBranch('fixture-remote', 'fixture-branch', cwd),
+        }[operation]
+        const path = process.env.PATH
+        const fixturePath =
+          outcome === 'spawn-error' ? join(dir, 'absent') : dir
         try {
           // when
-          const message = execFileSync('bun', ['-e', script], {
-            cwd: dir,
-            encoding: 'utf8',
-          })
+          // biome-ignore lint/plugin/no-object-mutation: isolate Git lookup for this synchronous test and restore PATH below
+          process.env.PATH = fixturePath
+          const result = safeParseSettlement(() => invoke())
           // then
-          expect(message).toContain(`cwd: ${JSON.stringify(dir)}`)
+          expect(result.status).toBe('error')
+          const message = result.status === 'error' ? result.error.message : ''
+          expect(message).toContain(`cwd: ${JSON.stringify(cwd)}`)
           expect(message).toContain('argv: ["git",')
           expect(message).toContain(
             `exit status: ${outcome === 'exit' ? '23' : 'unavailable'}`,
@@ -91,6 +84,9 @@ for (const operation of [
               '["git","push","--set-upstream","fixture-remote","fixture-branch"]',
             )
         } finally {
+          if (path === undefined) delete process.env.PATH
+          // biome-ignore lint/plugin/no-object-mutation: restore the test worker's Git lookup
+          else process.env.PATH = path
           rmSync(dir, { recursive: true, force: true })
         }
       },

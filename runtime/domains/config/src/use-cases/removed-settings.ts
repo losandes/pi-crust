@@ -14,8 +14,16 @@ const label = (
   index: number,
 ): string => (typeof entry.name === 'string' ? entry.name : String(index))
 
-const commandReplacement =
-  'labels on repository commands were removed and nothing replaced them; delete this key.'
+const routingReplacement = {
+  checks:
+    'tasks replace routing.checks. Declare each command under `tasks:` with `when: [{ on: change }]`, `match` and `run` (references/config.md, Tasks); delete this key.',
+  unmatched:
+    'tasks replace routing.checks, and the unmatched-path policy went with it: a run reports how many changed paths no task matched and never fails on it; delete this key.',
+  skills:
+    'skill routing was removed. A skill belongs where the coding agent discovers skills; delete this key.',
+} as const
+const commandsGateReplacement =
+  'the `checks` gate was removed. Repository commands are tasks (`tasks:`) that fire at `change` after any Activity; delete this key.'
 const gatesReplacement =
   'per-Activity gate lists were removed. Output checks now follow from what the Activity reports (its `output`); delete this key.'
 
@@ -26,31 +34,26 @@ export const removedSettingFaults = (
   layers.flatMap(({ file, document }) =>
     Object.entries(record(document)).flatMap(([section, value]) => {
       if (section === 'routing') {
-        return Object.entries(record(value)).flatMap(([key, setting]) => {
-          if (key === 'skills') {
-            return [
-              `${file}: routing.skills — skill routing was removed. A skill belongs where the coding agent discovers skills; delete this key.`,
+        const routing = record(value)
+        const faults = Object.keys(routing).flatMap((key) =>
+          key === 'checks' || key === 'unmatched' || key === 'skills'
+            ? [`${file}: routing.${key} — ${routingReplacement[key]}`]
+            : [],
+        )
+        return Object.hasOwn(routing, 'checks') ||
+          Object.hasOwn(routing, 'unmatched')
+          ? faults
+          : [
+              ...faults,
+              `${file}: routing — the section was removed and tasks (\`tasks:\`) replace it; delete this key.`,
             ]
-          }
-          return key === 'checks'
-            ? entries(setting).flatMap((entry, index) => {
-                const check = record(entry)
-                return Object.keys(check)
-                  .filter((field) => field === 'operation' || field === 'area')
-                  .map(
-                    (field) =>
-                      `${file}: routing.checks[${label(check, index)}].${field} — ${commandReplacement}`,
-                  )
-              })
-            : []
-        })
       }
       return section === 'activities' || section === 'agents'
         ? entries(value).flatMap((entry, index) => {
             const activity = record(entry)
             return Object.hasOwn(activity, 'gates')
               ? [
-                  `${file}: ${section}[${label(activity, index)}].gates — ${gatesReplacement}`,
+                  `${file}: ${section}[${label(activity, index)}].gates — ${entries(activity.gates).includes('checks') ? commandsGateReplacement : gatesReplacement}`,
                 ]
               : []
           })

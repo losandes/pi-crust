@@ -538,15 +538,6 @@ export const documentOutput = envelopeSpec(
 )
 
 /**
- * A deterministic result, shaped as an envelope so an agent can consume it.
- *
- * Agents hand each other typed envelopes; code blocks return TQualityResult.
- * This is the adapter, so a failing lint or test run flows back into the
- * builder through exactly the same door a tester agent's report used to — the
- * workflow script is the only thing that knows the difference.
- */
-
-/**
  * 1.2 Identify — what outcome is wanted, and how success will be recognised.
  *
  * `success_criteria` is the field the whole lifecycle hinges on. It is set
@@ -704,8 +695,8 @@ export const ghIssueOutput = envelopeSpec('GhIssueOutput', ghIssueOutputSchema)
  * There is no `verifyOutput`.
  *
  * It was the adapter a `verify` Activity used to hand a lint/test result
- * forward as an envelope. The repository's checks are a GATE now, and a
- * gate reports `{item, ok, note}` checks rather than an envelope — so
+ * forward as an envelope. Repository tasks record `{item, ok, note}` checks
+ * rather than an envelope — so
  * nothing built one, and a published contract nothing produces is a
  * contract an Activity can name and never receive.
  */

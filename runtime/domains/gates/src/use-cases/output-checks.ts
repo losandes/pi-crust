@@ -6,7 +6,6 @@ import type {
   TGate,
 } from '../../../../lib/contracts'
 import { buildOutput, reviewOutput } from '../../../../lib/contracts'
-import { checks } from './checks-gate'
 import {
   artifactsExist,
   diffMatchesClaims,
@@ -39,15 +38,6 @@ export const outputChecks = (
   return own === undefined ? ARTIFACT_CHECKS : [...ARTIFACT_CHECKS, own]
 }
 
-/** Canonical names of Activities the repository's commands do not answer for. */
-export const COMMANDS_SKIP: readonly string[] = ['test-tdd']
-
 export const activityChecks = (
   activity: Readonly<{ name: string; spec: TEnvelopeSpec<TEnvelopeBase> }>,
-): readonly TGate[] => [
-  ...outputChecks(activity.spec),
-  ...(activity.spec.name === buildOutput.name &&
-  !COMMANDS_SKIP.includes(activity.name)
-    ? [checks]
-    : []),
-]
+): readonly TGate[] => outputChecks(activity.spec)

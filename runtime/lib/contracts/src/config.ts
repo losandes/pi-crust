@@ -5,6 +5,7 @@
  * user prompt — lives at the workflow call site, never here.
  */
 
+import { isAbsolute } from 'node:path'
 import { z } from 'zod'
 import {
   activityConfigSchema,
@@ -14,6 +15,7 @@ import {
   promptsSchema,
   terminalConfigSchema,
 } from './activity'
+import { hasQuotedTaskVariable } from './task-command'
 
 export type { TCodingAgent, TPrompts } from './activity'
 export {
@@ -185,52 +187,55 @@ export type TObservabilityConfig = Readonly<
   z.infer<typeof observabilityConfigSchema>
 >
 
-// ── routing: what the `checks` gate RUNS ──────────────────────────────────
-// Commands are selected by the paths a change actually touched. A stamped
-// repository declares its own checkers rather than naming them in a module.
-//
-// `when` globs use the same matcher as `writes` (use-cases/enforce-permissions):
-// `*` does NOT cross `/`, `**` does. `**/*.ts` is therefore required to reach a
-// nested file; `*.ts` matches only the repository root. An empty `when` always
-// matches.
+// Repository tasks select existing changed paths using git-root-relative globs.
+export const TASK_MOMENTS = ['change'] as const
+export const TASK_NAME = /^[A-Za-z][A-Za-z0-9_.:-]*$/
 
-export const routingCheckSchema = z.object({
-  name: z.string(),
-  when: z.array(z.string()).default([]),
-  /** argv LIST, never a shell string. Binaries by bare name. */
-  argv: z.array(z.string()).min(1),
-  // Where to run it, relative to the git root. Empty means the git root
-  // itself. A repository whose toolchain lives in a subdirectory — a nested
-  // workspace, a package with its own config — needs this, and the changed
-  // paths handed to the command are rebased onto it so they still resolve.
-  cwd: z.string().default(''),
-  /** append the matched changed paths — for checkers that take file arguments */
-  with_changed_paths: z.boolean().default(false),
-  timeout_seconds: z.number().int().default(300),
+export const taskTriggerSchema = z.strictObject({
+  on: z.enum(TASK_MOMENTS),
+  skip: z.array(z.string().min(1)).default([]),
 })
-export type TRoutingCheck = Readonly<z.infer<typeof routingCheckSchema>>
 
-/**
- * What an unmatched changed path means, once `routing.checks` is declared.
- *
- *   warn   the default (1.1.1): a gap is reported, named, never failed.
- *   block  opted in (1.3.1), beside the rules it governs: restores the
- *          pre-fix behaviour of failing the gate on an uncovered change.
- */
-export const ROUTING_UNMATCHED_POLICIES = ['warn', 'block'] as const
-export type TRoutingUnmatchedPolicy =
-  (typeof ROUTING_UNMATCHED_POLICIES)[number]
+const taskCommandSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (command) => !hasQuotedTaskVariable(command),
+    'task variables must not appear inside quotes',
+  )
 
-export const routingConfigSchema = z.object({
-  checks: z.array(routingCheckSchema).default([]),
-  unmatched: z.enum(ROUTING_UNMATCHED_POLICIES).default('warn'),
+export const taskSchema = z.strictObject({
+  when: z
+    .array(taskTriggerSchema)
+    .min(1)
+    .refine(
+      (triggers) =>
+        new Set(triggers.map(({ on }) => on)).size === triggers.length,
+      'a task may declare each moment only once',
+    ),
+  match: z.array(z.string().min(1)).default([]),
+  run: z.union([taskCommandSchema, z.array(taskCommandSchema).min(1)]),
+  cwd: z
+    .string()
+    .refine(
+      (cwd) => !(isAbsolute(cwd) || cwd.split('/').includes('..')),
+      'cwd must be relative to the git root and contain no .. segment',
+    )
+    .default(''),
+  timeout_seconds: z.number().int().positive().optional(),
 })
-export type TRoutingConfig = Readonly<z.infer<typeof routingConfigSchema>>
+export type TTask = Readonly<z.infer<typeof taskSchema>>
+
+export const taskConfigSchema = z.strictObject({
+  timeout_seconds: z.number().int().positive().default(300),
+})
 
 export const crustConfigSchema = z.object({
+  routing: z.never().optional(),
+  task_config: taskConfigSchema.prefault({}),
+  tasks: z.record(z.string().regex(TASK_NAME), taskSchema).default({}),
   defaults: configDefaultsSchema.prefault({}),
   observability: observabilityConfigSchema.prefault({}),
-  routing: routingConfigSchema.prefault({}),
   /**
    * The roster: every Activity and every Planner, as agents.
    *

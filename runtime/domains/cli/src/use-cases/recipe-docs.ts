@@ -263,7 +263,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   {
     name: 'verify',
     group: 'running work',
-    summary: 'run the checks the changed paths select',
+    summary: 'run the change tasks over what you changed',
     usage:
       'just crust verify [--scope <ref|range|path|glob>] [--config <path>]',
     flags: [

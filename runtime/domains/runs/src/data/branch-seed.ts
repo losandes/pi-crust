@@ -8,8 +8,8 @@
  * make `readRunState` say the same thing about the branch that it says about
  * the source, up to the branch point.
  *
- * Trace rows are copied rather than re-derived because `replayQuality` and
- * `replayCommit` read a previous verdict out of the trace: an activity-run
+ * Trace rows are copied rather than re-derived because `replayCommit`
+ * reads its previous result out of the trace: an activity-run
  * row with no `events`/`envelopes` under it is a row resume cannot actually
  * replay from.
  */

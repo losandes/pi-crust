@@ -5,15 +5,17 @@ import { join } from 'node:path'
 import type {
   TEnvelopeBase,
   TGateReport,
-  TRun,
   TTracer,
 } from '../../../../lib/contracts'
-import { activityRunParams, crustConfigSchema } from '../../../../lib/contracts'
+import {
+  activityRunParams,
+  WARNING_EVENT,
+  warningPayload,
+} from '../../../../lib/contracts'
 import {
   restoreTerminal,
   silenceTerminal,
 } from '../../../../testing/terminal-capture'
-import { checks } from '../../../gates'
 import { createTracer } from '../../../trace'
 import {
   createConsole,
@@ -131,64 +133,44 @@ const tracedRunTracer = (): Readonly<{
   return { tracer, messages }
 }
 
-const builtEnvelope = (changed: readonly string[]): TEnvelopeBase =>
-  ({
-    status: 'success',
-    summary: 'built it',
-    artifacts: [],
-    notes_for_next_agent: '',
-    facts: [],
-    decisions: [],
-    assumptions: [],
-    unresolved: [],
-    risks: [],
-    objective_met: { met: true, evidence: 'it builds' },
-    regress_to: { activity: '', because: '' },
-    changed_files: changed,
-  }) as unknown as TEnvelopeBase
-
 test(
   [
     'given use-cases/report-to-console::createConsole',
-    'when a change touched only paths no routing.checks rule covered',
+    'when a run records a path that no task matched',
     'it should carry a run warning naming those paths all the way to the end-of-run report (1.2.1, 1.2.2)',
   ].join(', '),
   () => {
     using _terminal = capturedTerminal()
-    // given — the same tracer feeds both the gate that observes the gap and
-    // the console that is supposed to report it at the end of the run
+    // given
     const { tracer, messages } = tracedRunTracer()
-    const dir = mkdtempSync(join(tmpdir(), 'crust-report-console-'))
-    const run = {
-      cfg: crustConfigSchema.parse({
-        routing: {
-          checks: [
-            {
-              name: 'lint',
-              when: ['**/*.md'],
-              argv: ['true'],
-            },
-          ],
-        },
-        agents: [],
+    const runId = 'aaaa1111'
+    tracer.event({
+      run_id: runId,
+      activity_run_id: 'build-row',
+      name: WARNING_EVENT,
+      type: 'log',
+      payload: warningPayload({
+        kind: 'unverified',
+        activities: ['build'],
+        activityRunIds: ['build-row'],
+        stage: 'build',
+        paths: ['src/add.ts'],
+        note: '',
       }),
-      runId: 'aaaa1111',
-      repoRoot: dir,
-      contextHandoffDir: dir,
-      activityRuns: () => [],
-      console: { note: () => undefined },
-      tracer,
-    } as unknown as TRun
+    })
 
-    // when — the gate runs over a change the declared rule cannot reach,
-    // then the run ends
-    checks.check(builtEnvelope(['src/add.ts']), run, ['src/add.ts'])
-    const console_ = createConsole(tracer, run.runId)
+    // when
+    const console_ = createConsole(tracer, runId)
     console_.sessionFinished(true, 0, 0, '/tmp/crust.db')
 
     // then — the end-of-run report names the uncovered path, in the same
     // channel the other tree warnings use
     expect(messages.some((line) => line.includes('src/add.ts'))).toBe(true)
+    expect(
+      messages.some((line) =>
+        line.includes('1 path(s) changed that no task matched'),
+      ),
+    ).toBe(true)
   },
 )
 

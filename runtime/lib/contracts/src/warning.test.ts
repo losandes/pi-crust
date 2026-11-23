@@ -35,6 +35,28 @@ const recovered: TTreeWarning = {
 }
 const later: TTreeWarning = { ...uncommitted, note: 'a later refusal' }
 
+test(
+  [
+    'given overlapping unmatched paths in standing warnings',
+    'when rendering the run summary',
+    'it should report the distinct count and explain how to match them',
+  ].join(', '),
+  () => {
+    // given
+    const warnings: readonly TTreeWarning[] = [
+      { ...unexpected, kind: 'unverified' },
+      { ...unexpected, kind: 'unverified', paths: ['src/add.ts', 'README.md'] },
+    ]
+    // when
+    const actual = renderWarnings(warnings).join('\n')
+    // then
+    expect(actual).toContain('2 path(s) changed that no task matched')
+    expect(actual).toContain(
+      'No task ran over these paths. Add a task whose `match` selects them to have the change verified.',
+    )
+  },
+)
+
 for (const given of [
   {
     name: 'a recovery answers a refusal',

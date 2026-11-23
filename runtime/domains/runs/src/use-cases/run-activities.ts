@@ -47,6 +47,7 @@ import {
   gateCause,
   regressionCause,
 } from './attempts'
+import { changeTasks, noteUnverified } from './change-tasks'
 import { commitActivity } from './deliver'
 import type { TGateReason } from './human-gate'
 import {
@@ -229,9 +230,7 @@ const runUnit = async (
 /**
  * Judge one Activity's gates, recording every one of them.
  *
- * At the UNIT boundary, which in a concurrent Stage is the Stage boundary.
- * That is not a nicety: `checks` runs the repository's own commands against
- * the working tree, and a sibling Activity may still be writing to it.
+ * At the Unit boundary, before evaluating repository tasks over the round.
  *
  * `gate.check`'s third argument is what this Activity Run was OBSERVED to
  * change — `touchedBy`, the same `enforcePermissions`/`snapshotTree`
@@ -292,7 +291,7 @@ const settleGates = (
   }>,
 ): Promise<readonly TRan[]> => {
   const { run, unit, ctx, ran, ledger, trust, hasSuccessor } = params
-  const settleOne = async (entry: TRan): Promise<TRan> => {
+  const judge = (entry: TRan) => {
     const envelope = entry.result.previous
     const waiting = gateReason({
       activity: entry.activity.name,
@@ -301,49 +300,55 @@ const settleGates = (
       hasSuccessor,
       trust,
     })
-    if (
-      envelope === undefined ||
-      entry.activity.gates.length === 0 ||
-      waiting?.kind === 'escalated'
-    ) {
-      return entry
+    const escalated = waiting?.kind === 'escalated'
+    const eligible =
+      !escalated && envelope !== undefined && entry.activity.gates.length > 0
+    return {
+      entry,
+      escalated,
+      envelope: eligible ? envelope : undefined,
+      violations: eligible ? judgeGates(run, entry.activity, envelope) : [],
     }
-    const violations = judgeGates(run, entry.activity, envelope)
-    if (violations.length === 0) {
-      if (entry.activity.commit) {
-        /*
-         * Settled, not called. `commitActivity` already contains the commit
-         * git refused; this contains everything AROUND it — the
-         * observed-paths lookup and the two trace writes, either of which
-         * can throw on a locked database. A commit is the last thing that
-         * should be able to end a chain whose gates have just passed, and
-         * "whatever failed in there" is the only rule that stays true as
-         * the inside of it changes.
-         */
-        const committed = safeParseSettlement(() =>
-          commitActivity(
-            run,
-            entry.activity.instance,
-            handleIdOf(run, entry.activity.instance),
-            envelope,
-            unit.stage,
-          ),
+  }
+  const accept = (
+    entry: TRan,
+    envelope: TEnvelopeBase | undefined,
+    unmatched: readonly string[],
+  ) => {
+    noteUnverified(run, unit.stage)(entry.activity.instance, unmatched)
+    if (envelope !== undefined && entry.activity.commit) {
+      /*
+       * Settled, not called. `commitActivity` already contains the commit
+       * git refused; this contains everything AROUND it — the
+       * observed-paths lookup and the two trace writes, either of which
+       * can throw on a locked database. A commit is the last thing that
+       * should be able to end a chain whose gates have just passed, and
+       * "whatever failed in there" is the only rule that stays true as
+       * the inside of it changes.
+       */
+      const committed = safeParseSettlement(() =>
+        commitActivity(
+          run,
+          entry.activity.instance,
+          handleIdOf(run, entry.activity.instance),
+          envelope,
+          unit.stage,
+        ),
+      )
+      if (committed.status === 'error') {
+        run.console.note(
+          `${entry.activity.instance}: commit step failed — ` +
+            `${errorMessage(committed.error).split('\n')[0] ?? ''} ` +
+            '(the work is in the tree; nothing was staged back)',
         )
-        if (committed.status === 'error') {
-          run.console.note(
-            `${entry.activity.instance}: commit step failed — ` +
-              `${errorMessage(committed.error).split('\n')[0] ?? ''} ` +
-              '(the work is in the tree; nothing was staged back)',
-          )
-        }
       }
-
-      return entry
     }
-    const standing = activityRunFor(run, entry.activity.instance)
+  }
+  const ensureRetry = (entry: TRan, violations: readonly string[]) => {
     if (
       ledger.remaining(entry.activity.instance, entry.activity.attempts) === 0
     ) {
+      const standing = activityRunFor(run, entry.activity.instance)
       // The row said success because the Activity ran; its work is what did
       // not hold, and a trace that leaves it green is a trace that disagrees
       // with the reason the run stopped.
@@ -356,6 +361,9 @@ const settleGates = (
           ledger.report(entry.activity.instance, entry.activity.attempts),
       )
     }
+  }
+  const retry = (entry: TRan, violations: readonly string[]): Promise<TRan> => {
+    const standing = activityRunFor(run, entry.activity.instance)
     if (standing !== undefined) {
       settleStatus(run, standing.activity_run_id, 'superseded')
     }
@@ -365,18 +373,49 @@ const settleGates = (
         `(attempt ${ledger.spent(entry.activity.instance) + 1} of ${entry.activity.attempts})`,
     )
 
-    return settleOne(
-      await runStep(run, unit, ctx, entry.activity, ledger, {
-        cause: gateCause(violations),
-        feedback: violations,
-      }),
+    return runStep(run, unit, ctx, entry.activity, ledger, {
+      cause: gateCause(violations),
+      feedback: violations,
+    })
+  }
+
+  const settleRound = async (
+    round: readonly TRan[],
+  ): Promise<readonly TRan[]> => {
+    const judged = round.map(judge)
+    const tasks = await changeTasks(run)(
+      judged
+        .filter(({ escalated }) => !escalated)
+        .map(({ entry }) => entry.activity),
+    )
+    const settled = judged.map(({ entry, envelope, violations }) => {
+      const task = tasks.get(entry.activity.instance)
+      const combined = [...violations, ...(task?.violations ?? [])]
+      if (combined.length === 0) accept(entry, envelope, task?.unmatched ?? [])
+      else ensureRetry(entry, combined)
+      return { entry, violations: combined }
+    })
+    const pending = settled.filter(({ violations }) => violations.length > 0)
+    if (pending.length === 0) return round
+    const retried = await pending.reduce<Promise<readonly TRan[]>>(
+      async (prior, { entry, violations }) => [
+        ...(await prior),
+        await retry(entry, violations),
+      ],
+      Promise.resolve([]),
+    )
+    const replacements = new Map(
+      (await settleRound(retried)).map((entry) => [
+        entry.activity.instance,
+        entry,
+      ]),
+    )
+    return round.map(
+      (entry) => replacements.get(entry.activity.instance) ?? entry,
     )
   }
 
-  return ran.reduce<Promise<readonly TRan[]>>(
-    async (sofar, entry) => [...(await sofar), await settleOne(entry)],
-    Promise.resolve([]),
-  )
+  return settleRound(ran)
 }
 
 /**

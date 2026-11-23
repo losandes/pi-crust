@@ -40,12 +40,11 @@ for (const scenario of [
     name: 'faults across files',
     files: {
       'crust.config.yaml': 'routing: {skills: []}',
-      'crust.config.local.yaml':
-        'routing: {checks: [{name: lint, area: backend}]}',
+      'crust.config.local.yaml': 'routing: {checks: []}',
     },
     expected: [
       'crust.config.yaml: routing.skills',
-      'crust.config.local.yaml: routing.checks[lint].area',
+      'crust.config.local.yaml: routing.checks',
     ],
   },
 ]) {
@@ -84,6 +83,47 @@ for (const scenario of [
     },
   )
 }
+
+test(
+  [
+    'given tasks in shared and local config layers and a skip for an unknown Activity',
+    'when loading the configuration',
+    'it should preserve declaration order and load without warnings',
+  ].join(', '),
+  () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-task-layers-'))
+    const base = join(dir, 'crust.config.yaml')
+    const previous = process.env.CRUST_MACHINE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: isolate the machine config during this test
+    process.env.CRUST_MACHINE_CONFIG = join(dir, 'machine.yaml')
+    try {
+      writeFileSync(
+        base,
+        'tasks:\n  zeta: { when: [{on: change, skip: [not-installed]}], run: true-command }\n  alpha: { when: [{on: change}], run: true-command }\n',
+      )
+      writeFileSync(
+        join(dir, 'crust.config.local.yaml'),
+        'tasks:\n  alpha: { timeout_seconds: 12 }\n  middle: { when: [{on: change}], run: true-command }\n',
+      )
+      // when
+      const actual = loadConfigWithNotes(base)
+      // then
+      expect(Object.keys(actual.config.tasks)).toEqual([
+        'zeta',
+        'alpha',
+        'middle',
+      ])
+      expect(actual.config.tasks.alpha?.timeout_seconds).toBe(12)
+      expect(actual.warnings).toEqual([])
+    } finally {
+      if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
+      // biome-ignore lint/plugin/no-object-mutation: restore the machine config path
+      else process.env.CRUST_MACHINE_CONFIG = previous
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
 
 const ROSTER = `
 defaults:

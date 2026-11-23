@@ -39,13 +39,8 @@
  *               the workspace -- a monorepo workspace legitimately owning
  *               work that lives above it. Never fails the gate; see
  *               specs/todos/FIX-WORKSPACE-AND-VCS-ROOTS.md -- 1.3.3.
- *   unverified  changed paths no declared `routing.checks` rule reached. Never
- *               fails the `checks` gate by default -- a repository that opted
- *               in and left a gap is a reporting problem, not a failure
- *               (issue #2, 1.1.1, 1.2.1). `routing.unmatched: "block"` turns
- *               this into a real failure instead, at which point the gate
- *               itself reports it and this warning is the same finding said
- *               twice.
+ *   unverified  changed paths that still exist and no task selected. Never
+ *               fails the Activity or the run.
  */
 export type TWarningKind =
   | 'unexpected'
@@ -104,9 +99,7 @@ export const warningExplanation = (kind: TWarningKind): string =>
               ? 'These paths exist above the workspace, inside the repository it is ' +
                 'nested in — a supported layout, not a mistake. Resolved and acted ' +
                 'on exactly as a path inside the workspace would be.'
-              : 'No routing.checks rule reached these paths. Add one to have the ' +
-                'change verified, or set routing.unmatched: "block" to fail on ' +
-                'this instead of warning.'
+              : 'No task ran over these paths. Add a task whose `match` selects them to have the change verified.'
 
 /** Every warning still worth reporting, in the order it was filed. */
 export const standingWarnings = (
@@ -191,11 +184,7 @@ const renderOutsideWorkspace = (
   ]
 }
 
-/**
- * Changed paths `routing.checks` never reached — counted and headlined on
- * its own, with no \u26a0: under the default policy this is a gap in
- * coverage, not a fault in the change (issue #2, 1.1.1).
- */
+/** Distinct changed paths that no task selected across the run. */
 const renderUnverified = (
   warnings: readonly TTreeWarning[],
 ): readonly string[] => {
@@ -203,13 +192,10 @@ const renderUnverified = (
   if (group.length === 0) {
     return []
   }
-  const total = group.reduce(
-    (sofar, warning) => sofar + warning.paths.length,
-    0,
-  )
+  const total = new Set(group.flatMap(({ paths }) => paths)).size
 
   return [
-    `${total} path(s) changed with no routing.checks rule to verify them`,
+    `${total} path(s) changed that no task matched`,
     ...renderGroup(group, 'unverified'),
   ]
 }

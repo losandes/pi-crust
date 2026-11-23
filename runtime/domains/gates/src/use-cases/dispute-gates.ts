@@ -8,7 +8,7 @@
  * status is not a matter of opinion — so disputing one fails here the same way
  * `verdict_consistent` fails an approval that ships blocking items.
  *
- * Which checks exist is `routing.checks` in the config and nothing else, so
+ * Which tasks exist is `tasks` in the config and nothing else, so
  * this file names no checker of any repository.
  */
 
@@ -41,7 +41,7 @@ const text = (value: unknown): string =>
 
 /** The declared check this finding is about, or '' when it is about none. */
 const decidedByCheck = (run: TRun, finding: string): string => {
-  const names = run.cfg.routing.checks.map((check) => check.name)
+  const names = Object.keys(run.cfg.tasks)
   return names.find((name) => namesWord(finding, name)) ?? ''
 }
 
