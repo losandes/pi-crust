@@ -2,8 +2,8 @@
  * The gate over `gh-issue`'s claim: a coherent, checkable issue reference.
  *
  * Reads only the envelope — no network call, no filesystem read, no process
- * spawn — so it stays testable without `gh` credentials and never needs
- * `readsTree`. Live verification that the issue actually exists on GitHub is
+ * spawn — so it stays testable without `gh` credentials.
+ * Live verification that the issue actually exists on GitHub is
  * the developer's job (`gh issue view <n>`); this gate can only prove the
  * agent reported a coherent reference, not a true one.
  */

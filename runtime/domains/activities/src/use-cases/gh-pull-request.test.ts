@@ -109,7 +109,7 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
     resume: new Set<string>(),
     cfg: {
       observability: { db: join(contextHandoffDir, 'no-such.db') },
-      routing: { checks: [], unmatched: 'warn' },
+      tasks: {},
     },
     console: { note: () => undefined, gateResult: () => undefined },
     tracer: { event: () => undefined, gateRow: () => undefined },

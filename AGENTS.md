@@ -130,7 +130,7 @@ mise run check
 
 That is the whole gate, in increasing order of cost, stopping at the first failure: `lint`, `typecheck`, `test:agent`, `build` and `check:install`. It is not an agent's routine check. Run it only when a full regression is the purpose — you were asked for one, or you are readying a branch through `pr-check` — and run the scoped test command below for everything else.
 
-Most code in this repository is written inside a pi-crust run, and a run's `checks` gate already runs `mise run test:agent`, a full integration-enabled regression of thousands of tests that takes over 90 seconds. A failure anywhere in the blast radius of a change is reported back to the Activity to fix. An agent that runs the full suite itself spends that wall-clock time to learn what the gate will tell it anyway, so a missed failure outside the tests you ran is the gate's to catch, not yours.
+After an Activity changes files, the run executes the `change` tasks declared under `tasks:` in `.pi-crust/config/crust.config.yaml` whose `match` selects those files, and reports a task failure back to the Activity that changed them. Agents should run only the scoped test command below unless asked for a full regression.
 
 It is one task rather than one for a developer and one for a pipeline, because two gates are how the thing CI runs and the thing you run stop being the same check. What differs between a laptop and a runner is handled inside the individual checks and said out loud: `typecheck:harness` needs a pi install, finds none on a runner, and prints that it did NOT check `extensions/` rather than implying it did.
 
@@ -156,7 +156,7 @@ RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt <path-to-tests> --para
 
 **Coverage is only meaningful over the whole repository.** `--coverage` measures every file a run loads, including files imported from outside the scope whose own tests were not in it — so a scoped run reports those as uncovered and is lying. `bun test runtime --coverage` reports `lib/typedefs/src/settlement.ts` at 71.43% functions, which looks like a gap and is not: that module is imported by `runtime` and tested by `lib/typedefs/src/settlement.test.ts`, which a `runtime` scope never ran. Measured whole, the same file is at 100%.
 
-So one command settles coverage, and it is the unscoped one the run's `checks` gate already executes:
+Run the unscoped command to settle coverage:
 
 ```sh
 mise run test:agent

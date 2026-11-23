@@ -105,7 +105,6 @@ test(
       'files_non_empty',
       'json_parses',
       'diff_matches_claims',
-      'checks',
     ])
     expect(actual[1]?.attempts).toEqual(3)
     expect(actual[1]?.commit).toEqual(true)

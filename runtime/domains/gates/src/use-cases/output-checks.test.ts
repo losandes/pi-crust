@@ -51,11 +51,7 @@ for (const name of ['build', 'test-tdd']) {
       // when
       const actual = activityChecks(activity).map((gate) => gate.name)
       // then
-      expect(actual).toEqual([
-        ...artifactNames,
-        'diff_matches_claims',
-        ...(name === 'test-tdd' ? [] : ['checks']),
-      ])
+      expect(actual).toEqual([...artifactNames, 'diff_matches_claims'])
     },
   )
 }

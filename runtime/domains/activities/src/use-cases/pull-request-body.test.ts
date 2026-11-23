@@ -475,19 +475,22 @@ test(
 test(
   [
     'given pull-request-body::checksSection',
-    'when a declared routing check never ran',
+    'when a declared task never ran',
     'it should render it unchecked and say so',
   ].join(', '),
   () => {
     // given
-    const facts = aFacts({ state: aState(), declaredChecks: ['typecheck'] })
+    const facts = aFacts({
+      state: aState(),
+      declaredChecks: ['task typecheck'],
+    })
 
     // when
     const actual = checksSection(facts)
 
     // then
     expect(actual).toContain(
-      '- [ ] typecheck — declared in routing.checks; no gate recorded it in this run',
+      '- [ ] task typecheck — declared as a task; it did not run in this run',
     )
   },
 )

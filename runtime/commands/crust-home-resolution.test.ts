@@ -250,9 +250,12 @@ integrationTest(
     const root = mkdtempSync(join(tmpdir(), 'crust-home-update-'))
     const fakeHome = join(root, 'fakehome')
     mkdirSync(join(fakeHome, 'scripts'), { recursive: true })
+    writeFileSync(join(fakeHome, 'scripts', 'install.ts'), '')
+    // Check which installer the recipe invokes without starting another Bun process.
     writeFileSync(
-      join(fakeHome, 'scripts', 'install.ts'),
-      'console.log("fake-install-ran")\n',
+      join(root, 'bun'),
+      '#!/bin/sh\n[ "$2" = --refresh ] || exit 1\nprintf "fake-install-ran: %s %s\\n" "$1" "$2"\n',
+      { mode: 0o755 },
     )
     writeFileSync(
       join(fakeHome, 'scripts', 'verify-install.sh'),
@@ -262,11 +265,15 @@ integrationTest(
     const { linked } = aPrimaryAndLinkedWorktree(fakeHome)
 
     // when
-    const actual = justRecipe(linked, 'update')
+    const actual = justRecipe(linked, 'update', {
+      PATH: `${root}:${process.env.PATH ?? ''}`,
+    })
 
     // then
-    expect(actual.status).toEqual(0)
-    expect(actual.stdout).toContain('fake-install-ran')
+    expect(actual.status, `${actual.stdout}\n${actual.stderr}`).toEqual(0)
+    expect(actual.stdout).toContain(
+      `fake-install-ran: ${join(fakeHome, 'scripts', 'install.ts')} --refresh`,
+    )
     expect(actual.stdout).toContain('fake-verify-ran')
   },
 )
@@ -284,17 +291,23 @@ integrationTest(
     const root = mkdtempSync(join(tmpdir(), 'crust-home-observe-'))
     const fakeHome = join(root, 'fakehome')
     mkdirSync(join(fakeHome, 'scripts'), { recursive: true })
+    writeFileSync(join(fakeHome, 'scripts', 'observe.ts'), '')
     writeFileSync(
-      join(fakeHome, 'scripts', 'observe.ts'),
-      'console.log("fake-observe-ran")\n',
+      join(root, 'bun'),
+      '#!/bin/sh\nprintf "fake-observe-ran: %s\\n" "$1"\n',
+      { mode: 0o755 },
     )
     const { linked } = aPrimaryAndLinkedWorktree(fakeHome)
 
     // when
-    const actual = justRecipe(linked, 'observe')
+    const actual = justRecipe(linked, 'observe', {
+      PATH: `${root}:${process.env.PATH ?? ''}`,
+    })
 
     // then
-    expect(actual.status).toEqual(0)
-    expect(actual.stdout).toContain('fake-observe-ran')
+    expect(actual.status, `${actual.stdout}\n${actual.stderr}`).toEqual(0)
+    expect(actual.stdout).toContain(
+      `fake-observe-ran: ${join(fakeHome, 'scripts', 'observe.ts')}`,
+    )
   },
 )

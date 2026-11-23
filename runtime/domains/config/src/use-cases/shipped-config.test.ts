@@ -48,7 +48,7 @@ for (const directory of ['templates/stamp/config', 'cookbooks/examples']) {
         .map((entry) => join(entry.parentPath, entry.name))
       // when
       const offending = paths.filter((path) =>
-        /\b(?:skills|gates|operation|area):|artifactsExist|filesNonEmpty|jsonParses|diffMatchesClaims|reproductionSupported|verdictConsistent|issueCreated/.test(
+        /\b(?:skills|gates|operation|area|routing|argv|with_changed_paths):|artifactsExist|filesNonEmpty|jsonParses|diffMatchesClaims|reproductionSupported|verdictConsistent|issueCreated/.test(
           readFileSync(path, 'utf8'),
         ),
       )
@@ -76,6 +76,8 @@ test(
       const actual = loadConfigWithNotes(join(dir, 'crust.config.yaml'))
       // then
       expect(actual.config.activities.length).toBeGreaterThan(0)
+      expect(actual.config.tasks).toEqual({})
+      expect(actual.config.task_config.timeout_seconds).toBe(300)
     } finally {
       if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
       // biome-ignore lint/plugin/no-object-mutation: restore the external configuration API after this test

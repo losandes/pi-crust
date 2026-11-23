@@ -1,6 +1,6 @@
 # Update Config
 
-Add or retune Activities in `crust.activities.yaml`, and the roster-wide defaults and routing in `crust.config.yaml`.
+Add or retune Activities in `crust.activities.yaml`, and the roster-wide defaults and tasks in `crust.config.yaml`.
 
 ## Retune model or thinking
 

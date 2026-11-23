@@ -352,7 +352,7 @@ export const resolveAgent = (
  * the file that set it (issue #24, 1.2.10).
  *
  * Scoped to exactly the two sections the machine layer is allowed to touch
- * (1.2.7) \u2014 `agents`, `activities`, `planners` and `routing` are not
+ * (1.2.7) \u2014 `agents`, `activities`, `planners` and `tasks` are not
  * reported here because the machine layer, and this provenance report that
  * exists for it, never reaches them.
  */

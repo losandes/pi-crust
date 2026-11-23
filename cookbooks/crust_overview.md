@@ -21,7 +21,7 @@ runtime/                      the package a stamp points at, never a copy
 ├── cli.ts                    the one entry point a stamped repo reaches
 ├── crust.just                the recipes `just crust <recipe>` dispatches to
 ├── report.ts                 where did a run stop, and what resumes it
-├── checks.ts                 routing.checks on their own, with no Lifecycle
+├── verify.ts                 change tasks on their own, with no Lifecycle
 ├── please.ts · consult.ts · steer.ts · resume.ts · prune.ts · workspaces.ts
 ├── stages/                   the two Planners with an agent: operator, triage
 ├── lifecycles/
@@ -72,7 +72,7 @@ The stamp, which is all a target repository carries:
 ├── config/                   repo-owned settings; examples may be refreshed
 │   ├── crust.activities.yaml the Activity registry — what a Lifecycle may name
 │   ├── crust.lifecycles.yaml the Lifecycles, their Stages, and each strategy
-│   ├── crust.config.yaml     defaults and routing
+│   ├── crust.config.yaml     defaults and tasks
 │   ├── crust.observe.yaml    the trace db, the ports, the themes
 │   └── dracula.css · high-contrast.css        visualizer themes
 ├── prompts/       overrides only; defaults ship with the package
@@ -118,7 +118,7 @@ There is no registry in TypeScript. A team adds an Activity by adding an entry, 
 Three things are NOT Activities, deliberately:
 
 - **The Planners** — `operator`, `triage`, and the Composer. They decide what happens and perform none of it, they are a closed set in code, and a Lifecycle cannot name one. Configuration tunes their model, tools, writes and prompts under `planners:`.
-- **The repository's checks** — a known command runs through the `checks` gate, attached by the engine. It used to be a `verify` Activity producing a verdict nothing read.
+- **Repository tasks** — a command declared under `tasks:` runs at `change` when it selects paths the Activity changed. A failure goes back to the Activity that changed them.
 - **Delivery** — an Activity with `commit: true` lands its own change once its gates pass, so granularity follows the chain. `--commit false` turns it off for a whole run; there is no flag that turns it on.
 
 A chain that ENDS in reviewing Activities — any declaring `output: reviewOutput` — gets the bounded revise loop from `use-cases/revise-loop.ts`, which re-asks all of them each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.

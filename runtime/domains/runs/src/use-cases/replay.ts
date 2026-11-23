@@ -18,17 +18,15 @@
  */
 
 import type {
-  TActivityRunHandle,
   TChangeCapture,
   TChangeSet,
   TEnvelopeBase,
   TEnvelopeSpec,
-  TQualityResult,
   TRun,
 } from '../../../../lib/contracts'
 import { readEnvelope } from '../../../activities'
 import { captureChanges } from '../../../workspace'
-import { recordStepResult, replayStepResult } from './resume'
+import { replayStepResult } from './resume'
 
 /** A activityRun whose only product was the record of it happening. */
 export const replayNothing = (): Promise<void> => Promise.resolve(undefined)
@@ -48,65 +46,6 @@ export const replayAgent =
       )
     }
     return Promise.resolve(settled.data)
-  }
-
-/**
- * Log a deterministic block's verdict — for humans, and for replay.
- *
- * The verdict is filed under its own event name because the console echoes
- * every printed line as a `log` too, so "the activity-run's last log" is usually a
- * sentence rather than a result.
- */
-export const recordQuality = (
-  run: TRun,
-  handle: TActivityRunHandle,
-  result: TQualityResult,
-): void => {
-  const passed = result.checks.filter((check) => check.passed).length
-  handle.log({
-    passed: result.passed,
-    checks: `${passed}/${result.checks.length}`,
-    artifacts: result.artifacts.join(', '),
-  })
-  recordStepResult(run, handle, {
-    passed: result.passed,
-    failures: [...result.failures],
-    checks: result.checks.length,
-    artifacts: [...result.artifacts],
-  })
-}
-
-/**
- * The verdict a previous run recorded — NOT its activityRun status.
- *
- * A test activityRun that ran the suite did its job even when the suite came back
- * red, so `status === 'success'` says nothing about whether the code passed.
- * Inferring one from the other would reintroduce exactly the bug that
- * `finish(accepted:)` exists to prevent.
- */
-export const replayQuality =
-  (run: TRun, activityRunName: string): (() => Promise<TQualityResult>) =>
-  () => {
-    const payload = replayStepResult(run, activityRunName)
-    if (payload === undefined) {
-      throw new Error(
-        `cannot resume '${activityRunName}': this session recorded no verdict for ` +
-          'it. Drop --resume so the checks run again.',
-      )
-    }
-    const failures = Array.isArray(payload.failures)
-      ? (payload.failures as readonly string[])
-      : []
-    const artifacts = Array.isArray(payload.artifacts)
-      ? (payload.artifacts as readonly string[])
-      : []
-    return Promise.resolve({
-      passed: payload.passed === true,
-      checks: [],
-      failures: [...failures],
-      artifacts: [...artifacts],
-      unmatchedPaths: [],
-    })
   }
 
 /** The commit already landed; there is nothing to redo and nothing to undo. */

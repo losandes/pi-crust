@@ -11,9 +11,9 @@ const runWith = (checks: readonly string[]): TRun =>
   ({
     cfg: crustConfigSchema.parse({
       agents: [],
-      routing: {
-        checks: checks.map((name) => ({ name, argv: ['true'] })),
-      },
+      tasks: Object.fromEntries(
+        checks.map((name) => [name, { when: [{ on: 'change' }], run: 'true' }]),
+      ),
     }),
   }) as TRun
 

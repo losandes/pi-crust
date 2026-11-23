@@ -8,7 +8,7 @@ Generate `crust.config.yaml` — the agent roster for a target repo.
 bun <pi-crust>/scripts/make-config.ts
 ```
 
-Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed — with the defaults and routing a stamp starts from. The Activities themselves live beside it in `crust.activities.yaml`, wired to the prompt files `/skill:crust install` stamped into `<pi-crust>/runtime/prompts/`. That path is the default every workflow and the justfile look for; `--config` overrides it. `make-config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
+Writes `.pi-crust/config/crust.config.yaml` — creating the directory if needed — with the defaults and tasks a stamp starts from. The Activities themselves live beside it in `crust.activities.yaml`, wired to the prompt files `/skill:crust install` stamped into `<pi-crust>/runtime/prompts/`. That path is the default every workflow and the justfile look for; `--config` overrides it. `make-config.ts` refuses to overwrite an existing config unless you pass `--force`, so retuning an existing roster is a hand edit — see `update_config.md`.
 
 `make-config.ts --force` explicitly replaces this one config file. It is not the installer's refresh policy: `install.ts --refresh` neither adds nor overwrites non-example files once `config/` exists. Only new `.example.yaml` documents are added there, and existing examples refresh only when requested. See [install.md](install.md) for deliberate adoption of new settings and the installer's deprecated `--force` alias.
 

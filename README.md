@@ -24,7 +24,7 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 
 **The sequence is a data structure, not an instruction.** A workflow is a list of Activity names folded by a function. A model cannot skip a stage, because the model is not doing the sequencing. Deterministic code runs the sequence, and calls specialist agents when it's their turn.
 
-**Every claim is addressable.** Agents return typed envelopes, not prose, and the harness verifies them before accepting. A path claimed as changed must exist. An approval that ships blocking items is refused. A verification that matched no checks fails. An agent that doesn't finish it's work is re-prompted rather than credited.
+**Every claim is addressable.** Agents return typed envelopes, not prose, and the harness verifies them before accepting. A path claimed as changed must exist. An approval that ships blocking items is refused. The run reports how many changed paths no task matched without failing on that count. An agent that doesn't finish it's work is re-prompted rather than credited.
 
 **Each stage reduces one named class of uncertainty**, and hands the next stage a context envelope that distinguishes what it established from what it decided, assumed, or could not answer. The receiving stage is the gate: it may accept, reject, or send the run backwards when evidence invalidates earlier work.
 
@@ -36,16 +36,16 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 
 ### The SDLC stages
 
-| Stage             | Activity                                                                            |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| 1.1 Evaluate      | `scout`                                                                             |
-| 1.2 Identify      | `identify`                                                                          |
-| 1.3 Conceptualize | `conceptualize`                                                                     |
-| 2.1 Plan          | `plan`                                                                              |
-| 2.2 Design        | `design`                                                                            |
-| 2.3 Build         | `test-tdd` or `test`, `build` — and the `checks` gate, which runs your own commands |
-| 3.1 Verify        | `review`, `code-review`                                                             |
-| 3.2 Launch        | `document` + a human; an Activity with `commit: true` lands its own change          |
+| Stage             | Activity                                                                   |
+| ----------------- | -------------------------------------------------------------------------- |
+| 1.1 Evaluate      | `scout`                                                                    |
+| 1.2 Identify      | `identify`                                                                 |
+| 1.3 Conceptualize | `conceptualize`                                                            |
+| 2.1 Plan          | `plan`                                                                     |
+| 2.2 Design        | `design`                                                                   |
+| 2.3 Build         | `test-tdd` or `test`, `build` — with repository tasks on matching changes  |
+| 3.1 Verify        | `review`, `code-review`                                                    |
+| 3.2 Launch        | `document` + a human; an Activity with `commit: true` lands its own change |
 
 An Activity is named for the work and IS its agent: one entry in `crust.activities.yaml` says who performs it (model, tools, writes, prompts) and what the work is (`output`, `attempts`, `commit`). Add an entry and it is runnable; delete one and the capability is gone. Nothing in the package holds a list of them. The engine derives [output checks](references/config.md#output-checks) from what each Activity reports.
 
@@ -103,6 +103,6 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 
 **Read the plan before the build runs.** `just crust run "<...>" --activities plan` then `just crust run "<...>" --run-id <id> --activities build` is cheaper than discovering a bad plan at review.
 
-**Declare your checks.** `routing.checks` is where the `checks` gate gets its commands, and a path that matches no rule fails rather than passing quietly. The convention checkers belong here: a violation caught by a command costs nothing, and the same violation caught by a reviewer costs a build-sized call.
+**Declare your [tasks](references/config.md#tasks).** Put repository commands under `tasks:` in `crust.config.yaml`. Matching `change` tasks verify changed files before the Activity's work is accepted and send failures back to the Activity that changed them.
 
 **Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each Activity.

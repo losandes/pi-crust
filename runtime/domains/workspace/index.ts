@@ -8,6 +8,8 @@ export {
   commitPaths,
   commitsAhead,
   currentBranch,
+  diffFiles,
+  filesUnder,
   headAt,
   isRepo,
   matchesHead,

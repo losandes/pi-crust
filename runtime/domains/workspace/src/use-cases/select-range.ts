@@ -17,7 +17,7 @@
  * It throws rather than settles: every call site is inside an activity run body, where
  * a throw is the error boundary. An explicit spec selecting NO path throws too
  * — a range that matches nothing must not read as "nothing changed, nothing to
- * check", which is the silent green `routing.checks` already guards against.
+ * check", which would silently skip the requested verification.
  */
 
 import type { TBaseBranch, TRangeSelection } from '../../../../lib/contracts'

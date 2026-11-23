@@ -138,10 +138,8 @@ run *ARGS:
 # report, the `please` picker, and the visualizer:
 #     just crust run "..." --lifecycle sdlc --name "payments rewrite"
 
-# Runs the commands routing.checks selects for what you changed, with no
-# Lifecycle, no agent and no session. The same checks run as the `checks`
-# gate inside a run; this is them on their own, for a pre-PR sweep.
-# run the checks the changed paths select: just crust verify
+# Evaluates the same change tasks as a run, with no Lifecycle, agent or session.
+# run the change tasks over what you changed: just crust verify
 verify *ARGS:
     @bun "{{crust}}/commands/verify.ts" --config {{config}} "$@"
 

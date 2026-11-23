@@ -105,7 +105,7 @@ export const allAccepted = (outcomes: readonly TActivityOutcome[]): boolean =>
  * Every activity held EXCEPT the named ones.
  *
  * What the revise loop needs: the verdicts it is about to re-ask are set
- * aside, and everything else — a failed `checks` gate, say — stays decisive.
+ * aside, and everything else — a failed repository task, say — stays decisive.
  */
 export const acceptedExcluding = (
   outcomes: readonly TActivityOutcome[],
@@ -138,9 +138,8 @@ export type TActivity = Readonly<{
   /**
    * What this Activity's envelope must survive, as the registry declared it.
    *
-   * Carried on the activity rather than applied inside the agent call, because
-   * the driver is what decides WHEN a gate is judged: a gate that reads the
-   * working tree waits for the Stage boundary, where a pure one does not.
+   * The driver judges these output checks at the Unit boundary, before
+   * evaluating the repository's change tasks.
    */
   gates: readonly TGate[]
   /** Activity Runs of this instance the run may spend, the first included */

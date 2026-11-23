@@ -442,7 +442,7 @@ export const ghPullRequestActivity = (
       runId: run.runId,
       prompt: ctx.prompt,
       state,
-      declaredChecks: run.cfg.routing.checks.map((one) => one.name),
+      declaredChecks: Object.keys(run.cfg.tasks).map((name) => `task ${name}`),
       uncommitted: ports.uncommitted(cwd),
       composedBy: config.name,
     }
