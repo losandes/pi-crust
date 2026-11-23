@@ -1,0 +1,42 @@
+# pi-crust configuration for this repository.
+#
+# This is the only pi-crust file a repository holds. Activities, lifecycles,
+# models and access policies come from the pi-crust package, and from
+# ~/.pi-crust/config/ on each machine. Anything set here wins over both.
+# Reference: <pi-crust>/references/config.md
+#
+# Tasks are the repository's own commands. Each says when it runs:
+#   on = "change"         after an Activity changes files
+#   on = "deliver"        once, before the run's branch is delivered
+#   before = "<activity>" before the stage containing that Activity starts
+#   after = "<activity>"  after the stage containing that Activity finishes
+# `skip` names Activities a task does not answer for.
+# `match` globs are Git-root-relative: * does not cross directories; ** does.
+# An empty `match` selects every changed path that still exists.
+# Use {{changed_paths}} and {{base_ref}} as unquoted shell arguments.
+
+[task_config]
+timeout_seconds = 3000
+
+[tasks.lint]
+when = [{ on = "change" }]
+match = ["**/*.ts", "**/*.tsx"]
+run = [
+  "echo linting:{{changed_paths}}",
+  "bunx biome check --no-errors-on-unmatched {{changed_paths}}"
+]
+
+[tasks.test]
+when = [{ on = "change", skip = ["diagnose", "test-tdd"] }]
+match = ["packages/api/**/*.ts"]
+cwd = "packages/api"
+run = [
+  "echo testing:{{base_ref}}",
+  "CLAUDECODE=1 bunx bunt --changed={{base_ref}} --paired | bunx buntap --agent --no-color"
+]
+timeout_seconds = 600
+
+[tasks.verify-all]
+when = [{ on = "deliver", skip = ["diagnose", "test-tdd"] }]
+run = "mise run check"
+timeout_seconds = 30000

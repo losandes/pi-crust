@@ -1,0 +1,95 @@
+# Machine layer: model and thinking per entry, carried over from
+# .pi-crust/config/crust.activities.yaml. Every other field comes from the
+# package defaults in <pi-crust>/runtime/config/crust.activities.toml.
+
+[activities.build]
+model = "openai/gpt-6.2-sol"
+thinking = "medium"
+
+[activities.code-review]
+model = "anthropic/claude-opus-5-5"
+thinking = "medium"
+
+[activities.conceptualize]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.data-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.design]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.diagnose]
+model = "anthropic/claude-opus-5-5"
+thinking = "medium"
+
+[activities.document]
+model = "openai/gpt-6.2-sol"
+thinking = "low"
+
+[activities.domain-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.gh-issue]
+model = "openai/gpt-6.2-sol"
+thinking = "low"
+
+[activities.identify]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.outcome-review]
+model = "anthropic/claude-opus-5-5"
+thinking = "medium"
+
+[activities.plan]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.plan-comprehension]
+model = "openai/gpt-6.2-sol"
+thinking = "medium"
+
+[activities.plan-readiness]
+model = "openai/gpt-6.2-sol"
+thinking = "high"
+
+[activities.scout]
+model = "openai/gpt-6.2-sol"
+thinking = "medium"
+
+[activities.security-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.technical-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.test]
+model = "openai/gpt-6.2-sol"
+thinking = "medium"
+
+[activities.ux-design]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.ux-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[planners.operator]
+model = "anthropic/claude-opus-5-5"
+thinking = "medium"
+
+[planners.triage]
+model = "anthropic/claude-opus-5-5"
+thinking = "medium"
+
+[terminal.gh-pull-request]
+model = "openai/gpt-6.2-sol"
+thinking = "low"
