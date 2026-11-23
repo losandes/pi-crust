@@ -58,13 +58,15 @@ Then match the nearest conforming test in the project you are in — the Step 3 
 
 The command is the project's, not this skill's. Look first in the project's agent instructions — `AGENTS.md`, `CLAUDE.md` — for the command an agent should run, then in its task definitions — `package.json` scripts, or a task runner's file such as `mise.toml` — before inventing one, and choose a test run appropriate for LLMs.
 
-Run only the tests your change needs. A task that runs every test is a full regression, and when the project's workflow already runs one as a gate, running it yourself duplicates the gate and spends wall-clock time to learn what the gate will report anyway. When neither defines one, use `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test --verbose --bail` as your default.
+Run only the tests your change needs. A task that runs every test is a full regression, and when the project's workflow already runs one as a gate, running it yourself duplicates the gate and spends wall-clock time to learn what the gate will report anyway. When neither defines one, use `CLAUDECODE=1 bunx bunt {{paths-to-tests}} --paired | bunx buntap --agent --no-color` as your default.
 
-| Situation                      | Command                                                                                       |
-| ------------------------------ | --------------------------------------------------------------------------------------------- |
-| Validating what you just wrote | the project's test script, scoped to the package you changed                                  |
-| Narrowing to one file          | `CLAUDECODE=1 LOG_LEVEL_MIN=silent METRICS_LEVEL_MIN=silent bun test <path> --verbose --bail` |
-| Checking coverage              | the project's coverage script                                                                 |
+When the agent instructions name a scoped command for agents, that command is your whole test run, for every row below. A task runner's file then lists the gate's commands, not yours: do not run a task from it because its name matches the situation, such as a `test` or `coverage` task.
+
+| Situation                      | Command                                                                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validating what you just wrote | the agent instructions' scoped command; otherwise the project's test script, scoped to the package you changed                                |
+| Narrowing to one file          | the same scoped command on that file; otherwise `CLAUDECODE=1 bunx bunt {{paths-to-tests}} --paired | bunx buntap --agent --no-color` |
+| Checking coverage              | nothing, when the agent instructions leave coverage to a gate; otherwise the project's coverage script                                        |
 
 Logging is the thing to watch: an unsilenced suite can produce thousands of lines of output, which costs context and hides the failure. If the project has a quiet variant, use it.
 

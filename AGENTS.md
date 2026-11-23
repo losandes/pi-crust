@@ -122,95 +122,48 @@ This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` i
 
 ## Verification
 
-Every check is a task in `mise.toml`, run from the repository root. Nothing here needs a `cd`: a `cd` into a package picks up that directory's `bunfig.toml` and `tsconfig.json` instead of the repository's, so a check run that way is not the check CI runs.
+An agent proves its own change with scoped commands and nothing wider. The full gate — lint over every root, typecheck, coverage across the whole repository, the visualizer build and the stamp check — runs after the agent, so running it yourself spends minutes to learn what the gate will report anyway. That holds in both places an agent works here:
 
-```sh
-mise run check
-```
+- **Inside a pi-crust run.** After an Activity changes files, the run executes the `change` tasks under `tasks:` in `.pi-crust/config/crust.config.yaml` whose `match` selects those files, and reports a task failure back to the Activity that changed them. At delivery it runs the `deliver` tasks, which take the repository-wide pass
+- **In an interactive session.** CI runs `mise run check` on every push to `main` and every pull request against it (`.github/workflows/check.yml`), and `pr-check` runs its own repository-wide pass before a pull request is opened
 
-That is the whole gate, in increasing order of cost, stopping at the first failure: `lint`, `typecheck`, `test:agent`, `build` and `check:install`. It is not an agent's routine check. Run it only when a full regression is the purpose — you were asked for one, or you are readying a branch through `pr-check` — and run the scoped test command below for everything else.
+### What an agent runs
 
-After an Activity changes files, the run executes the `change` tasks declared under `tasks:` in `.pi-crust/config/crust.config.yaml` whose `match` selects those files, and reports a task failure back to the Activity that changed them. Agents should run only the scoped test command below unless asked for a full regression.
+| To show that                                              | Run                                                                    |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| The tests you wrote or changed pass                       | The scoped test command below                                          |
+| The TypeScript you changed lints clean                    | `bunx biome check <changed paths>`                                     |
+| Markdown, a record, a spec, a skill or a diagram conforms | The skill's blocking script, listed under Checks the gate does not run |
 
-It is one task rather than one for a developer and one for a pipeline, because two gates are how the thing CI runs and the thing you run stop being the same check. What differs between a laptop and a runner is handled inside the individual checks and said out loud: `typecheck:harness` needs a pi install, finds none on a runner, and prints that it did NOT check `extensions/` rather than implying it did.
+Nothing else:
 
-That gap is accepted rather than hidden. Installing pi on a runner is not worth it for one directory, so CI builds carry the skip and the log says so on every run. `CRUST_STRICT=1` turns the skip into a failure for anywhere that wants it to be one. It is deliberately not keyed on `CI`: every GitHub Actions step sets `CI=true` whether the workflow asks or not, so keying on it would make strictness ambient rather than chosen, and the only way to accept the gap would be to claim not to be running in CI.
+- Do not typecheck. `mise run typecheck`, its three parts and a bare `tsc` belong to the gate
+- Do not run `mise run check`, `mise run lint`, `mise run build`, `mise run check:install` or any `mise run test*` task. The exceptions are a developer asking for a full regression and readying a branch through `pr-check`
+- Do not report a claim you did not run as passed. Name what you left to the gate — typecheck, repository-wide lint, repository-wide coverage — so a reader can tell a settled claim from a deferred one
 
-`check:install` stamps `templates/stamp/` into a throwaway directory and runs `verify-install.sh` against it, expecting `drift=0`. It needs no git, no network and no cleanup of your own — an install into a bare `mktemp -d` is a legitimate install, which is what makes it runnable unchanged on a runner. Anything other than `drift=0` means the template and the stamp disagree, and that failure ships into other people's repositories.
+Run every command from the repository root. Nothing here needs a `cd`: a `cd` into a package picks up that directory's `bunfig.toml` and `tsconfig.json` instead of the repository's, so a check run that way is not the check the gate runs.
 
-A runner also needs `bunx playwright install --with-deps chromium`, run from `apps/visualizer`, or the browser-driven visualizer tests skip and the suite is green having not run them. Run from the root, `bunx` resolves the latest playwright rather than the version `apps/visualizer` pins, downloads a Chromium revision the pinned version never looks for, and every browser test still skips.
-
-The test tasks run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, and the tasks call them through `bunx`, which resolves them from `node_modules/.bin` without a global install. Typed bare, they do not resolve: neither is on `PATH`, and a shell that reaches `bunt` through a version manager's shim is reaching a different installation, or none. Call them through `bunx` outside a task too.
-
-**Run only the tests your change needs**, with this command and no other:
+### The scoped test command
 
 ```sh
 RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt {{paths-to-tests}} --paired | bunx buntap --agent --no-color
 ```
 
-- `<path-to-tests>` is one or more paths from the repository root — the test files you wrote or changed, and the directory of the code you changed. Not a top-level root such as `runtime` or `apps/visualizer` unless your change genuinely spans it
+- `{{paths-to-tests}}` is one or more paths from the repository root — the test files you wrote or changed, and the directory of the code you changed. Not a top-level root such as `runtime` or `apps/visualizer` unless your change genuinely spans it
 - `RUN_INTEGRATION_TESTS=true` only when the tests you need are integration tests — browser-driven, git-repository or process-spawning tests guarded by the integration switch. Otherwise `false`
-- Do not reach for the `mise run test*` tasks. Each one runs every root, which is the gate's job, not yours
-- Never add `--coverage` to a scoped run. Coverage is only meaningful over the whole repository, as described below, so a scoped run reports files whose tests it did not run as below the threshold and `buntap` exits `3` on a change that is fine. Coverage is the gate's to measure
-- Do not run bare `bun test`. Without `CLAUDECODE=1` it floods the context with per-test `(pass)` lines — `bun test runtime` prints 1344 lines where `CLAUDECODE=1 bun test runtime` prints 14 — and with `--coverage` it fails silently, as described below
+- Do not add `--coverage`. `--paired` already measures each source file against only its sibling test — `x.test.ts` measures `x.ts` — so a source whose own test was not in the run never affects the result
+- Do not run bare `bun test`. Without `CLAUDECODE=1` it floods the context with per-test `(pass)` lines — `bun test runtime` prints 1344 lines where `CLAUDECODE=1 bun test runtime` prints 14 — and with `--coverage` it fails silently, as described under How the gate works
+- Call `bunt` and `buntap` through `bunx`, which resolves them from `node_modules/.bin`. Typed bare, they do not resolve: neither is on `PATH`, and a shell that reaches `bunt` through a version manager's shim is reaching a different installation, or none
 
-**Coverage is only meaningful over the whole repository.** `--coverage` measures every file a run loads, including files imported from outside the scope whose own tests were not in it — so a scoped run reports those as uncovered and is lying. `bun test runtime --coverage` reports `lib/typedefs/src/settlement.ts` at 71.43% functions, which looks like a gap and is not: that module is imported by `runtime` and tested by `lib/typedefs/src/settlement.test.ts`, which a `runtime` scope never ran. Measured whole, the same file is at 100%.
-
-Run the unscoped command to settle coverage:
-
-```sh
-mise run test:agent
-```
-
-It names every root — `apps/visualizer lib runtime scripts` — and that list is load-bearing in both directions. A new top-level directory that is not added to it gets its tests skipped while its source is still measured by whatever imports it, which is exactly how `settlement.ts` spent a day appearing to be 80% covered after it moved to `lib/`.
-
-Nothing else settles it, because **`bun test --coverage` fails silently**. `bunfig.toml` sets `coverageThreshold`, bun applies it PER FILE, and a file below it makes bun exit non-zero having printed no message at all — verified again on the scoped run above, which exits 1 with no `error:` line, nothing but the ordinary coverage table and `0 fail`. Read straight, a run that failed its gate looks exactly like a run that passed. `buntap` reads the same threshold and says so:
-
-```text
-COVERAGE FAIL 2 files below the minimum (functions 90.00%, lines 90.00%)
-  apps/visualizer/server/db.ts functions 62.96%, lines 66.03%
-  apps/visualizer/server/writes.ts functions 38.46%, lines 40.91%
-```
-
-The exit code says which gate went red: `1` is a failing test, `3` is coverage. Both are failures. Because coverage is judged per file, a package whose total is 96% still fails on one 40% file.
-
-A pipeline reports the last command's status, so what reaches you is `buntap`'s verdict rather than bun's own exit code. That is the trade the pipe makes for a legible failure.
+The exit code says what went red: `1` is a failing test, `3` is a paired source below the coverage threshold. Both are failures, and a `3` names a file whose own test you ran, so the gap is yours. A pipeline reports the last command's status, so what reaches you is `buntap`'s verdict rather than bun's own exit code.
 
 A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
 
-`mise run typecheck` is three checks in sequence: `typecheck:runtime`, `typecheck:harness`, and `typecheck:visualizer`. `runtime/tsconfig.json` excludes `extensions/`, so the first does not check it. The second does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one — and under `CRUST_STRICT` it exits 1 instead, for anywhere that would rather fail than carry the gap.
-
-`apps/visualizer`'s suite also includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing the suite — a skipped check, not a passed one. Run `bunx playwright install chromium` from `apps/visualizer` to make it run for real.
-
-To prove a stamp matches its source on its own, without the rest of the gate:
-
-```sh
-mise run check:install
-```
-
-It is also the thing to run against a repository you already stamped, which `mise run check` cannot do because it works in a throwaway directory:
-
-```sh
-scripts/verify-install.sh /path/to/a/stamped/repo
-```
-
-Lint is wired up — `biome.json` at the root, with the convention plugins in `.biome/`:
-
-```sh
-mise run lint
-```
-
-That is `biome check` over `apps`, `lib`, `runtime`, `scripts` and `templates` — every root that holds source. It is the same list the test tasks name, and for the same reason: a root nobody names is a root nobody checks. mise appends anything after `--` to the command, so `mise run lint -- --max-diagnostics=500` raises the cap when it truncates the report, and `mise run lint -- --fix` applies Biome's fixes.
-
-It is green, and it stays green: a change that reports a diagnostic is not finished. The backlog Biome found when the configuration first landed was repaid in five stages, so there is no longer a standing exception anyone can point at, and a new report is a regression rather than an inheritance.
-
-Do not report lint as passing on a narrowed path: the claim is only ever settled by `mise run lint` with no path argument, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`. Read the exit code rather than counting lines — Biome prints a diagnostic header in several shapes, including `path format` with no line or column and `path:line:column <rule>  FIXABLE` with doubled spaces, and every pattern written to count them has missed one of those at least once.
-
 A file in `bunfig.toml`'s `coveragePathIgnorePatterns` is not a gap in the test suite; it is a claim about what the module IS, not about the state of its tests. Each entry names a module that performs process-boundary I/O — a spawn, a raw-mode TTY, a real network call — and holds no decision logic of its own, with a comment on the line above stating what no `bun test` process can execute, and a matching comment at the top of the excluded file naming what was moved out of it so the remainder could be covered. A module is never excluded merely because covering it is difficult, slow, or unfinished — difficulty is a reason to write the test, not to exclude the file — and the threshold itself never moves to make a gate pass, because that would trade nine named problems for one invisible one.
 
-### What `mise run check` does not settle
+### Checks the gate does not run
 
-The gate covers source. It runs no markdown, record, skill, spec or project-state check, so those claims are settled by the skills' own blocking scripts and by nothing else:
+The gate covers source. It runs no markdown, record, skill, spec or project-state check, so those claims are settled by the skills' own blocking scripts and by nothing else. These are an agent's to run on what it changed:
 
 | Claim                             | What proves it                                                               |
 | --------------------------------- | ---------------------------------------------------------------------------- |
@@ -225,6 +178,44 @@ The gate covers source. It runs no markdown, record, skill, spec or project-stat
 | A branch is ready for review      | `.claude/skills/pr-check/scripts/check-pr.sh`                                |
 
 A rule that reports nothing may be disabled rather than satisfied. Zero means nothing until a deliberate violation has been seen to fire.
+
+### How the gate works
+
+This subsection is background for whoever changes the gate or reads its output. None of it is a command for an agent to run.
+
+Every check is a task in `mise.toml`. `mise run check` is the whole gate, in increasing order of cost, stopping at the first failure: `lint`, `typecheck`, `test:agent`, `build` and `check:install`. It is one task rather than one for a developer and one for a pipeline, because two gates are how the thing CI runs and the thing a developer runs stop being the same check. What differs between a laptop and a runner is handled inside the individual checks and said out loud: `typecheck:harness` needs a pi install, finds none on a runner, and prints that it did NOT check `extensions/` rather than implying it did.
+
+That gap is accepted rather than hidden. Installing pi on a runner is not worth it for one directory, so CI builds carry the skip and the log says so on every run. `CRUST_STRICT=1` turns the skip into a failure for anywhere that wants it to be one. It is deliberately not keyed on `CI`: every GitHub Actions step sets `CI=true` whether the workflow asks or not, so keying on it would make strictness ambient rather than chosen, and the only way to accept the gap would be to claim not to be running in CI.
+
+`mise run typecheck` is three checks in sequence: `typecheck:runtime`, `typecheck:harness`, and `typecheck:visualizer`. `runtime/tsconfig.json` excludes `extensions/`, so the first does not check it. The second does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one — and under `CRUST_STRICT` it exits 1 instead, for anywhere that would rather fail than carry the gap.
+
+`check:install` stamps `templates/stamp/` into a throwaway directory and runs `verify-install.sh` against it, expecting `drift=0`. It needs no git, no network and no cleanup of your own — an install into a bare `mktemp -d` is a legitimate install, which is what makes it runnable unchanged on a runner. Anything other than `drift=0` means the template and the stamp disagree, and that failure ships into other people's repositories. `mise run check:install` runs it without the rest of the gate. To check a repository that is already stamped, which `mise run check` cannot do because it works in a throwaway directory, run `scripts/verify-install.sh /path/to/a/stamped/repo`.
+
+A runner also needs `bunx playwright install --with-deps chromium`, run from `apps/visualizer`, or the browser-driven visualizer tests skip and the suite is green having not run them. Run from the root, `bunx` resolves the latest playwright rather than the version `apps/visualizer` pins, downloads a Chromium revision the pinned version never looks for, and every browser test still skips.
+
+`apps/visualizer`'s suite includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing the suite — a skipped check, not a passed one. Running `bunx playwright install chromium` from `apps/visualizer` makes it run for real.
+
+The test tasks run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, called through `bunx` by every task.
+
+**Unpaired coverage is only meaningful over the whole repository.** `--coverage` without `--paired` measures every file a run loads, including files imported from outside the scope whose own tests were not in it — so a scoped run reports those as uncovered and is lying. `bun test runtime --coverage` reports `lib/typedefs/src/settlement.ts` at 71.43% functions, which looks like a gap and is not: that module is imported by `runtime` and tested by `lib/typedefs/src/settlement.test.ts`, which a `runtime` scope never ran. Measured whole, the same file is at 100%.
+
+The gate settles repository-wide coverage with `mise run test:agent`. It names every root — `apps/visualizer lib runtime scripts` — and that list is load-bearing in both directions. A new top-level directory that is not added to it gets its tests skipped while its source is still measured by whatever imports it, which is exactly how `settlement.ts` spent a day appearing to be 80% covered after it moved to `lib/`.
+
+`buntap` is what makes the coverage verdict legible, because **`bun test --coverage` fails silently**. `bunfig.toml` sets `coverageThreshold`, bun applies it PER FILE, and a file below it makes bun exit non-zero having printed no message at all — a scoped `bun test runtime --coverage` exits 1 with no `error:` line, nothing but the ordinary coverage table and `0 fail`. Read straight, a run that failed its gate looks exactly like a run that passed. `buntap` reads the same threshold and says so:
+
+```text
+COVERAGE FAIL 2 files below the minimum (functions 90.00%, lines 90.00%)
+  apps/visualizer/server/db.ts functions 62.96%, lines 66.03%
+  apps/visualizer/server/writes.ts functions 38.46%, lines 40.91%
+```
+
+Because coverage is judged per file, a package whose total is 96% still fails on one 40% file.
+
+Lint is `biome.json` at the root, with the convention plugins in `.biome/`. `mise run lint` is `biome check` over `apps`, `lib`, `runtime`, `scripts` and `templates` — every root that holds source. It is the same list the test tasks name, and for the same reason: a root nobody names is a root nobody checks. mise appends anything after `--` to the command, so `mise run lint -- --max-diagnostics=500` raises the cap when it truncates the report, and `mise run lint -- --fix` applies Biome's fixes.
+
+It is green, and it stays green: a change that reports a diagnostic is not finished. The backlog Biome found when the configuration first landed was repaid in five stages, so there is no longer a standing exception anyone can point at, and a new report is a regression rather than an inheritance.
+
+Repository-wide lint is settled by the gate's `mise run lint` with no path argument. An agent's scoped `bunx biome check <changed paths>` settles only the paths it names and is reported that way, and narrowing `includes` to make a job pass is ruled out by `.biome/README.md`. Read the exit code rather than counting lines — Biome prints a diagnostic header in several shapes, including `path format` with no line or column and `path:line:column <rule>  FIXABLE` with doubled spaces, and every pattern written to count them has missed one of those at least once.
 
 ## Where a correction belongs
 
