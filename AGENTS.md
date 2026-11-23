@@ -145,7 +145,7 @@ The test tasks run [`bunt`](https://github.com/losandes/buntap) — a bun-test r
 **Run only the tests your change needs**, with this command and no other:
 
 ```sh
-RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt <path-to-tests> --parallel | bunx buntap --agent --no-color
+RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt {{paths-to-tests}} --paired | bunx buntap --agent --no-color
 ```
 
 - `<path-to-tests>` is one or more paths from the repository root — the test files you wrote or changed, and the directory of the code you changed. Not a top-level root such as `runtime` or `apps/visualizer` unless your change genuinely spans it

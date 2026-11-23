@@ -76,7 +76,7 @@ tasks:
       - { on: change, skip: [diagnose, test-tdd] }
     match: ["**/*.ts", "**/*.tsx"]
     run:
-      - "bunx bunt {{changed_paths}} --paired | bunx buntap --agent"
+      - "CLAUDECODE=1 bunx bunt {{changed_paths}} --paired | bunx buntap --agent --no-color"
 
   verify-all:
     when:
