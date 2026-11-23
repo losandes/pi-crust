@@ -15,8 +15,9 @@ export const FilterDropdown = (
     /** Empty means Select All. */
     selected: readonly string[]
     open: boolean
-    /** A per-option colour, for the tree category only. */
+    /** The text shown for an option; the option itself when absent. */
     labelOf?: (option: string) => string
+    /** A per-option colour, for the tree category only. */
     colorOf?: (option: string) => string | undefined
     onOpen: (open: boolean) => void
     onToggle: (option: string) => void

@@ -166,7 +166,8 @@
  * one with `rgb(var(--green-rgb) / .2)`. A hex value here will render, and
  * then fail everywhere something needs it translucent.
  *
- * Registered in crust.observe.yaml; delete both to drop it.
+ * Dracula is one of the five built-in theme choices. Machine [themes.<name>]
+ * entries can add themes, not remove or replace this palette.
  */
 [data-theme='dracula'] {
   color-scheme: dark;

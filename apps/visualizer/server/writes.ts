@@ -32,6 +32,8 @@ import {
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { safeParseSettlement } from '@typedefs'
+import { z } from 'zod'
 import type { ApiError } from '../shared/types.ts'
 import { handoffDirFor } from './handoff.ts'
 
@@ -150,22 +152,19 @@ export const runWorkingTree = (
   sessionDirectory: string,
 ): string | undefined => {
   if (existingDirectory(workspaceRoot)) return workspaceRoot
-  // biome-ignore lint/plugin/no-intermediate-try-catch: malformed or missing invocation records mean the working tree is unknown at this I/O boundary
-  try {
-    const parsed: unknown = JSON.parse(
-      readFileSync(join(sessionDirectory, 'invocation.json'), 'utf8'),
-    )
-    const cwd =
-      typeof parsed === 'object' &&
-      parsed !== undefined &&
-      parsed &&
-      'cwd' in parsed
-        ? parsed.cwd
-        : undefined
-    return existingDirectory(cwd) ? cwd : undefined
-  } catch {
-    return undefined
-  }
+  const invocation = safeParseSettlement(() => {
+    const parsed = z
+      .object({ cwd: z.string() })
+      .safeParse(
+        JSON.parse(
+          readFileSync(join(sessionDirectory, 'invocation.json'), 'utf8'),
+        ),
+      )
+    return parsed.success && existingDirectory(parsed.data.cwd)
+      ? parsed.data.cwd
+      : undefined
+  })
+  return invocation.status === 'ok' ? invocation.data : undefined
 }
 
 export const resumeEntry = (

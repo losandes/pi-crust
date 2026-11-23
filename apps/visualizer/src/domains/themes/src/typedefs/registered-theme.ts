@@ -16,10 +16,9 @@ export type TRegisteredTheme = Readonly<{
 /**
  * What the app ships with, and what the picker shows before the fetch lands.
  *
- * High contrast is not here any more: it is stamped into a repository as
- * `config/high-contrast.css` and registered in `crust.observe.yaml`, so that
- * the theme a team is most likely to adjust is one they can open. It arrives
- * through `/api/themes` like any other repository theme.
+ * All five choices are built in, with palettes in `tokens.css`, including
+ * Dracula and high contrast. Machine `[themes.<name>]` entries only add to
+ * this list.
  */
 export const BUILTIN_THEMES: readonly TRegisteredTheme[] = [
   { name: 'auto', label: 'Match the system', builtin: true, css: '' },

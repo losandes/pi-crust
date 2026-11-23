@@ -253,10 +253,6 @@ export const SessionCard = ({
       <span className="flex-none truncate font-mono text-lg leading-normal font-bold text-purple">
         {session.run_id}
       </span>
-      {/*
-        The branch this run started on, in its tree's colour; the tree's name
-        when no branch was recorded. Shown with one tree watched or several.
-      */}
       <span
         data-testid="session-repository"
         title={session.repository_root || 'repository not recorded'}
@@ -264,6 +260,10 @@ export const SessionCard = ({
       >
         {resolveRepositoryLabel(session)}
       </span>
+      {/*
+        The branch this run started on, in its tree's colour; the tree's name
+        when no branch was recorded. Shown with one tree watched or several.
+      */}
       <span
         className="max-w-full flex-none self-start truncate rounded-full px-2 py-0.5 font-mono text-xs leading-normal"
         data-testid="session-branch"

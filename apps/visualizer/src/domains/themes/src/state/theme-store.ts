@@ -51,10 +51,9 @@ export const isTheme = (value: unknown): value is TTheme =>
  * who has turned on increased contrast is telling you something about
  * legibility, where a light/dark preference is mostly about taste.
  *
- * `high-contrast` is a theme a machine registers rather than one the app
- * ships — the stamp ships it as `config/high-contrast.css`. A repository that
- * deleted it resolves to a name with no rules, which falls through to the
- * base palette, the same as any other removed theme.
+ * `high-contrast` is built into `tokens.css`, so a system contrast preference
+ * always selects a shipped palette. Machine `[themes.<name>]` entries only
+ * add themes; they cannot remove or replace the built-ins.
  */
 export const systemTheme = (
   matchMedia: (query: string) => { matches: boolean },
