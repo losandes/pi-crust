@@ -90,6 +90,9 @@ export const repositoryDocument = (
   }
 }
 
+export const tomlText = (document: Readonly<Record<string, unknown>>): string =>
+  z.string().parse(Bun.TOML.stringify(document))
+
 export const configText = (
   document: Readonly<Record<string, unknown>>,
-): string => Bun.TOML.stringify(repositoryDocument(document))
+): string => tomlText(repositoryDocument(document))

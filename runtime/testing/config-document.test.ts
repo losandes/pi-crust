@@ -1,5 +1,21 @@
 import { expect, test } from 'bun:test'
-import { configText, repositoryDocument } from './config-document'
+import { configText, repositoryDocument, tomlText } from './config-document'
+
+test(
+  [
+    'given a document already in the written TOML shape',
+    'when serialized without repository fixture normalization',
+    'it should return text preserving exactly the declared tables',
+  ].join(', '),
+  () => {
+    // given
+    const document = { defaults: { model: 'fixture/model' } }
+    // when
+    const actual = tomlText(document)
+    // then
+    expect(Bun.TOML.parse(actual)).toEqual(document)
+  },
+)
 
 for (const keyed of [false, true]) {
   test(

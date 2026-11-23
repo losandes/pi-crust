@@ -56,7 +56,7 @@ for (const [name, content, expected] of [
   ['repository/pi-crust.toml', '[broken', 'repository/pi-crust.toml'],
   ['package/crust.config.toml', '[broken', 'package/crust.config.toml'],
   ['machine/crust.config.toml', '[broken', 'machine/crust.config.toml'],
-]) {
+] as const) {
   test(
     [
       `given invalid TOML in ${name}`,

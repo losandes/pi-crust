@@ -1,4 +1,4 @@
-import { configText } from '../../../../testing/config-document'
+import { configText, tomlText } from '../../../../testing/config-document'
 /**
  * `run-workflow.ts` (COVERAGE-WORKFLOW-DRIVERS.md).
  *
@@ -580,7 +580,7 @@ test(
     const repository = Bun.TOML.parse(readFileSync(configPath, 'utf8'))
     writeFileSync(
       configPath,
-      Bun.TOML.stringify({
+      tomlText({
         ...repository,
         activities: {
           build: {
@@ -1587,7 +1587,7 @@ test(
     mkdirSync(machineConfig)
     writeFileSync(
       join(machineConfig, 'crust.config.toml'),
-      Bun.TOML.stringify({ defaults: { data_dir: dataDir } }),
+      tomlText({ defaults: { data_dir: dataDir } }),
     )
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_MACHINE_CONFIG = machineConfig

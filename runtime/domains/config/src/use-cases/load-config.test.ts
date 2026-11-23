@@ -241,7 +241,7 @@ for (const [text, message] of [
   ['override = {}\n', 'section was removed'],
   ['unknown = 1\n', "key 'unknown'"],
   ['[activities.build]\ngates = []\n', 'activities.build.gates'],
-]) {
+] as const) {
   test(
     [
       `given invalid repository settings ${text}`,

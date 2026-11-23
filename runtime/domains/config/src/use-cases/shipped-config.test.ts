@@ -27,7 +27,7 @@ for (const [name, destination] of [
   ['crust.activities.bic.example.toml', 'crust.activities.toml'],
   ['crust.activities.econ.example.toml', 'crust.activities.toml'],
   ['pi-crust.example.toml', 'pi-crust.toml'],
-]) {
+] as const) {
   test(
     [
       `given @SC23 example ${name}`,

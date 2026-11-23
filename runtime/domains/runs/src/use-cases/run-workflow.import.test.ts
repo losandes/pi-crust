@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { TStage } from '../../../../lib/contracts'
-import { configText } from '../../../../testing/config-document'
+import { configText, tomlText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { shippedConfig } from '../../../../testing/shipped-layer'
 import {
@@ -367,7 +367,7 @@ test.skipIf(SKIP_INTEGRATION)(
     const repository = Bun.TOML.parse(readFileSync(path, 'utf8'))
     writeFileSync(
       path,
-      Bun.TOML.stringify({
+      tomlText({
         ...repository,
         lifecycles: {
           'ship-to-plan': {
