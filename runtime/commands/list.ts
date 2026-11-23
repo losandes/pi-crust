@@ -19,8 +19,7 @@ import {
  * on offering three.
  *
  * So the recipes stopped naming them and this reads the registry instead.
- * Add an Activity to `crust.activities.yaml` — or to the local layer beside
- * it — and it appears here, with no change to this package.
+ * A new Activity table in any TOML layer appears here without a second registry.
  *
  * Exit codes:
  *     0  printed

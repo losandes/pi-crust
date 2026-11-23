@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test'
-import { join, resolve } from 'node:path'
+import {
+  EMPTY_REPOSITORY_PATH,
+  withShippedPackage,
+} from '../testing/shipped-layer'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -7,20 +10,7 @@ import {
 } from '../testing/terminal-capture'
 import { main } from './list'
 
-/*
- * Absolute, from resolve(import.meta.dir, '..') — the same way shipped-config.test.ts's
- * STAMP constant is built. A path relative to the PROCESS cwd broke this
- * test the moment it ran as part of a repository-wide `bun test` from the
- * repo root rather than scoped to runtime/, where cwd is runtime/ itself.
- */
-const SHIPPED_CONFIG = join(
-  resolve(import.meta.dir, '..'),
-  '..',
-  'templates',
-  'stamp',
-  'config',
-  'crust.config.yaml',
-)
+const SHIPPED_CONFIG = EMPTY_REPOSITORY_PATH
 
 test(
   [
@@ -38,7 +28,7 @@ test(
       process.env.CRUST_CONFIG = SHIPPED_CONFIG
 
       // when
-      const actual = main([])
+      const actual = withShippedPackage(() => main([]))
 
       // then
       try {
@@ -68,9 +58,12 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when
+      // given
       // when
-      const actual = main(['--config', SHIPPED_CONFIG])
+      // when
+      const actual = withShippedPackage(() =>
+        main(['--config', SHIPPED_CONFIG]),
+      )
 
       // then
       expect(actual).toEqual(0)
@@ -90,10 +83,12 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
       // when
       // then
-      expect(main(['--config', '/does/not/exist/crust.config.yaml'])).toBe(2)
+      // when
+      // then
+      expect(main(['--config', '/does/not/exist/pi-crust.toml'])).toBe(2)
     } finally {
       restoreTerminal()
     }

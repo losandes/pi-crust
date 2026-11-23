@@ -3,7 +3,7 @@ import type { TActivityConfig } from '../../../../lib/contracts'
 import { activityConfigSchema } from '../../../../lib/contracts'
 import { activityCatalogue } from './activity-catalogue'
 
-const prompts = { system: 'p/system.md', user: 'p/user.md' }
+const prompts = 'p'
 
 const anActivity = (
   name: string,
@@ -86,7 +86,8 @@ test(
     'it should return the empty string rather than throw',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = activityCatalogue([])
 
     // then

@@ -1,0 +1,29 @@
+# Package defaults. Machine settings override these; pi-crust.toml wins over both.
+# Shared history across worktrees; relative paths resolve from the repository root.
+db = "{primary_worktree}/.pi-crust/data/crust.db"
+poll_ms = 500
+
+# CRUST_BE_PORT and CRUST_FE_PORT override the configured ports.
+[ports]
+backend = 4600
+frontend = 4601
+
+[defaults]
+coding_agent = "pi"
+# Default model in provider/id form, available in pi --list-models.
+# Haiku 5.5 at max effort is the lowest-cost measured FrontierCode rung.
+# A default must work with the ordinary Anthropic credential.
+model = "anthropic/claude-haiku-5-5"
+thinking = "max"
+data_dir = "{primary_worktree}/.pi-crust/data"
+# Entries may replace this tool allowlist.
+tools = ["bash", "edit", "read", "write"]
+# An Activity cannot rewrite the tasks that judge it or read credentials.
+# * matches within a directory; ** matches across directories.
+protected_files = ["pi-crust.toml", ".env*", "**/.env*"]
+# block refuses before execution; stop ends the run after access; warn reports it.
+# No automatic revert: changes cannot reliably be attributed to an agent.
+protected = { read = "block", write = "block" }
+# Ignored writes cannot appear in ordinary Git review. Session data is exempt.
+ignored = { read = "warn", write = "block" }
+# Bash enforcement is best-effort; do not grant it for strict path isolation.

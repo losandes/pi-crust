@@ -34,7 +34,7 @@ test(
     // then
     expect(actual).toEqual({
       prompt: 'add a /health endpoint',
-      config: '.pi-crust/config/crust.config.yaml',
+      config: 'pi-crust.toml',
       runId: undefined,
       base: undefined,
       resume: false,
@@ -61,7 +61,7 @@ test(
     // given
     const argv = [
       '--config',
-      'other.yaml',
+      'other.toml',
       'implement the plan',
       '--run-id',
       'a1b2c3d4',
@@ -74,7 +74,7 @@ test(
     // then
     expect(actual).toEqual({
       prompt: 'implement the plan',
-      config: 'other.yaml',
+      config: 'other.toml',
       runId: 'a1b2c3d4',
       base: undefined,
       resume: false,

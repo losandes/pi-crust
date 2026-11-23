@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test'
-import { join } from 'node:path'
+import {
+  EMPTY_REPOSITORY_PATH,
+  withShippedPackage,
+} from '../../../../testing/shipped-layer'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -97,13 +100,12 @@ for (const situation of [
     async () => {
       // given
       silenceTerminal()
-      const config = join(
-        import.meta.dir,
-        '../../../../../templates/stamp/config/crust.config.yaml',
-      )
+      const config = EMPTY_REPOSITORY_PATH
       try {
         // when
-        const actual = await planNewRun(portsFor(situation))(config)
+        const actual = await withShippedPackage(() =>
+          planNewRun(portsFor(situation))(config),
+        )
 
         // then
         if (

@@ -1,18 +1,20 @@
 import { expect, test } from 'bun:test'
+import { crustConfigSchema } from './config'
 import {
   activityOrder,
   lifecycleConfigSchema,
   lifecycleFaults,
   lifecycleNamed,
-  lifecyclesFileSchema,
+  stageFromWritten,
   stageOf,
   stagePlan,
   terminalIn,
   withoutTerminal,
+  writtenStageFaults,
+  writtenStageSchema,
 } from './lifecycle'
 
-const lifecycle = (yaml: string) =>
-  lifecycleConfigSchema.parse(Bun.YAML.parse(yaml))
+const lifecycle = (document: unknown) => lifecycleConfigSchema.parse(document)
 
 /** The three shipped lifecycles, as the files declare them. */
 const SDLC = [
@@ -45,27 +47,23 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: sdlc
-stages:
-  - name: discover
-    activities: [identify]
-  - name: conceive
-    activities: [conceptualize]
-  - name: plan
-    activities: [plan]
-  - name: design
-    activities: [design]
-  - name: test
-    activities: [test]
-  - name: build
-    activities: [build]
-  - name: verify
-    activities: [verify]
-  - name: accept
-    strategy: concurrent
-    activities: [review, code-review]
-`)
+    const given = lifecycle({
+      name: 'sdlc',
+      stages: [
+        { name: 'discover', activities: ['identify'] },
+        { name: 'conceive', activities: ['conceptualize'] },
+        { name: 'plan', activities: ['plan'] },
+        { name: 'design', activities: ['design'] },
+        { name: 'test', activities: ['test'] },
+        { name: 'build', activities: ['build'] },
+        { name: 'verify', activities: ['verify'] },
+        {
+          name: 'accept',
+          strategy: 'concurrent',
+          activities: ['review', 'code-review'],
+        },
+      ],
+    })
 
     // when
     const actual = activityOrder(given)
@@ -83,23 +81,21 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: bugfix
-stages:
-  - name: diagnose
-    activities: [diagnose]
-  - name: plan
-    activities: [plan]
-  - name: test
-    activities: [test]
-  - name: build
-    activities: [build]
-  - name: verify
-    activities: [verify]
-  - name: accept
-    strategy: concurrent
-    activities: [review, code-review]
-`)
+    const given = lifecycle({
+      name: 'bugfix',
+      stages: [
+        { name: 'diagnose', activities: ['diagnose'] },
+        { name: 'plan', activities: ['plan'] },
+        { name: 'test', activities: ['test'] },
+        { name: 'build', activities: ['build'] },
+        { name: 'verify', activities: ['verify'] },
+        {
+          name: 'accept',
+          strategy: 'concurrent',
+          activities: ['review', 'code-review'],
+        },
+      ],
+    })
 
     // when
     const actual = activityOrder(given)
@@ -117,20 +113,16 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: de-risk
-stages:
-  - name: discover
-    activities: [identify]
-  - name: conceive
-    activities: [conceptualize]
-  - name: plan
-    activities: [plan]
-  - name: design
-    activities: [design]
-  - name: prove
-    activities: [poc]
-`)
+    const given = lifecycle({
+      name: 'de-risk',
+      stages: [
+        { name: 'discover', activities: ['identify'] },
+        { name: 'conceive', activities: ['conceptualize'] },
+        { name: 'plan', activities: ['plan'] },
+        { name: 'design', activities: ['design'] },
+        { name: 'prove', activities: ['poc'] },
+      ],
+    })
 
     // when
     const actual = activityOrder(given)
@@ -148,12 +140,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = `
-name: anything
-stages:
-  - name: implement
-    activities: [test, build]
-`
+    const given = {
+      name: 'anything',
+      stages: [{ name: 'implement', activities: ['test', 'build'] }],
+    }
 
     // when
     const actual = lifecycle(given)
@@ -171,13 +161,16 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = `
-name: anything
-stages:
-  - name: accept
-    strategy: parallel
-    activities: [review, code-review]
-`
+    const given = {
+      name: 'anything',
+      stages: [
+        {
+          name: 'accept',
+          strategy: 'parallel',
+          activities: ['review', 'code-review'],
+        },
+      ],
+    }
 
     // when
     const actual = () => lifecycle(given)
@@ -195,15 +188,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: anything
-stages:
-  - name: first
-    activities: [a]
-  - name: second
-    strategy: concurrent
-    activities: [b, c]
-`)
+    const given = lifecycle({
+      name: 'anything',
+      stages: [
+        { name: 'first', activities: ['a'] },
+        { name: 'second', strategy: 'concurrent', activities: ['b', 'c'] },
+      ],
+    })
 
     // when
     const actual = stagePlan(given)
@@ -224,15 +215,17 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: anything
-stages:
-  - name: build
-    activities: [build]
-  - name: accept
-    strategy: concurrent
-    activities: [review, code-review]
-`)
+    const given = lifecycle({
+      name: 'anything',
+      stages: [
+        { name: 'build', activities: ['build'] },
+        {
+          name: 'accept',
+          strategy: 'concurrent',
+          activities: ['review', 'code-review'],
+        },
+      ],
+    })
 
     // when
     const actual = stageOf(given, 'code-review')
@@ -250,12 +243,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: anything
-stages:
-  - name: build
-    activities: [build]
-`)
+    const given = lifecycle({
+      name: 'anything',
+      stages: [{ name: 'build', activities: ['build'] }],
+    })
 
     // when
     const actual = stageOf(given, 'poc')
@@ -273,14 +264,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: twice
-stages:
-  - name: implement
-    activities: [build]
-  - name: implement
-    activities: [verify]
-`)
+    const given = lifecycle({
+      name: 'twice',
+      stages: [
+        { name: 'implement', activities: ['build'] },
+        { name: 'implement', activities: ['verify'] },
+      ],
+    })
 
     // when
     const actual = lifecycleFaults(given)
@@ -299,13 +289,16 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: doubled
-stages:
-  - name: accept
-    strategy: concurrent
-    activities: [review, review]
-`)
+    const given = lifecycle({
+      name: 'doubled',
+      stages: [
+        {
+          name: 'accept',
+          strategy: 'concurrent',
+          activities: ['review', 'review'],
+        },
+      ],
+    })
 
     // when
     const actual = lifecycleFaults(given)
@@ -324,15 +317,17 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: fine
-stages:
-  - name: build
-    activities: [build]
-  - name: accept
-    strategy: concurrent
-    activities: [review, code-review]
-`)
+    const given = lifecycle({
+      name: 'fine',
+      stages: [
+        { name: 'build', activities: ['build'] },
+        {
+          name: 'accept',
+          strategy: 'concurrent',
+          activities: ['review', 'code-review'],
+        },
+      ],
+    })
 
     // when
     const actual = lifecycleFaults(given)
@@ -350,19 +345,15 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecyclesFileSchema.parse(
-      Bun.YAML.parse(`
-lifecycles:
-  - name: sdlc
-    stages:
-      - name: build
-        activities: [build]
-  - name: bugfix
-    stages:
-      - name: diagnose
-        activities: [diagnose]
-`),
-    ).lifecycles
+    const given = crustConfigSchema.parse({
+      lifecycles: [
+        { name: 'sdlc', stages: [{ name: 'build', activities: ['build'] }] },
+        {
+          name: 'bugfix',
+          stages: [{ name: 'diagnose', activities: ['diagnose'] }],
+        },
+      ],
+    }).lifecycles
 
     // when
     const actual = lifecycleNamed(given, 'bugfix')
@@ -380,9 +371,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecyclesFileSchema.parse(
-      Bun.YAML.parse('lifecycles: []'),
-    ).lifecycles
+    const given = crustConfigSchema.parse({ lifecycles: [] }).lifecycles
 
     // when
     const actual = lifecycleNamed(given, 'sdlc')
@@ -400,14 +389,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: deliver
-    activities: [build]
-  - name: open
-    activities: [code-review, gh-pull-request]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [
+        { name: 'deliver', activities: ['build'] },
+        { name: 'open', activities: ['code-review', 'gh-pull-request'] },
+      ],
+    })
 
     // when
     const actual = lifecycleFaults(given)
@@ -425,12 +413,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: open
-    activities: [gh-pull-request, build]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [{ name: 'open', activities: ['gh-pull-request', 'build'] }],
+    })
 
     // when
     const actual = lifecycleFaults(given)
@@ -450,13 +436,16 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: open
-    strategy: concurrent
-    activities: [code-review, gh-pull-request]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [
+        {
+          name: 'open',
+          strategy: 'concurrent',
+          activities: ['code-review', 'gh-pull-request'],
+        },
+      ],
+    })
 
     // when
     const actual = lifecycleFaults(given)
@@ -476,14 +465,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: accept
-    activities: [review]
-  - name: deliver
-    activities: [gh-pull-request]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [
+        { name: 'accept', activities: ['review'] },
+        { name: 'deliver', activities: ['gh-pull-request'] },
+      ],
+    })
 
     // when
     const actual = terminalIn(given.stages)
@@ -501,12 +489,10 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: accept
-    activities: [review]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [{ name: 'accept', activities: ['review'] }],
+    })
 
     // when
     const actual = terminalIn(given.stages)
@@ -524,14 +510,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: accept
-    activities: [review]
-  - name: deliver
-    activities: [gh-pull-request]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [
+        { name: 'accept', activities: ['review'] },
+        { name: 'deliver', activities: ['gh-pull-request'] },
+      ],
+    })
 
     // when
     const actual = withoutTerminal(given.stages)
@@ -549,13 +534,16 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = lifecycle(`
-name: ship
-stages:
-  - name: accept
-    strategy: concurrent
-    activities: [code-review, gh-pull-request]
-`)
+    const given = lifecycle({
+      name: 'ship',
+      stages: [
+        {
+          name: 'accept',
+          strategy: 'concurrent',
+          activities: ['code-review', 'gh-pull-request'],
+        },
+      ],
+    })
 
     // when
     const actual = withoutTerminal(given.stages)
@@ -565,3 +553,70 @@ stages:
     expect(actual[0]?.activities).toEqual(['code-review'])
   },
 )
+
+for (const [stages, message] of [
+  [undefined, 'stages must be an array'],
+  [[undefined], 'position 0 has no name'],
+  [[{ name: '', serial: ['build'] }], 'position 0 has no name'],
+  [
+    [{ name: 'both', serial: ['build'], concurrent: ['review'] }],
+    'both serial and concurrent',
+  ],
+  [[{ name: 'neither' }], 'neither serial nor concurrent'],
+  [[{ name: 'empty', serial: [] }], 'lists no Activities under serial'],
+  [
+    [{ name: 'wrong', concurrent: [1] }],
+    'lists no Activities under concurrent',
+  ],
+  [
+    [{ name: 'legacy', strategy: 'serial', activities: ['build'] }],
+    "key 'strategy'",
+  ],
+] as const) {
+  test(
+    [
+      `given a malformed written stage ${message}`,
+      'when validated',
+      'it should return a fault naming the lifecycle and stage',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = writtenStageFaults('ship', stages)
+      // then
+      expect(
+        actual.some(
+          (fault) =>
+            fault.lifecycle === 'ship' && fault.message.includes(message),
+        ),
+      ).toBe(true)
+    },
+  )
+}
+
+for (const strategy of ['serial', 'concurrent'] as const) {
+  test(
+    [
+      `given a valid written ${strategy} stage`,
+      'when converted',
+      'it should preserve the name, strategy and Activity order',
+    ].join(', '),
+    () => {
+      // given
+      const stage = writtenStageSchema.parse({
+        name: 'work',
+        [strategy]: ['build', 'test'],
+      })
+      // when
+      const faults = writtenStageFaults('ship', [stage])
+      const actual = stageFromWritten(stage)
+      // then
+      expect(faults).toEqual([])
+      expect(actual).toEqual({
+        name: 'work',
+        strategy,
+        activities: ['build', 'test'],
+      })
+    },
+  )
+}

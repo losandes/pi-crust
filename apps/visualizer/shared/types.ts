@@ -176,7 +176,7 @@ export interface AgentSession {
   model: string | null
   session_id: string | null
   /**
-   * The agent's lane color from crust.config.yaml, e.g. "#a78bfa". Null on dbs
+   * The agent's lane color from pi-crust.toml, e.g. "#a78bfa". Null on dbs
    * written by a tracer predating the column, and on agents with no configured
    * color — fall back to the UI's own palette.
    */
@@ -348,14 +348,15 @@ export type EnvelopesResponse = Envelope[]
 export type GatesResponse = GateResult[]
 
 /** GET /api/health */
-export interface HealthResponse {
+export type HealthResponse = Readonly<{
   ok: boolean
   db: string
   journal_mode: string
   sessions: number
+  poll_ms: number
   /** Every watched tree, including any that could not be opened. */
   workspaces: WorkspaceInfo[]
-}
+}>
 
 /** One watched working tree, as the UI sees it. */
 export interface WorkspaceInfo {

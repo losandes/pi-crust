@@ -4,9 +4,9 @@ This directory holds the package code for pi-crust's repeatable **agents plus co
 
 ## The package and the stamp
 
-The runtime ships with pi-crust; it is not copied into a target repository. The installer stamps configuration and prompt-override scaffolding under `.pi-crust/` and records the package location in `.pi-crust/data/pi-crust-home`.
+The runtime ships with pi-crust; it is not copied into a target repository. The installer writes one comment-only `pi-crust.toml`, the credential example, the justfile passthrough and the package pointer in `.pi-crust/data/pi-crust-home`. It creates no configuration directory or prompt files.
 
-Once stamped, **the non-example config is yours.** Retune the roster or change a Lifecycle by hand. A re-install skips existing files unless you use `--refresh`, which replaces only template-owned files, including `.example.yaml` documents under `config/`. A missing `config/` is seeded once; after that, non-example files there are neither added nor overwritten. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. See [the install cookbook](../cookbooks/install.md) for adopting new settings deliberately.
+Configuration is read on every command from `runtime/config/`, then `~/.pi-crust/config/`, then the repository file. Both directories hold `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge recursively; arrays replace whole. Package updates need no re-stamp. The installer never replaces an existing `pi-crust.toml`, even with `--refresh` or its deprecated `--force` alias. See [the install cookbook](../cookbooks/install.md).
 
 ## The `/skill:crust` capability
 
@@ -32,6 +32,7 @@ runtime/
 │   ├── <recipe>.ts
 │   ├── print-db-path.ts
 │   └── <name>.test.ts
+├── config/            Package TOML defaults
 ├── domains/
 │   ├── activities/   Activity registration and execution
 │   ├── agents/       coding-agent hosts and their I/O
@@ -60,6 +61,7 @@ runtime/
 | --------------- | -------------------------------------------------------------------------- |
 | `cli.ts`        | The front door stamped repositories invoke                                 |
 | `commands/`     | Recipe-named entry points, the recipes file and their tests                |
+| `config/`       | The package's three default TOML files                                     |
 | `domains/`      | Capability-owned logic exposed through domain indexes                      |
 | `lib/`          | Packages used across domains                                               |
 | `testing/`      | Shared fixtures and capture helpers                                        |
@@ -80,13 +82,13 @@ just crust report                                # where the last run got to
 just crust sessions                              # what just happened
 ```
 
-Every Activity `.pi-crust/config/crust.activities.yaml` registers can run on its own, and `run` executes any ordered subset of them:
+Every Activity the merged TOML registry defines can run on its own, and `run` executes any ordered subset of them:
 
 ```bash
 bun <pi-crust>/runtime/commands/run.ts "<prompt>" --activities test,build,code-review
 ```
 
-The list is that file's, not this package's: add an entry and it is runnable, delete one and the capability is gone. A name nothing registers is refused before anything spawns, with the list of what was available.
+There is no separate code registry: a new keyed table registers an Activity. Listings group entries by first-declaring layer and sort names within each group. A name nothing registers is refused before anything spawns, with the available names.
 
 A chain that ends in reviewing Activities — any whose registry entry declares `output: reviewOutput` — ends in a bounded revise loop, and every one of them is re-asked each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's own `attempts`, the same budget a failed gate and a regression spend from. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
 
@@ -115,15 +117,15 @@ bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc
 
 ## Where to edit what
 
-| Change                                                                        | File                                       |
-| ----------------------------------------------------------------------------- | ------------------------------------------ |
-| What an Activity is told                                                      | `prompts/<activity>/{system.md,user.md}`   |
-| Which model an Activity runs, what it may write                               | `config/crust.activities.yaml`             |
-| What an Activity answers with, how often it may run again, whether it commits | `config/crust.activities.yaml`             |
-| Which repository commands run at `change`                                     | `config/crust.config.yaml`, under `tasks:` |
-| A Lifecycle's Stages and Activities                                           | `config/crust.lifecycles.yaml`             |
+| Change                                                                        | File                                                      |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------- |
+| What an Activity is told                                                      | `prompts/<activity>/{system.md,user.md}`                  |
+| Which model an Activity runs, what it may write                               | The machine's `crust.activities.toml`, or `pi-crust.toml` |
+| What an Activity answers with, how often it may run again, whether it commits | `[activities.<name>]` in the chosen TOML layer            |
+| Which repository commands run at `change`                                     | `pi-crust.toml`, under `[tasks.<name>]`                   |
+| A Lifecycle's Stages and Activities                                           | `[lifecycles.<name>]` in the chosen TOML layer            |
 
-**Package defaults live in `runtime/prompts/`; repository overrides live in `.pi-crust/prompts/`.** A relative prompt reference resolves against the repository's `.pi-crust/` first, then this runtime directory. Editing a shipped default affects repositories that have not overridden it.
+**Shipped prompts live in `runtime/prompts/`.** An entry names one directory, default `prompts/<name>`, relative to the root of the layer that first declares it. Machine-only entries normally use `~/.pi-crust/prompts/<name>/`; required prompt files are validated when a run uses them. A repository prompt override directory is no longer read. Change shipped prompts in a package fork.
 
 Authored files and runtime files are kept apart on purpose: everything under `data/` is written by a run and is yours to read, never to edit.
 
@@ -131,7 +133,7 @@ The engine derives [output checks](../references/config.md#output-checks) from e
 
 ## What is gitignored, and why
 
-In a stamped repository, `.pi-crust/data/` holds execution history rather than source. Commit the repository-owned configuration and prompt overrides, not session transcripts or the trace database. Runtime code stays in the package this README describes; it is not duplicated in the stamp.
+In a stamped repository, `.pi-crust/data/` holds execution history rather than source. Commit the repository-owned `pi-crust.toml`, not session transcripts or the trace database. Machine preferences stay under `~/.pi-crust/config/`. Runtime code stays in the package this README describes; it is not duplicated in the stamp.
 
 ## The one prohibition
 

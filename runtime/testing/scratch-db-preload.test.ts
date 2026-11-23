@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dbPathFromEnv } from '../lib/system'
+import {
+  dbPathFromEnv,
+  machineConfigDirFromEnv,
+  packageConfigDirFromEnv,
+} from '../lib/system'
 
 /*
  * The preload has no exports to call: it arms `process.env` at import time,
@@ -47,3 +51,25 @@ test(
     expect(actual).toBe(false)
   },
 )
+
+for (const [name, resolve] of [
+  ['machine', machineConfigDirFromEnv],
+  ['package', packageConfigDirFromEnv],
+] as const) {
+  test(
+    [
+      `given the ${name} configuration preload`,
+      'when the layer directory is resolved',
+      'it should point at a distinct missing scratch directory',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = resolve()
+      // then
+      expect(actual).toStartWith(tmpdir())
+      expect(existsSync(actual ?? '')).toBe(false)
+      expect(machineConfigDirFromEnv()).not.toBe(packageConfigDirFromEnv())
+    },
+  )
+}

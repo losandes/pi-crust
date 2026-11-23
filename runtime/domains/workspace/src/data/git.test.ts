@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -22,11 +23,43 @@ import {
   headAt,
   matchesHead,
   pushBranch,
+  pushDefaultRemote,
   remoteDefaultBranch,
   remoteExists,
+  remoteNames,
+  repoRoot,
   stageAll,
   upstreamBase,
 } from './git'
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given an isolated Git repository with remote configuration',
+    'when reading delivery remote candidates',
+    'it should return the current remote names and optional push default',
+  ].join(', '),
+  () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), 'crust-git-remotes-'))
+    try {
+      git(root, 'init', '-q')
+      // when
+      const emptyNames = remoteNames(root)
+      const unset = pushDefaultRemote(root)
+      git(root, 'remote', 'add', 'upstream', join(root, 'unused.git'))
+      git(root, 'config', 'remote.pushDefault', 'upstream')
+      const names = remoteNames(root)
+      const preferred = pushDefaultRemote(root)
+      // then
+      expect(emptyNames).toEqual([])
+      expect(unset).toBe('')
+      expect(names).toEqual(['upstream'])
+      expect(preferred).toBe('upstream')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
 
 const inDir = <TResult>(dir: string, body: () => TResult): TResult => {
   const was = process.cwd()
@@ -40,6 +73,32 @@ const inDir = <TResult>(dir: string, body: () => TResult): TResult => {
 
 const git = (cwd: string, ...args: readonly string[]): string =>
   execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+
+test(
+  [
+    'given a TOML-configured repository nested below an older stamp',
+    'when finding its workspace root',
+    'it should stop at its own pi-crust.toml rather than the parent stamp',
+  ].join(', '),
+  () => {
+    // given
+    const root = realpathSync(
+      mkdtempSync(join(tmpdir(), 'crust-toml-workspace-')),
+    )
+    const child = join(root, 'child')
+    mkdirSync(join(root, '.pi-crust'))
+    mkdirSync(child)
+    writeFileSync(join(child, 'pi-crust.toml'), '# repository\n')
+    try {
+      // when
+      const actual = inDir(child, repoRoot)
+      // then
+      expect(actual).toBe(child)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
 
 /** A repository with a tracked file already committed, so it can be removed. */
 const aRepo = (): string => {

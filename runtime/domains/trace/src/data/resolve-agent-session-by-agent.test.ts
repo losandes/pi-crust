@@ -46,7 +46,7 @@ for (const { name, agent, sessionId, expected } of [
           'r1',
           agentConfigSchema.parse({
             name: agent,
-            prompts: { system: 'system.md', user: 'user.md' },
+            prompts: '.',
             writes: [],
           }),
           sessionId,

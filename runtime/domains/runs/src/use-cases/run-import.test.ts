@@ -3,11 +3,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fail, succeed } from '../../../../../lib/typedefs'
-import {
-  activitiesFileSchema,
-  crustConfigSchema,
-} from '../../../../lib/contracts'
+import { crustConfigSchema } from '../../../../lib/contracts'
 import { runWithTracer } from '../../../../testing/fake-activity'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -16,11 +14,7 @@ import { envelopeHistoryPath } from '../../../activities'
 import type { TImportPorts } from '../../../imports'
 import { runImport } from './run-import'
 
-const activities = activitiesFileSchema.parse(
-  Bun.YAML.parse(
-    readFileSync('templates/stamp/config/crust.activities.yaml', 'utf8'),
-  ),
-).activities
+const activities = shippedConfig().activities
 const memory = (): Readonly<{ ports: TImportPorts }> => ({
   ports: {
     repository: () => succeed('owner/repo'),

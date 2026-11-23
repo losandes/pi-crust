@@ -1,12 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -17,7 +11,6 @@ import type {
   TTerminalConfig,
 } from '../../../../lib/contracts'
 import {
-  activitiesFileSchema,
   activityConfigSchema,
   activityRunParams,
   crustConfigSchema,
@@ -26,6 +19,7 @@ import {
   reviewOutput,
 } from '../../../../lib/contracts'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import { emptyUsage } from '../../../agents'
 import { resolveBaseBranch, selectRange } from '../../../workspace'
 import { agentActivity } from './agent-activity'
@@ -43,17 +37,7 @@ const git = (cwd: string, ...args: readonly string[]): string =>
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim()
 
-const shipped = activitiesFileSchema.parse(
-  Bun.YAML.parse(
-    readFileSync(
-      join(
-        import.meta.dir,
-        '../../../../../templates/stamp/config/crust.activities.yaml',
-      ),
-      'utf8',
-    ),
-  ),
-)
+const shipped = shippedConfig()
 const shippedTerminal = (): TTerminalConfig => {
   const config = shipped.terminal.find((one) => one.name === 'gh-pull-request')
   if (config === undefined) throw new Error('missing shipped terminal')
@@ -129,7 +113,7 @@ const cfgWith = (terminal = shippedTerminal()): TPiCrustConfig =>
       activityConfigSchema.parse({
         name: 'build',
         purpose: 'Implement the requested change',
-        prompts: { system: 's.md', user: 'u.md' },
+        prompts: '.',
         writes: ['*'],
       }),
     ],
@@ -315,7 +299,7 @@ const execute = async (
       config: activityConfigSchema.parse({
         name: 'build',
         purpose: 'Implement the requested change',
-        prompts: { system: 's.md', user: 'u.md' },
+        prompts: '.',
         output: judge ? 'reviewOutput' : 'genericOutput',
         input: judge ? 'upstream' : 'changes',
         commit: false,

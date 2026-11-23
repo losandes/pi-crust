@@ -3,21 +3,17 @@
 export type {
   TActivityConfig,
   TPlannerConfig,
-  TPrompts,
   TTerminalConfig,
 } from './src/activity'
 export {
-  activitiesFileSchema,
   activityConfigSchema,
   activityNamed,
-  activityPatchFileSchema,
   activitySuccession,
   DEFAULT_ATTEMPTS,
   IMPORT_NAME,
   isImportName,
   isPlannerName,
   isTerminalName,
-  mergeActivities,
   PLANNER_NAMES,
   plannerFaults,
   TERMINAL_NAMES,
@@ -61,6 +57,7 @@ export {
   DEFAULT_CONFIG_PATH,
   DEFAULT_DB,
   DEFAULT_FE_PORT,
+  DEFAULT_POLL_MS,
   TASK_MOMENTS,
   TASK_NAME,
   taskConfigSchema,
@@ -112,21 +109,27 @@ export {
 } from './src/envelope'
 export type { TAgentCall, TGate, TGateCheck, TGateReport } from './src/gate'
 export { addCheck, emptyReport, reportPassed, violationsOf } from './src/gate'
-export type { TLifecycleConfig, TLifecycleFault, TStage } from './src/lifecycle'
+export type {
+  TLifecycleConfig,
+  TLifecycleFault,
+  TStage,
+  TWrittenStage,
+} from './src/lifecycle'
 export {
   activityOrder,
-  DEFAULT_LIFECYCLES_PATH,
   importIn,
   lifecycleConfigSchema,
   lifecycleFaults,
   lifecycleNamed,
-  lifecyclesFileSchema,
   misplacedImport,
   misplacedTerminal,
+  stageFromWritten,
   stagePlan,
   terminalIn,
   withoutImport,
   withoutTerminal,
+  writtenStageFaults,
+  writtenStageSchema,
 } from './src/lifecycle'
 export type { TOpenedArtifact } from './src/opened-artifact'
 export {

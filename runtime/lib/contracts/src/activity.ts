@@ -8,14 +8,9 @@
  * here, deliberately: a Stage is structure within a Lifecycle definition, and
  * an Activity does not know what runs around it.
  *
- * Activities are registered in `crust.activities.yaml`, which lists every one
- * the core skill offers rather than only a team's additions. Listing them all
- * is what lets a team remove one: deleting an entry removes the capability,
- * where an additions-only file could only ever add to a fixed set.
- *
- * The order of the array is the order interactive lists display. Nothing else
- * records a sequence, so nothing else can drift out of activity with the
- * Activities that actually exist.
+ * Activities are keyed tables in the package and machine crust.activities.toml
+ * files and the repository's pi-crust.toml. The loader merges fields, then orders
+ * entries by first-declaring layer and name for every interactive list.
  */
 
 import { z } from 'zod'
@@ -45,18 +40,6 @@ export const THINKING_LEVELS = [
   'max',
 ] as const
 
-export const promptsSchema = z.object({
-  /** path to system.md */
-  system: z.string(),
-  /** path to user.md */
-  user: z.string(),
-  /** path to the revise-round prompt; absent means "resolve it beside `user`" */
-  revise: z.string().optional(),
-})
-export type TPrompts = Readonly<z.infer<typeof promptsSchema>>
-
-export const DEFAULT_ACTIVITIES_PATH = '.pi-crust/config/crust.activities.yaml'
-
 /**
  * How many Activity Runs of ONE instance a Workflow Run may spend.
  *
@@ -66,7 +49,7 @@ export const DEFAULT_ACTIVITIES_PATH = '.pi-crust/config/crust.activities.yaml'
  * in turn, and three separate budgets let it burn three times before a
  * person is asked.
  *
- * An Activity whose re-execution is expensive should declare `attempts: 1`
+ * An Activity whose re-execution is expensive should declare `attempts = 1`
  * rather than inherit this.
  */
 export const DEFAULT_ATTEMPTS = 2
@@ -94,7 +77,7 @@ export const activityConfigSchema = z.object({
   /** hex swatch for this Activity's lane in the UI */
   color: z.string().default(''),
   purpose: z.string().default(''),
-  prompts: promptsSchema,
+  prompts: z.string(),
   /** allowlist; undefined = all tools usable */
   tools: z.array(z.string()).optional(),
   /*
@@ -105,7 +88,7 @@ export const activityConfigSchema = z.object({
    * Hiding is a preference, not a permission: a hidden Activity still runs
    * by name, inside a Lifecycle, and under a Planner. It is a property of
    * the Activity rather than a list elsewhere so that adding an Activity
-   * offers it with no second edit, and so a local layer can hide one
+   * offers it with no second edit, and so a machine layer can hide one
    * without changing what the team ships.
    */
   hidden: z.boolean().default(false),
@@ -119,8 +102,8 @@ export const activityConfigSchema = z.object({
    * split its history and attempt budget.
    *
    * A preference rather than a permission, and on the entry rather than in a
-   * list elsewhere, so a personal shorthand can live in the gitignored local
-   * layer without the team inheriting it. There is no prefix matching: a name
+   * list elsewhere, so a personal shorthand can live in the machine layer
+   * without the team inheriting it. There is no prefix matching: a name
    * whose meaning changes the next time an Activity is added would warn
    * nobody.
    */
@@ -216,8 +199,8 @@ export const isTerminalName = (name: string): name is TTerminalName =>
 
 /** Where the deterministic half delivers. It belongs to the entry, not to the run. */
 export const deliverySchema = z.object({
-  remote: z.string().default('origin'),
-  base: z.string().optional(),
+  remote: z.string().min(1).optional(),
+  base: z.string().min(1).optional(),
   draft: z.boolean().default(false),
 })
 export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
@@ -230,10 +213,7 @@ export type TDelivery = Readonly<z.infer<typeof deliverySchema>>
  * is the engine's, not a team's.
  */
 export const terminalConfigSchema = plannerConfigSchema.extend({
-  delivery: deliverySchema.default({
-    remote: 'origin',
-    draft: false,
-  }),
+  delivery: deliverySchema.prefault({}),
 })
 export type TTerminalConfig = Readonly<z.infer<typeof terminalConfigSchema>>
 
@@ -251,25 +231,18 @@ export const terminalFaults = (
   return [
     ...missing.map(
       (one) =>
-        `terminal Activity '${one}' has no entry under terminal: — the ` +
+        `terminal Activity '${one}' has no [terminal.${one}] table in crust.activities.toml or pi-crust.toml — the ` +
         `terminal Activities are ${TERMINAL_NAMES.join(', ')}, and every ` +
         'one of them must be configured',
     ),
     ...unknown.map(
       (one) =>
-        `'${one}' is under terminal: and is not a terminal Activity — the ` +
+        `'${one}' is under [terminal.${one}] and is not a terminal Activity — the ` +
         `terminal Activities are ${TERMINAL_NAMES.join(', ')}, and ` +
-        'configuration cannot add one. Add it under activities: instead.',
+        'configuration cannot add one. Add it under [activities.<name>] instead.',
     ),
   ]
 }
-
-export const activitiesFileSchema = z.object({
-  activities: z.array(activityConfigSchema).default([]),
-  planners: z.array(plannerConfigSchema).default([]),
-  terminal: z.array(terminalConfigSchema).default([]),
-})
-export type TActivitiesFile = Readonly<z.infer<typeof activitiesFileSchema>>
 
 /**
  * Every Planner is configured, and nothing else is.
@@ -288,32 +261,17 @@ export const plannerFaults = (
   return [
     ...missing.map(
       (one) =>
-        `planner '${one}' has no entry under planners: — the Planners are ` +
+        `planner '${one}' has no [planners.${one}] table in crust.activities.toml or pi-crust.toml — the Planners are ` +
         `${PLANNER_NAMES.join(', ')}, and every one of them must be configured`,
     ),
     ...unknown.map(
       (one) =>
-        `'${one}' is under planners: and is not a Planner — the Planners are ` +
+        `'${one}' is under [planners.${one}] and is not a Planner — the Planners are ` +
         `${PLANNER_NAMES.join(', ')}, and configuration cannot add one. ` +
-        'Add it under activities: instead.',
+        'Add it under [activities.<name>] instead.',
     ),
   ]
 }
-
-/**
- * A local layer, which is a PATCH and cannot be a complete Activity.
- *
- * Validating it with the schema above would reject every partial override —
- * `- name: builder` with a model and nothing else has no prompts, which a
- * whole Activity must have. So the local file is read as records, merged,
- * and the RESULT is what gets validated. A mistake in a local layer still
- * fails, one activity later, against the merged Activity it produced.
- */
-export const activityPatchFileSchema = z.object({
-  activities: z.array(z.record(z.string(), z.unknown())).default([]),
-  planners: z.array(z.record(z.string(), z.unknown())).default([]),
-  terminal: z.array(z.record(z.string(), z.unknown())).default([]),
-})
 
 /** Look an Activity up by name. Absent means the registry does not have it. */
 export const activityNamed = (
@@ -334,74 +292,4 @@ export const activitySuccession = (
       ? 'annotates'
       : 'supersedes')
   )
-}
-
-/**
- * A developer's private layer, merged over the team's.
- *
- * `crust.activities.yaml` is the repository's answer and is reviewed.
- * `crust.activities.local.yaml` beside it, gitignored, is one person's
- * deviation. It may set any key and may introduce an Activity the team file
- * does not have.
- *
- * There is no restricted subset, deliberately. A restriction here would
- * protect nothing: the developer who writes the local file can equally write
- * the committed one, and runs the result on their own machine against their
- * own checkout. The only real difference between the two files is whether
- * git tracks them.
- *
- * The cost is a Lifecycle that names an Activity only one machine has. That
- * is reported by validation, not prevented here.
- */
-
-type TMergeable = Record<string, unknown>
-
-const isPlainObject = (value: unknown): value is TMergeable =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-
-/**
- * Per-key, with the local value winning.
- *
- * A nested object merges, so a local layer can replace one prompt without
- * restating the other. An array replaces outright, because the alternatives
- * are worse: concatenating cannot remove a tool, and merging by index
- * silently rewrites a list whose order means nothing.
- */
-const mergeInto = (base: TMergeable, local: TMergeable): TMergeable =>
-  Object.fromEntries(
-    [...new Set([...Object.keys(base), ...Object.keys(local)])].map((key) => [
-      key,
-      Object.hasOwn(local, key)
-        ? isPlainObject(local[key]) && isPlainObject(base[key])
-          ? mergeInto(base[key], local[key])
-          : local[key]
-        : base[key],
-    ]),
-  )
-
-/**
- * The team's Activities with a developer's layered over them.
- *
- * Declared order is preserved, because it is what interactive lists display:
- * an overridden Activity keeps its place, and one that exists only locally
- * joins the end.
- */
-export const mergeActivities = (
-  base: readonly TMergeable[],
-  local: readonly TMergeable[],
-): readonly TMergeable[] => {
-  const overrides = new Map(
-    local.map((one) => [one.name as string, one] as const),
-  )
-  const overridden = base.map((one) => {
-    const override = overrides.get(one.name as string)
-
-    return override === undefined ? one : mergeInto(one, override)
-  })
-  const known = new Set(base.map((one) => one.name as string))
-
-  return [
-    ...overridden,
-    ...local.filter((one) => !known.has(one.name as string)),
-  ]
 }

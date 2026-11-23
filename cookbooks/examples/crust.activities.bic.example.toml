@@ -1,0 +1,103 @@
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# BEST-IN-CLASS model assignments for the shipped Activities.
+# Copy it to ~/.pi-crust/config/crust.activities.toml to use them in every
+# repository on this machine. If that file exists already, merge the tables
+# into it by hand.
+
+
+[activities.build]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.code-review]
+model = "anthropic/claude-opus-5-5"
+thinking = "xhigh"
+
+[activities.conceptualize]
+model = "anthropic/claude-fable-5-2"
+thinking = "xhigh"
+
+[activities.data-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.design]
+model = "anthropic/claude-fable-5-2"
+thinking = "xhigh"
+
+[activities.diagnose]
+model = "anthropic/claude-opus-5-5"
+thinking = "xhigh"
+
+[activities.document]
+model = "google/gemini-4-argon"
+thinking = "high"
+
+[activities.domain-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "xhigh"
+
+[activities.gh-issue]
+model = "google/gemini-4-argon"
+thinking = "high"
+
+[activities.identify]
+model = "anthropic/claude-fable-5-2"
+thinking = "xhigh"
+
+[activities.outcome-review]
+model = "anthropic/claude-opus-5-5"
+thinking = "xhigh"
+
+[activities.plan]
+model = "anthropic/claude-fable-5-2"
+thinking = "xhigh"
+
+[activities.plan-comprehension]
+model = "anthropic/claude-opus-5"
+thinking = "medium"
+
+[activities.plan-readiness]
+model = "anthropic/claude-opus-5"
+thinking = "high"
+
+[activities.scout]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.security-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.technical-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[activities.test-tdd]
+model = "anthropic/claude-opus-5-5"
+thinking = "xhigh"
+
+[activities.test]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.ux-design]
+model = "openai/gpt-6-astra"
+thinking = "xhigh"
+
+[activities.ux-research]
+model = "anthropic/claude-fable-5-2"
+thinking = "high"
+
+[planners.operator]
+model = "anthropic/claude-opus-5-5"
+thinking = "xhigh"
+
+[planners.triage]
+model = "anthropic/claude-opus-5-5"
+thinking = "xhigh"
+
+[terminal.gh-pull-request]
+model = "google/gemini-4-argon"
+thinking = "high"

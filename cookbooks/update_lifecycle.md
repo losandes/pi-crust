@@ -1,69 +1,51 @@
 # Update a Lifecycle
 
-Change `.pi-crust/config/crust.lifecycles.yaml`. Nothing is generated from it and no script mirrors it, so the file is the whole change.
+Edit the lifecycle's keyed TOML table. The package reads `<pi-crust>/runtime/config/crust.lifecycles.toml`, then `~/.pi-crust/config/crust.lifecycles.toml`, then the repository's single `pi-crust.toml`. Each later layer wins field by field. Changes are read on the next command without installing again; the installer never overwrites an existing repository TOML file.
 
-`install.ts --refresh` does not replace this file or add new non-example files once `config/` exists. Adopt template changes by hand; only `.example.yaml` documents may be added there and refreshed. See [install.md](install.md) for the deprecated `--force` alias and the full ownership policy.
+## Replace a stage list
 
-## Add an Activity to a Stage
+A lifecycle's `stages` is one ordered array. Naming it in a later layer replaces the earlier array whole; no Stage is merged by name or index. Restate every Stage you want retained:
 
-```yaml
-      - name: implement
-        activities: [test, build]
+```toml
+[lifecycles.quick]
+stages = [
+  { name = "implement", serial = ["test", "build"] },
+  { name = "accept", concurrent = ["outcome-review", "code-review"] },
+]
 ```
 
-In a serial Stage, position is execution order. The Activity must exist in `crust.activities.yaml`; a name the registry does not have is dropped when the plan is built, which is silent — so check the registry rather than the run.
+Its earlier description survives when not stated here. To change only the description, set just `description` in the table.
 
-## Add a Stage
+## Add or move Activities
 
-Insert it where it belongs in the list. Stages run in declaration order, so moving a Stage up moves the work.
+Position inside a `serial` list is execution order. Stages run in array order, so moving a Stage changes the progression. A lifecycle names existing Activities, never a Planner. Inspect the merged catalogue with `just crust list` before selecting names.
 
-## Make a Stage concurrent
+To make a Stage serial again, replace `concurrent = [...]` with `serial = [...]`. Do not delete the strategy key: exactly one is required. To split a Stage, replace its entry with two named entries at the same position:
 
-```yaml
-      - name: accept
-        strategy: concurrent
-        activities: [review, code-review]
+```toml
+[lifecycles.quick]
+stages = [
+  { name = "prepare", serial = ["test"] },
+  { name = "deliver", serial = ["build"] },
+]
 ```
 
-Before doing this, answer one question: **can these Activities run at the same moment, against one working tree, without reading each other's half-finished work?** Not "are they independent of each other's conclusions" — whether one can observe the other mid-write.
+Splitting a serial chain preserves its Activity order but creates another addressable boundary for `--approve-after stage:<name>`.
 
-The load-time check enforces the mechanical half of that. If the Activities' declared `writes` overlap, the Lifecycle is refused and names the pair. It cannot enforce the judgement half: two Activities with disjoint paths can still be a sequence in disguise, and `concurrent` would run them out of order every time.
+## Machine preferences
 
-## Make a concurrent Stage serial again
+Set a lifecycle table in `~/.pi-crust/config/crust.lifecycles.toml` to use it across repositories. A repository's `pi-crust.toml` still wins for fields it states. The machine examples are in `<pi-crust>/cookbooks/examples/`; merge them by hand if the destination already exists.
 
-Delete the `strategy` line. `serial` is the default, and a serial Stage runs its Activities in the order listed.
+## What is refused
 
-This is always safe. The reverse is not.
+| Declaration                                                                       | Reason                                                                     |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Both `serial` and `concurrent`, neither, an empty list or unknown stage keys      | A stage needs one unambiguous execution strategy and non-empty Activities. |
+| Duplicate Stage names                                                             | An approval point could not identify one Stage.                            |
+| One Activity repeated within a Stage                                              | It would race itself under concurrency.                                    |
+| Concurrent overlapping writes                                                     | The Activities can overwrite each other's work.                            |
+| Judging and writing Activities sharing a concurrent Stage                         | The judge would read unfinished work.                                      |
+| `import` anywhere but first in a serial first Stage                               | Referenced work is imported before Activities run.                         |
+| A terminal Activity anywhere but last in the last Stage, or in a concurrent Stage | Delivery runs after the rest of the chain settles.                         |
 
-## Split one Stage into two
-
-When part of a Stage must be gated separately, or must not run concurrently with the rest:
-
-```yaml
-      - name: implement
-        activities: [test]
-      - name: deliver
-        activities: [build]
-```
-
-Splitting changes nothing about execution order in a serial chain — the Activities run in the same sequence either way. What it changes is what `--approve-after stage:<name>` can address, and what a reader understands the progression to be.
-
-## Replace a Lifecycle on your own machine
-
-`crust.lifecycles.local.yaml` beside the committed file is gitignored and yours. Naming a Lifecycle there **replaces** the team's outright, rather than merging into it: a Lifecycle is a graph, and splicing one of your Stages into somebody else's by name produces an arrangement neither of you wrote. Copy the team's and edit it.
-
-A name the team file does not have is simply a new Lifecycle. See `crust.lifecycles.local.example.yaml`.
-
-## What the loader refuses
-
-Both files are validated together, before anything runs. To enable the engine step `import`, follow [Importing referenced work](../references/handoff.md#importing-referenced-work); it is not a registry Activity.
-
-| Refused                                             | Because                                                                       |
-| --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `import` anywhere but first in a serial first Stage | the engine imports before any Activity runs                                   |
-| two Stages with one name                            | `--approve-after stage:<name>` could not say which it meant                   |
-| one Stage naming an Activity twice                  | concurrently that is an Activity racing itself                                |
-| a `strategy` that is not serial or concurrent       | a typo falling back to serial is a Stage you believe is concurrent and is not |
-| a concurrent Stage with overlapping `writes`        | the two would overwrite each other and neither could be held responsible      |
-
-Discovering any of these three Activities into a run wastes the three, which is why they are load-time and not run-time.
+For `import`, follow [Importing referenced work](../references/handoff.md#importing-referenced-work). Check the merged result with `just crust list` and the effective stage names with `just crust config`; starting a run additionally validates the prompt files it uses.

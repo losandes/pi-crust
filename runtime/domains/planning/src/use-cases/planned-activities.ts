@@ -24,7 +24,6 @@ export const plannedActivities = (
     activities: string | undefined
   }>,
   cfg: TPiCrustConfig,
-  lifecyclesPath?: string,
 ): readonly TStage[] => {
   if (args.lifecycle !== undefined && args.activities !== undefined) {
     throw new Error(
@@ -42,7 +41,7 @@ export const plannedActivities = (
   if (args.lifecycle === undefined) {
     return parseActivities(args.activities, cfg.activities)
   }
-  const lifecycles = loadLifecycles(lifecyclesPath, cfg)
+  const lifecycles = loadLifecycles(cfg)
   const found = lifecycleNamed(lifecycles, args.lifecycle)
   if (found === undefined) {
     throw new Error(

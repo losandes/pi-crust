@@ -1,13 +1,10 @@
 import { expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   acceptedExcluding,
-  activitiesFileSchema,
   crustConfigSchema,
-  lifecyclesFileSchema,
   withoutTerminal,
 } from '../../../../lib/contracts'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import type { TRoundRecord } from '../../../gates'
 import { renderReport } from '../../../gates'
 import {
@@ -50,32 +47,32 @@ const cfg = crustConfigSchema.parse({
     {
       name: 'plan',
       output: 'planOutput',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
     {
       name: 'build',
       output: 'buildOutput',
       purpose: 'Implement the plan and report every changed file',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
     {
       name: 'test',
       output: 'buildOutput',
       purpose: 'Write the tests that would prove the request was implemented',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
     {
       name: 'review',
       output: 'reviewOutput',
       purpose: 'Confirm that what was built is what was asked for',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
     {
       name: 'code-review',
       output: 'reviewOutput',
       purpose:
         'Judge the change against the conventions this repository ratified',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
     /*
      * A reviewer this package has never heard of, which is the whole point:
@@ -86,13 +83,13 @@ const cfg = crustConfigSchema.parse({
       name: 'ux-review',
       output: 'reviewOutput',
       purpose: 'Rule on whether the interface does what the spec described',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
     {
       name: 'document',
       output: 'buildOutput',
       purpose: 'Write up the change for the people who did not run it',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     },
   ],
 })
@@ -380,25 +377,13 @@ for (const { name, writer } of [
     ].join(', '),
     () => {
       // given
-      const stamp = join(
-        import.meta.dir,
-        '../../../../../templates/stamp/config',
-      )
-      const registry = activitiesFileSchema.parse(
-        Bun.YAML.parse(
-          readFileSync(join(stamp, 'crust.activities.yaml'), 'utf8'),
-        ),
-      )
+      const registry = shippedConfig()
       const shipped = crustConfigSchema.parse({
         activities: registry.activities,
       })
-      const lifecycle = lifecyclesFileSchema
-        .parse(
-          Bun.YAML.parse(
-            readFileSync(join(stamp, 'crust.lifecycles.yaml'), 'utf8'),
-          ),
-        )
-        .lifecycles.find((one) => one.name === name)
+      const lifecycle = shippedConfig().lifecycles.find(
+        (one) => one.name === name,
+      )
       const names = withoutTerminal(lifecycle?.stages ?? []).flatMap(
         (one) => one.activities,
       )

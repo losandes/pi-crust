@@ -14,13 +14,13 @@ import { plannedActivities } from '../domains/planning'
  * The Composer does not decide what is appropriate for an objective — Triage
  * and the Operator do that. It validates the plan it is handed and runs it.
  * It is the third Planner, and the only one with no agent and no entry in
- * `crust.activities.yaml`.
+ * `crust.activities.toml`.
  *
- * What a chain may name is whatever `crust.activities.yaml` registers, and
+ * What a chain may name is whatever `crust.activities.toml` registers, and
  * nothing here: an unknown name is refused at load with the list of what was
  * available, which is the job the compiler used to do.
  *
- * `--lifecycle` names one from `crust.lifecycles.yaml`, whose Stages decide
+ * `--lifecycle` names one from `crust.lifecycles.toml`, whose Stages decide
  * the order. `--activities` spells the chain out at the call site, Stage by
  * Stage: `,` ends a Stage and `+` joins Activities that run at the same time.
  * Naming both is a usage error rather than a precedence rule nobody can

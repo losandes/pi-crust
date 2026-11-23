@@ -1,25 +1,35 @@
 import { expect, test } from 'bun:test'
-import { join } from 'node:path'
+import { layersFixture } from '../../../../testing/config-layers'
+import {
+  EMPTY_REPOSITORY_PATH,
+  withShippedPackage,
+} from '../../../../testing/shipped-layer'
 import type { TCatalogue } from './catalogue'
 import { catalogueOf, renderCatalogue } from './catalogue'
 
-/*
- * Absolute, from import.meta.dir — the same way shipped-config.test.ts's
- * STAMP constant is built. A path relative to the PROCESS cwd broke this
- * test the moment it ran as part of a repository-wide `bun test` from the
- * repo root rather than scoped to runtime/, where cwd is runtime/ itself.
- */
-const SHIPPED_CONFIG = join(
-  import.meta.dir,
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
-  'templates',
-  'stamp',
-  'config',
-  'crust.config.yaml',
+const SHIPPED_CONFIG = EMPTY_REPOSITORY_PATH
+
+test(
+  [
+    'given @SC11 a package Planner and a later machine Planner',
+    'when listing the merged catalogue',
+    'it should preserve the loader order instead of reordering the closed set',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({
+      'package/crust.activities.toml':
+        '[planners.triage]\nwrites = []\n[terminal.gh-pull-request]\nwrites = []\n',
+      'machine/crust.activities.toml': '[planners.operator]\nwrites = []\n',
+    })
+    // when
+    const actual = catalogueOf(f.repositoryPath, f.env)
+    // then
+    expect(actual.planners.map((entry) => entry.name)).toEqual([
+      'triage',
+      'operator',
+    ])
+  },
 )
 
 test(
@@ -29,8 +39,9 @@ test(
     'it should list gh-pull-request under terminal',
   ].join(', '),
   () => {
-    // given / when
-    const actual = catalogueOf(SHIPPED_CONFIG)
+    // given
+    // when
+    const actual = withShippedPackage(() => catalogueOf(SHIPPED_CONFIG))
 
     // then
     expect(actual.terminal.map((entry) => entry.name)).toEqual([
@@ -93,5 +104,29 @@ test(
 
     // then
     expect(actual).toContain('(none)')
+  },
+)
+
+test(
+  [
+    'given @SC5 @SC14 a machine-only lifecycle and an Activity missing prompts',
+    'when listing a repository catalogue',
+    'it should list the lifecycle without validating unused prompts',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({
+      'machine/crust.lifecycles.toml':
+        '[lifecycles.machine-only]\nstages = [{ name = "work", serial = ["spike"] }]\n',
+      'machine/crust.activities.toml':
+        '[activities.spike]\nwrites = []\nprompts = "missing"\n',
+    })
+    // when
+    const actual = catalogueOf(f.repositoryPath, f.env)
+    // then
+    expect(actual.lifecycles.map((entry) => entry.name)).toContain(
+      'machine-only',
+    )
+    expect(actual.activities.map((entry) => entry.name)).toContain('spike')
   },
 )

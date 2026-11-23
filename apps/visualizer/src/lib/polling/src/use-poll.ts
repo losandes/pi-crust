@@ -1,5 +1,7 @@
 import { errorMessage, settleAsync } from '@typedefs'
 import { useEffect, useRef, useState } from 'react'
+import { usePollInterval } from './poll-interval'
+import { startPolling } from './start-polling'
 
 export type TPoll<TValue> = Readonly<{
   value: TValue
@@ -25,8 +27,10 @@ export type TPoll<TValue> = Readonly<{
 export const usePoll = <TValue>(
   fetcher: () => Promise<TValue>,
   initial: TValue,
-  intervalMs = 500,
+  intervalMs?: number,
 ): TPoll<TValue> => {
+  const configuredInterval = usePollInterval()
+  const pollIntervalMs = intervalMs ?? configuredInterval
   const [value, setValue] = useState<TValue>(initial)
   const [error, setError] = useState<string | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
@@ -65,13 +69,12 @@ export const usePoll = <TValue>(
     }
 
     tickRef.current = () => void tick()
-    void tick()
-    const timer = setInterval(() => void tick(), intervalMs)
+    const stop = startPolling(tickRef.current, pollIntervalMs)
     return () => {
       live.current = false
-      clearInterval(timer)
+      stop()
     }
-  }, [intervalMs])
+  }, [pollIntervalMs])
 
   return { value, error, loaded, at, refresh: () => tickRef.current() }
 }

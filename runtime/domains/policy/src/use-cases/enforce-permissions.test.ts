@@ -39,7 +39,7 @@ const configWith = (
       data_dir: '.pi-crust/data',
     },
     agents: agents.map((agent) => ({
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
       ...agent,
     })),
   })
@@ -162,7 +162,7 @@ test(
 
     // when
     const protectedPath = permitted(
-      '.pi-crust/config/crust.config.yaml',
+      '.pi-crust/config/example.toml',
       agentNamed(cfg, 'builder'),
       cfg,
     )
@@ -193,12 +193,12 @@ test(
 
     // when
     const unlocked = permitted(
-      '.pi-crust/config/crust.config.yaml',
+      '.pi-crust/config/example.toml',
       agentNamed(cfg, 'maintainer'),
       cfg,
     )
     const stillBarred = permitted(
-      '.pi-crust/config/crust.config.yaml',
+      '.pi-crust/config/example.toml',
       agentNamed(cfg, 'builder'),
       cfg,
     )
@@ -928,9 +928,9 @@ for (const scenario of [
     committing: true,
     before: {},
     after: {},
-    history: ['.pi-crust/config/crust.config.yaml'],
-    touched: ['.pi-crust/config/crust.config.yaml'],
-    overstepped: ['.pi-crust/config/crust.config.yaml'],
+    history: ['.pi-crust/config/example.toml'],
+    touched: ['.pi-crust/config/example.toml'],
+    overstepped: ['.pi-crust/config/example.toml'],
     commits: 0,
   },
 ]) {

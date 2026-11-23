@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EXIT } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -36,7 +37,7 @@ const anArgs = (
   note: '',
   file: '',
   db: undefined,
-  config: '.pi-crust/config/crust.config.yaml',
+  config: 'pi-crust.toml',
   detach: true,
   ...overrides,
 })
@@ -51,7 +52,8 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when
+      // given
+      // when
       // when
       const actual = answerText(anArgs({ verb: 'approve' }))
 
@@ -73,7 +75,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       // when
       // then
       expect(() => answerText(anArgs({ verb: 'reject', note: '  ' }))).toThrow(
@@ -95,7 +99,8 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when
+      // given
+      // when
       // when
       const actual = answerText(
         anArgs({ verb: 'reject', note: 'use a different queue' }),
@@ -120,7 +125,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       // when
       // then
       expect(() =>
@@ -242,19 +249,20 @@ test(
           cwd: process.cwd(),
         }),
       )
-      const configPath = join(dataDir, 'crust.config.yaml')
+      const configPath = join(dataDir, 'pi-crust.toml')
       writeFileSync(
         configPath,
-        `defaults:\n  data_dir: ${dataDir}\nobservability:\n  db: ${dbPath}\nagents: []\n`,
+        configText({
+          defaults: { data_dir: dataDir },
+          observability: { db: dbPath },
+          agents: [],
+        }),
       )
-      // No machine-level crust.config.yaml must be merged in — it would override
+      // No machine-level pi-crust.toml must be merged in — it would override
       // this test's own data_dir with whatever this developer machine has set.
       const originalMachineConfig = process.env.CRUST_MACHINE_CONFIG
       // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfig reads through machineConfigPath
-      process.env.CRUST_MACHINE_CONFIG = join(
-        dataDir,
-        'no-such-machine-config.yaml',
-      )
+      process.env.CRUST_MACHINE_CONFIG = join(dataDir, 'no-such-machine-config')
 
       try {
         // when
@@ -305,17 +313,18 @@ test(
       tracer.sessionWaiting('dddd4444')
       tracer.close()
       // no invocation.json written at all
-      const configPath = join(dataDir, 'crust.config.yaml')
+      const configPath = join(dataDir, 'pi-crust.toml')
       writeFileSync(
         configPath,
-        `defaults:\n  data_dir: ${dataDir}\nobservability:\n  db: ${dbPath}\nagents: []\n`,
+        configText({
+          defaults: { data_dir: dataDir },
+          observability: { db: dbPath },
+          agents: [],
+        }),
       )
       const originalMachineConfig = process.env.CRUST_MACHINE_CONFIG
       // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfig reads through machineConfigPath
-      process.env.CRUST_MACHINE_CONFIG = join(
-        dataDir,
-        'no-such-machine-config.yaml',
-      )
+      process.env.CRUST_MACHINE_CONFIG = join(dataDir, 'no-such-machine-config')
 
       try {
         // when

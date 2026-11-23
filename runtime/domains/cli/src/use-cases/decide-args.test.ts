@@ -142,7 +142,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       for (const verb of VERBS) {
         // when
         // then
@@ -164,7 +166,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       // when
       // then
       expect(isVerb('deny')).toBe(false)
@@ -184,7 +188,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       // when
       // then
       expect(() => parseDecideArgs(['deny', 'fbf49583'])).toThrow(
@@ -206,7 +212,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       // when
       // then
       expect(() => parseDecideArgs(['approve'])).toThrow(/run-id is required/)
@@ -226,7 +234,8 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when
+      // given
+      // when
       // when
       const actual = parseDecideArgs([
         'reject',
@@ -238,7 +247,7 @@ test(
         '--db',
         '/tmp/crust.db',
         '--config',
-        '/tmp/crust.config.yaml',
+        '/tmp/pi-crust.toml',
         '--detach',
       ])
 
@@ -249,7 +258,7 @@ test(
         note: 'wrong approach',
         file: 'answer.md',
         db: '/tmp/crust.db',
-        config: '/tmp/crust.config.yaml',
+        config: '/tmp/pi-crust.toml',
         detach: true,
       })
     } finally {
@@ -305,7 +314,9 @@ test(
     // given
     silenceTerminal()
     try {
-      // given, when, then
+      // given
+      // when
+      // then
       // when
       // then
       expect(USAGE).toContain('approve')

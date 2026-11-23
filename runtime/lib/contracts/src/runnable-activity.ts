@@ -12,7 +12,7 @@
  * A activity's NAME is an Activity's name, and Activities are configuration:
  * there is no union of them here any more, and no registry in TypeScript for
  * a name to be checked against. "Is this a real Activity" is answered at
- * load, by the loader, against `crust.activities.yaml` / which is the price
+ * load, by the loader, against `crust.activities.toml` / which is the price
  * of a team being able to add one.
  */
 

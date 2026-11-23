@@ -523,8 +523,8 @@ export const resumeRun = (
  *
  * Through the Composer, naming the Lifecycle: there has been no file per
  * Lifecycle since the DAG landed, and there is no runtime in the stamp to
- * hold one if there were. The Composer reads `crust.lifecycles.yaml` in the
- * target tree, so a Lifecycle that repository added is startable from here
+ * hold one if there were. The Composer reads the merged TOML lifecycle tables,
+ * so a Lifecycle that repository or machine added is startable from here
  * with no change on this side.
  *
  * Detached and with its output to a file rather than to this process: a run

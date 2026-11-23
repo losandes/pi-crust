@@ -8,6 +8,7 @@ import type {
 import { byStart, fetchEnvelopes, fetchGates } from '@/domains/activity-runs'
 import type { EventRow } from '@/domains/events'
 import { fetchEvents } from '@/domains/events'
+import { startPolling, usePollInterval } from '@/lib/polling'
 import { fetchSession } from '../io/fetch-session'
 import type { Session, SessionUsage } from '../typedefs/session'
 
@@ -50,6 +51,7 @@ const EMPTY_USAGE: SessionUsage = { read: 0, written: 0 }
  * has been read, not something the screen shows.
  */
 export const useTrace = (runId: string, workspace?: string): TTrace => {
+  const intervalMs = usePollInterval()
   const [trace, setTrace] = useState<TTrace>({
     session: undefined,
     handoffDir: undefined,
@@ -163,13 +165,12 @@ export const useTrace = (runId: string, workspace?: string): TTrace => {
     // One tick function per mount, with its own cursor.
     const tick = poll(runId, workspace)
 
-    void tick(live)
-    const timer = setInterval(() => void tick(live), 500)
+    const stop = startPolling(() => void tick(live), intervalMs)
     return () => {
       alive = false
-      clearInterval(timer)
+      stop()
     }
-  }, [poll, runId, workspace])
+  }, [poll, runId, workspace, intervalMs])
 
   return trace
 }

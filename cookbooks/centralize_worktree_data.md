@@ -4,21 +4,21 @@ Configure the machine once, create worktrees freely, delete them without losing 
 
 ## The problem
 
-A developer who works in a git worktree per issue has, by default, a `.pi-crust/data` directory per worktree. Deleting the worktree when the issue is done deletes that run history with it — the trace rows, the session directories, the check logs — because nothing outside the worktree knows the data ever existed.
+A configuration using a relative `.pi-crust/data` directory can keep history inside each worktree. Deleting that worktree then removes its history. The package defaults already use `{primary_worktree}` to keep runs in the main clone; the machine settings below make that choice explicit or restore it for older repository configurations.
 
-## The fix: a machine-level `override:`
+## Set the machine defaults
 
-`~/.pi-crust/config/crust.config.yaml` is read by every repository on this machine. Its `override:` section beats a repository's own `crust.config.yaml`, deliberately — see `references/config.md` for the whole precedence chain. Put this in it once:
+The package reads `runtime/config/`, then `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`. Put this in `~/.pi-crust/config/crust.config.toml`:
 
-```yaml
-# ~/.pi-crust/config/crust.config.yaml — this machine, never committed
+```toml
+# Shared by every repository on this machine.
+db = "{primary_worktree}/.pi-crust/data/crust.db"
 
-override:
-  defaults:
-    data_dir: "{primary_worktree}/.pi-crust/data"
-  observability:
-    db: "{primary_worktree}/.pi-crust/data/crust.db"
+[defaults]
+data_dir = "{primary_worktree}/.pi-crust/data"
 ```
+
+A repository file that sets either value wins over the machine for that value. Remove or change that repository setting by hand if pooling is intended. There is no forced machine tier. See the [configuration reference](../references/config.md) for precedence and `just crust config` for the effective values.
 
 `{primary_worktree}` expands to `dirname($(git rev-parse --git-common-dir))`, resolved absolute — the main clone a linked worktree was branched from. In the main clone itself it is just the clone. Nothing about the token depends on which repository it is evaluated in, which is why one line in one file covers every clone on the machine, including ones not cloned yet.
 
@@ -30,9 +30,9 @@ git worktree add ../pi-crust-issue-42 -b issue-42
 cd ../pi-crust-issue-42 && just crust run "fix the retry bug" --lifecycle bugfix
 ```
 
-The linked worktree needs no re-stamp: `just crust` resolves the pi-crust package itself through `CRUST_HOME`, then its own stamp pointer, then the pointer beside the shared git directory — found through the clone it was branched from (`references/config.md`, 1.6). The run's data lands in the main clone's `.pi-crust/data`, not the worktree's own, because of the `override:` above.
+The linked worktree needs no re-stamp: `just crust` resolves the pi-crust package itself through `CRUST_HOME`, then its own stamp pointer, then the pointer beside the shared git directory — found through the clone it was branched from (`references/config.md`, 1.6). The run's data lands in the main clone's `.pi-crust/data`, not the worktree's own, when neither repository setting overrides the machine values above.
 
-If you do re-stamp to refresh template-owned documents, use `install.ts --refresh` or `just crust update`. Non-example config files are neither added nor overwritten once `config/` exists; only new `.example.yaml` documents are added there, and existing examples are refreshed. See [install.md](install.md) for the deprecated installer `--force` alias.
+Configuration changes take effect on the next command without re-stamping. `install.ts --refresh` or `just crust update` refreshes template-owned files, never an existing `pi-crust.toml` or execution history. See [install.md](install.md).
 
 ```bash
 # done with the issue
@@ -72,6 +72,6 @@ Either form prints which working trees the store holds before it deletes anythin
 
 ## What this does not do
 
-`just crust merge <tree>` does not exist. If you already have runs scattered across several worktrees created before this was configured, they stay where they are; pooling only takes effect for a worktree created (or a config change made) after `override:` is in place. Consolidating existing data is separate, unbuilt work.
+`just crust merge <tree>` does not exist. If you already have runs scattered across several worktrees created before this was configured, they stay where they are; the configuration changes where later runs write; it does not relocate earlier data. Consolidating existing data is separate, unbuilt work.
 
-No `.pi-crust` directory is ever symlinked by anything here. See `references/config.md`'s rationale section for why that was considered and rejected.
+No `.pi-crust` directory is symlinked by this setup. The shared data path and package-home pointer keep their existing behavior; no migration of recorded data is performed.

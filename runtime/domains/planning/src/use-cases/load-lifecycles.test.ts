@@ -1,237 +1,114 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { activityOrder, crustConfigSchema } from '../../../../lib/contracts'
-import { loadLifecycles, mergeLifecycles } from './load-lifecycles'
+import { loadLifecycles } from './load-lifecycles'
 
-const written = (base: string, local?: string) => {
-  const dir = mkdtempSync(join(tmpdir(), 'crust-lifecycles-'))
-  const path = join(dir, 'crust.lifecycles.yaml')
-  writeFileSync(path, base)
-  if (local !== undefined) {
-    writeFileSync(join(dir, 'crust.lifecycles.local.yaml'), local)
-  }
-  return path
+for (const strategy of ['serial', 'concurrent'] as const) {
+  test(
+    [
+      `given a loaded ${strategy} lifecycle`,
+      'when normalized',
+      'it should preserve Stage order and canonicalize Activity aliases',
+    ].join(', '),
+    () => {
+      // given
+      const cfg = crustConfigSchema.parse({
+        activities: [
+          { name: 'plan', prompts: '.', writes: ['plan/'], aliases: ['p'] },
+          { name: 'build', prompts: '.', writes: ['build/'] },
+        ],
+        lifecycles: [
+          {
+            name: 'ship',
+            stages: [{ name: 'work', strategy, activities: ['p', 'build'] }],
+          },
+        ],
+      })
+      // when
+      const actual = loadLifecycles(cfg)
+      // then
+      expect(actual[0]?.stages[0]?.strategy).toBe(strategy)
+      expect(
+        activityOrder(actual[0] ?? { name: '', description: '', stages: [] }),
+      ).toEqual(['plan', 'build'])
+    },
+  )
 }
 
-const TEAM = `
-lifecycles:
-  - name: sdlc
-    stages:
-      - name: plan
-        activities: [plan]
-      - name: build
-        activities: [build]
-
-`
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when only the committed file exists',
-    'it should read the lifecycles the team agreed',
-  ].join(', '),
-  () => {
-    // given
-    const given = written(TEAM)
-
-    // when
-    const actual = loadLifecycles(given)
-
-    // then
-    expect(actual.map((one) => one.name)).toEqual(['sdlc'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when a local layer names a lifecycle the team also has',
-    'it should replace it rather than splicing two graphs together',
-  ].join(', '),
-  () => {
-    // given
-    const given = written(
-      TEAM,
-      `
-lifecycles:
-  - name: sdlc
-    stages:
-      - name: only
-        activities: [scout]
-`,
-    )
-
-    // when
-    const actual = loadLifecycles(given)
-
-    // then
-    expect(
-      activityOrder(actual[0] ?? { name: '', description: '', stages: [] }),
-    ).toEqual(['scout'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when a local layer adds a lifecycle the team does not have',
-    'it should be available, because the local file is the same person',
-  ].join(', '),
-  () => {
-    // given
-    const given = written(
-      TEAM,
-      `
-lifecycles:
-  - name: spike
-    stages:
-      - name: only
-        activities: [poc]
-`,
-    )
-
-    // when
-    const actual = loadLifecycles(given).map((one) => one.name)
-
-    // then
-    expect(actual).toEqual(['sdlc', 'spike'])
-  },
-)
+for (const scenario of [
+  'duplicate-stage',
+  'mixed-judge-writer',
+  'overlapping-writes',
+]) {
+  test(
+    [
+      `given ${scenario} in a loaded lifecycle`,
+      'when validated',
+      'it should refuse before a run starts',
+    ].join(', '),
+    () => {
+      // given
+      const cfg = crustConfigSchema.parse({
+        activities: [
+          {
+            name: 'one',
+            prompts: '.',
+            output:
+              scenario === 'mixed-judge-writer' ? 'reviewOutput' : 'planOutput',
+            writes: ['one/'],
+          },
+          {
+            name: 'two',
+            prompts: '.',
+            output: 'planOutput',
+            writes: scenario === 'overlapping-writes' ? ['one/'] : ['two/'],
+          },
+        ],
+        lifecycles: [
+          {
+            name: 'broken',
+            stages:
+              scenario === 'duplicate-stage'
+                ? [
+                    { name: 'same', activities: ['one'] },
+                    { name: 'same', activities: ['two'] },
+                  ]
+                : [
+                    {
+                      name: 'work',
+                      strategy: 'concurrent',
+                      activities: ['one', 'two'],
+                    },
+                  ],
+          },
+        ],
+      })
+      // when
+      const actual = () => loadLifecycles(cfg)
+      // then
+      expect(actual).toThrow('lifecycle configuration cannot run:')
+      expect(actual).toThrow(
+        scenario === 'duplicate-stage'
+          ? 'two stages'
+          : scenario === 'mixed-judge-writer'
+            ? 'one judges'
+            : 'both may write',
+      )
+    },
+  )
+}
 
 test(
   [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    "when a Lifecycle's stage names an alias and cfg is passed",
-    'it should load with the canonical name in stages[].activities',
+    'given no loaded lifecycles',
+    'when queried',
+    'it should return an empty list',
   ].join(', '),
   () => {
     // given
-    const given = written(`
-lifecycles:
-  - name: sdlc
-    stages:
-      - name: plan
-        activities: [plan]
-      - name: pr
-        activities: [gh-pr]
-`)
-    const cfg = crustConfigSchema.parse({
-      activities: [
-        {
-          name: 'plan',
-          purpose: 'p',
-          prompts: { system: 's.md', user: 'u.md' },
-        },
-        {
-          name: 'gh-pull-request',
-          purpose: 'p',
-          prompts: { system: 's.md', user: 'u.md' },
-          aliases: ['gh-pr'],
-        },
-      ],
-    })
-
+    const cfg = crustConfigSchema.parse({})
     // when
-    const actual = loadLifecycles(given, cfg)
-
+    const actual = loadLifecycles(cfg)
     // then
-    expect(
-      activityOrder(actual[0] ?? { name: '', description: '', stages: [] }),
-    ).toEqual(['plan', 'gh-pull-request'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when two stages in a lifecycle share a name',
-    'it should refuse at load rather than three activities into a run',
-  ].join(', '),
-  () => {
-    // given
-    const given = written(`
-lifecycles:
-  - name: doubled
-    stages:
-      - name: a
-        activities: [plan]
-      - name: a
-        activities: [build]
-`)
-
-    // when
-    const actual = () => loadLifecycles(given)
-
-    // then
-    expect(actual).toThrow(/two stages are named/)
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when a concurrent Stage mixes a judge and a writer with disjoint writes',
-    'it should reject the Stage at load and name both Activities',
-  ].join(', '),
-  () => {
-    // given
-    const path = written(`
-lifecycles:
-  - name: mixed
-    stages:
-      - name: review-and-work
-        strategy: concurrent
-        activities: [custom-judge, custom-writer]
-`)
-    const cfg = crustConfigSchema.parse({
-      activities: [
-        {
-          name: 'custom-judge',
-          output: 'reviewOutput',
-          writes: ['handoff/findings.md'],
-          prompts: { system: 's.md', user: 'u.md' },
-        },
-        {
-          name: 'custom-writer',
-          output: 'planOutput',
-          writes: ['handoff/plan.md'],
-          prompts: { system: 's.md', user: 'u.md' },
-        },
-      ],
-    })
-
-    // when
-    const actual = () => loadLifecycles(path, cfg)
-
-    // then
-    expect(actual).toThrow(
-      /review-and-work.*custom-judge.*custom-writer.*one judges/,
-    )
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::mergeLifecycles',
-    'when a local lifecycle replaces one of the team lifecycles',
-    'it should hold the place the team file gave it',
-  ].join(', '),
-  () => {
-    // given
-    const base = [
-      { name: 'a', description: '', stages: [] },
-      { name: 'b', description: '', stages: [] },
-      { name: 'c', description: '', stages: [] },
-    ]
-    const local = [{ name: 'b', description: 'mine', stages: [] }]
-
-    // when
-    const actual = mergeLifecycles(base, local)
-
-    // then
-    expect(actual.map((one) => one.name)).toEqual(['a', 'b', 'c'])
-    expect(actual[1]?.description).toBe('mine')
+    expect(actual).toEqual([])
   },
 )

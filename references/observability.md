@@ -6,7 +6,7 @@ The event schema, the seven SQLite tables, and the polling contract — the one 
 
 **Files are the raw record** (`raw_output.jsonl` streams, `envelope.json`, `agent_map.json`); **SQLite (`crust.db`) is the queryable mirror** the UI reads. `trace-db.ts` writes both. Losing the db loses nothing that can't be rebuilt from files.
 
-Location comes from `db` in `crust.observe.yaml`, default `.pi-crust/data/crust.db` — inside the **target** repo, gitignored.
+Location comes from top-level `db` in the merged TOML layers: `<pi-crust>/runtime/config/crust.config.toml`, then `~/.pi-crust/config/crust.config.toml`, then the repository's single `pi-crust.toml`. The package preserves the shared-worktree default `"{primary_worktree}/.pi-crust/data/crust.db"`; environment and supported command flags still override it. No install step copies or freezes the defaults.
 
 ## Event schema
 
@@ -146,7 +146,7 @@ WAL allows readers during writes. Writers are the tracers of running workflow pr
 
 **The UI never receives pushes.** No ingest endpoint, no WebSocket, no backfill or dedup logic.
 
-Live view polls on a rowid cursor every `poll_ms` in `crust.observe.yaml` (default 500):
+Set positive-integer `poll_ms` in `crust.config.toml` in the package or machine layer, or in the repository TOML file; its default is 500 milliseconds. The launcher sends the merged value to the server through `CRUST_POLL_MS`, and `GET /api/health` returns `poll_ms` to the browser before mounting. The session list, trace and live cards use that interval. An existing exported `CRUST_POLL_MS` is not an override. Live event polling uses a rowid cursor:
 
 ```sql
 SELECT ... FROM events WHERE run_id = ? AND rowid > ? ORDER BY rowid LIMIT 500;
@@ -160,7 +160,7 @@ Keep the highest `rowid` returned as the next cursor. History is **the same quer
 bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] [--config <path>]
 ```
 
-No `run-id` means the most recent session. `--db` wins over the config's `observability.db`, which is read from `crust.observe.yaml`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
+No `run-id` means the most recent session. `--db` wins over `CRUST_DB` and the merged top-level TOML `db`, exposed to runtime readers as `cfg.observability.db`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
 
 Exit codes, because an agent will branch on them:
 
@@ -274,7 +274,7 @@ In the UI, every run's card carries a chip naming the branch the run started on 
 
 ## Ports
 
-The ports are a committed answer with an environment escape hatch. `ports.backend` and `ports.frontend` in `.pi-crust/config/crust.observe.yaml` are what `observe` boots on and what a run assumes when it prints a link; the variables below win over the file, for a clash that is not worth committing.
+`[ports]` in the merged TOML configuration sets `backend` and `frontend`: package defaults first, machine settings under `~/.pi-crust/config/` next, the repository's `pi-crust.toml` last. `observe` and run links use the merged ports. Valid port variables below win over the configuration; malformed port variables leave its value in force.
 
 | Variable           | Default                        | What it moves                                            |
 | ------------------ | ------------------------------ | -------------------------------------------------------- |
@@ -334,7 +334,7 @@ Two things govern it. `steps_valid` rejects a plan naming an Activity that does 
 
 They go straight after the recipe with no `--` separator. `just crust observe -- --host` does not work — the flag never reaches vite, which reports "use --host to expose" — which is the opposite of the habit most tools teach, so it is worth remembering once.
 
-The arguments reach the web app only. The API behind it is configured by `ports:` in `crust.observe.yaml`, or by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
+The arguments reach the web app only. The ports are configured by `[ports]` in TOML, or by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
 
 ## Archiving a run, and the token that lets you
 

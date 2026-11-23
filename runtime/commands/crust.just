@@ -13,14 +13,12 @@ set positional-arguments
 # The paths are spelled from the workspace root because that is where a
 # developer stands and what the config's own paths are relative to.
 
-# Every recipe passes this through, so `CRUST_CONFIG=other.yaml just crust sdlc "..."`
-# swaps the whole roster for one run.
+# Every recipe passes this through, so CRUST_CONFIG selects another repository TOML file.
 #
 # The observability UI takes two more: CRUST_BE_PORT (the API) and
 # CRUST_FE_PORT (the web app). Both are read by `observe` and by every run,
 # which prints a link to itself when the API answers. Unset, the ports come
-# from `ports:` in .pi-crust/config/crust.observe.yaml (4600 and 4601), which
-# is where to move them for good rather than for one shell.
+# from [ports] in the three TOML layers (4600 and 4601 by default).
 # Where pi-crust itself is installed. The runtime ships with the package
 # rather than with the stamp, so every recipe resolves it rather than
 # assuming a path. The installer writes it down; CRUST_HOME overrides.
@@ -57,7 +55,7 @@ crust := env_var_or_default("CRUST_HOME", `
   echo "  set CRUST_HOME to repair it." >&2
   exit 2
 ` / "runtime")
-config := env_var_or_default("CRUST_CONFIG", ".pi-crust/config/crust.config.yaml")
+config := env_var_or_default("CRUST_CONFIG", "pi-crust.toml")
 # Resolved from the configuration in force (1.6.5) rather than assumed, so
 # `sessions`, `activity-runs`, `tail`, `procs` and `observe` agree with every
 # other reader of `observability.db` once a store is relocated or pooled.
@@ -92,8 +90,8 @@ demo:
 # There is no recipe per Activity or per Lifecycle. There used to be twenty,
 # hand-written, and they were a second copy of the registry in a file the
 # configuration cannot reach: four Lifecycles were added and these recipes
-# went on offering three. What can run is read from crust.activities.yaml and
-# crust.lifecycles.yaml at run time, by `run` and by `list`.
+# went on offering three. What can run is read from crust.activities.toml and
+# crust.lifecycles.toml at run time, by `run` and by `list`.
 #
 # Args pass straight through: "<prompt or path/to/prompt.md>" [--run-id X]
 
@@ -105,9 +103,7 @@ list *ARGS:
 help *ARGS:
     @bun "{{crust}}/commands/help.ts" --config {{config}} "$@"
 
-# Every effective defaults.* and observability.* value, and the file that set
-# it \u2014 a repository's own crust.config.yaml, its gitignored .local layer, or
-# ~/.pi-crust/config/crust.config.yaml's ordinary or override: section.
+# Effective settings and their package, machine, repository or environment source.
 # what is actually in force, and where it came from: just crust config
 config *ARGS:
     @bun "{{crust}}/commands/config.ts" --config {{config}} "$@"
@@ -259,11 +255,8 @@ forget-tree *PATHS:
 # habit most tools teach. Tested: with the separator vite reports "use --host
 # to expose", so it never sees the flag; without it, the Network line appears.
 
-# Refreshes template-owned files and proves the result matches. data/ has no
-# counterpart in the template, so the trace database and sessions are untouched.
-# Existing config/ is repo-owned: only .example.yaml documents are added or
-# refreshed; other settings are left alone. A breaking schema change is a
-# separate, explicitly invoked migration — never part of this.
+# Refreshes template-owned files, never pi-crust.toml or .pi-crust/data/.
+# Legacy configuration and prompt directories are left untouched.
 
 # bring this tree up to date with the pi-crust it was stamped from
 update:
@@ -289,14 +282,13 @@ update:
       exit 2
     fi
     bun "$home/scripts/install.ts" --refresh
-    "$home/scripts/verify-install.sh"
 
 # The app itself is not in this tree. It ships with pi-crust, which may be a
 # sibling checkout, a global install or a node_modules directory, so the
 # installer writes down where it was and this recipe reads that back. Set
 # CRUST_HOME to override it, which is also the repair when pi-crust moves.
 
-# boot the trace UI on the ports crust.observe.yaml names (4601, api on 4600)
+# boot the trace UI on the configured TOML ports (4601, api on 4600 by default)
 observe *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -319,8 +311,8 @@ observe *ARGS:
       echo "  re-run its installer from this directory, or set CRUST_HOME to the package." >&2
       exit 2
     fi
-    # No port defaults here: observe.ts reads crust.observe.yaml, and a
-    # default spelled in this recipe would override the file every time.
+    # No port defaults here: observe.ts reads the merged TOML configuration;
+    # defaults in this recipe would override that configuration every time.
     # CRUST_BE_PORT and CRUST_FE_PORT are inherited when they are set, which
     # is how a one-off clash is still answered from the shell.
     # $PWD, not justfile_directory(): these recipes live in the pi-crust

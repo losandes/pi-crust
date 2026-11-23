@@ -26,7 +26,7 @@ test(
       runId: undefined,
       json: false,
       db: undefined,
-      config: '/nonexistent/reporter.config.yaml',
+      config: '/nonexistent/reporter.config.toml',
     }
     // when
     const db = resolveDbPath(args)
@@ -77,7 +77,7 @@ test(
         '--json',
         '--db',
         '/tmp/crust.db',
-        '--config=.pi-crust/config/crust.config.yaml',
+        '--config=pi-crust.toml',
       ])
 
       // then
@@ -85,7 +85,7 @@ test(
         runId: 'fbf49583',
         json: true,
         db: '/tmp/crust.db',
-        config: '.pi-crust/config/crust.config.yaml',
+        config: 'pi-crust.toml',
       })
     } finally {
       restoreTerminal()
@@ -150,7 +150,7 @@ test(
       // given
       const args = parseReportArgs([
         '--config',
-        '/does/not/exist/crust.config.yaml',
+        '/does/not/exist/pi-crust.toml',
       ])
 
       // when

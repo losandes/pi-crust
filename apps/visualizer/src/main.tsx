@@ -1,8 +1,11 @@
+import { settleAsync } from '@typedefs'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource/play/400.css'
 import '@fontsource/play/700.css'
+import { fetchHealth } from '@/domains/sessions'
 import { applyTheme, storedTheme } from '@/domains/themes'
+import { PollIntervalContext, pollIntervalOf } from '@/lib/polling'
 import { App } from './App'
 import './style.css'
 
@@ -24,8 +27,12 @@ if (container === null) {
   throw new Error('index.html is missing #app; nothing can be mounted')
 }
 
-createRoot(container).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+settleAsync(fetchHealth).then((health) => {
+  createRoot(container).render(
+    <StrictMode>
+      <PollIntervalContext.Provider value={pollIntervalOf(health)}>
+        <App />
+      </PollIntervalContext.Provider>
+    </StrictMode>,
+  )
+})

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { TEnvelopeBase, TStage } from '../../../../lib/contracts'
 import {
   buildOutputSchema,
@@ -9,6 +9,7 @@ import {
   planOutputSchema,
   reviewOutputSchema,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -43,7 +44,7 @@ const fixtureWith = (
   ] as const
   const before = keys.map((key) => [key, process.env[key]] as const)
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment adapter loadConfigWithNotes reads
-  process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent.yaml')
+  process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine')
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment adapter resolveDataPaths reads
   process.env.CRUST_DATA_DIR = join(dir, 'data')
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment adapter registerWorkspace reads
@@ -65,12 +66,12 @@ const fixtureWith = (
     model: `fixture/${entry.name}`,
     purpose: `Exercise ${entry.name} against the preceding work`,
     writes: [],
-    prompts: { system, user },
+    prompts: dirname(system),
   }))
-  const config = join(dir, 'crust.config.yaml')
+  const config = join(dir, 'pi-crust.toml')
   writeFileSync(
     config,
-    JSON.stringify({
+    configText({
       defaults: { data_dir: join(dir, 'data') },
       observability: { db: join(dir, 'data', 'crust.db') },
       activities,

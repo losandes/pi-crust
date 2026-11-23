@@ -807,8 +807,8 @@ export const pullRequestOutput = envelopeSpec(
 /**
  * Every envelope spec an Activity may name, by the name it is named by.
  *
- * Published rather than discovered: `crust.activities.yaml` says
- * `output: planOutput`, and the loader resolves it here. A name nothing
+ * Published rather than discovered: `crust.activities.toml` says
+ * `output = "planOutput"`, and the loader resolves it here. A name nothing
  * publishes is refused at load, with this list as the answer to "what could
  * I have written instead" — which is the whole price of moving the registry
  * out of TypeScript, and it has to be paid as loudly as the compiler paid it.

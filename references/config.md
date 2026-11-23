@@ -1,174 +1,233 @@
 # Config Reference
 
-The full `crust.config.yaml` spec: every field, how defaults merge, and how model / thinking / tools / extensions map onto the coding agent.
+pi-crust reads three TOML layers on every loading command. A repository holds one configuration file, `pi-crust.toml`; installing or updating does not copy the package defaults into it.
 
-It lives at **`.pi-crust/config/crust.config.yaml`** — the default path every `stages/*.ts` or `lifecycles/*.ts` and the justfile resolve, and where `install.ts` / `make-config.ts` stamp it. Pass `--config <path>` to any workflow, or set `CRUST_CONFIG`, to run against a different roster. The flag wins over the variable, and an empty variable reads as unset. `CRUST_DB` overrides the trace database the same way for `report.ts`, which is how the reporter is pointed at another repository's run. `CRUST_REGISTRY` moves the machine-local list of working trees that have run the factory — see the observability reference for what reads it. `CRUST_HOME` says where pi-crust itself is installed, which the `observe` recipe needs because the web app ships with the package rather than with the stamp; the installer records it in `.pi-crust/data/pi-crust-home` and the variable overrides that, for when the package moves.
+## Layers and precedence
+
+From weakest to strongest:
+
+| Layer      | Location                               | Prompt root for entries first declared here |
+| ---------- | -------------------------------------- | ------------------------------------------- |
+| Package    | `<pi-crust>/runtime/config/`           | `<pi-crust>/runtime/`                       |
+| Machine    | `~/.pi-crust/config/`                  | `~/.pi-crust/`                              |
+| Repository | `pi-crust.toml` at the repository root | The directory containing that file          |
+
+The package and machine directories each hold `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Missing files contribute nothing. The repository file is optional at the default path; an explicitly selected non-default path must exist. Invalid TOML fails with its filename.
+
+Effective precedence, highest first, is a command-line flag, an existing environment override, repository settings, machine settings, then package defaults. Schema fallbacks supply settings absent from every file. `--config` selects the repository file over `CRUST_CONFIG`; neither selects the package or machine layer. Commands run from the repository root, as the installed justfile does.
+
+| File                    | Accepted top-level keys                          |
+| ----------------------- | ------------------------------------------------ |
+| `crust.config.toml`     | `defaults`, `db`, `poll_ms`, `ports`             |
+| `crust.activities.toml` | `activities`, `planners`, `terminal`             |
+| `crust.lifecycles.toml` | `lifecycles`                                     |
+| `pi-crust.toml`         | All of the above, plus `tasks` and `task_config` |
+
+Unknown top-level keys are errors naming the file and key. Tasks belong only in the repository file: a task in a package or machine file is an error. Entries are keyed tables; the key is their name and wins over any `name` inside the table.
 
 ## Shape
 
-```yaml
-defaults:
-  coding_agent: pi
-  model: google/gemini-3.6-flash        # ALWAYS provider/model-id
-  thinking: medium
-  tools: [read, bash, edit, write, grep, find, ls]
-  data_dir: .pi-crust/data
+A repository needs only its task declarations and settings that differ from the other layers. The installer writes a comment-only template, which parses to an empty document and declares no tasks.
 
-# crust.activities.yaml, beside it
-activities:
-  - name: plan
-    coding_agent: pi
-    model: google/gemini-3.6-flash        # ALWAYS provider/model-id
-    thinking: high
-    color: violet
-    purpose: Turn a request into a plan the builder can implement without asking questions.
-    prompts:
-      system: <pi-crust>/runtime/prompts/plan/system.md
-      user: <pi-crust>/runtime/prompts/plan/user.md
-    tools:
-      - read
-      - bash
-    output: planOutput                    # the envelope contract it answers
-    attempts: 2                           # Activity Runs of this instance, first included
-    commit: false                         # land its own change once its gates pass
+```toml
+# pi-crust.toml
+poll_ms = 250
 
-planners:                                 # closed set: operator and triage
-  - name: operator
-    purpose: Choose the smallest chain that can produce the outcome.
-    prompts:
-      system: <pi-crust>/runtime/prompts/operator/system.md
-      user: <pi-crust>/runtime/prompts/operator/user.md
-    writes: ['{handoff}/plan.md']
+[ports]
+backend = 4700
+frontend = 4701
+
+[defaults]
+model = "anthropic/claude-opus-5"
+thinking = "high"
+
+[activities.build]
+attempts = 3
+
+[terminal.gh-pull-request]
+delivery = { base = "develop", draft = true }
+
+[lifecycles.quick]
+description = "Plan and build."
+stages = [
+  { name = "work", serial = ["plan", "build"] },
+]
 ```
+
+## Defaults merging
+
+Merge the raw documents before applying schema defaults. Tables merge recursively, field by field, with the later layer winning. Arrays and scalars replace whole; lists are never concatenated or merged by index. The same rule applies to every section, including nested `delivery` settings.
+
+For example, the package may declare:
+
+```toml
+[activities.build]
+purpose = "Implement the plan."
+attempts = 2
+writes = ["*"]
+```
+
+A machine file can set only its model:
+
+```toml
+[activities.build]
+model = "openai/gpt-6.1-sol"
+```
+
+The effective Activity keeps the package purpose, attempt limit and write boundary. An incomplete entry that no earlier layer declares is a new entry, not an ignored patch, and fails validation if it lacks required fields.
+
+A lifecycle's `stages` is an array, so it replaces whole. This machine declaration replaces every shipped stage of `ship`, while keeping its description when none is stated here:
+
+```toml
+[lifecycles.ship]
+stages = [
+  { name = "work", serial = ["plan", "build"] },
+  { name = "accept", concurrent = ["outcome-review", "code-review"] },
+]
+```
+
+After merging, entries inherit `coding_agent`, `model`, `thinking`, `color`, `tools` and `writes` from the merged `defaults` only when they do not state their own. An explicit empty list stays empty.
 
 ## Fields
 
 ### `defaults`
 
-| Field             | Type                  | Meaning                                                                                                                                                                                                                                                                                                                                           |
-| ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `coding_agent`    | `pi` \| `claude_code` | Which interface runs the agent. **v1 implements `pi` only**; `claude_code` is specced and stubbed in `data/claude-code-agent.ts`, landing in v2.                                                                                                                                                                                                  |
-| `model`           | string                | Model id. For Pi, any id registered in `~/.pi/agent/models.json`. Default `gemini-3.6-flash`.                                                                                                                                                                                                                                                     |
-| `thinking`        | enum                  | Reasoning effort — see below. Default `medium`.                                                                                                                                                                                                                                                                                                   |
-| `color`           | hex string            | Lane color for every agent that does not set its own. Default empty — the visualizer falls back to its own palette.                                                                                                                                                                                                                               |
-| `tools`           | list[string]          | Roster-wide tool allowlist. Every agent that omits its own `tools` inherits this. Unset = all tools usable.                                                                                                                                                                                                                                       |
-| `protected_files` | list[string]          | Paths **no** agent may touch unless it names them in its own `writes`. Shipped default: `.pi-crust/config/`, `.env*`, `**/.env*` — an agent must not be able to edit the machinery that decides whether its work passed, nor read a credentials file. `*` does not cross `/` and `**` does, so an env file needs both spellings.                  |
-| `protected`       | `{read, write}`       | What a tool call reaching one of `protected_files` gets, per direction. `block` \| `stop` \| `warn` \| `allow`. Default `block` both ways. Enforced BEFORE the call by the path-policy extension, which is why it is the only mechanism here that protects rather than reports.                                                                   |
-| `ignored`         | `{read, write}`       | The same four verbs for GITIGNORED paths, with this run's own `data_dir` exempt. Default `warn` on read, `block` on write: reading a generated file is ordinary work, while writing one produces output no diff, review or commit will ever show. Membership is git's answer (`git check-ignore`), never a second implementation of `.gitignore`. |
-| `data_dir`        | path                  | Runtime home. Sessions land at `{data_dir}/sessions/{run_id}/{agent_name}/`. Default `.pi-crust/data`.                                                                                                                                                                                                                                            |
+| Field             | Meaning                                                                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coding_agent`    | `"pi"` or `"claude_code"`; only Pi is implemented in v1.                                                                                                                     |
+| `model`           | Provider-qualified model pattern. The package ships `"anthropic/claude-haiku-5-5"`.                                                                                          |
+| `thinking`        | Provider-specific reasoning-effort string; the package ships `"max"`.                                                                                                        |
+| `color`           | Theme role or a literal colour; empty means the UI chooses.                                                                                                                  |
+| `tools`           | Tool allowlist inherited by entries without their own. The package ships `["bash", "edit", "read", "write"]`.                                                                |
+| `writes`          | Optional inherited write boundary. Entries must have a boundary after inheritance.                                                                                           |
+| `protected_files` | Paths governed before a tool call. The package ships `["pi-crust.toml", ".env*", "**/.env*"]`. Arrays replace whole, so a replacement must retain every protection you need. |
+| `protected`       | `{ read = "block", write = "block" }` by default. Verbs are `"block"`, `"stop"`, `"warn"`, `"allow"`.                                                                        |
+| `ignored`         | The same verbs for Git-ignored paths, excluding session data; default `{ read = "warn", write = "block" }`.                                                                  |
+| `data_dir`        | Session runtime home. The package ships `"{primary_worktree}/.pi-crust/data"`.                                                                                               |
 
-### `observability`
+### Database, polling and ports
 
-This block is no longer in `crust.config.yaml`. It lives in **`.pi-crust/config/crust.observe.yaml`**, beside it, which also carries the registered themes — everything about watching a run is in one file, and the roster file is about agents. `load-config.ts` reads it and merges it onto the loaded config under the key it always had, so every caller still reads `cfg.observability.db`, and a `crust.config.local.yaml` that sets `observability.poll_ms` still wins over it.
+`db` and `poll_ms` are top-level keys, and ports are a `[ports]` table. Set them in any layer: the package or machine `crust.config.toml`, or the repository's `pi-crust.toml`. Loaded callers continue to read `cfg.observability`.
 
-```yaml
-# crust.observe.yaml
-db: .pi-crust/data/crust.db
-poll_ms: 500
-ports:
-  backend: 4600
-  frontend: 4601
-default_theme: auto
-themes:
-  - name: dark
-    label: Dark
-    builtin: true
-  - name: high-contrast
-    label: High contrast
-    stylesheet: config/high-contrast.css
-```
+| Key              | Meaning                                                                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db`             | Trace database. The package ships `"{primary_worktree}/.pi-crust/data/crust.db"`.                                                                                       |
+| `poll_ms`        | Positive integer polling interval in milliseconds, default `500`. The launcher forwards it to the API, and the browser reads it from `GET /api/health` before mounting. |
+| `ports.backend`  | API port, default `4600`; a valid `CRUST_BE_PORT` wins.                                                                                                                 |
+| `ports.frontend` | Web UI port, default `4601`; a valid `CRUST_FE_PORT` wins.                                                                                                              |
 
-| Field            | Type | Meaning                                                                                                                                         |
-| ---------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `db`             | path | SQLite trace db. `trace-db.ts` writes it directly; the visualizer polls it. Default `.pi-crust/data/crust.db`.                                  |
-| `poll_ms`        | int  | Visualizer live-poll cadence in ms. History uses the same queries, lazy-paged. Default `500`.                                                   |
-| `ports.backend`  | int  | The API `observe` boots, the UI proxies to, and every run probes before printing a link. `CRUST_BE_PORT` wins. Default `4600`.                  |
-| `ports.frontend` | int  | The web app `observe` boots, and the host of the link a run prints. `CRUST_FE_PORT` wins. Default `4601`.                                       |
-| `default_theme`  | name | Which registered theme the trace UI starts on. `auto` follows the system. Default `auto`.                                                       |
-| `themes[]`       | list | Every theme the picker offers — see the observability reference. A theme is `builtin: true`, or names a `stylesheet:` relative to `.pi-crust/`. |
+The trace UI still reads theme registrations from an existing `.pi-crust/config/crust.observe.yaml`: only `themes` and `default_theme` are read there. Fresh installs use built-in themes. Theme registration is not part of the TOML loader.
 
-### `agents[]`
+### Activities, Planners and terminal entries
 
-| Field                                        | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                                       | yes      | The identifier workflow scripts use. **workflows name agents, never models.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `purpose`                                    | yes      | One sentence: what this agent is for. Should match its `system.md` Purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `prompts.system`                             | yes      | Path to the system prompt — who the agent is, its single purpose, its output contract.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `prompts.user`                               | yes      | Path to the default user prompt — the task template with `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `prompts.revise`                             | no       | Path to the prompt a revise round renders in place of `user`. When absent, `revise.md` beside `user` is used if that reference resolves to a file, and `user` otherwise.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `color`                                      | no       | Hex swatch (`"#a78bfa"`) for this agent's lane in the visualizer. Travels config → `agent_sessions.color` → `/api/sessions/:run_id`, and rides the `agent_start` event so a lane is colored while the agent is still running. Unset = the UI's fallback palette.                                                                                                                                                                                                                                                                                                                                                                       |
-| `coding_agent`, `model`, `thinking`, `color` | no       | Override the corresponding `defaults` key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `tools`                                      | no       | Allowlist. **Omitting the key means all tools usable.** A capability list, not a boundary — see `writes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `writes`                                     | **yes**  | What this agent may modify **in the repo**, and where its own document goes. Observed after every call and REPORTED, never reverted. `['*']` = unrestricted (still barred from `protected_files`). `[]` = modifies nothing. A list = only those paths: a trailing `/` is a directory prefix, `*` matches within one path segment, `**` crosses segments, `{handoff}` expands to this run's context_handoff directory, anything else is an exact path. Naming a `protected_files` path here is what unlocks it. **Required** — omitting it used to mean *unrestricted*, so the widest permission was the one granted by saying nothing. |
+Use `[activities.<name>]`, `[planners.<name>]` or `[terminal.<name>]`. Planners are the closed set `operator` and `triage`; the only terminal Activity is `gh-pull-request`. Every engine entry must be configured, and configuration cannot add a Planner or terminal kind.
 
-### The work half of an Activity
+| Field                                                 | Meaning                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coding_agent`, `model`, `thinking`, `color`, `tools` | Entry-specific settings; absent fields inherit defaults.                                                                                                                                                                                    |
+| `purpose`                                             | One sentence describing the work.                                                                                                                                                                                                           |
+| `prompts`                                             | One directory, not separate file references; see [Prompts](#prompts).                                                                                                                                                                       |
+| `writes`                                              | Required after inheritance. `["*"]` permits repository changes except protected paths; `[]` permits none; a list names exact paths, glob patterns or directory prefixes ending in `/`. `{handoff}` expands to this run's handoff directory. |
+| `hidden`                                              | Boolean, default `false`. Removes the entry from interactive selection, not from named execution.                                                                                                                                           |
+| `aliases`                                             | Activity-only alternate names, default `[]`. Names and aliases cannot collide with Activities or engine-reserved names.                                                                                                                     |
+| `output`                                              | Activity-only published envelope spec, default `"genericOutput"`. Output checks are derived from it.                                                                                                                                        |
+| `succession`                                          | Activity-only `"supersedes"` or `"annotates"`. When absent, review outputs annotate and other outputs supersede.                                                                                                                            |
+| `input`                                               | Activity-only `"upstream"` or `"changes"`, default `"upstream"`. The latter receives the run's diff since its baseline.                                                                                                                     |
+| `attempts`                                            | Activity-only positive integer, default `2`, including the first execution. Gate retries, revisions and regressions share this budget.                                                                                                      |
+| `commit`                                              | Activity-only boolean, default `false`. Commit the observed change after verification; `--commit false` can take permission away, never grant it.                                                                                           |
+| `delivery`                                            | Terminal-only inline table of optional `remote`, optional `base`, and boolean `draft` defaulting to `false`.                                                                                                                                |
 
-An Activity entry carries what the work IS as well as who performs it, because they are one thing: a Lifecycle names `plan`, and `plan` is the entry.
+A refused commit leaves work in the tree and records a warning. Delivery retries outstanding commits once and waits rather than pushing when one remains refused. No permission response reverts a developer's working tree.
 
-| Field      | Required | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `output`   | no       | The envelope spec it answers, by published name. Default `genericOutput`. A name the package does not publish is refused at load, listing the ones it does.                                                                                                                                                                                                                                                                          |
-| `input`    | no       | `upstream` (the default) or `changes` — the run's own diff since its baseline, which is what the documenter reads.                                                                                                                                                                                                                                                                                                                   |
-| `attempts` | no       | Activity Runs of ONE instance this run may spend, the first included. Default 2. A gate failure, a revise round and a regression all come out of it. Declare 1 where re-execution is expensive.                                                                                                                                                                                                                                      |
-| `commit`   | no       | Land this Activity's own change, in its envelope's `commit_message`, once every gate on it has passed. `--commit false` takes it away for a run; nothing grants it. A refused or timed-out commit raises an `uncommitted` warning without stopping the chain. A run ending in a terminal Activity retries it once before delivering; any still refused stops the run `waiting` before anything is pushed, and `--resume` retries it. |
+## Prompts
 
-Planners carry none of these: `operator` and `triage` are a closed set, their work configuration belongs to the engine, and configuration can only change who answers and how. A name under `planners:` that is not a Planner is refused at load, as is a Planner with no entry.
+An entry without `prompts` uses `prompts/<entry name>`. The directory is resolved against the prompt root of the first layer declaring that entry, even when a later layer changes its model or its relative `prompts` string. Package entries therefore keep the package root; machine-only entries use the parent of the machine configuration directory. An absolute directory is used as written.
 
-### Output checks
+Read `system.md` and `user.md` from that directory. Both are required for an Activity a run uses; validation stops before a session is minted and names each missing filename, Activity and searched directory. Listing the catalogue does not validate unused prompt files.
 
-Output checks follow from what an Activity reports: the envelope spec named by `output`. They are engine-owned, not configured in a registry entry.
+A revise round uses `revise.md` when it is a regular file, otherwise `user.md`. The package's `test-tdd` entry sets `prompts = "prompts/test"`; other package entries use their own names. No prompt lookup checks a repository's old override directory. To change shipped prompts for a team, use a package fork; a new machine-only Activity can keep its prompt pair under `~/.pi-crust/prompts/<name>/`.
 
-| What is judged                           | Checks, in order                                               |
-| ---------------------------------------- | -------------------------------------------------------------- |
-| Any Activity                             | `artifactsExist`, `filesNonEmpty`, `jsonParses`                |
-| plus, when its spec is `reviewOutput`    | `verdictConsistent`                                            |
-| plus, when its spec is `ghIssueOutput`   | `issueCreated`                                                 |
-| plus, when its spec is `diagnosisOutput` | `reproductionSupported`                                        |
-| plus, when its spec is `buildOutput`     | `diffMatchesClaims`                                            |
-| A Planner (`operatorPlanOutput`)         | `artifactsExist`, `filesNonEmpty`, `jsonParses`, `stepsValid`  |
-| A revise round                           | the artifact checks, the spec's own check, `disputesSupported` |
-| Terminal Activity `gh-pull-request`      | artifact checks inside delivery, then `pull_request_opened`    |
+## Lifecycles and listing order
 
-Every other envelope spec gets only the artifact checks. Repository [tasks](#tasks) run independently of the output checks, including on revise rounds.
+A `[lifecycles.<name>]` table has optional `description` and a `stages` array. Each stage has a non-empty `name` and exactly one non-empty string list, `serial` or `concurrent`. Both, neither, empty lists and unknown stage keys are load errors naming the lifecycle and stage. Array-of-table TOML notation is also accepted.
 
-Configuration layers that still carry `routing`, `routing.checks`, `routing.unmatched`, `routing.skills`, or per-Activity `gates` lists (including lists naming `checks`) are refused at load. This applies to empty lists and local or machine overrides too. The error identifies each obsolete setting and its file.
+Stages execute in array order. A serial Stage executes its Activities in list order; a concurrent Stage starts them together. Concurrent writes must be disjoint, and judging Activities cannot share a Stage with writers. Duplicate stage names, repeated Activities in one Stage and misplaced engine steps are refused by lifecycle validation.
+
+Activities, Planners, terminal entries and lifecycles are listed by the first layer declaring each name: package first, then machine, then repository; names within each group sort by UTF-16 code-unit comparison. Parser table order and locale do not decide this order. A patch retains its entry's original group. `hidden = true` affects selection only; `just crust list` still names the entry. Aliases resolve before planning and traces retain canonical names. Use the interactive reorder screen for a different execution order on one run.
 
 ### The engine step `import`
 
-`import` is a name configuration cannot define: neither an Activity name nor an alias may claim it. It has no roster entry, model or prompt. A Lifecycle or `--activities` chain may name it only as the first entry of a serial first Stage. The engine removes it before resolving Activities and imports the issue or markdown document the request references before any agent starts. See [Importing referenced work](handoff.md#importing-referenced-work) for reference syntax, stop conditions and the manual configuration edit for existing installations.
+`import` is not an Activity, alias, model or prompt. It may appear only first in a serial first Stage. The engine imports the issue or markdown document the request references before any agent starts. See [Importing referenced work](handoff.md#importing-referenced-work).
 
-### `terminal[]`
+## Output checks
 
-A second closed set, beside the Planners: `gh-pull-request` is the only member. A terminal Activity runs once, after a run's revise loop has settled with an accepted result, outside the fold entirely — after `runReviseLoop` returns and before `finish`. A Lifecycle may only name it as the LAST entry of its LAST Stage, and never inside a `concurrent` Stage; naming it anywhere else is refused at load, with the reason. Configuration tunes `model`, `thinking`, `color`, `tools`, `writes` and `prompts`, exactly as it tunes a Planner — it carries no `output`, `input`, `attempts` or `commit`, and cannot add a second terminal Activity. A name under `terminal:` that is not in the closed set, or a member with no entry at all, is refused at load.
+Output checks follow from the published envelope spec named by `output`; they are engine-owned, not per-entry gate lists.
 
-After delivery the engine judges `pull_request_opened`, an engine-owned gate that is not configurable. A violation fails the terminal Activity Run and the run. Before delivery the engine judges the artifact checks on the agent's report; a report that fails them twice is replaced by the trace-generated body. An outstanding refused commit, a failed `gh auth status`, or a failed push stops the run `waiting` instead: `decision-request.md` names the blocker, no answer is needed, and `--resume` retries the refused commits and delivers again. A Lifecycle ending in a terminal Activity that requires commits rejects `--commit false` at startup, before a session starts.
+| Report            | Checks                                                    |
+| ----------------- | --------------------------------------------------------- |
+| Any Activity      | `artifactsExist`, `filesNonEmpty`, `jsonParses`           |
+| `reviewOutput`    | Also `verdictConsistent`                                  |
+| `ghIssueOutput`   | Also `issueCreated`                                       |
+| `diagnosisOutput` | Also `reproductionSupported`                              |
+| `buildOutput`     | Also `diffMatchesClaims`                                  |
+| Planner           | Artifact checks and `stepsValid`                          |
+| Revise round      | Artifact checks, the spec's check and `disputesSupported` |
+| Terminal delivery | Artifact checks, then `pull_request_opened`               |
 
-Each entry also carries `delivery`, the deterministic half's own settings — where it pushes and what it opens against:
+`routing`, per-entry `gates` and a forced `override` section are refused with all removed-setting faults reported together. Repository tasks run independently of output checks, including on revise rounds.
 
-| Field             | Required | Meaning                                                                                                                                  |
-| ----------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `delivery.remote` | no       | The git remote it pushes to. Default `origin`.                                                                                           |
-| `delivery.base`   | no       | Optional base branch; see [The base branch](#the-base-branch). pi-crust refuses to push FROM this branch — it never creates one for you. |
-| `delivery.draft`  | no       | Open the pull request as a draft. Default `false`.                                                                                       |
+## Delivery
 
-#### The base branch
+```toml
+[terminal.gh-pull-request]
+delivery = { draft = false }
+```
 
-Pull request delivery, change measurement for an `input: changes` Activity, and scope ranges with an omitted left side (`...HEAD` or `..HEAD`) use one base-branch resolution order:
+A terminal Activity may appear only last in the last Stage, never in a concurrent Stage. It runs once after the chain and its review loop settle.
 
-1. An explicit `--scope` flag (`--base` is an alias). Delivery has no flag tier; a written range endpoint is an explicit choice.
-2. `delivery.base` in the `terminal` entry named `gh-pull-request`.
-3. The remote's default branch, read locally with `git symbolic-ref --quiet refs/remotes/<delivery.remote>/HEAD`.
-4. The built-in fallback, `main`.
+Delivery settings merge field by field. No shipped default configures a remote or base branch. Remote selection is:
 
-An absent or empty candidate names nothing. Without a `gh-pull-request` entry, configuration names no base and the remote is `origin`. The third tier reads only local state: it does not contact the remote or repair refs. When that record is absent, `git remote set-head <remote> --auto` records it; run that command explicitly if you want to refresh it.
+1. `delivery.remote`, when configured.
+2. Git's non-empty `remote.pushDefault`.
+3. The sole configured remote, when exactly one exists.
+4. `origin`.
 
-A recorded run start commit still precedes all four tiers for change measurement. If the resolved branch does not exist, the operation stops with a message naming the branch and the tier that supplied it, rather than substituting another ref. Change measurement and ranges require the local ref; delivery retains its preference for the remote-tracking ref over the local branch.
+A missing chosen remote is refused by name. The harness performs Git and GitHub operations; the agent drafts the title and body with read-only tools. The harness supplies the recorded Activities and Checks sections, and can fall back to a trace-generated body when drafting fails.
 
-The agent half gets `read` only and no `write` or `bash`: every git and `gh` operation — pushing the branch, finding, creating or updating the pull request — is the harness's, the way `commitActivity` already performs every commit for a `commit: true` Activity. The agent composes a title and body from the draft the harness writes to `{context_handoff_dir}/pull_request.md` before it runs; the harness owns the issue link, the `## Activities` section and the `## Checks` section, and replaces whatever the agent wrote under those with its own, computed from `TRunState`'s recorded gate outcomes, before delivering either the agent's body or, when the agent call fails or answers an empty title or body, that trace-generated draft instead.
+### The base branch
 
-## Defaults merging
+Base-branch selection is unchanged:
 
-`execute-agent.ts` merges each entry **over** `defaults`, key by key. An entry states only what differs; anything unset inherits. `validateAgents(cfg, REQUIRED_AGENTS)` then confirms every name a workflow declares exists, resolves to a usable coding agent + model, and has both prompt files present on disk. Any miss fails the run immediately — **no agent is ever spawned against a half-valid config.**
+1. An explicit `--scope` flag (`--base` is an alias); a written range endpoint is explicit. Delivery has no flag tier.
+2. `delivery.base` on `gh-pull-request`.
+3. The chosen remote's locally recorded default branch, from `refs/remotes/<remote>/HEAD`.
+4. `main`.
+
+This lookup does not contact a remote or repair refs. A run's recorded starting commit precedes these tiers for change measurement. Delivery refuses to push from the base branch and does not create a source branch for you. An outstanding refused commit, failed authentication or failed push waits for repair and resume rather than silently delivering. A terminal Lifecycle requiring commits refuses `--commit false` before startup.
+
+## Environment variables and provenance
+
+| Variable                         | Meaning                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CRUST_CONFIG`                   | Repository TOML file; `--config` wins. Default `pi-crust.toml`.                                                                                    |
+| `CRUST_PACKAGE_CONFIG`           | Directory containing the package layer's three files; normally `runtime/config/`, derived from the loader's location.                              |
+| `CRUST_MACHINE_CONFIG`           | Directory containing the machine layer's three files; normally `~/.pi-crust/config/`. It no longer names one file.                                 |
+| `CRUST_DATA_DIR`                 | Overrides `defaults.data_dir`.                                                                                                                     |
+| `CRUST_DB`                       | Overrides the database path; a supported `--db` flag wins. Does not move session directories.                                                      |
+| `CRUST_BE_PORT`, `CRUST_FE_PORT` | Valid positive port numbers override configured ports. Invalid values leave the configured value in force.                                         |
+| `CRUST_POLL_MS`                  | Launcher-to-server channel, not a user override. The launcher replaces any existing value with the loaded polling interval.                        |
+| `CRUST_HOME`                     | Package-home override; otherwise recipes use the recorded `.pi-crust/data/pi-crust-home`, including the main clone's pointer for linked worktrees. |
+| `CRUST_REGISTRY`                 | Machine-local workspace registry location; see [Observability](observability.md).                                                                  |
+
+Blank directory and path overrides read as unset. The machine home is `HOME` when present, otherwise the operating-system home directory.
+
+`just crust config` reports defaults, database, polling, ports, entry models/thinking/prompt directories, terminal delivery fields and lifecycle stage names. Each value names its repository, machine or shipped-default file, or its environment override. Inherited model and thinking fields identify the corresponding default as their source. Unset values display `(not set)`.
+
+### The `{primary_worktree}` token
+
+The package preserves history locations: `defaults.data_dir = "{primary_worktree}/.pi-crust/data"` and `db = "{primary_worktree}/.pi-crust/data/crust.db"`. The token resolves per repository to its main clone, including from linked worktrees. Without Git it falls back to the repository root; a bare repository is refused rather than writing beside it. Leading `~` expands to the user's home; absolute paths remain absolute and relative paths resolve from the repository root.
+
+`CRUST_DB` changes only the store. To locate another repository's session files as well, also set `CRUST_DATA_DIR`. Session and handoff paths, workspace registration and the package-home pointer otherwise keep their behavior. See [Centralize a Worktree's Data](../cookbooks/centralize_worktree_data.md).
 
 ## Thinking levels
 
@@ -212,70 +271,22 @@ Other consequences worth knowing:
 | `find`  | find files by glob      | **off**          |
 | `ls`    | list directory contents | **off**          |
 
-`grep`, `find`, and `ls` are off in bare Pi, so an agent that does not name them will shell out through `bash` to do the same work. The starter roster therefore sets `defaults.tools` to all seven and lets each agent narrow from there.
+`grep`, `find`, and `ls` are off in bare Pi, so an agent that does not name them will shell out through `bash` to do the same work. The package sets `defaults.tools` to `read`, `bash`, `edit` and `write`; an entry may replace that list.
 
-**Resolution order:** an agent's own `tools` list wins; an agent that omits the key inherits `defaults.tools`; if neither is set, `tools` stays `None` and all tools are usable. An empty list is not "all tools" — it is a tool-less agent, and it will stall.
+**Resolution order:** an agent's own `tools` list wins; an agent that omits the key inherits `defaults.tools`; if neither is set, `tools` stays `undefined` and all tools are usable. An empty list is not "all tools" — it is a tool-less agent, and it will stall.
 
-## Write permissions — `writes`, `protected_files`, and the path policy
+## Write permissions
 
-`tools` cannot express a safety boundary, because two of the tools are general purpose. `bash` runs anything, including `git checkout`, which discards an engineer's uncommitted work; `write` reaches any path, not only the one report file an agent was granted it for. So "this agent changes nothing" is a claim a tool list can state but never keep.
+Tool lists are capabilities, not filesystem boundaries: `bash` can run arbitrary commands. The package path-policy extension governs protected and Git-ignored paths before a tool call. Its structured read, edit and write checks are precise; shell-command inspection is best-effort. Withhold `bash` when strict path isolation is required.
 
-Two mechanisms keep what can be kept, and the difference between them is **attribution**.
+`writes` is checked against observed changes after execution. Oversteps and unreported changes are named in the terminal, trace and visualizer, never reverted: a developer can edit the same working tree while an Activity runs. Commits include only the Activity’s observed paths, not unrelated developer work.
 
-**Before the call, for a path the policy governs.** `extensions/path-policy.ts` is loaded into every agent pi-crust spawns and answers pi's `tool_call` event, which can refuse a call before it runs. `defaults.protected` governs anything matching `protected_files`; `defaults.ignored` governs anything git ignores, with this run's `data_dir` exempt. This is the only enforcement in the system that is sound, because it is the only question where pi-crust knows WHOSE action it is: a tool call belongs to the agent that issued it. It is also the only one that can protect rather than report — a secret that has been read cannot be unread, and the after-the-fact check cannot see `.env` at all, since a change-set is a diff plus untracked files and a gitignored path never appears in either.
+Session runtime and the handoff directory remain writable so every Activity can record its own result. Name handoff documents with `{handoff}`, not a particular run ID. The same declaration supplies the rendered `{{output_document}}` path.
 
-`bash` is covered best-effort only, and that limit is stated in the shipped config beside the policy: `read`, `write` and `edit` carry a structured path and are matched exactly, while a shell command is a string and `cat .env`, `grep -r KEY .` and `env > dump` are not reliably distinguishable from legitimate work. If a path must not leak, do not give that Activity `bash`.
-
-**After the call, for `writes`.** `domains/policy/src/use-cases/enforce-permissions.ts` fingerprints the working tree's change-set before an agent's first prompt and again after its last send, including JSON corrections. Any path that appeared, vanished, or changed is attributed to that agent — and comparing change-sets rather than watching writes is deliberate: a path that was modified before the agent ran and is clean afterwards has been **reverted**, and a reversion is a modification. That is what catches `git checkout`.
-
-What it does with that is report it. A breach is not a gate violation — gates are for work an agent can be asked to redo, and a write has already happened — and it is no longer a rollback either:
-
-1. nothing is reverted, deleted, restored or checked out, ever. The attribution is unsound: a developer editing the same branch while a run works is a supported way to use this tool, and `git checkout --` on their uncommitted edit has no undo. Observed once, on a developer's uncommitted `crust.config.yaml`;
-2. the paths are named, in the terminal at the end of the run, in `just crust report`, and in the visualizer, as a warning that says pi-crust cannot tell whose change it was;
-3. the Activity Run still succeeds. The run continues, and the tree is yours to settle.
-
-The same reporting covers the other direction: a path that changed during an Activity Run, was not already dirty, and was not in the Activity's own `changed_files` is named too. That comparison is what a commit is NOT built from — a commit carries only what the Activity was observed to change, so a developer's unrelated work in progress is never swept into it.
-
-```yaml
-defaults:
-  protected_files: ['.pi-crust/config/', '.env*', '**/.env*']
-  protected: { read: block, write: block }   # block | stop | warn | allow
-  ignored:   { read: warn,  write: block }   # whatever .gitignore says, minus data_dir
-
-activities:
-  - name: builder
-    writes: ['*']      # unrestricted, minus protected_files — said out loud
-  - name: scout
-    writes: ["{handoff}/scout_findings.md"]   # its findings, and nothing else
-  - name: planner
-    writes: ["{handoff}/plan.md"]   # the plan, and nothing in the repository
-  - name: documenter
-    writes: [app_docs/, docs/, "**/*.md", "*.md"]
+```toml
+[activities.reviewer]
+writes = ["{handoff}/review.md"]
 ```
-
-**The session runtime under `data_dir` is always writable, for every agent.** `context_handoff/` is how agents hand work to each other, and each agent's prompts, `raw_output.jsonl`, and `envelope.json` sit beside it. That grant comes from `data_dir` rather than from `.gitignore`: the runtime is normally ignored, so it never even appears in a snapshot, but an agent's ability to record its own work must not depend on a gitignore line someone can delete.
-
-Narrow by role, not by reflex. Anything that must produce a `context_handoff/` artifact needs `write`, or it will resort to a `bash` heredoc. Withhold `edit`/`write` only where the restriction *is* the guarantee — a reviewer that cannot edit cannot quietly fix what it was asked to report.
-
-## Where an Activity's document goes
-
-An Activity that produces a document names it in `writes`, with `{handoff}` standing for this run's context_handoff directory. That directory is per-run, and defaults to `<data_dir>/sessions/<run_id>/context_handoff`; `--handoff <path>` on `just crust run` moves WHICH directory `{handoff}` resolves to for that one run, without changing how `writes:` spells the token — a `writes` entry you declare here never names the run's own id.
-
-```yaml
-  - name: reviewer
-    writes: ["{handoff}/review.md"]
-```
-
-The prompt renders `{{output_document}}` rather than a filename, so the path the agent is told to write and the path it is permitted to write are one declaration instead of two that can disagree. Sending an Activity's output somewhere else is then a configuration change:
-
-```yaml
-  - name: reviewer
-    writes: [specs/review.md]
-```
-
-It is also what makes concurrency checkable. A Stage may only claim `strategy: concurrent` when its Activities' declared paths are disjoint, and that is a question about these lists — see the Lifecycles reference. An Activity declaring `['*']` overlaps everything and can never share a concurrent Stage.
-
-Under concurrency this list is also how a write is attributed. Permission used to be enforced by diffing the working tree across the window an Activity ran in, which blames each of two concurrent Activities for the other's work. A path a sibling declared is that sibling's.
 
 ## Stopping the run for a person
 
@@ -301,39 +312,39 @@ Every agent loads only the path policy shipped in `runtime/extensions/path-polic
 
 ## Tasks
 
-Declare repository commands under `tasks:` in `crust.config.yaml`. Tasks fire at four triggers: `on: change` after the current Unit's Activities finish and their output checks are judged, before acceptance or commit; `on: deliver` after the chain settles, before delivery or final success; `before: <activity>` before any Activity of the containing stage starts; and `after: <activity>` after every Activity in that stage settles. The same triggers apply to named Lifecycles and chains composed on the command line. Disabling commits does not disable tasks. `just crust verify` evaluates only `on: change` triggers over the working tree or an explicit `--scope`, without starting an agent or recording a run.
+Declare commands under `[tasks.<name>]` in the repository’s `pi-crust.toml`; tasks are accepted nowhere else. Tasks fire at four triggers: `on = "change"` after the current Unit's Activities finish and their output checks are judged, before acceptance or commit; `on = "deliver"` after the chain settles, before delivery or final success; `before = "<activity>"` before any Activity of the containing stage starts; and `after = "<activity>"` after every Activity in that stage settles. The same triggers apply to named Lifecycles and chains composed on the command line. Disabling commits does not disable tasks. `just crust verify` evaluates only `on = "change"` triggers over the working tree or an explicit `--scope`, without starting an agent or recording a run.
 
-```yaml
-task_config:
-  timeout_seconds: 300
+```toml
+[task_config]
+timeout_seconds = 300
 
-tasks:
-  lint:
-    when: [{ on: change }]
-    match: ["**/*.ts", "**/*.tsx"]
-    run: "<your lint command> {{changed_paths}}"
+[tasks.lint]
+when = [{ on = "change" }]
+match = ["**/*.ts", "**/*.tsx"]
+run = "<your lint command> {{changed_paths}}"
 
-  test:
-    when: [{ on: change, skip: [diagnose, test-tdd] }]
-    match: ["packages/api/**/*.ts"]
-    cwd: packages/api
-    run:
-      - "<your test command> {{changed_paths}} | <your reporter>"
-      - "<your coverage command> {{base_ref}}"
-    timeout_seconds: 600
+[tasks.test]
+when = [{ on = "change", skip = ["diagnose", "test-tdd"] }]
+match = ["packages/api/**/*.ts"]
+cwd = "packages/api"
+run = [
+  "<your test command> {{changed_paths}} | <your reporter>",
+  "<your coverage command> {{base_ref}}",
+]
+timeout_seconds = 600
 
-  verify-all:
-    when: [{ on: deliver, skip: [diagnose, test-tdd] }]
-    run: "<your full verification command>"
+[tasks.verify-all]
+when = [{ on = "deliver", skip = ["diagnose", "test-tdd"] }]
+run = "<your full verification command>"
 
-  schema:
-    when: [{ before: code-review }, { after: build }]
-    match: ["db/**"]
-    run: "<your schema check> {{changed_paths}}"
+[tasks.schema]
+when = [{ before = "code-review" }, { after = "build" }]
+match = ["db/**"]
+run = "<your schema check> {{changed_paths}}"
 ```
 
 - `task_config.timeout_seconds`: positive integer, default `300` seconds per command.
-- `tasks`: a map, empty by default. Names start with an ASCII letter and can then include ASCII letters, digits, `_`, `.`, `:` and `-`. Tasks run in declaration order; a local layer can override fields or append a task.
+- `tasks`: a map, empty by default. Names start with an ASCII letter and can then include ASCII letters, digits, `_`, `.`, `:` and `-`. Tasks run in declaration order in that one repository file.
 - `when`: a required non-empty list, with no duplicate trigger: each `on` moment once and each `before` or `after` name once. An entry has exactly one of `on`, `before`, or `after`. Only `on` accepts `skip`, which defaults to `[]`. At `change`, `skip` excludes a skipped Activity's paths. At `deliver`, it suppresses the task only when the last Activity to change repository files is skipped, and the run records the skipped task and Activity. Names are canonicalized, including aliases and numbered instances. Unknown skip names are ignored. `verify` ignores `skip` because no Activity produced the change.
 - `match`: Git-root-relative globs over changed paths that still exist. `*` does not cross `/`; `**` does. An omitted or empty list matches every existing changed path. A task with no selected paths does not run.
 - `cwd`: a directory relative to the Git root, with no `..` segment. An omitted or empty value runs at the root. Selected paths are made relative to this directory before substitution.
@@ -348,96 +359,9 @@ After a concurrent stage, a task runs once per settlement round over the union o
 
 At `before` and `deliver`, selection covers every repository path observed to change during the run, excluding session and handoff files and paths that no longer exist. A run with no repository-writing Activity runs no whole-change tasks. A failure returns to the last writer with the task output as private feedback, spends one of that instance's attempts, and reruns everything after it. A nested revision is routed to its chain writer at that review boundary. Missing destinations or exhausted attempts end the run failed with the task named and do not deliver. A failing `before` never starts its stage: if the last writer is in that stage or later after a regression, the run blocks rather than returning into it. Older traces without chain-run provenance also block when a failure cannot be routed.
 
-At `after`, only Activities whose paths the failed task selected run again, with their own Unit's entry context and task feedback. Unselected siblings do not rerun. Each retry must pass its output checks and `change` tasks before `after` is evaluated again. Both `before` and `after` match canonical Activity names or aliases and Planner names; undefined names fail configuration loading with the task, missing name, defined Activities and definition-file locations. Terminal Activities run outside stages and cannot be named by these triggers; use `on: deliver` instead. Neither trigger fires inside the revise loop's nested folds.
+At `after`, only Activities whose paths the failed task selected run again, with their own Unit's entry context and task feedback. Unselected siblings do not rerun. Each retry must pass its output checks and `change` tasks before `after` is evaluated again. Both `before` and `after` match canonical Activity names or aliases and Planner names; undefined names fail configuration loading with the task, missing name, defined Activities and definition-file locations. Terminal Activities run outside stages and cannot be named by these triggers; use `on = "deliver"` instead. Neither trigger fires inside the revise loop's nested folds.
 
 Resuming re-evaluates `deliver`; no persisted pass permits delivery without verification. `before` does not judge a stage entered entirely by replay, while `after` still evaluates its recorded paths. After a person accepts a previously rejected run, a failing `deliver` ends the run failed rather than returning automatically; repair the failure and resume again. A refused commit remains a warning retried at delivery, never task feedback, and uncommitted observed work is still verified.
-
-## Overriding the roster on one machine
-
-`crust.config.local.yaml`, beside the config it overrides, is gitignored and loaded automatically when present. `cookbooks/examples/crust.config.local.example.yaml` in the pi-crust package shows the whole surface — copy it into `.pi-crust/config/crust.config.local.yaml` in your own repository and it is in force on the next run. Nothing reads the example; it exists so a developer joining a stamped repository can see what a local layer may do without finding out by trial.
-
-The examples live in `cookbooks/` rather than in a stamped repository's own `config/` (issue #24, 1.10.1): they are documentation about the factory, not a repository's tuning, and a copy frozen in every stamp at whatever shipped first would quietly start describing keys that no longer exist. Reading the current one straight out of the package is how it stays accurate without `install.ts --force` having to refresh it per repository.
-
-It may override exactly four things, per agent or on `defaults`: `model`, `thinking`, `color`, `coding_agent`. Those are the keys that differ because a *person* differs — which models their credentials reach, how much thinking those models support, which harness they run, what colour they want a lane to be.
-
-```yaml
-# .pi-crust/config/crust.config.local.yaml — yours alone, never committed
-defaults:
-  model: openai/gpt-5.1
-
-activities:
-  - name: builder
-    model: anthropic/claude-opus-5
-    thinking: high
-  - name: scout
-    color: cyan
-```
-
-A local layer may set anything the committed file can, key by key, with the local value winning. There is no restricted subset. The restriction that used to be here — four keys, and no adding an agent — protected nothing: whoever writes the local file can equally edit the committed one, and runs the result on their own machine against their own checkout. There is no second principal to protect, and the restriction was friction in the one file whose purpose is to have none.
-
-That makes the convention yours to keep rather than the tool's to enforce. A `writes` list narrowed locally is a run behaving differently from everyone else's for a reason no reviewer can see, which is worth avoiding by choice.
-
-Adding an Activity belongs in `crust.activities.local.yaml` rather than here, because that is the registry a Lifecycle resolves names against. An Activity named here that the committed config does not have is a warning pointing at that file.
-
-Naming an agent the roster does not have is a **warning**, not an error. Names go stale when somebody renames an agent upstream, and a colleague's private file must not break your run — but the warning is printed, because a typo that quietly did nothing is the confusion this is meant to avoid.
-
-A run with a local layer in force says so on its first line, with the path. A gitignored file that silently changes which models are billed is the failure this prevents.
-
-The path follows the config in force, so `--config other.yaml` reads `other.local.yaml`.
-
-## Overriding the roster on this machine, for every repository
-
-`~/.pi-crust/config/crust.config.yaml` is a second layer, beside the repository-scoped one above: a MACHINE's answer rather than a repository's, read by every repository this machine runs pi-crust against. Its absence changes nothing — a repository that never hears about it behaves exactly as it does today. It sits beside the `workspaces.jsonl` the factory already keeps at `~/.pi-crust/` to remember which trees have run. `CRUST_MACHINE_CONFIG` overrides its path, trimmed-or-unset the same way `CRUST_CONFIG` and `CRUST_DB` already are, so the loader can be tested without writing to a home directory.
-
-It has two sections with different strength:
-
-```yaml
-# ~/.pi-crust/config/crust.config.yaml — this machine, never committed, read by every repository
-
-# Ordinary layer: my preferences. Any repository's own crust.config.yaml overrules these.
-defaults:
-  model: anthropic/claude-sonnet-5
-  thinking: high
-
-# Forced layer: these beat a repository's crust.config.yaml, deliberately.
-override:
-  defaults:
-    data_dir: "{primary_worktree}/.pi-crust/data"
-  observability:
-    db: "{primary_worktree}/.pi-crust/data/crust.db"
-```
-
-The TOP LEVEL is an ordinary layer: a repository's own `crust.config.yaml` overrules it, key by key, exactly the way `crust.config.local.yaml` overrules the committed file. `override:` is the same document shape, but it beats the repository's config instead of losing to it — visible and named, rather than a precedence rule nobody watching the two files side by side could see. The `override:` key itself is stripped before either layer reaches the schema; it is not a config key of its own.
-
-Merging happens on the RAW parsed documents, before the schema fills in its own defaults — the same reason `crust.config.local.yaml` merges the way it does (above). A key a repository's `crust.config.yaml` never mentions does not shadow the machine layer just because the schema would otherwise have filled it in.
-
-A name the machine layer sets that the repository's roster does not have is a **warning**, the same as a stale name in `crust.config.local.yaml`. The machine layer applies only to the assembled `crust.config.yaml` document — including what `crust.observe.yaml` merges into it — and never to the Activity or Lifecycle registries; those stay repository-scoped through their own `.local` files, which this adds a layer alongside rather than replaces.
-
-### The full precedence chain
-
-Strongest first:
-
-| #   | Layer                 | Where                                                             |
-| --- | --------------------- | ----------------------------------------------------------------- |
-| 1   | Command-line flag     | `--config`, `--handoff`                                           |
-| 2   | Environment           | `CRUST_CONFIG`, `CRUST_DB`, `CRUST_DATA_DIR`                      |
-| 3   | Repository, private   | `.pi-crust/config/crust.config.local.yaml`                        |
-| 4   | Machine, forced       | `~/.pi-crust/config/crust.config.yaml`, under `override:`         |
-| 5   | Repository, committed | `.pi-crust/config/crust.config.yaml` and the files merged into it |
-| 6   | Machine, ordinary     | `~/.pi-crust/config/crust.config.yaml`, top level                 |
-| 7   | Built-in              | `runtime/lib/contracts/src/config.ts`                             |
-
-Repository-wins over the ordinary machine layer, rather than the other way round, because a committed roster is the team's answer and a home directory is not a place to overrule it from silently. `override:` exists because the developer running the code can edit the repository's config anyway — the question is only whether forcing a value is *visible*, and a named section is visible where an unseen precedence rule is not.
-
-### The `{primary_worktree}` token
-
-`data_dir` and `observability.db` are the two keys this exists for, and a literal path naming one machine's home directory is wrong for every other repository on it. `{primary_worktree}` is a token that resolves PER REPOSITORY rather than a literal: it expands to `dirname($(git rev-parse --git-common-dir))`, resolved to an absolute path. In a main clone this is the clone itself; in a linked worktree (`git worktree add`) it is the main clone that worktree was branched from — the one thing a linked worktree reliably shares with its clone. When `git rev-parse --git-common-dir` fails, or the tree is not a git repository at all, the token falls back to the repository root, the same fallback `vcsRoot` already takes. A bare clone — where `--git-common-dir` names the repository itself, with no working tree at its parent — fails loudly naming the configured value and the path it expanded to, rather than writing into the directory that happens to hold the bare repository.
-
-Resolution in full, for `defaults.data_dir` and `observability.db` however they were set: expand a leading `~` to the user's home directory; expand `{primary_worktree}`; use the result unchanged when it is already absolute; otherwise resolve it against the repository root — never the shell's current directory, so the answer agrees regardless of where `just` was invoked from.
-
-For a command that locates a run, `CRUST_DATA_DIR` replaces `defaults.data_dir` and `CRUST_DB` replaces `observability.db`. `CRUST_DB` does not move the data directory: `resume`, `steer`, `ask`, `amend`, `join`, `approve`, `reject`, `answer` and `report` still look for session and handoff directories under `CRUST_DATA_DIR` or the configured `data_dir`. To consult a run from another repository using `CRUST_DB`, also set `CRUST_DATA_DIR` to its data directory. `prune` reads the `sessions` directory beside the store it was pointed at.
-
-See `cookbooks/centralize_worktree_data.md` for the worktree workflow this exists to support: configure the machine once, create worktrees freely, delete them without losing a run.
 
 ## Agent colours are theme roles
 
@@ -454,44 +378,6 @@ Each theme decides what a role looks like — `amber` is `232 182 74` on dark an
 A hex still works and is honoured verbatim. It is the escape hatch for a colour the palette does not have, and it is theme-unaware by definition: it will be whatever you wrote on every theme, and its contrast is yours to own rather than the theme's.
 
 An agent that names nothing takes a role by position, so adjacent lanes in a waterfall always differ. Twelve roles cover a roster of eighteen agents, which means two agents far apart in the list can share — distinguishable in practice, because what matters is the lanes on screen together.
-
-## What the interactive menu offers, and in what order
-
-Everything registered in `crust.activities.yaml`, in the order that file declares them, with the Lifecycles from `crust.lifecycles.yaml` above them and the Operator between. Reorder the registry to reorder the menu; nothing else records a sequence, so nothing else can drift away from the Activities that exist.
-
-`hidden: true` on an Activity keeps it out of the menu, for people who drive the factory with Lifecycles or a Planner and never pick it by hand.
-
-Hidden is not disabled, and the distinction is deliberate. A Lifecycle, a Planner and an explicit `--activities` all still run a hidden Activity. Hiding is a preference about a menu; disabling would be one developer quietly running a shorter chain than the repository agreed to.
-
-Because the flag lives on the Activity, a local layer can hide one without changing what the team ships:
-
-```yaml
-# crust.activities.local.yaml
-activities:
-  - name: security-research
-    hidden: true
-```
-
-The menu lists exactly what the registry registers. There is no second namespace of performers to bridge: an entry is named for the work, and the work IS the agent.
-
-There is no `steps` block any more. It held an `order` and a `hidden` list, and both are gone — presentation order is the registry's order, and hiding is a property of the Activity. Execution order comes from the Lifecycle, or from the chain given to `--activities`.
-
-When a chain needs a different order for one run, press `r` at the menu. That opens an ordering screen where the arrows move the cursor and `j`/`k` move the selected item.
-
-## An Activity may answer to other names, resolved before anything downstream sees them
-
-An entry in `crust.activities.yaml` (or the gitignored local layer beside it) may declare `aliases: [...]`. A human naming the Activity by one of them — on `--activities`, or in a Lifecycle's `stages[].activities` — reaches the same Activity as naming it canonically.
-
-```yaml
-# crust.activities.local.yaml
-activities:
-  - name: build
-    aliases: [b]
-```
-
-Resolution happens at exactly those two boundaries, where a human types a name, and nowhere after them. The registry, the revise loop, the attempt ledger, an activity-run row, the trace, `--resume`, `just crust list` and `just crust activity runs` see and record the canonical name only — `build`, never `b`. A Planner may not be aliased: it is chosen rather than named in a chain, so there is nothing for an alias to resolve.
-
-An alias colliding with another Activity's name, a Planner's name, or another entry's alias is refused when the registry resolves, naming both colliding entries. There is no prefix or fuzzy matching: `gh-p` stays unknown unless an entry declares it, because a name whose meaning changes the next time an Activity is added would warn nobody.
 
 ## The trust dial has four behaviours, so it has four names
 
@@ -513,4 +399,38 @@ Each level is now rendered into every agent's prompt as `{{trust_stance}}`. Befo
 
 `just crust please` offers three: low, medium, high. `none` is a debugging setting rather than a way to work, and offering it in a menu invites somebody to pick it once and conclude the whole thing is unusable. It is still there on the flag.
 
-The default is medium, set in one place — `TRUST_DEFAULT` — and overridable per developer in `crust.config.local.yaml` or for one shell with the environment variable.
+The default is medium, set by `TRUST_DEFAULT`; use the flag or `CRUST_TRUST_LEVEL` for a different trust level.
+
+## Configuration that is no longer read
+
+There is no dual-format support and no conversion command. Migrate by hand; installing again leaves the old configuration and prompt directories untouched. Preserve `.pi-crust/data/`, which contains execution history and the package-home pointer.
+
+| Old location or shape                                 | Status and hand migration                                                                                                                                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.pi-crust/config/crust.config.yaml` or `.yml`        | Not read. Move defaults into `[defaults]` and tasks into `[tasks.<name>]` in `pi-crust.toml`.                                                                                                                 |
+| `.pi-crust/config/crust.activities.yaml`              | Not read. Convert each list entry into `[activities.<name>]`, `[planners.<name>]` or `[terminal.<name>]` in the appropriate TOML layer. Usually keep only repository-specific differences in `pi-crust.toml`. |
+| `.pi-crust/config/crust.lifecycles.yaml`              | Not read. Convert entries into `[lifecycles.<name>]`, using `serial` or `concurrent` on each stage.                                                                                                           |
+| `.pi-crust/config/crust.observe.yaml`                 | The TOML loader does not read it. The trace UI still reads `themes` and `default_theme` there; move `db`, `poll_ms` and `[ports]` into a supported TOML layer.                                                |
+| Any `.local.yaml`, `.local.yml` or `.local.toml` file | Not read. Put personal preferences in the corresponding file under `~/.pi-crust/config/`. There is no private repository layer.                                                                               |
+| `~/.pi-crust/config/crust.config.yaml` or `.yml`      | Not read. Split its settings among the three TOML files under `~/.pi-crust/config/`.                                                                                                                          |
+| `CRUST_MACHINE_CONFIG` naming one file                | Not read; a notice names the variable and file. Set it to the directory holding the three TOML files.                                                                                                         |
+| `override:`                                           | Removed. Put its settings at the top level of the same TOML file. The repository now always wins over the machine for the same setting.                                                                       |
+| `prompts = { system, user, revise }`                  | Not accepted. Use one directory holding `system.md`, `user.md` and optional `revise.md`.                                                                                                                      |
+| `.pi-crust/prompts/`                                  | Not read. Shipped entries use their first-declaring layer's root, not repository prompt lookup. Change package prompts in a fork, or define a new machine Activity with prompts under `~/.pi-crust/prompts/`. |
+
+A loading command that finds legacy repository YAML files announces the directory and filenames and says they are not read. It also announces an old machine YAML file or a file-valued `CRUST_MACHINE_CONFIG`. An ignored old file never contributes settings. Unsupported keys in an active TOML file are load errors rather than silent overrides.
+
+## Examples
+
+The files under `cookbooks/examples/` are documentation, not automatically loaded configuration. Copy or merge only the settings you want:
+
+| Example                                 | Destination                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| `crust.config.machine.example.toml`     | `~/.pi-crust/config/crust.config.toml`                                         |
+| `crust.activities.machine.example.toml` | `~/.pi-crust/config/crust.activities.toml`                                     |
+| `crust.lifecycles.machine.example.toml` | `~/.pi-crust/config/crust.lifecycles.toml`                                     |
+| `crust.activities.bic.example.toml`     | Model and thinking assignments for `~/.pi-crust/config/crust.activities.toml`  |
+| `crust.activities.econ.example.toml`    | Economy model and thinking assignments for the same machine file               |
+| `pi-crust.example.toml`                 | `pi-crust.toml`, with repository commands substituted for the example commands |
+
+Package defaults are read live from `runtime/config/`. Changing the installed package updates the next command without re-stamping a repository; the installer never replaces an existing `pi-crust.toml`, even with its refresh or force flag.

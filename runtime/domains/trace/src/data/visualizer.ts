@@ -12,11 +12,16 @@
  * is not there, which is a cost worth one HTTP call rather than two.
  */
 
-import { DEFAULT_BE_PORT, DEFAULT_FE_PORT } from '../../../../lib/contracts'
+import {
+  DEFAULT_BE_PORT,
+  DEFAULT_FE_PORT,
+  DEFAULT_POLL_MS,
+  type TPiCrustConfig,
+} from '../../../../lib/contracts'
 import type { TEnv } from '../../../../lib/system'
 
 /*
- * Defined with the schema that reads them out of `crust.observe.yaml`, and
+ * Defined with the schema for the merged TOML settings, and
  * re-exported here because this is where callers have always found them.
  */
 export { DEFAULT_BE_PORT, DEFAULT_FE_PORT }
@@ -34,7 +39,7 @@ const portFrom = (value: string | undefined, fallback: number): number => {
 /*
  * The variable wins over the configured port, which wins over the default.
  *
- * `crust.observe.yaml` is the team's answer and is reviewed; CRUST_BE_PORT is
+ * TOML configuration supplies the configured value; CRUST_BE_PORT is
  * one developer's clash with something else on their machine, which is a
  * worse thing to commit than to export.
  */
@@ -47,6 +52,26 @@ export const frontendPort = (
   env: TEnv = process.env,
   configured: number = DEFAULT_FE_PORT,
 ): number => portFrom(env.CRUST_FE_PORT, configured)
+
+export type TObserveEnv = Readonly<{
+  CRUST_BE_PORT: string
+  CRUST_FE_PORT: string
+  CRUST_POLL_MS: string
+}>
+
+/** The polling variable is a launcher channel, not a user override. */
+export const observeEnv = (
+  observability: Readonly<TPiCrustConfig['observability']> | undefined,
+  env: TEnv = process.env,
+): TObserveEnv => ({
+  CRUST_BE_PORT: String(
+    backendPort(env, observability?.ports.backend ?? DEFAULT_BE_PORT),
+  ),
+  CRUST_FE_PORT: String(
+    frontendPort(env, observability?.ports.frontend ?? DEFAULT_FE_PORT),
+  ),
+  CRUST_POLL_MS: String(observability?.poll_ms ?? DEFAULT_POLL_MS),
+})
 
 /**
  * The deep link to one run, on the route the trace view already reads.

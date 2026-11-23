@@ -1,7 +1,7 @@
 import { TRUST_DEFAULT } from '../../../../lib/contracts'
 import { paint, writeLine } from '../../../../lib/terminal'
 import { loadConfig } from '../../../config'
-import { lifecyclesBeside, loadLifecycles } from '../../../planning'
+import { loadLifecycles } from '../../../planning'
 import type { TWaitingRun } from '../../../trace'
 import {
   type askMenuChoice,
@@ -104,7 +104,7 @@ export const planNewRun =
      * caller and a parameter would exist solely to be passed one level.
      */
     const cfg = loadConfig(configPath)
-    const lifecycles = loadLifecycles(lifecyclesBeside(configPath), cfg)
+    const lifecycles = loadLifecycles(cfg)
     const options = menuOptions(cfg.activities, lifecycles)
 
     const chosen = await ports.askMenuChoice('what should it do?', options, {

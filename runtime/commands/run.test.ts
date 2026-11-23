@@ -3,12 +3,13 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TCliArgs, TWorkflowArgs } from '../domains/cli'
+import { configText } from '../testing/config-document'
 import { restoreTerminal, silenceTerminal } from '../testing/terminal-capture'
 import { main } from './run'
 
 const args = (over: Partial<TWorkflowArgs>): TWorkflowArgs => ({
   prompt: 'x',
-  config: '.pi-crust/config/crust.config.yaml',
+  config: 'pi-crust.toml',
   runId: undefined,
   base: undefined,
   resume: false,
@@ -37,17 +38,19 @@ test(
       // given
       const configPath = join(
         mkdtempSync(join(tmpdir(), 'crust-compose-main-')),
-        'crust.config.yaml',
+        'pi-crust.toml',
       )
       writeFileSync(
         configPath,
-        [
-          'activities:',
-          '  - name: identify',
-          "    purpose: 'Do the identify work and report it'",
-          '    prompts: { system: s.md, user: u.md }',
-          '',
-        ].join('\n'),
+        configText({
+          activities: [
+            {
+              name: 'identify',
+              purpose: 'Do the identify work and report it',
+              prompts: '.',
+            },
+          ],
+        }),
       )
       const original = process.stderr.write.bind(process.stderr)
       let printed = ''
@@ -88,17 +91,19 @@ test(
       // given
       const configPath = join(
         mkdtempSync(join(tmpdir(), 'crust-compose-run-from-cli-')),
-        'crust.config.yaml',
+        'pi-crust.toml',
       )
       writeFileSync(
         configPath,
-        [
-          'activities:',
-          '  - name: identify',
-          "    purpose: 'Do the identify work and report it'",
-          '    prompts: { system: s.md, user: u.md }',
-          '',
-        ].join('\n'),
+        configText({
+          activities: [
+            {
+              name: 'identify',
+              purpose: 'Do the identify work and report it',
+              prompts: '.',
+            },
+          ],
+        }),
       )
       const original = process.stderr.write.bind(process.stderr)
       let printed = ''

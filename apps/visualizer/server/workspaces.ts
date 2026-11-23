@@ -25,7 +25,7 @@ export type TWorkspace = Readonly<{
   dbPath: string
   /**
    * Absolute path to the working tree the database belongs to \u2014 the
-   * directory holding `.pi-crust/config/`.
+   * repository root holding pi-crust.toml, independently of the store location.
    *
    * Carried rather than derived, because `data_dir` is relocatable: a pooled
    * store puts the db at `<clone>/.pi-crust/data/issues/41/crust.db`, two

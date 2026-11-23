@@ -1,9 +1,6 @@
-import { readFileSync } from 'node:fs'
 import { fail, succeed } from '../../../../lib/typedefs'
-import {
-  activitiesFileSchema,
-  importSourceSchema,
-} from '../../../lib/contracts'
+import { importSourceSchema } from '../../../lib/contracts'
+import { shippedConfig } from '../../../testing/shipped-layer'
 import type {
   TImportPorts,
   TIssueComment,
@@ -11,11 +8,7 @@ import type {
 } from './typedefs/work-source'
 import type { TImportParams } from './use-cases/import-work'
 
-export const activities = activitiesFileSchema.parse(
-  Bun.YAML.parse(
-    readFileSync('templates/stamp/config/crust.activities.yaml', 'utf8'),
-  ),
-).activities
+export const activities = shippedConfig().activities
 export const section = (label: string, text: string) =>
   `---\n> _Handoff: ${label}_\n---\n\n${text}\n`
 export const end = '---\n> _End of handoffs_\n---\n'

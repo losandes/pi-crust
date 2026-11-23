@@ -182,7 +182,7 @@ test(
         '--db',
         dbPath,
         '--config',
-        join(dir, 'missing.config.yaml'),
+        join(dir, 'missing.config.toml'),
       ])
 
       // then
@@ -219,7 +219,7 @@ test(
         '--db',
         dbPath,
         '--config',
-        join(dir, 'missing.config.yaml'),
+        join(dir, 'missing.config.toml'),
       ])
 
       // then
@@ -256,7 +256,7 @@ test(
         '--db',
         dbPath,
         '--config',
-        join(dir, 'missing.config.yaml'),
+        join(dir, 'missing.config.toml'),
       ])
 
       // then
@@ -298,7 +298,7 @@ test(
         '--db',
         dbPath,
         '--config',
-        join(dir, 'missing.config.yaml'),
+        join(dir, 'missing.config.toml'),
       ])
 
       // then — no recorded invocation at `sessionDir`, so it falls back cleanly

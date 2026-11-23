@@ -6,7 +6,8 @@ export {
   configPathFromEnv,
   dataDirFromEnv,
   dbPathFromEnv,
-  machineConfigPathFromEnv,
+  machineConfigDirFromEnv,
+  packageConfigDirFromEnv,
 } from './src/env-overrides'
 export {
   appendText,

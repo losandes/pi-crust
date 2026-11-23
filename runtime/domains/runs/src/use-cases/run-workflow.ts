@@ -400,11 +400,6 @@ export const runWorkflow = async (
      * boundaries differ from the committed roster, with nothing on screen
      * saying so, is a run whose trace cannot be compared with anyone else's.
      */
-    if (loaded.localPath !== '') {
-      run.console.note(
-        `local config in force: ${loaded.localPath} (not in git)`,
-      )
-    }
     if (loaded.machinePath !== '') {
       run.console.note(
         `machine config in force: ${loaded.machinePath} (not in git, not this repository)`,
@@ -418,7 +413,7 @@ export const runWorkflow = async (
     }
     /*
      * 1.1.8: a run whose resolved data_dir did not come from this
-     * repository's own crust.config.yaml says so, once, at run start — the
+     * repository's own pi-crust.toml says so, once, at run start — the
      * provenance a developer needs to tell "my repository put it here" from
      * "the machine layer or CRUST_DATA_DIR put it somewhere else".
      */

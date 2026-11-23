@@ -1,22 +1,9 @@
 #!/usr/bin/env bun
 
-/**
- * pi-crust Show-Config — every effective config value, with the file that set it.
- *
- * Usage:
- *     just crust config [--config <path>]
- *
- * Issue #24, 1.2.10: `loadConfigWithNotes` already reports which layers were
- * found (`localPath`, `machinePath`) and each warning a layer raised; this is
- * the recipe that prints the other half — each VALUE, not only which files
- * contributed one. The `.local` layer's protection is that it sits beside
- * the config it overrides, where a developer reviewing a diff sees it; a
- * file in the home directory has no such property, so provenance has to be
- * askable on demand, which is what this is for.
- */
+/** Report effective TOML settings and the package, machine, repository or environment source of each. */
 
 import { errorMessage, safeParseSettlement } from '../../lib/typedefs'
-import { configProvenance } from '../domains/config'
+import { configProvenance, loadConfigWithNotes } from '../domains/config'
 import { DEFAULT_CONFIG_PATH } from '../lib/contracts'
 import { configPathFromEnv } from '../lib/system'
 import { paint, writeLine } from '../lib/terminal'
@@ -30,12 +17,20 @@ const flagValue = (
 }
 
 const formatted = (value: unknown): string =>
-  Array.isArray(value) ? `[${value.join(', ')}]` : String(value)
+  value === undefined
+    ? '(not set)'
+    : Array.isArray(value)
+      ? `[${value.join(', ')}]`
+      : String(value)
 
 export const main = (argv: readonly string[]): number => {
   const configPath =
     flagValue(argv, '--config') ?? configPathFromEnv() ?? DEFAULT_CONFIG_PATH
-  const settled = safeParseSettlement(() => configProvenance(configPath))
+  const settled = safeParseSettlement(() => {
+    for (const notice of loadConfigWithNotes(configPath).warnings)
+      process.stderr.write(`pi-crust: ${notice}\n`)
+    return configProvenance(configPath)
+  })
   if (settled.status === 'error') {
     writeLine(paint(errorMessage(settled.error), 'red'))
     return 1

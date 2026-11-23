@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { configText } from '../../../../testing/config-document'
 import { parseDecideArgs } from '../../../cli'
 import { decideRun } from '../../../runs'
 
@@ -44,18 +45,17 @@ const acceptanceFixture = (
   const changedFile = join(dir, 'retention.ts')
   writeFileSync(changedFile, 'export const retention = 30\n')
   const system = join(dir, 'system.md')
-  const user = join(dir, 'user.md')
   const terminal = {
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver work',
-    prompts: { system, user },
+    prompts: dirname(system),
     writes: [],
   }
-  const config = join(dir, 'acceptance.config.yaml')
+  const config = join(dir, 'acceptance.config.toml')
   writeFileSync(
     config,
-    Bun.YAML.stringify({
+    configText({
       ...run.cfg,
       defaults: { ...run.cfg.defaults, data_dir: dir },
       agents: [...run.cfg.agents, terminal],
@@ -101,6 +101,8 @@ const acceptanceFixture = (
     defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'topic',
+    pushDefault: () => '',
+    remotes: () => [],
     remoteExists: () => true,
     baseRef: () => 'main',
     commitsAhead: () => 1,

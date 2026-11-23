@@ -18,7 +18,7 @@ import { runnableActivities, unknownActivities } from './resolve-activities'
 const activity = activityConfigSchema.parse({
   name: 'build',
   output: 'buildOutput',
-  prompts: { system: 'system.md', user: 'user.md' },
+  prompts: '.',
 })
 for (const { chain, concurrent, count, message } of [
   { chain: ['import', 'build'], concurrent: false, count: 0, message: '' },

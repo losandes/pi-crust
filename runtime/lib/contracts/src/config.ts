@@ -1,5 +1,5 @@
 /**
- * The agent roster: `crust.config.yaml` parsed into concrete types.
+ * The agent roster: `pi-crust.toml` parsed into concrete types.
  *
  * Config says who an agent IS. How it is USED — the output type, the per-call
  * user prompt — lives at the workflow call site, never here.
@@ -13,23 +13,20 @@ import {
   DEFAULT_MODEL,
   isTerminalName,
   plannerConfigSchema,
-  promptsSchema,
   terminalConfigSchema,
 } from './activity'
+import { lifecycleConfigSchema } from './lifecycle'
 import { hasQuotedTaskVariable } from './task-command'
 
-export type { TCodingAgent, TPrompts } from './activity'
-export {
-  CODING_AGENTS,
-  DEFAULT_MODEL,
-  promptsSchema,
-} from './activity'
+export type { TCodingAgent } from './activity'
+export { CODING_AGENTS, DEFAULT_MODEL } from './activity'
 
 export const DEFAULT_DATA_DIR = '.pi-crust/data'
 export const DEFAULT_DB = '.pi-crust/data/crust.db'
-export const DEFAULT_CONFIG_PATH = '.pi-crust/config/crust.config.yaml'
+export const DEFAULT_CONFIG_PATH = 'pi-crust.toml'
 export const DEFAULT_BE_PORT = 4600
 export const DEFAULT_FE_PORT = 4601
+export const DEFAULT_POLL_MS = 500
 
 export const agentConfigSchema = z.object({
   name: z.string(),
@@ -40,7 +37,7 @@ export const agentConfigSchema = z.object({
   /** hex swatch for this agent's lane in the UI */
   color: z.string().default(''),
   purpose: z.string().default(''),
-  prompts: promptsSchema,
+  prompts: z.string(),
   /**
    * Kept out of interactive menus. Described in full on the Activity schema
    * in `activity.ts`, which is the canonical definition; this mirrors it so
@@ -122,13 +119,9 @@ export const configDefaultsSchema = z.object({
   tools: z.array(z.string()).optional(),
   // Off-limits to every agent that has not named them in its own `writes`.
   //
-  // `config/` alone, because that is all of the factory a repository still
-  // holds: the runtime ships with the package, outside the tree an agent can
-  // reach by a relative path at all. The earlier default also listed
-  // `modules/`, `stages/`, `lifecycles/` and `package.json`, which the
-  // installer now deletes on sight — a default defending paths that cannot
-  // exist reads as protection and provides none.
-  protected_files: z.array(z.string()).default(['.pi-crust/config/']),
+  // The repository's TOML file holds the tasks that judge an Activity's work.
+  // Runtime code and prompts ship with the package, outside the target tree.
+  protected_files: z.array(z.string()).default(['pi-crust.toml']),
   /**
    * What a tool call reaching one of `protected_files` gets.
    *
@@ -173,15 +166,10 @@ export type TObservabilityPorts = Readonly<
   z.infer<typeof observabilityPortsSchema>
 >
 
-/**
- * Everything about watching a run, read from `crust.observe.yaml` beside the
- * config rather than from a block inside it — see `load-config`. It stays a
- * key on the loaded config so that every caller still reads
- * `cfg.observability.db`.
- */
+/** Top-level TOML db, poll_ms and ports, assembled under the existing reader API. */
 export const observabilityConfigSchema = z.object({
   db: z.string().default(DEFAULT_DB),
-  poll_ms: z.number().int().default(500),
+  poll_ms: z.number().int().positive().default(DEFAULT_POLL_MS),
   ports: observabilityPortsSchema.prefault({}),
 })
 export type TObservabilityConfig = Readonly<
@@ -265,6 +253,7 @@ export const crustConfigSchema = z.object({
   planners: z.array(plannerConfigSchema).default([]),
   /** the closed set of terminal Activities, tuned by configuration and never extended */
   terminal: z.array(terminalConfigSchema).default([]),
+  lifecycles: z.array(lifecycleConfigSchema).default([]),
 })
 export type TPiCrustConfig = Readonly<z.infer<typeof crustConfigSchema>>
 
@@ -284,15 +273,15 @@ export const taskTriggerFaults = (
       if ('on' in trigger) return []
       const kind = 'before' in trigger ? 'before' : 'after'
       const name = 'before' in trigger ? trigger.before : trigger.after
-      const prefix = `task '${task}': \`${kind}: ${name}\``
+      const prefix = `task '${task}': \`${kind} = "${name}"\``
       if (isTerminalName(name))
         return [
-          `${prefix} names a terminal Activity, which runs outside every stage; use \`on: deliver\` to run a task before it. Defined Activities: ${defined}.`,
+          `${prefix} names a terminal Activity, which runs outside every stage; use \`on = "deliver"\` to run a task before it. Defined Activities: ${defined}.`,
         ]
       return names.includes(name)
         ? []
         : [
-            `${prefix} names an Activity this machine does not define. Defined Activities: ${defined}. Define an Activity under \`activities:\` in crust.activities.yaml beside this configuration, or in crust.activities.local.yaml for this machine only.`,
+            `${prefix} names an Activity this machine does not define. Defined Activities: ${defined}. Define an Activity under \`[activities.<name>]\` in crust.activities.toml or pi-crust.toml.`,
           ]
     }),
   )

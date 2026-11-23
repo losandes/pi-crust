@@ -33,8 +33,6 @@
 import { z } from 'zod'
 import { isImportName, isTerminalName } from './activity'
 
-export const DEFAULT_LIFECYCLES_PATH = '.pi-crust/config/crust.lifecycles.yaml'
-
 export const STAGE_STRATEGIES = ['serial', 'concurrent'] as const
 export type TStageStrategy = (typeof STAGE_STRATEGIES)[number]
 
@@ -60,16 +58,61 @@ export const lifecycleConfigSchema = z.object({
 })
 export type TLifecycleConfig = Readonly<z.infer<typeof lifecycleConfigSchema>>
 
-export const lifecyclesFileSchema = z.object({
-  lifecycles: z.array(lifecycleConfigSchema).default([]),
-})
-export type TLifecyclesFile = Readonly<z.infer<typeof lifecyclesFileSchema>>
-
 /** What is wrong with a Lifecycle, in the words a developer needs to fix it. */
 export type TLifecycleFault = Readonly<{
   lifecycle: string
   message: string
 }>
+
+export const writtenStageSchema = z.strictObject({
+  name: z.string().min(1),
+  serial: z.array(z.string().min(1)).min(1).optional(),
+  concurrent: z.array(z.string().min(1)).min(1).optional(),
+})
+export type TWrittenStage = Readonly<z.infer<typeof writtenStageSchema>>
+
+export const writtenStageFaults = (
+  lifecycle: string,
+  stages: unknown,
+): readonly TLifecycleFault[] => {
+  const fault = (message: string): TLifecycleFault => ({ lifecycle, message })
+  if (!Array.isArray(stages))
+    return [fault('stages must be an array of stage tables')]
+  return stages.flatMap((value: unknown, i: number) => {
+    const parsed = z.record(z.string(), z.unknown()).safeParse(value)
+    const stage = parsed.success ? parsed.data : {}
+    const named = typeof stage.name === 'string' && stage.name.length > 0
+    const label = named ? `stage '${stage.name}'` : `stage at position ${i}`
+    const serial = Object.hasOwn(stage, 'serial')
+    const concurrent = Object.hasOwn(stage, 'concurrent')
+    const key = serial ? 'serial' : 'concurrent'
+    return [
+      ...(named ? [] : [fault(`${label} has no name`)]),
+      ...(serial === concurrent
+        ? [
+            fault(
+              `${label} names ${serial ? 'both' : 'neither'} serial ${serial ? 'and' : 'nor'} concurrent; a stage names exactly one`,
+            ),
+          ]
+        : z.array(z.string().min(1)).min(1).safeParse(stage[key]).success
+          ? []
+          : [fault(`${label} lists no Activities under ${key}`)]),
+      ...Object.keys(stage)
+        .filter((field) => !['name', 'serial', 'concurrent'].includes(field))
+        .map((field) =>
+          fault(
+            `${label} has the key '${field}'; a stage holds name and one of serial or concurrent`,
+          ),
+        ),
+    ]
+  })
+}
+
+export const stageFromWritten = (stage: TWrittenStage): TStage => ({
+  name: stage.name,
+  strategy: stage.serial === undefined ? 'concurrent' : 'serial',
+  activities: stage.serial ?? stage.concurrent ?? [],
+})
 
 /**
  * Two Stages with one name.

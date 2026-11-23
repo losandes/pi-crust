@@ -1,5 +1,77 @@
 import { expect, test } from 'bun:test'
-import { crustConfigSchema } from './config'
+import { crustConfigSchema, DEFAULT_POLL_MS, taskTriggerFaults } from './config'
+
+for (const poll_ms of [0, -5, 2.5]) {
+  test(
+    [
+      `given @SC19 a polling interval of ${poll_ms}`,
+      'when parsing configuration',
+      'it should reject non-positive or non-integer intervals',
+    ].join(', '),
+    () => {
+      // given
+      const document = { observability: { poll_ms } }
+      // when
+      const actual = crustConfigSchema.safeParse(document)
+      // then
+      expect(actual.success).toBe(false)
+      expect(DEFAULT_POLL_MS).toBe(500)
+    },
+  )
+}
+
+for (const [trigger, expected] of [
+  [{ on: 'change', skip: ['unknown'] }, ''],
+  [{ before: 'builder' }, ''],
+  [{ after: 'operator' }, ''],
+  [{ before: 'missing' }, 'before = "missing"'],
+  [{ after: 'missing' }, 'after = "missing"'],
+  [{ before: 'gh-pull-request' }, 'on = "deliver"'],
+] as const) {
+  test(
+    [
+      `given a task trigger ${JSON.stringify(trigger)}`,
+      'when validating references against the merged roster',
+      'it should accept canonical names and aliases and explain invalid TOML references',
+    ].join(', '),
+    () => {
+      // given
+      const cfg = crustConfigSchema.parse({
+        activities: [{ name: 'build', prompts: '.', aliases: ['builder'] }],
+        planners: [{ name: 'operator', prompts: '.' }],
+        tasks: { verify: { when: [trigger], run: 'true' } },
+      })
+      // when
+      const actual = taskTriggerFaults(cfg)
+      // then
+      if (expected === '') expect(actual).toEqual([])
+      else expect(actual.join('\n')).toContain(expected)
+    },
+  )
+}
+
+test(
+  [
+    'given no defined Activities and an invalid path policy',
+    'when validating configuration',
+    'it should name the absent roster and explain permitted policy verbs',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = crustConfigSchema.parse({
+      tasks: { verify: { when: [{ before: 'missing' }], run: 'true' } },
+    })
+    // when
+    const faults = taskTriggerFaults(cfg)
+    const invalid = crustConfigSchema.safeParse({
+      defaults: { protected: { read: 'deny' } },
+    })
+    // then
+    expect(faults.join('\n')).toContain('Defined Activities: (none)')
+    expect(invalid.success).toBe(false)
+    expect(invalid.error?.message).toContain('deny is not a path policy')
+  },
+)
 
 const task = { when: [{ on: 'change' }], run: 'true' }
 

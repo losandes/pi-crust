@@ -40,7 +40,12 @@ export const dbPathFromEnv = (env: TEnv = process.env): string | undefined =>
 export const dataDirFromEnv = (env: TEnv = process.env): string | undefined =>
   trimmedOrUndefined(env.CRUST_DATA_DIR)
 
-/** `CRUST_MACHINE_CONFIG`, when it names something — overrides the machine config file's path (1.2.8). */
-export const machineConfigPathFromEnv = (
+/** Directory holding this machine's three TOML configuration files. */
+export const machineConfigDirFromEnv = (
   env: TEnv = process.env,
 ): string | undefined => trimmedOrUndefined(env.CRUST_MACHINE_CONFIG)
+
+/** Directory holding the package's three TOML configuration files. */
+export const packageConfigDirFromEnv = (
+  env: TEnv = process.env,
+): string | undefined => trimmedOrUndefined(env.CRUST_PACKAGE_CONFIG)

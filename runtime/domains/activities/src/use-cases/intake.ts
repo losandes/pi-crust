@@ -31,9 +31,8 @@ import { contextEnvelopeSchema } from '../../../../lib/contracts'
  *
  * Every Activity's `## Report` block spells an unfilled value one way: angle
  * brackets around prose — `<one sentence: what is happening and why>`.
- * Matching that SHAPE covers every Activity, including ones whose prompts a
- * repository has overridden under `.pi-crust/prompts`, which a
- * list of literal template strings cannot.
+ * Matching that shape covers package, machine and repository-defined Activities
+ * without enumerating the literal placeholder prose in their prompt directories.
  *
  * Whitespace inside the brackets is what separates a placeholder from code a
  * summary legitimately quotes: `Promise<void>` and `Array<string>` have none.

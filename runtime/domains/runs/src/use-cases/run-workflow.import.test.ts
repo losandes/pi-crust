@@ -9,9 +9,11 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { activitiesFileSchema, type TStage } from '../../../../lib/contracts'
+import { dirname, join } from 'node:path'
+import type { TStage } from '../../../../lib/contracts'
+import { configText, tomlText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -34,13 +36,9 @@ const fixture = () => {
     data: process.env.CRUST_DATA_DIR ?? '',
     registry: process.env.CRUST_REGISTRY ?? '',
   }
-  const shipped = readFileSync(
-    'templates/stamp/config/crust.activities.yaml',
-    'utf8',
+  const registry = shippedConfig().activities.filter(
+    (activity) => activity.name !== 'build',
   )
-  const registry = activitiesFileSchema
-    .parse(Bun.YAML.parse(shipped))
-    .activities.filter((activity) => activity.name !== 'build')
   silenceTerminal()
   process.chdir(dir)
   execFileSync('git', ['init', '-q', '-b', 'test'], { cwd: dir })
@@ -63,21 +61,20 @@ const fixture = () => {
     { cwd: dir },
   )
   // biome-ignore lint/plugin/no-object-mutation: the fixture owns the process environment consumed by the config boundary
-  process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine.yaml')
+  process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine')
   // biome-ignore lint/plugin/no-object-mutation: the fixture owns the process environment consumed by the config boundary
   process.env.CRUST_DATA_DIR = ''
   // biome-ignore lint/plugin/no-object-mutation: the fixture owns the registry destination
   process.env.CRUST_REGISTRY = join(dir, 'registry.jsonl')
   const data = join(dir, 'data')
-  const config = join(dir, 'crust.config.yaml')
+  const config = join(dir, 'pi-crust.toml')
   const system = join(dir, 'system.md')
   const user = join(dir, 'user.md')
   writeFileSync(system, 'system')
   writeFileSync(user, 'user')
-  writeFileSync(join(dir, 'shipped.yaml'), shipped)
   writeFileSync(
     config,
-    Bun.YAML.stringify({
+    configText({
       defaults: { data_dir: data },
       observability: { db: join(data, 'crust.db') },
       agents: [
@@ -87,7 +84,7 @@ const fixture = () => {
           model: 'test/model',
           tools: [],
           writes: [],
-          prompts: { system, user },
+          prompts: dirname(system),
         },
       ],
       activities: [
@@ -99,7 +96,7 @@ const fixture = () => {
           model: 'test/model',
           tools: [],
           writes: [],
-          prompts: { system, user },
+          prompts: dirname(system),
         },
       ],
     }),
@@ -366,13 +363,21 @@ test.skipIf(SKIP_INTEGRATION)(
   async () => {
     // given
     using given = fixture()
-    const path = join(given.dir, 'lifecycles.yaml')
+    const path = given.args.config
+    const repository = Bun.TOML.parse(readFileSync(path, 'utf8'))
     writeFileSync(
       path,
-      'lifecycles:\n  - name: ship-to-plan\n    stages:\n      - name: deliver\n        strategy: serial\n        activities: [import, build]\n',
+      tomlText({
+        ...repository,
+        lifecycles: {
+          'ship-to-plan': {
+            stages: [{ name: 'deliver', serial: ['import', 'build'] }],
+          },
+        },
+      }),
     )
     // when
-    const loaded = loadLifecycles(path, loadConfig(given.args.config))
+    const loaded = loadLifecycles(loadConfig(given.args.config))
     await given.run(loaded[0]?.stages ?? [])
     // then
     expect(given.received[0]?.previous_envelope).toContain('plan.md')

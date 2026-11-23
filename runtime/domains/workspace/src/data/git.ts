@@ -102,6 +102,15 @@ export const gitOutput = (args: readonly string[], cwd?: string): string => {
   return result.status === 0 ? result.stdout : ''
 }
 
+export const pushDefaultRemote = (cwd?: string): string =>
+  gitOutput(['config', '--get', 'remote.pushDefault'], cwd).trim()
+
+export const remoteNames = (cwd?: string): readonly string[] =>
+  gitOutput(['remote'], cwd)
+    .split('\n')
+    .map((name) => name.trim())
+    .filter(Boolean)
+
 export const headAt = (cwd: string): string =>
   gitOutput(['rev-parse', '--verify', 'HEAD'], cwd).trim()
 
@@ -153,7 +162,8 @@ export const isRepo = (cwd?: string): boolean =>
 /**
  * Absolute root of the WORKSPACE — where agents are spawned to work.
  *
- * The directory holding `.pi-crust/`, found by walking up from the process cwd.
+ * The directory holding `pi-crust.toml` or an existing `.pi-crust/` stamp,
+ * found by walking up from the process cwd.
  * NOT the git toplevel, which was the original implementation and is wrong
  * wherever a workspace is nested inside a larger repository: given a workspace
  * at `<repo>/workspace/`, the git root is `<repo>`, so every agent is spawned
@@ -170,7 +180,10 @@ export const isRepo = (cwd?: string): boolean =>
 export const repoRoot = (): string => {
   const start = resolve(process.cwd())
   const walk = (dir: string): string | undefined => {
-    if (existsSync(join(dir, '.pi-crust'))) {
+    if (
+      existsSync(join(dir, 'pi-crust.toml')) ||
+      existsSync(join(dir, '.pi-crust'))
+    ) {
       return dir
     }
     const parent = dirname(dir)

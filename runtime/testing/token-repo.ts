@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path'
 import { createTracer } from '../domains/trace'
 import { activityRunParams, agentConfigSchema } from '../lib/contracts'
 import type { TEnv } from '../lib/system'
+import { configText } from './config-document'
 
 export const tokenRepo = (
   options: Readonly<{
@@ -34,22 +35,19 @@ export const tokenRepo = (
     : join(configuredData, 'crust.db')
   const runId = 'aaaa1111'
   const sessionDir = join(dataDir, 'sessions', runId)
-  const configPath = join(root, 'fixture.config.yaml')
+  const configPath = join(root, 'fixture.pi-crust.toml')
   const prefix = options.relative ? '' : '{primary_worktree}/'
   mkdirSync(join(sessionDir, 'builder', 'pi_sessions'), { recursive: true })
   mkdirSync(join(sessionDir, 'context_handoff'), { recursive: true })
   writeFileSync(
     configPath,
-    JSON.stringify({
+    configText({
       defaults: {
         data_dir: options.separateData ? dataDir : `${prefix}.pi-crust/data`,
       },
-      observability: {
-        db: options.separateData
-          ? join(configuredData, 'crust.db')
-          : `${prefix}.pi-crust/data/crust.db`,
-      },
-      agents: [],
+      db: options.separateData
+        ? join(configuredData, 'crust.db')
+        : `${prefix}.pi-crust/data/crust.db`,
     }),
   )
   writeFileSync(
@@ -89,7 +87,7 @@ export const tokenRepo = (
     agentConfigSchema.parse({
       name: 'builder',
       model: 'test/model',
-      prompts: { system: 'system.md', user: 'user.md' },
+      prompts: '.',
       writes: [],
     }),
     'fixture-session',
@@ -120,7 +118,7 @@ export const tokenRepo = (
   const env: TEnv = {
     ...process.env,
     CRUST_CONFIG: configPath,
-    CRUST_MACHINE_CONFIG: '/nonexistent/crust-machine-config.yaml',
+    CRUST_MACHINE_CONFIG: '/nonexistent/crust-machine-config',
     CRUST_DB: options.overrideDb ? dbPath : '',
     CRUST_DATA_DIR: options.overrideData ? dataDir : '',
     PI_PATH: join(root, 'fake-pi'),

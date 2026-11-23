@@ -5,9 +5,48 @@ import {
   DEFAULT_BE_PORT,
   DEFAULT_FE_PORT,
   frontendPort,
+  observeEnv,
   runLink,
   visualizerIsUp,
 } from './visualizer'
+
+for (const configured of [false, true]) {
+  test(
+    [
+      `given @SC19 ${configured ? 'configured' : 'default'} observability settings`,
+      'when building the trace UI environment',
+      'it should forward polling settings, ignore an exported polling value and preserve valid port overrides',
+    ].join(', '),
+    () => {
+      // given
+      const observability = configured
+        ? {
+            db: 'fixture.db',
+            poll_ms: 250,
+            ports: { backend: 4700, frontend: 4701 },
+          }
+        : undefined
+      // when
+      const actual = observeEnv(observability, {
+        CRUST_POLL_MS: '999',
+        CRUST_BE_PORT: '4800',
+        CRUST_FE_PORT: 'invalid',
+      })
+      const defaults = observeEnv(undefined, {})
+      // then
+      expect(actual).toEqual({
+        CRUST_BE_PORT: '4800',
+        CRUST_FE_PORT: configured ? '4701' : '4601',
+        CRUST_POLL_MS: configured ? '250' : '500',
+      })
+      expect(defaults).toEqual({
+        CRUST_BE_PORT: '4600',
+        CRUST_FE_PORT: '4601',
+        CRUST_POLL_MS: '500',
+      })
+    },
+  )
+}
 
 const answering =
   (body: unknown, ok = true): TFetch =>
@@ -146,7 +185,7 @@ test(
 test(
   [
     'given data/visualizer::backendPort',
-    'when crust.observe.yaml names a port and nothing is exported',
+    'when TOML configuration names a port and nothing is exported',
     'it should use the committed answer rather than the shipped default',
   ].join(', '),
   () => {

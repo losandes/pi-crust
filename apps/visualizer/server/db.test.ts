@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite'
-import { afterEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -22,7 +22,7 @@ import {
  * duplicated from the shared resolver rather than imported — the server and
  * the factory are separate packages). `{primary_worktree}` is deliberately
  * NOT expanded here: that token exists for a value stated in a repository's
- * own `crust.config.yaml`, not for a flag or environment variable a single
+ * own `pi-crust.toml`, not for a flag or environment variable a single
  * developer types at a shell, which is all this function ever sees.
  */
 
@@ -90,22 +90,11 @@ test(
   },
 )
 
-/**
- * Temporary fixture databases, removed between tests — every test that opens
- * one through `fixtureDbPath()` creates a fresh temporary directory (1.1.5)
- * and tracks it here rather than writing inside the repository.
- */
-const created = new Set<string>()
-const track = (path: string): string => {
-  created.add(path)
-  return path
-}
-
-afterEach(() => {
-  for (const path of created) {
-    rmSync(dirname(path), { recursive: true, force: true })
-  }
-  created.clear()
+/** Each test owns and disposes its temporary database directory. */
+const databaseFixture = (path: string) => ({
+  path,
+  [Symbol.dispose]: () =>
+    rmSync(dirname(path), { recursive: true, force: true }),
 })
 
 /** agent_sessions, envelopes and gate_results: raw inserts, each used by one test. */
@@ -224,7 +213,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertAgentEndEvent(
       path,
@@ -251,7 +241,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertAgentEndEvent(path, 'r1', '{not json')
     const db = new PiCrustDb(path)
@@ -272,7 +263,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertAgentEndEvent(path, 'r1', JSON.stringify({ model: 'sonnet' }))
     const db = new PiCrustDb(path)
@@ -293,7 +285,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     const db = new PiCrustDb(path)
 
@@ -319,7 +312,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     const db = new PiCrustDb(path)
 
     // when
@@ -339,7 +333,8 @@ test(
   () => {
     // given — a sessions table built without `archived`, as an older tracer left it
     const dir = mkdtempSync(join(tmpdir(), 'crust-no-archived-'))
-    const path = track(join(dir, 'crust.db'))
+    using fixture = databaseFixture(join(dir, 'crust.db'))
+    const path = fixture.path
     const raw = new Database(path, { create: true })
     raw.run(
       'CREATE TABLE sessions (run_id TEXT PRIMARY KEY, status TEXT, started_at TEXT, ended_at TEXT)',
@@ -348,7 +343,9 @@ test(
     raw.close()
     const db = new PiCrustDb(path)
 
-    // when / then
+    // when
+
+    // then
     expect(() => db.setArchived('r1', true)).toThrow(
       'this db predates the archived column — run any lifecycle once to migrate it',
     )
@@ -363,7 +360,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, {
       run_id: 'r1',
       status: 'success',
@@ -436,7 +434,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1', archived: 1 })
     const db = new PiCrustDb(path)
 
@@ -456,7 +455,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertActivityRun(path, {
       activity_run_id: 'ar1',
@@ -500,7 +500,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertActivityRun(path, {
       activity_run_id: 'ar1',
@@ -533,7 +534,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertEvent(path, {
       event_id: 'evt1',
@@ -568,7 +570,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     const db = new PiCrustDb(path)
 
@@ -590,7 +593,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertEnvelope(path, {
       envelope_id: 'env1',
@@ -620,7 +624,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     insertGateResult(path, {
       run_id: 'r1',
@@ -651,9 +656,12 @@ test(
   () => {
     // given
     const dir = mkdtempSync(join(tmpdir(), 'crust-missing-'))
-    const path = track(join(dir, 'crust.db'))
+    using fixture = databaseFixture(join(dir, 'crust.db'))
+    const path = fixture.path
 
-    // when / then
+    // when
+
+    // then
     expect(() => new PiCrustDb(path)).toThrow(/crust\.db not found/)
   },
 )
@@ -666,12 +674,15 @@ test(
   ].join(', '),
   () => {
     // given
-    const path = track(fixtureDbPath())
+    using fixture = databaseFixture(fixtureDbPath())
+    const path = fixture.path
     insertSession(path, { run_id: 'r1' })
     const db = new PiCrustDb(path)
     db.setArchived('r1', true)
 
-    // when / then
+    // when
+
+    // then
     expect(() => db.close()).not.toThrow()
   },
 )

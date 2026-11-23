@@ -1,76 +1,61 @@
 # Update Config
 
-Add or retune Activities in `crust.activities.yaml`, and the roster-wide defaults and tasks in `crust.config.yaml`.
+Choose the layer whose scope matches the change. Package defaults live in `<pi-crust>/runtime/config/`; machine preferences live in `~/.pi-crust/config/`; the repository holds one `pi-crust.toml`. Later layers win field by field, and arrays replace whole. An update to the package is read by the next command without re-stamping.
 
-## Retune model or thinking
+## Retune model, thinking or colour
 
-Edit the agent's entry in place:
+For every repository on this machine, edit `~/.pi-crust/config/crust.activities.toml`:
 
-```yaml
-  - name: build
-    model: google/gemini-3.6-flash   # ALWAYS provider/model-id
-    thinking: high                   # was medium
+```toml
+[activities.build]
+model = "openai/gpt-6.1-sol"
+thinking = "high"
+color = "cyan"
 ```
 
-Write the model as `provider/model-id`, never a bare id. The same model is usually carried by several providers, and an ambiguous pattern raises in `validateAgents()` — grounding every agent that inherits it. See `references/config.md`.
+For one repository, put the same table in `pi-crust.toml`. Its value wins over the machine. `just crust config` shows the effective model, thinking level and source.
 
-Thinking levels are Pi's reasoning effort: `off | minimal | low | medium | high | xhigh | max`. It only bites when the model is registered with `reasoning: true` in `~/.pi/agent/models.json`.
+Write models as `provider/model-id`, not ambiguous bare IDs. Validate the provider catalogue with `pi --list-models`. Changing a model in a joined run starts that agent with a fresh session; thinking or colour changes do not invalidate its model-bound session. Colour names are theme roles; the UI can fall back when no colour is configured.
 
-**A model change means a fresh session.** `agent_map.json` records the model each coding-agent session was created with. When a joined run (`--run-id`) finds the config's model no longer matches the recorded one, that agent starts a **new** session rather than resuming — the map is updated, never a bad resume. Thinking changes do not invalidate a session; model changes do. Expect the agent to lose its accumulated context window on the first run after the change.
+## Defaults and tools
 
-## Recolor an agent's lane
+Machine-wide defaults belong in `~/.pi-crust/config/crust.config.toml`:
 
-```yaml
-  - name: build
-    color: cyan           # a theme role; the registry ships violet/cyan/amber/green
+```toml
+[defaults]
+model = "anthropic/claude-opus-5"
+thinking = "high"
+tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 ```
 
-Purely cosmetic and safe to change mid-project: the color rides the `agent_start` event and the `agent_sessions` row, so the visualizer picks it up on the next run without touching past sessions. Omit the key to let the UI's fallback palette choose.
+An entry naming no value inherits the merged default. To replace one entry's tools, use its table in the machine activities file or repository TOML:
 
-## Retune tools
-
-Pi's seven builtins: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`. The last three are **off in bare Pi**, so an agent that doesn't name them will shell out through `bash` to search and list.
-
-Set the roster-wide floor in `defaults`, then narrow per agent:
-
-```yaml
-defaults:
-  tools: [read, bash, edit, write, grep, find, ls]
-
-activities:
-  - name: outcome-review
-    tools:                # explicit list wins over defaults
-      - read
-      - grep
-      - find
-      - ls
-      - bash
-      - write
+```toml
+[activities.outcome-review]
+tools = ["read", "grep", "find", "ls", "bash", "write"]
 ```
 
-**Resolution:** the agent's own list wins → else it inherits `defaults.tools` → else `None`, meaning all tools. An empty list is not "all tools"; it is a tool-less agent, and it will stall.
+The list is the complete allowlist, not an addition. An empty list means no tools. Any Activity producing a handoff document needs a way to write it. Tool lists do not replace `writes` boundaries or the package path policy; configuration cannot add extensions or replace that policy.
 
-Narrow by role, not by reflex:
+## Add a machine-only Activity
 
-- Any agent that must produce a `context_handoff/` artifact needs **`write`** — without it, it falls back to a `bash` heredoc to create the file the gate checks for.
-- Withhold `edit`/`write` only where the restriction *is* the guarantee. The reviewer's contract is "change nothing", so withholding `edit` makes that structural instead of merely prompted.
-- Recon agents should get the full read surface (`read`, `grep`, `find`, `ls`) — cheaper and more legible in the trace than the equivalent `bash` calls.
+Create `~/.pi-crust/prompts/spike/system.md` and `user.md`; add optional `revise.md` when revisions need a different template. Then add this to `~/.pi-crust/config/crust.activities.toml`:
 
-Every agent loads the package's path-policy extension. Configuration cannot add an extension or replace that policy.
+```toml
+[activities.spike]
+purpose = "Answer one throwaway question without touching the repository."
+output = "researchOutput"
+writes = ["{handoff}/spike.md"]
+```
 
-## Add a new Activity
+It defaults to `prompts/spike` relative to `~/.pi-crust/`. The Activity is available in every repository on this machine, without editing those repositories. Both required files are checked before a run uses it; a missing file does not prevent listing.
 
-Two steps, and then it is runnable. There is no third edit anywhere in the package — that is the whole point of the registry being configuration.
+An Activity may share a directory with `prompts = "prompts/<other-name>"`. The directory's root is the layer that first declares the entry, even if a later layer tunes its fields. Shipped entries therefore retain the package root. For team changes to shipped prompts, use a package fork. Repository prompt override lookup is removed.
 
-1. **Prompts.** Create `.pi-crust/prompts/{name}/system.md` (Purpose + Instructions — the Activity's static identity, nothing else) and `user.md` (an h3 per incoming datum: `{{prompt}}`, `{{previous_envelope}}`, `{{context_handoff_dir}}`, then the task, then a `## Report` section showing the exact output JSON). Copy an existing pair as the shape.
-2. **Registry entry** in `crust.activities.yaml`. Name it for the WORK, give it a `purpose`, its prompt refs, its `writes`, and the work half: `output`, and `attempts` or `commit` where the defaults are wrong. The engine derives [output checks](../references/config.md#output-checks) from `output`. An `output` the package does not publish is refused at load, listing what it does publish — so a typo costs a second, not a run.
+Name the Activity for its work, supply a write boundary and choose a published `output`; the engine derives [output checks](../references/config.md#output-checks). No code registry needs editing. To add package-wide behavior, edit the package's activity table and prompt directory instead. A new entry has no existing fields to inherit except defaults, so a typo in an entry name can fail required-field validation rather than silently do nothing.
 
-Then name it in `--activities`, or in a Stage in `crust.lifecycles.yaml`. If none of the published envelope specs fits its report, add one — see `update_modules.md` — and the user prompt's `Report` section must show exactly that shape.
+## Planners, delivery and repository tasks
 
-## Rules that do not bend
+Tune `operator` or `triage` under `[planners.<name>]`; configuration cannot add or remove Planners. Tune delivery under `[terminal.gh-pull-request]`, for example `delivery = { draft = true }`. Leave `remote` and `base` absent unless discovery selects the wrong values; see [Delivery](../references/config.md#delivery).
 
-- a Lifecycle names **Activities**, and an Activity IS its agent; nothing outside the configuration names a model. Swapping a model is a config edit and touches no code.
-- One Activity, one prompt, one purpose. If an entry needs two purposes, it is two Activities.
-- A **Planner** is not an Activity. `operator` and `triage` live under `planners:`, a Lifecycle cannot name them, and configuration can tune them but never add a third.
-
-Full spec: `references/config.md`.
+Tasks are repository-specific. Declare them only under `[tasks.<name>]` and `[task_config]` in `pi-crust.toml`. Lifecycles use `[lifecycles.<name>]`; see [Create a Lifecycle](create_lifecycle.md). Lists are ordered by first-declaring layer and name, not by table order in a file.

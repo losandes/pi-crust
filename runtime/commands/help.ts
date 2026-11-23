@@ -15,8 +15,8 @@ import { reportUsageError, topicOf } from '../domains/cli'
  *
  * Unlike every other entry point here, a configuration that fails to load is
  * NOT a usage error: the recipe reference needs no configuration at all, and
- * a developer whose `.pi-crust/config/` is missing or malformed is exactly
- * the developer reaching for help.
+ * a developer whose selected TOML file is malformed, or whose explicit path
+ * is missing, is exactly the developer reaching for help.
  *
  * Exit codes:
  *     0  printed (even with no configuration)

@@ -12,52 +12,36 @@ The workflow is the worker. Your job is to launch it, watch the trace, and tell 
 
 ## Launch
 
-Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read `.pi-crust/config/crust.lifecycles.yaml` for the chains this repo offers and `crust.activities.yaml` for the work they are built from; the names below are shape, not a menu.
+Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read the merged catalogue with `just crust list`; package definitions, machine preferences under `~/.pi-crust/config/`, and the repository's single `pi-crust.toml` together decide what is offered. The names below illustrate command shape, not a fixed menu.
 
 ```bash
 bun <pi-crust>/runtime/commands/run.ts "add a /health endpoint" --lifecycle sdlc
 bun <pi-crust>/runtime/commands/run.ts requests/health.md
 just crust run "implement the plan" --activities build --run-id a1b2c3d4
-just crust run "where is auth handled" --activities scout --config path/to/other.config.yaml
+just crust run "where is auth handled" --activities scout --config path/to/pi-crust.toml
 ```
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `run_id` is printed on startup — capture it, everything else keys off it.
 
-### Listen for the roster
+### Listen for configuration
 
 The chain says *what runs*; the config says *who runs it*. **If the engineer references a roster, a config, or a model tier, pass it — do not fall through to the default.**
 
 ```bash
-just crust rosters                            # every roster on disk, and the model each agent runs
+just crust config                 # effective settings and their layer/file sources
+just crust list                   # merged Activities and lifecycles
 ```
 
-That prints the path to pass and who is in it, in one read:
+Configuration is read live from `<pi-crust>/runtime/config/`, then `~/.pi-crust/config/`, then `pi-crust.toml`. Each directory has `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge field by field; arrays replace whole. There are no automatically discovered filename variants.
 
-```text
-.pi-crust/config/crust.config.yaml
-    plan        fireworks/accounts/fireworks/models/kimi-k3
-    build       google/gemini-3.6-flash (inherited)
-.pi-crust/config/crust.frontier.config.yaml
-    plan        anthropic/claude-opus-5
-```
-
-Read those from disk every time. Rosters are the engineer's to add, rename, and retune, so a name you remember from a doc is a guess.
-
-They will rarely say `--config`. Treat any of these as naming a roster, then resolve it to a file:
-
-| What they say                                              | What it means                                                                                                                                                     |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "run it on the frontier config", "use the frontier roster" | the roster file whose name matches                                                                                                                                |
-| "run this with the big models", "use the sota roster"      | the non-default roster — confirm which if there is more than one. Each config's header comment lists the names it answers to, so `head -3` on the file settles it |
-| "have opus plan this one"                                  | a roster whose `plan` Activity is that model; if none exists, say so rather than editing the config mid-request                                                   |
-| nothing about models at all                                | the default, `.pi-crust/config/crust.config.yaml`                                                                                                                 |
-
-`--config` takes the path directly, and `CRUST_CONFIG` stands in for it when the flag is absent — whether a workflow is launched through the justfile or run with `bun` directly. The flag wins over the variable:
+Pass an engineer-supplied repository-file path with `--config`; `CRUST_CONFIG` supplies it when the flag is absent. This selects the strongest file, not a replacement for the package and machine layers. If a model tier is ambiguous, resolve what the engineer means rather than editing configuration or silently changing cost. A one-run model choice can use the existing `--model <activity>=<provider/model>@<thinking>` override.
 
 ```bash
-bun <pi-crust>/runtime/commands/run.ts "<prompt>" --lifecycle <name> --config .pi-crust/config/crust.frontier.config.yaml
-CRUST_CONFIG=.pi-crust/config/crust.frontier.config.yaml just <recipe> "<prompt>"
+bun <pi-crust>/runtime/commands/run.ts "<prompt>" --lifecycle <name> --config path/to/pi-crust.toml
+CRUST_CONFIG=path/to/pi-crust.toml just crust run "<prompt>" --lifecycle <name>
 ```
+
+Tasks come only from the selected repository file. Its inactive template examples run nothing until real commands are supplied. Machine and package edits affect the next command without re-stamping; an installer refresh never replaces an existing `pi-crust.toml`.
 
 `--scope` says what the judging Activities judge: `review`, `code-review` and `document` all read it, and so does `just crust verify`.
 
@@ -74,7 +58,7 @@ A path scope makes `just crust verify` consider the tracked files in that scope,
 
 `--stream` prints each agent's thinking and prose in the terminal as it arrives. Off by default, because an unattended run that writes a model's reasoning to stdout buries the one line that said what went wrong. Everything it prints is recorded either way — the visualizer's reading pane shows the same narration after the fact, and `raw_output.jsonl` holds the full text.
 
-Committing is a property of each Activity, not a mode of the run. An Activity that declares `commit: true` in `crust.activities.yaml` lands its own change once every gate on it has passed, in the words its envelope carried — so a chain with several writing Activities produces several commits rather than one squashed one at the end. A refused or timed-out commit — an unanswered signing prompt, a hook that exits non-zero — leaves the work in the tree, raises an `uncommitted` warning, and does not stop the chain. A run ending in a terminal Activity retries each refused commit once before delivering. Any still refused stops the run `waiting` before anything is pushed; `decision-request.md` names the blocker, and `--resume` retries it without requiring an answer.
+Committing is a property of each Activity, not a mode of the run. An Activity that declares `commit = true` in its merged Activity table lands its own change once every gate on it has passed, in the words its envelope carried — so a chain with several writing Activities produces several commits rather than one squashed one at the end. A refused or timed-out commit — an unanswered signing prompt, a hook that exits non-zero — leaves the work in the tree, raises an `uncommitted` warning, and does not stop the chain. A run ending in a terminal Activity retries each refused commit once before delivering. Any still refused stops the run `waiting` before anything is pushed; `decision-request.md` names the blocker, and `--resume` retries it without requiring an answer.
 
 `--commit false` turns committing off for a whole run, whatever the registry says. A Lifecycle ending in a terminal Activity that requires commits rejects it at startup. There is no `--commit true`: a flag granting a permission the configuration withheld would make a run behave in a way nobody reading the registry could predict.
 
@@ -111,9 +95,9 @@ just crust verify                                # just the declared change task
 bun <pi-crust>/runtime/commands/run.ts "<prompt>" --activities test,build,outcome-review
 ```
 
-`compose` takes any ordered subset of whatever `crust.activities.yaml` registers, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
+`compose` takes any ordered subset of whatever the merged TOML registry defines, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
 
-A chain that ENDS in reviewing Activities — any whose entry in `crust.activities.yaml` declares `output: reviewOutput` — ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, every reviewer the chain ended in rules again, and the bound is that Activity's `attempts`. A chain ending in `outcome-review + code-review` re-asks both. That applies to a lone `--activities outcome-review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
+A chain that ENDS in reviewing Activities — any whose merged entry declares `output = "reviewOutput"` — ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, every reviewer the chain ended in rules again, and the bound is that Activity's `attempts`. A chain ending in `outcome-review + code-review` re-asks both. That applies to a lone `--activities outcome-review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
 
 Still prefer a composed chain when the work is real: a lone `build` has nothing checking it. A single Activity is for a narrow ask, or for picking a stopped run up by hand.
 

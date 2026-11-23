@@ -7,11 +7,9 @@
  * for all produced a different rule — list order — from the same screen.
  * Two orderings from one menu, neither of them stated.
  *
- * Now selection is a set, and order is a separate, stated thing: the order
- * `crust.activities.yaml` declares, with an explicit reorder for the runs
- * where it matters. The canonical order is the registry's own, because the
- * registry is the only thing that records a sequence — so nothing else can
- * drift out of activity with the Activities that exist.
+ * Selection is a set; canonical order comes from the merged registry,
+ * grouped by first-declaring TOML layer and sorted by name within each group.
+ * A person can explicitly reorder execution for a particular run.
  */
 
 /**

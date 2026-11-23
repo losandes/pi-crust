@@ -82,7 +82,7 @@ const plan = await activity run(planParams, (ph) =>
 )
 ```
 
-The user prompt asks for the shape; the schema enforces it. They always travel as a pair, which is what lets one agent serve many calls — same system prompt, different user prompt + output type per call site. Output types live in code, never in `crust.config.yaml`.
+The user prompt asks for the shape; the schema enforces it. They always travel as a pair, which is what lets one agent serve many calls — same system prompt, different user prompt + output type per call site. Output types live in code; a TOML Activity table names a published type with its `output` field.
 
 **Parse failure is not a restart.** If the response doesn't parse or doesn't validate, the harness re-prompts the **same session** with a correction naming the required fields — bounded by `JSON_FIX_ATTEMPTS` in `execute-agent.ts` (2). Gate violations do NOT: a failed gate re-runs the Activity as its own Activity Run, with the violations in its prompt, bounded by the Activity's `attempts`. A cold restart would throw away the context that produced the near-miss.
 
@@ -219,14 +219,14 @@ Every issue comment is read and recorded with its author, author association, ad
 
 Import stops before any agent runs when the request names multiple distinct sources, the repository or issue cannot be read, an issue belongs to another repository, the reference is a pull request, a document is missing, unreadable, not a file or protected by `protected_files`, or a source carries no usable text and there is no earlier work. The message names the references and reason. Reword an ambiguous request so exactly one source remains, or run a chain without `import`. A failed write stops the import and removes the files it created; if removal also fails, the message lists the paths left behind for the operator to remove before retrying. Neither path alters earlier files.
 
-A repository set up before this change does not gain the import by updating: its configuration belongs to it, not to the template. Enable it by hand:
+The package's `ship-to-plan` already enables import. Package defaults in `runtime/config/` are read on every command, then machine settings in `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`. A custom lifecycle whose `stages` replaces the package array must enable import in that complete array:
 
-1. Open `.pi-crust/config/crust.lifecycles.yaml`.
-2. Find the Lifecycle you deliver with — the one whose first Stage starts at `build`.
-3. Add `import` as the first entry of that Stage's `activities`, so it reads `activities: [import, build]`. The Stage must be `serial`.
-4. Save the file. Nothing else is needed: `import` has no entry in `crust.activities.yaml`, and no re-stamp is required.
+1. Edit `[lifecycles.<name>]` in `~/.pi-crust/config/crust.lifecycles.toml` for this machine, or in `pi-crust.toml` for the repository. The repository wins on a field both set.
+2. Make the first stage serial and put `import` first, for example `{ name = "deliver", serial = ["import", "build"] }`.
+3. Keep every later stage that should remain: a `stages` array replaces the earlier array whole rather than merging stages.
+4. Save and list the catalogue. No install step is needed, and `import` has no Activity entry, model or prompt.
 
-New installations enable import only in `ship-to-plan`. Lifecycles that identify, diagnose or plan for themselves are unchanged.
+Lifecycles that identify, diagnose or plan for themselves do not need to import earlier work.
 
 ## How a activity run is replayed
 

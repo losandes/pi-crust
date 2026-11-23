@@ -1,0 +1,103 @@
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# ECONOMY model assignments for the shipped Activities.
+# Copy it to ~/.pi-crust/config/crust.activities.toml to use them in every
+# repository on this machine. If that file exists already, merge the tables
+# into it by hand.
+# Models come from adr/choosing-models/models-recommendation-20261114.csv (econ_model).
+
+[activities.build]
+model = "anthropic/claude-haiku-5-5"
+thinking = "max"
+
+[activities.code-review]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.conceptualize]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.data-research]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.design]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.diagnose]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.document]
+model = "anthropic/claude-haiku-5-5"
+thinking = "medium"
+
+[activities.domain-research]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.gh-issue]
+model = "anthropic/claude-haiku-5-5"
+thinking = "medium"
+
+[activities.identify]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.outcome-review]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.plan]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.plan-comprehension]
+model = "anthropic/claude-opus-5-5"
+thinking = "medium"
+
+[activities.plan-readiness]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.scout]
+model = "anthropic/claude-haiku-5-5"
+thinking = "max"
+
+[activities.security-research]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.technical-research]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[activities.test-tdd]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.test]
+model = "anthropic/claude-haiku-5-5"
+thinking = "max"
+
+[activities.ux-design]
+model = "openai/gpt-6.1-sol"
+thinking = "max"
+
+[activities.ux-research]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[planners.operator]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[planners.triage]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+
+[terminal.gh-pull-request]
+model = "anthropic/claude-haiku-5-5"
+thinking = "medium"

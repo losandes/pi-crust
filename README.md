@@ -47,7 +47,7 @@ If you will always be at the keyboard, just run pi, claude, or whatever.
 | 3.1 Verify        | `review`, `code-review`                                                    |
 | 3.2 Launch        | `document` + a human; an Activity with `commit: true` lands its own change |
 
-An Activity is named for the work and IS its agent: one entry in `crust.activities.yaml` says who performs it (model, tools, writes, prompts) and what the work is (`output`, `attempts`, `commit`). Add an entry and it is runnable; delete one and the capability is gone. Nothing in the package holds a list of them. The engine derives [output checks](references/config.md#output-checks) from what each Activity reports.
+An Activity is named for the work and IS its agent. Its keyed TOML table says who performs it (model, tools, writes, prompt directory) and what the work is (`output`, `attempts`, `commit`). Package entries live in `runtime/config/crust.activities.toml`, machine preferences in `~/.pi-crust/config/crust.activities.toml`, and repository-specific settings in one `pi-crust.toml`. Later layers merge field by field, with arrays replaced whole. Add an entry and it is runnable without changing a code registry. The engine derives [output checks](references/config.md#output-checks) from what each Activity reports.
 
 ### Other Activities
 
@@ -76,12 +76,11 @@ Two more are **Planners** rather than Activities: `operator` chooses the chain a
 
 ### Running one
 
-These run in a repository pi-crust has been stamped into: `bun <pi-crust>/scripts/install.ts` from that repository's root writes `.pi-crust/` and the `just crust` recipes.
+From a target repository's root, `bun <pi-crust>/scripts/install.ts` writes a comment-only `pi-crust.toml`, the credential example, the `just crust` passthrough and the package-home pointer. It creates no configuration directory or prompt files and never overwrites an existing repository TOML file. Package and machine defaults are read on every command, without re-stamping.
 
 ```bash
 just crust please                          # answer questions, get the command
-# your own models/colours: cp <pi-crust>/cookbooks/examples/crust.config.local.example.yaml \
-#                             .pi-crust/config/crust.config.local.yaml
+# tune models once for all repositories in ~/.pi-crust/config/crust.activities.toml
 just crust help                            # every recipe and flag, plus the above
 just crust list                            # every Lifecycle and Activity this repo offers
 just crust run "<...>" --lifecycle sdlc    # the whole lifecycle, nine agent calls
@@ -103,6 +102,6 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 
 **Read the plan before the build runs.** `just crust run "<...>" --activities plan` then `just crust run "<...>" --run-id <id> --activities build` is cheaper than discovering a bad plan at review.
 
-**Declare your [tasks](references/config.md#tasks).** Put repository commands under `tasks:` in `crust.config.yaml`. Matching `change` tasks verify changed files before the Activity's work is accepted and send failures back to the Activity that changed them.
+**Declare your [tasks](references/config.md#tasks).** Put repository commands under `[tasks.<name>]` in `pi-crust.toml`. The installed examples are commented out and declare no tasks until you provide real commands. Matching `change` tasks verify changed files before the Activity's work is accepted and send failures back to the Activity that changed them.
 
 **Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each Activity.

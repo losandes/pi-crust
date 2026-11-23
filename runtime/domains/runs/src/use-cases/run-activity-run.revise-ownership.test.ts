@@ -127,7 +127,7 @@ test(
         {
           name: 'plan',
           output: 'planOutput',
-          prompts: { system: 's.md', user: 'u.md' },
+          prompts: '.',
         },
       ],
     }).activities

@@ -39,5 +39,16 @@ process.env.CRUST_DB = join(
   'crust.db',
 )
 
+// biome-ignore lint/plugin/no-object-mutation: isolate configuration from the package and developer machine before tests import commands
+process.env.CRUST_PACKAGE_CONFIG = join(
+  tmpdir(),
+  `crust-test-no-package-${process.pid}`,
+)
+// biome-ignore lint/plugin/no-object-mutation: isolate the machine layer at the test process boundary
+process.env.CRUST_MACHINE_CONFIG = join(
+  tmpdir(),
+  `crust-test-no-machine-${process.pid}`,
+)
+
 // biome-ignore lint/plugin/no-object-mutation: React reads IS_REACT_ACT_ENVIRONMENT as a global, not an env var, and without it every act() call warns
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })

@@ -44,7 +44,7 @@ test.skipIf(SKIP_INTEGRATION)(
               {
                 name: 'build',
                 aliases: ['builder'],
-                prompts: { system: 'system.md', user: 'user.md' },
+                prompts: '.',
               },
             ],
             tasks: {

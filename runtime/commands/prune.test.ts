@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { PRUNE_USAGE as USAGE } from '../domains/cli'
 import { createTracer } from '../domains/trace'
 import { DEFAULT_DB, EXIT } from '../lib/contracts'
+import { configText } from '../testing/config-document'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -280,10 +281,14 @@ test(
       // given
       const dataDir = scratch()
       const dbPath = join(dataDir, 'crust.db')
-      const configPath = join(dataDir, 'crust.config.yaml')
+      const configPath = join(dataDir, 'pi-crust.toml')
       writeFileSync(
         configPath,
-        `defaults:\n  data_dir: ${dataDir}\nobservability:\n  db: ${dbPath}\nagents: []\n`,
+        configText({
+          defaults: { data_dir: dataDir },
+          observability: { db: dbPath },
+          agents: [],
+        }),
       )
       const originalDb = process.env.CRUST_DB
       const originalConfig = process.env.CRUST_CONFIG
@@ -291,14 +296,11 @@ test(
       delete process.env.CRUST_DB
       // biome-ignore lint/plugin/no-object-mutation: process.env is the external API defaultDbPath reads through configPathFromEnv
       process.env.CRUST_CONFIG = configPath
-      // A machine-level crust.config.yaml must not be merged in — it would
+      // A machine-level pi-crust.toml must not be merged in — it would
       // override this test's own data_dir with whatever this developer
       // machine has set.
       // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfig reads through machineConfigPath
-      process.env.CRUST_MACHINE_CONFIG = join(
-        dataDir,
-        'no-such-machine-config.yaml',
-      )
+      process.env.CRUST_MACHINE_CONFIG = join(dataDir, 'no-such-machine-config')
 
       try {
         // when
@@ -356,7 +358,7 @@ test(
       const originalCwd = process.cwd()
       delete process.env.CRUST_DB
       // biome-ignore lint/plugin/no-object-mutation: process.env is the external API defaultDbPath reads through configPathFromEnv
-      process.env.CRUST_CONFIG = '/no/such/crust.config.yaml'
+      process.env.CRUST_CONFIG = '/no/such/pi-crust.toml'
       process.chdir(scratch())
 
       try {

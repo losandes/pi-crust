@@ -117,7 +117,7 @@ test(
     const raw = {
       name: 'gh-pull-request',
       purpose: 'Deliver the change',
-      prompts: { system: 's.md', user: 'u.md' },
+      prompts: '.',
     }
     // when
     const omitted = terminalConfigSchema.parse(raw)
@@ -128,7 +128,7 @@ test(
     // then
     expect(configuredBase({ terminal: [omitted] })).toEqual({
       configured: undefined,
-      remote: 'origin',
+      remote: undefined,
     })
     expect(configuredBase({ terminal: [explicit] })).toEqual({
       configured: undefined,
@@ -149,7 +149,7 @@ for (const present of [false, true]) {
       const terminal = terminalConfigSchema.parse({
         name: 'gh-pull-request',
         purpose: 'Deliver the change',
-        prompts: { system: 's.md', user: 'u.md' },
+        prompts: '.',
         delivery: { base: 'release', remote: 'up/stream' },
       })
       const cfg = crustConfigSchema.parse({
@@ -157,6 +157,7 @@ for (const present of [false, true]) {
       })
       const consulted: string[] = []
       const resolve = resolveBaseBranchWith({
+        deliveryRemote: (configured) => configured ?? 'origin',
         remoteDefaultBranch: (remote) => {
           // biome-ignore lint/plugin/no-array-mutation: recording the injected git boundary is the test
           consulted.push(remote)
@@ -169,7 +170,7 @@ for (const present of [false, true]) {
       // then
       expect(configured).toEqual({
         configured: present ? 'release' : undefined,
-        remote: present ? 'up/stream' : 'origin',
+        remote: present ? 'up/stream' : undefined,
       })
       expect(consulted).toEqual([present ? 'up/stream' : 'origin'])
       expect(actual.name).toBe(present ? 'release' : 'dev')

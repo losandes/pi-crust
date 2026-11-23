@@ -1,6 +1,7 @@
 import type { TBaseBranch, TPiCrustConfig } from '../../../../lib/contracts'
 import { BUILT_IN_BASE_BRANCH } from '../../../../lib/contracts'
 import { remoteDefaultBranch } from '../data/git'
+import { resolveDeliveryRemote } from './resolve-delivery-remote'
 
 export type TBaseBranchCandidates = Readonly<{
   flag: string
@@ -35,16 +36,17 @@ export const baseBranchProvenance = (base: TBaseBranch): string => {
 
 export const configuredBase = (
   cfg: Readonly<Pick<TPiCrustConfig, 'terminal'>>,
-): Readonly<Pick<TBaseBranchCandidates, 'configured' | 'remote'>> => {
+): Readonly<{ configured: string | undefined; remote: string | undefined }> => {
   const entry = cfg.terminal.find((one) => one.name === 'gh-pull-request')
   return {
     configured: entry?.delivery.base,
-    remote: entry?.delivery.remote ?? 'origin',
+    remote: entry?.delivery.remote,
   }
 }
 
 export type TBaseBranchGit = Readonly<{
   remoteDefaultBranch: (remote: string) => string
+  deliveryRemote: (configured: string | undefined) => string
 }>
 
 export const resolveBaseBranchWith =
@@ -53,7 +55,9 @@ export const resolveBaseBranchWith =
     cfg: Readonly<Pick<TPiCrustConfig, 'terminal'>>,
     flag: string,
   ): TBaseBranch => {
-    const { configured, remote } = configuredBase(cfg)
+    const base = configuredBase(cfg)
+    const configured = base.configured
+    const remote = git.deliveryRemote(base.remote)
     return baseBranchFrom({
       flag,
       configured,
@@ -62,4 +66,7 @@ export const resolveBaseBranchWith =
     })
   }
 
-export const resolveBaseBranch = resolveBaseBranchWith({ remoteDefaultBranch })
+export const resolveBaseBranch = resolveBaseBranchWith({
+  remoteDefaultBranch,
+  deliveryRemote: resolveDeliveryRemote,
+})

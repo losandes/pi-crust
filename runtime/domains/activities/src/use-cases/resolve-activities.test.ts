@@ -12,7 +12,7 @@ import {
   terminalActivityFor,
 } from './resolve-activities'
 
-const prompts = { system: 'p/system.md', user: 'p/user.md' }
+const prompts = 'p'
 
 test(
   [
@@ -287,7 +287,7 @@ test(
     expect(() =>
       terminalActivityFor('gh-pull-request', given, DEFAULT_ACTIVITY_OPTIONS),
     ).toThrow(
-      /'gh-pull-request' has no entry under terminal:.*crust\.activities\.yaml/,
+      /'gh-pull-request' has no \[terminal\.gh-pull-request\] table.*crust\.activities\.toml/,
     )
   },
 )

@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EXIT } from '../lib/contracts'
+import { configText } from '../testing/config-document'
 import { SKIP_INTEGRATION } from '../testing/integration'
 import { main } from './verify'
 
@@ -70,10 +71,7 @@ const inRepo = async (
     git(root, 'config', 'commit.gpgsign', 'false')
     mkdirSync(join(root, '.pi-crust', 'config'), { recursive: true })
     writeFileSync(join(root, '.gitignore'), '.pi-crust/data/\n')
-    writeFileSync(
-      join(root, '.pi-crust', 'config', 'crust.config.yaml'),
-      Bun.YAML.stringify(settings),
-    )
+    writeFileSync(join(root, 'pi-crust.toml'), configText(settings))
     writeFileSync(join(root, 'tracked file.ts'), 'initial')
     if (commit) {
       git(root, 'add', '.')
@@ -307,7 +305,7 @@ for (const { scope, commit, untracked } of [
           // when
           const actual = await verify(workspace, [
             '--config',
-            join(root, '.pi-crust/config/crust.config.yaml'),
+            join(root, 'pi-crust.toml'),
             '--scope',
             scope,
           ])
@@ -361,7 +359,7 @@ for (const { scope, cwd, expected } of [
           // when
           const actual = await verify(workspace, [
             '--config',
-            join(root, '.pi-crust/config/crust.config.yaml'),
+            join(root, 'pi-crust.toml'),
             ...scope,
           ])
           // then

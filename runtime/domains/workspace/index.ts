@@ -14,8 +14,10 @@ export {
   isRepo,
   matchesHead,
   pushBranch,
+  pushDefaultRemote,
   remoteDefaultBranch,
   remoteExists,
+  remoteNames,
   repoRoot,
   rev,
   shortSha,
@@ -48,6 +50,11 @@ export {
   resolveBaseBranch,
   resolveBaseBranchWith,
 } from './src/use-cases/resolve-base-branch'
+export type { TDeliveryRemoteCandidates } from './src/use-cases/resolve-delivery-remote'
+export {
+  deliveryRemoteFrom,
+  resolveDeliveryRemote,
+} from './src/use-cases/resolve-delivery-remote'
 export {
   requireSelected,
   selectedPaths,

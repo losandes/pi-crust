@@ -3,7 +3,7 @@
  * backed by a real tracer over a temporary database.
  *
  * `run-workflow.ts` and `run-activities.ts` build their own Activities from
- * `crust.activities.yaml` through `runnableActivities`, which always resolves
+ * `crust.activities.toml` through `runnableActivities`, which always resolves
  * to `agentActivity` with its live `TAgentPorts` default — there is no
  * injection point for a literal `TActivity` there. `runUnits` and
  * `runActivities`, by contrast, take `activities`/`units` as a parameter, so a

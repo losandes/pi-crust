@@ -41,14 +41,14 @@ for (const missing of [false, true]) {
             purpose: 'Write the research evidence and report its artifact',
             output: 'genericOutput',
             writes: ['*'],
-            prompts: { system: 's', user: 'u' },
+            prompts: '.',
           },
         ],
         agents: [
           {
             name: 'research',
             writes: ['*'],
-            prompts: { system: 's', user: 'u' },
+            prompts: '.',
           },
         ],
       })

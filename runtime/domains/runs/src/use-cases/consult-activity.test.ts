@@ -43,7 +43,7 @@ for (const situation of [
         env: {
           ...process.env,
           CRUST_CONFIG: fixture.configPath,
-          CRUST_MACHINE_CONFIG: '/nonexistent/crust-machine-config.yaml',
+          CRUST_MACHINE_CONFIG: '/nonexistent/crust-machine-config',
           CRUST_DB: fixture.dbPath,
           CRUST_DATA_DIR: fixture.dataDir,
         },

@@ -1,6 +1,4 @@
 import { expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   activityConfigSchema,
   activitySuccession,
@@ -8,7 +6,7 @@ import {
   terminalConfigSchema,
 } from './activity'
 
-const PROMPTS = { system: 's.md', user: 'u.md' }
+const PROMPTS = '.'
 
 const cases: readonly Readonly<{
   name: string
@@ -107,48 +105,3 @@ for (const schema of [plannerConfigSchema, terminalConfigSchema]) {
     },
   )
 }
-
-test(
-  [
-    'given the shipped Activity registry',
-    'when its declarations and output-derived defaults are resolved',
-    'it should preserve succession on every ordinary Activity and no engine-controlled entry',
-  ].join(', '),
-  () => {
-    // given
-    const path = join(
-      import.meta.dir,
-      '../../../../templates/stamp/config/crust.activities.yaml',
-    )
-    const given = Bun.YAML.parse(readFileSync(path, 'utf8')) as Record<
-      string,
-      readonly Record<string, unknown>[]
-    >
-
-    // when
-    const activities = given.activities ?? []
-    const engineEntries = [...(given.planners ?? []), ...(given.terminal ?? [])]
-
-    // then
-    expect(activities.length).toBeGreaterThan(0)
-    expect(engineEntries.length).toBeGreaterThan(0)
-    expect(
-      activities.map((entry) => ({
-        name: entry.name,
-        succession: activitySuccession(
-          activities.map((one) => activityConfigSchema.parse(one)),
-          String(entry.name),
-        ),
-      })),
-    ).toEqual(
-      activities.map((entry) => ({
-        name: entry.name,
-        succession:
-          entry.output === 'reviewOutput' || entry.name === 'gh-issue'
-            ? 'annotates'
-            : 'supersedes',
-      })),
-    )
-    expect(engineEntries.some((entry) => 'succession' in entry)).toBe(false)
-  },
-)

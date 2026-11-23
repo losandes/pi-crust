@@ -9,7 +9,7 @@ const anActivity = (
 ): TActivityConfig =>
   activityConfigSchema.parse({
     name,
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     ...extra,
   })
 
