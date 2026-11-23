@@ -146,16 +146,17 @@ Run every command from the repository root. Nothing here needs a `cd`: a `cd` in
 ### The scoped test command
 
 ```sh
-RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt {{paths-to-tests}} --paired | bunx buntap --agent --no-color
+RUN_INTEGRATION_TESTS=<true|false> CLAUDECODE=1 bunx bunt {{changed-files}} --paired | bunx buntap --agent --no-color
 ```
 
-- `{{paths-to-tests}}` is one or more paths from the repository root — the test files you wrote or changed, and the directory of the code you changed. Not a top-level root such as `runtime` or `apps/visualizer` unless your change genuinely spans it
-- `RUN_INTEGRATION_TESTS=true` only when the tests you need are integration tests — browser-driven, git-repository or process-spawning tests guarded by the integration switch. Otherwise `false`
-- Do not add `--coverage`. `--paired` already measures each source file against only its sibling test — `x.test.ts` measures `x.ts` — so a source whose own test was not in the run never affects the result
+- `{{changed-files}}` is the `.ts` and `.tsx` files you changed, source and test alike, each a path from the repository root. A source file selects its test family — `x.test.ts` and every `x.<variant>.test.ts` beside it — and naming one test file selects its whole family. Pass files, not directories: a directory runs every test beneath it and does not report which sources beneath it have no tests
+- Pass no other kind of file. An argument that selects no tests is listed as having matched none, and a run in which nothing was selected exits `1`
+- `RUN_INTEGRATION_TESTS=true` when a source you changed is tested by integration tests — browser-driven, git-repository or process-spawning tests guarded by the integration switch. Otherwise `false`. Without it those tests skip and their source reports a coverage gap: `runtime/commands/verify.ts` exits `3` at 11.32% lines with `false`, and `0` with `true`
+- Do not add `--coverage`. `--paired` runs each family in one process and measures each source against only its own family, so a source whose family was not in the run never affects the result
 - Do not run bare `bun test`. Without `CLAUDECODE=1` it floods the context with per-test `(pass)` lines — `bun test runtime` prints 1344 lines where `CLAUDECODE=1 bun test runtime` prints 14 — and with `--coverage` it fails silently, as described under How the gate works
 - Call `bunt` and `buntap` through `bunx`, which resolves them from `node_modules/.bin`. Typed bare, they do not resolve: neither is on `PATH`, and a shell that reaches `bunt` through a version manager's shim is reaching a different installation, or none
 
-The exit code says what went red: `1` is a failing test, `3` is a paired source below the coverage threshold. Both are failures, and a `3` names a file whose own test you ran, so the gap is yours. A pipeline reports the last command's status, so what reaches you is `buntap`'s verdict rather than bun's own exit code.
+The exit code says what went red: `1` is a failing test, `3` is a paired source below the coverage threshold, and `4` is a source you named that has no tests. All three are failures. A `3` means the source's own family leaves it below the threshold, whatever tests elsewhere also exercise it. A `4` lists each untested source by name, and `--pass-with-no-tests` does not excuse it; a source listed in `bunfig.toml`'s `coveragePathIgnorePatterns` is exempt. A pipeline reports the last command's status, so what reaches you is `buntap`'s verdict rather than bun's own exit code.
 
 A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
 

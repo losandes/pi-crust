@@ -10,7 +10,7 @@
       "devDependencies": {
         "@biomejs/biome": "2.6.4",
         "@types/bun": "1.4.2",
-        "buntap": "github:losandes/buntap#0.4.0",
+        "buntap": "github:losandes/buntap#0.4.1",
         "markdownlint-cli2": "^0.23.3",
         "typescript": "5.9.3",
       },
@@ -67,7 +67,7 @@
 
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
-    "buntap": ["buntap@github:losandes/buntap#8312b1d", { "bin": { "buntap": "./dist/bin.js", "bunt": "./dist/bunt.js" } }, "losandes-buntap-8312b1d", "sha512-YIONHE9/BJUFChQrZRUDsiELjaoNFF92qOQ4VCVLAFK6DGeRW5s2a0agZjzzULUKe4MUoDJe6kKd088a6aHSlQ=="],
+    "buntap": ["buntap@github:losandes/buntap#27c947a", { "bin": { "buntap": "./dist/bin.js", "bunt": "./dist/bunt.js" } }, "losandes-buntap-27c947a", "sha512-1pApGE2G9/jj8A6b+EPI8Do3k97ENKGIVgk5tw1PfPmiIwILZWzWJZkzo4GPeA5eMMb8dsBBpD7ALMtIx9OwVQ=="],
 
     "character-entities": ["character-entities@2.0.2", "", {}, "sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ=="],
 
