@@ -1,5 +1,20 @@
 import type { TPiCrustConfig } from '../../../../lib/contracts'
 
+export type TTaskMoment =
+  | Readonly<{ kind: 'change' }>
+  | Readonly<{ kind: 'deliver' }>
+  | Readonly<{ kind: 'before' | 'after'; stage: readonly string[] }>
+
+export type TTaskSkip = Readonly<{
+  task: string
+  instance: string
+  activity: string
+}>
+export type TTasksParams = TChangeTasksParams &
+  Readonly<{ moment: TTaskMoment }>
+export type TTasksOutcome = TChangeOutcome &
+  Readonly<{ skipped: readonly TTaskSkip[] }>
+
 export type TTaskContribution = Readonly<{
   instance: string
   activity: string | undefined

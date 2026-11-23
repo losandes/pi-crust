@@ -65,6 +65,7 @@ export {
   TASK_NAME,
   taskConfigSchema,
   taskSchema,
+  taskTriggerFaults,
   taskTriggerSchema,
 } from './src/config'
 export type {

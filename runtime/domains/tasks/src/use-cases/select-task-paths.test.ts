@@ -2,6 +2,52 @@ import { expect, test } from 'bun:test'
 import { activityConfigSchema, taskSchema } from '../../../../lib/contracts'
 import { existingTaskPaths, selectTaskPaths } from './select-task-paths'
 
+for (const kind of ['before', 'after'] as const) {
+  test(
+    [
+      `given a ${kind} trigger naming a canonical Activity alias`,
+      'when selecting over its stage',
+      'it should match by canonical name only at the declared moment',
+    ].join(', '),
+    () => {
+      // given
+      const activities = [
+        activityConfigSchema.parse({
+          name: 'build',
+          aliases: ['implement'],
+          prompts: { system: 'system', user: 'user' },
+        }),
+      ]
+      const task = taskSchema.parse({
+        when: [{ [kind]: 'implement' }],
+        match: ['*.ts'],
+        run: 'true',
+      })
+      const contribution = {
+        instance: 'build_2',
+        activity: 'build',
+        paths: ['a.ts', 'a.md'],
+      }
+      // when
+      const actual = selectTaskPaths(activities, (paths) => paths, task, {
+        kind,
+        stage: ['review', 'build'],
+      })(contribution)
+      // then
+      expect(actual).toEqual(['a.ts'])
+      expect(
+        selectTaskPaths(activities, (paths) => paths, task)(contribution),
+      ).toEqual([])
+      expect(
+        selectTaskPaths(activities, (paths) => paths, task, {
+          kind,
+          stage: ['review'],
+        })(contribution),
+      ).toEqual([])
+    },
+  )
+}
+
 test(
   [
     'given a task with an alias in its skip list and paths including a deletion',

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
-import type { TActivity, TRun } from '../../../../lib/contracts'
+import type { TActivity, TActivityRun, TRun } from '../../../../lib/contracts'
 import {
   violationsOf,
   WARNING_EVENT,
@@ -9,6 +9,7 @@ import {
 } from '../../../../lib/contracts'
 import { ensureDir } from '../../../../lib/system'
 import { runStartIn, touchedBy } from '../../../policy'
+import type { TChangeTasksParams } from '../../../tasks'
 import {
   changeReport,
   liveTaskPorts,
@@ -25,7 +26,7 @@ const reserveDirectory = (parent: string, index = 1): string => {
   throw reserved.error
 }
 
-const evaluationArtifact = (handoff: string) => {
+export const evaluationArtifact = (handoff: string) => {
   // Lazy because a settlement with no selected task writes no directory.
   let directory: string | undefined
   return (task: Parameters<typeof taskArtifactName>[0]): string => {
@@ -34,8 +35,52 @@ const evaluationArtifact = (handoff: string) => {
   }
 }
 
-const rowFor = (run: TRun) => (instance: string) =>
-  run.activityRuns().findLast((row) => row.params.name === instance)
+export type TTaskRowLookup = (instance: string) => TActivityRun | undefined
+
+export const rowFor =
+  (run: TRun): TTaskRowLookup =>
+  (instance: string) =>
+    run.activityRuns().findLast((row) => row.params.name === instance)
+
+export const recordTaskCommands = (
+  run: TRun,
+  options: Readonly<{
+    findRow: TTaskRowLookup
+    moment?: 'deliver' | 'before' | 'after'
+  }>,
+): Pick<TChangeTasksParams, 'onCommandStart' | 'onCommandEnd'> => ({
+  onCommandStart: ({ task, command }) =>
+    run.console.note(`task ${task}: ${command}`),
+  onCommandEnd: ({
+    task,
+    result,
+    outputArtifact,
+    instances,
+    startedAt,
+    endedAt,
+  }) => {
+    const row = options.findRow(instances[0] ?? '')
+    run.tracer.event({
+      run_id: run.runId,
+      activity_run_id: row?.activity_run_id ?? '',
+      type: 'tool_call',
+      name: `task:${task}`,
+      payload: {
+        task,
+        command: result.command,
+        returncode: result.returncode,
+        passed: result.passed,
+        timed_out: result.timedOut,
+        duration_seconds: result.durationSeconds,
+        output_artifact: outputArtifact,
+        instances,
+        ...(options.moment === undefined ? {} : { moment: options.moment }),
+      },
+      started_at: startedAt,
+      ended_at: endedAt,
+    })
+  },
+})
 
 export const changeTasks =
   (run: TRun) => async (activities: readonly TActivity[]) => {
@@ -56,36 +101,7 @@ export const changeTasks =
       baseRef: runStartIn(run)?.head ?? '',
       contributions,
       artifactFor: evaluationArtifact(run.contextHandoffDir),
-      onCommandStart: ({ task, command }) =>
-        run.console.note(`task ${task}: ${command}`),
-      onCommandEnd: ({
-        task,
-        result,
-        outputArtifact,
-        instances,
-        startedAt,
-        endedAt,
-      }) => {
-        const row = findRow(instances[0] ?? '')
-        run.tracer.event({
-          run_id: run.runId,
-          activity_run_id: row?.activity_run_id ?? '',
-          type: 'tool_call',
-          name: `task:${task}`,
-          payload: {
-            task,
-            command: result.command,
-            returncode: result.returncode,
-            passed: result.passed,
-            timed_out: result.timedOut,
-            duration_seconds: result.durationSeconds,
-            output_artifact: outputArtifact,
-            instances,
-          },
-          started_at: startedAt,
-          ended_at: endedAt,
-        })
-      },
+      ...recordTaskCommands(run, { findRow }),
     })
     return new Map(
       contributions.map(({ instance }) => {

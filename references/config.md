@@ -301,7 +301,7 @@ Every agent loads only the path policy shipped in `runtime/extensions/path-polic
 
 ## Tasks
 
-Declare repository commands under `tasks:` in `crust.config.yaml`. Matching tasks fire at `change`: after all Activities in the current Unit finish and their output checks are judged, but before their work is accepted or committed. Disabling commits does not disable tasks. `just crust verify` uses the same tasks over the working tree or an explicit `--scope`, without starting an agent or recording a run.
+Declare repository commands under `tasks:` in `crust.config.yaml`. Tasks fire at four triggers: `on: change` after the current Unit's Activities finish and their output checks are judged, before acceptance or commit; `on: deliver` after the chain settles, before delivery or final success; `before: <activity>` before any Activity of the containing stage starts; and `after: <activity>` after every Activity in that stage settles. The same triggers apply to named Lifecycles and chains composed on the command line. Disabling commits does not disable tasks. `just crust verify` evaluates only `on: change` triggers over the working tree or an explicit `--scope`, without starting an agent or recording a run.
 
 ```yaml
 task_config:
@@ -321,11 +321,20 @@ tasks:
       - "<your test command> {{changed_paths}} | <your reporter>"
       - "<your coverage command> {{base_ref}}"
     timeout_seconds: 600
+
+  verify-all:
+    when: [{ on: deliver, skip: [diagnose, test-tdd] }]
+    run: "<your full verification command>"
+
+  schema:
+    when: [{ before: code-review }, { after: build }]
+    match: ["db/**"]
+    run: "<your schema check> {{changed_paths}}"
 ```
 
 - `task_config.timeout_seconds`: positive integer, default `300` seconds per command.
 - `tasks`: a map, empty by default. Names start with an ASCII letter and can then include ASCII letters, digits, `_`, `.`, `:` and `-`. Tasks run in declaration order; a local layer can override fields or append a task.
-- `when`: a required non-empty list of triggers, with at most one entry per moment. `on: change` is the only supported moment. `skip` defaults to `[]` and excludes paths from Activities by canonical name, including aliases, numbered instances and revise rounds. Unknown names do not prevent loading. `verify` ignores `skip` because no Activity produced the change.
+- `when`: a required non-empty list, with no duplicate trigger: each `on` moment once and each `before` or `after` name once. An entry has exactly one of `on`, `before`, or `after`. Only `on` accepts `skip`, which defaults to `[]`. At `change`, `skip` excludes a skipped Activity's paths. At `deliver`, it suppresses the task only when the last Activity to change repository files is skipped, and the run records the skipped task and Activity. Names are canonicalized, including aliases and numbered instances. Unknown skip names are ignored. `verify` ignores `skip` because no Activity produced the change.
 - `match`: Git-root-relative globs over changed paths that still exist. `*` does not cross `/`; `**` does. An omitted or empty list matches every existing changed path. A task with no selected paths does not run.
 - `cwd`: a directory relative to the Git root, with no `..` segment. An omitted or empty value runs at the root. Selected paths are made relative to this directory before substitution.
 - `run`: a non-empty shell string or non-empty list of non-empty shell strings. The task runs every command in order, even when one fails.
@@ -336,6 +345,12 @@ Use `{{changed_paths}}` and `{{base_ref}}` as their own words, outside quotes, w
 Commands run as `sh -c` with the operator's environment and no added shell options. Exit status zero passes. On timeout the runner sends `SIGTERM` to the command's process group, then sends `SIGKILL` at command close or after at most ten seconds and reports exit `124`. Full stdout and stderr are saved with the command's status and duration; feedback includes the output tail.
 
 After a concurrent stage, a task runs once per settlement round over the union of the paths it selected. A failed task and any failed output checks are combined as feedback for each affected Activity; only Activities with violations spend another attempt. An exhausted Activity stops the run. Resuming evaluates replayed Activities' tasks again over all their recorded paths in the run, including earlier attempts. Existing changed paths no task selected are counted in the run summary without failing the run. When no tasks are declared, the run reports that no commands ran.
+
+At `before` and `deliver`, selection covers every repository path observed to change during the run, excluding session and handoff files and paths that no longer exist. A run with no repository-writing Activity runs no whole-change tasks. A failure returns to the last writer with the task output as private feedback, spends one of that instance's attempts, and reruns everything after it. A nested revision is routed to its chain writer at that review boundary. Missing destinations or exhausted attempts end the run failed with the task named and do not deliver. A failing `before` never starts its stage: if the last writer is in that stage or later after a regression, the run blocks rather than returning into it. Older traces without chain-run provenance also block when a failure cannot be routed.
+
+At `after`, only Activities whose paths the failed task selected run again, with their own Unit's entry context and task feedback. Unselected siblings do not rerun. Each retry must pass its output checks and `change` tasks before `after` is evaluated again. Both `before` and `after` match canonical Activity names or aliases and Planner names; undefined names fail configuration loading with the task, missing name, defined Activities and definition-file locations. Terminal Activities run outside stages and cannot be named by these triggers; use `on: deliver` instead. Neither trigger fires inside the revise loop's nested folds.
+
+Resuming re-evaluates `deliver`; no persisted pass permits delivery without verification. `before` does not judge a stage entered entirely by replay, while `after` still evaluates its recorded paths. After a person accepts a previously rejected run, a failing `deliver` ends the run failed rather than returning automatically; repair the failure and resume again. A refused commit remains a warning retried at delivery, never task feedback, and uncommitted observed work is still verified.
 
 ## Overriding the roster on one machine
 

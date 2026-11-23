@@ -11,6 +11,7 @@ import {
   DEFAULT_CONFIG_PATH,
   mergeActivities,
   plannerFaults,
+  taskTriggerFaults,
   terminalFaults,
 } from '../../../../lib/contracts'
 import {
@@ -70,7 +71,14 @@ export const resolveConfig = (document: unknown): TPiCrustConfig => {
     planners: inherit(raw.planners),
     terminal: inherit(raw.terminal),
   }
-  return crustConfigSchema.parse(merged)
+  const cfg = crustConfigSchema.parse(merged)
+  const faults = taskTriggerFaults(cfg)
+  if (faults.length > 0) {
+    throw new Error(
+      `the task configuration cannot run:\n- ${faults.join('\n- ')}`,
+    )
+  }
+  return cfg
 }
 
 export const parseConfig = (yamlText: string): TPiCrustConfig =>

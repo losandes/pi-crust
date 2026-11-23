@@ -73,10 +73,11 @@ import {
   writeDecisionRequest,
 } from './human-gate'
 import { applyModelOverrides } from './model-overrides'
+import { chainMoments } from './moment-tasks'
 import { replayEnvelopeHistory } from './replay-envelope-history'
 import type { TReviseLoopResult } from './revise-loop'
 import { loopAgents } from './revise-loop'
-import type { TWaiting } from './run-activities'
+import type { TTasksBlocked, TWaiting } from './run-activities'
 import { recordRequest } from './run-activities'
 import { counts, finish, finishWaiting } from './run-activity-run'
 import { runImport } from './run-import'
@@ -162,6 +163,7 @@ const settlePlannedChain = async (
   agentPorts?: TAgentPorts,
   /** see `runWorkflow`'s own parameter of the same name */
   resolveModel?: TResolveModel,
+  onTasksBlocked?: (blocked: TTasksBlocked) => void,
 ): Promise<TReviseLoopResult | undefined> => {
   const activities = runnableActivities(planned, run.cfg, options, agentPorts)
   validateAgents(
@@ -225,6 +227,8 @@ const settlePlannedChain = async (
   const after = await runReviewSegments({
     run,
     names: planned,
+    moments: chainMoments(run),
+    ...(onTasksBlocked === undefined ? {} : { onTasksBlocked }),
     options,
     fallbackReason: NOT_ACCEPTED,
     ...(agentPorts === undefined ? {} : { agentPorts }),
@@ -486,6 +490,28 @@ export const runWorkflow = async (
       outcomes: [],
       feedback: [],
     }
+    // The callback receives a block from either of the chain's folds.
+    let tasksBlocked: TTasksBlocked | undefined
+    const onTasksBlocked = (blocked: TTasksBlocked): void => {
+      tasksBlocked = blocked
+    }
+    const blockedReason = (): string | undefined => tasksBlocked?.reason
+    const finishBlocked = (reason: string): number => {
+      if (terminal !== undefined) {
+        run.tracer.event({
+          run_id: run.runId,
+          activity_run_id: '',
+          type: 'log',
+          name: 'activities_cancelled',
+          payload: {
+            activities: [terminal.name],
+            status: 'cancelled',
+            because: reason,
+          },
+        })
+      }
+      return finish(run, { accepted: false, reason })
+    }
     // A later delivery gate must not hide the acceptance this answer settles.
     const acceptanceGate =
       args.resume && terminal !== undefined
@@ -522,6 +548,20 @@ export const runWorkflow = async (
         answer?.verb === 'reject'
           ? `the person rejected the run — ${answer.from}`
           : decision.gate.detail
+      if (accepted) {
+        const verdict = await chainMoments(run).deliver(start)
+        if (verdict.kind === 'fail') {
+          const blockedReason = `deliver task(s) ${verdict.tasks.join(', ')} failed after the run was accepted; repair what they name, then resume`
+          run.tracer.event({
+            run_id: run.runId,
+            type: 'log',
+            name: 'regression_exhausted',
+            payload: { from: 'tasks:deliver', reason: blockedReason },
+          })
+          run.console.note(blockedReason)
+          return finishBlocked(blockedReason)
+        }
+      }
       const outcome = await runTerminal({
         run,
         activity: terminal,
@@ -542,6 +582,14 @@ export const runWorkflow = async (
       run,
       units,
       names,
+      moments: {
+        ...chainMoments(run),
+        deliver: (ctx) =>
+          plannedChain(ctx).length > 0
+            ? Promise.resolve({ kind: 'pass' })
+            : chainMoments(run).deliver(ctx),
+      },
+      onTasksBlocked,
       options,
       fallbackReason: NOT_ACCEPTED,
       ...(agentPorts === undefined ? {} : { agentPorts }),
@@ -553,6 +601,8 @@ export const runWorkflow = async (
       trust,
       ledger,
     })
+    const initialBlock = blockedReason()
+    if (initialBlock !== undefined) return finishBlocked(initialBlock)
     if (waiting !== undefined) {
       return finishWaiting(run, waiting.path)
     }
@@ -585,7 +635,10 @@ export const runWorkflow = async (
             ledger,
             agentPorts,
             resolveModel,
+            onTasksBlocked,
           )
+    const plannedBlock = blockedReason()
+    if (plannedBlock !== undefined) return finishBlocked(plannedBlock)
     if (settled === undefined) {
       return finishWaiting(run, run.contextHandoffDir)
     }
