@@ -76,7 +76,7 @@ tasks:
       - { on: change, skip: [diagnose, test-tdd] }
     match: ["**/*.ts", "**/*.tsx"]
     run:
-      - "bunx bunt {{changed_paths}} --paired | bunx buntap"
+      - "bunx bunt {{changed_paths}} --paired | bunx buntap --agent"
 
   verify-all:
     when:
