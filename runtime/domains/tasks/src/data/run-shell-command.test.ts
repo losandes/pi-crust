@@ -150,6 +150,9 @@ test.skipIf(SKIP_INTEGRATION)(
       const actual = await execute(cwd, 5)(command)
       // then
       expect(actual).toMatchObject({ returncode: 124, timedOut: true })
+      // Allow timer jitter, but reject returning at the five-second timeout
+      // rather than waiting for the 300 ms grace period with stdout still open.
+      expect(actual.durationSeconds).toBeGreaterThan(5.15)
       expect(actual.durationSeconds).toBeLessThan(7)
       expect(() =>
         process.kill(Number(readFileSync(pidPath, 'utf8')), 0),
