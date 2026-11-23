@@ -31,7 +31,7 @@ activities:
     succession: supersedes
     attempts: 2  # includes first attempt
     commit: true
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: medium
     color: green
     purpose: Implement the plan exactly; report every changed file in the envelope.
@@ -43,7 +43,7 @@ activities:
   - name: code-review
     output: reviewOutput
     succession: annotates
-    model: claude-code/claude-opus-5-5
+    model: anthropic/claude-opus-5-5
     thinking: medium
     color: indigo
     purpose: Judge the change against this repository's ratified conventions, through its own review skill.
@@ -56,7 +56,7 @@ activities:
   - name: conceptualize
     output: conceptualizeOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: cyan
     purpose: Decide what the solution must mean and do; choose no technology.
@@ -69,7 +69,7 @@ activities:
   - name: data-research
     output: researchOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: violet
     purpose: Establish what the data can show, and what it cannot.
@@ -90,7 +90,7 @@ activities:
   - name: design
     output: designOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: pink
     purpose: Give the logical architecture a physical shape here, observability included.
@@ -104,7 +104,7 @@ activities:
   - name: diagnose
     output: diagnosisOutput
     succession: supersedes
-    model: claude-code/claude-opus-5-5
+    model: anthropic/claude-opus-5-5
     thinking: medium
     color: purple
     purpose: Reproduce the reported behaviour and name its cause, with evidence.
@@ -124,7 +124,7 @@ activities:
     succession: supersedes
     input: changes  # this run’s diff
     commit: true
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: low
     color: blue
     purpose: Write up the change that was just made, from the diff; document only.
@@ -142,7 +142,7 @@ activities:
   - name: domain-research
     output: researchOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: pink
     purpose: Model the domain and the rules that actually govern it.
@@ -164,7 +164,7 @@ activities:
   - name: gh-issue
     output: ghIssueOutput
     succession: annotates
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: low
     color: indigo
     purpose: Open one GitHub issue carrying the chain's findings; change nothing in the repository.
@@ -181,7 +181,7 @@ activities:
   - name: identify
     output: identifyOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: blue
     purpose: Turn a problem into an outcome with criteria anyone could check.
@@ -193,7 +193,7 @@ activities:
   - name: outcome-review
     output: reviewOutput
     succession: annotates
-    model: claude-code/claude-opus-5-5
+    model: anthropic/claude-opus-5-5
     thinking: medium
     color: lime
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -206,7 +206,7 @@ activities:
     attempts: 3
     output: planOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: violet
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -226,7 +226,7 @@ activities:
   - name: plan-comprehension
     output: reviewOutput
     succession: annotates
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: medium
     color: cyan
     purpose: Report whether the plan explains itself to a reader who has not seen this project; change nothing.
@@ -242,7 +242,7 @@ activities:
   - name: plan-readiness
     output: reviewOutput
     succession: annotates
-    model: openai/gpt-6.2-sol # claude-code/claude-opus-5
+    model: openai/gpt-6.1-sol # anthropic/claude-opus-5
     thinking: high
     color: cyan
     purpose: Rule on whether the plan can be executed without deciding anything; change nothing.
@@ -258,7 +258,7 @@ activities:
   - name: scout
     output: scoutOutput
     succession: supersedes
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: medium
     color: orange
     purpose: Find and report where things live; change nothing.
@@ -276,7 +276,7 @@ activities:
   - name: security-research
     output: researchOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: rose
     purpose: Establish how this could fail, be misused, or be attacked.
@@ -298,7 +298,7 @@ activities:
   - name: technical-research
     output: researchOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: purple
     purpose: Establish what is technically true, feasible, and evidenced.
@@ -322,7 +322,7 @@ activities:
     output: buildOutput
     succession: supersedes
     commit: true
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: medium
     color: teal
     purpose: Write the tests that prove the request was implemented (after build); implement nothing else.
@@ -339,7 +339,7 @@ activities:
   - name: ux-design
     output: uxDesignOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: orange
     purpose: Specify an interface precisely enough to implement without inventing UX.
@@ -361,7 +361,7 @@ activities:
   - name: ux-research
     output: researchOutput
     succession: supersedes
-    model: claude-code/claude-fable-5-2
+    model: anthropic/claude-fable-5-2
     thinking: high
     color: cyan
     purpose: Establish what users need, experience, and struggle with.
@@ -390,7 +390,7 @@ planners:
 
   # Select and execute the smallest suitable Activity chain.
   - name: operator
-    model: claude-code/claude-opus-5-5
+    model: anthropic/claude-opus-5-5
     thinking: medium
     color: amber
     purpose: Choose the smallest chain of Activities that can produce the outcome.
@@ -404,7 +404,7 @@ planners:
 
   # Recommend an Activity chain without executing it.
   - name: triage
-    model: claude-code/claude-opus-5-5
+    model: anthropic/claude-opus-5-5
     thinking: medium
     color: amber
     purpose: Choose the smallest chain that can produce the outcome, and hand it back.
@@ -426,7 +426,7 @@ terminal:
 
   # Harness handles GitHub operations; agent only drafts content.
   - name: gh-pull-request
-    model: openai/gpt-6.2-sol
+    model: openai/gpt-6.1-sol
     thinking: low
     color: teal
     purpose: Push the run's branch and open or update one GitHub pull request describing it.

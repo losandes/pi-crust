@@ -54,32 +54,36 @@ defaults:
     read: warn
     write: block
 
-  # LIMITATION: Bash enforcement is best-effort. Structured read/write/edit
-  # paths are checked precisely, but arbitrary shell commands cannot be.
-  # Do not grant bash to agents requiring strict filesystem isolation.
 
-# Activities and lifecycles: crust.activities.yaml, crust.lifecycles.yaml
-# Observability: crust.observe.yaml
-# Declaration order determines menu order (`just crust list`).
+# Repository tasks run at `change`, after an Activity changes matching paths.
+# `match` globs are Git-root-relative: * does not cross directories; ** does.
+# An empty `match` selects every changed path that still exists.
+# Use {{changed_paths}} and {{base_ref}} as unquoted shell arguments.
+# `cwd` respells selected paths relative to the command's working directory.
+#
+task_config:
+  timeout_seconds: 3000
 
-# Route skills and verification checks by changed paths.
-# Keep repository-specific skill paths and commands here, not in prompts.
-# `when` globs are relative to the Git root; * does not cross directories.
-# An empty `when` matches all paths.
-routing:
-  checks:
-    - name: test
-      when: ["**/*.ts", "**/*.tsx"]
-      argv: [mise, run, test:agent]    # argument list; bare binary names
-      timeout_seconds: 600
+tasks:
+  lint:
+    when:
+      - { on: change }
+    match: ["**/*.ts", "**/*.tsx"]
+    run: "bunx biome check {{changed_paths}}"
 
-    - name: lint
-      when: ["**/*.ts", "**/*.tsx"]
-      argv: [mise, run, lint]
-      with_changed_paths: true         # append matching paths
-      timeout_seconds: 300
+  test:
+    when:
+      - { on: change, skip: [diagnose, test-tdd] }
+    match: ["**/*.ts", "**/*.tsx"]
+    run:
+      - "bunx bunt {{changed_paths}} --paired | bunx buntap"
 
-    - name: typecheck
-      when: ["packages/api/**/*.ts"]
-      cwd: packages/api
-      argv: [mise, run, typecheck]
+  verify-all:
+    when:
+      - { on: deliver, skip: [diagnose, test-tdd] }
+    match: ["**/*.ts", "**/*.tsx"]
+    run:
+      - "mise run lint"
+      - "mise run test:agent"
+      - "mise run build"
+    timeout_seconds: 10000
