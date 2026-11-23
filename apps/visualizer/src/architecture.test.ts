@@ -59,6 +59,44 @@ const sourceFiles = (dir: string): readonly string[] => {
     .map((entry) => join(entry.parentPath, entry.name))
 }
 
+test(
+  [
+    'given @SC19 every polling call site read as source',
+    'when checking timer ownership and interval wiring',
+    'it should centralize setInterval and pass context-derived intervals through all three hooks',
+  ].join(', '),
+  () => {
+    // given
+    const files = sourceFiles(SRC).filter(
+      (path) => !/\.test\.[^.]+$/.test(path),
+    )
+    const sources = files.map((path) => ({
+      path: relative(SRC, path),
+      text: readFileSync(path, 'utf8'),
+    }))
+    // when
+    const timers = sources
+      .filter(({ text }) => /\bsetInterval\s*\(/.test(text))
+      .map(({ path }) => path)
+      .toSorted()
+    const callers = sources.filter(({ text }) =>
+      /\bstartPolling\s*\(/.test(text),
+    )
+    // then
+    expect(timers).toEqual(['lib/polling/src/start-polling.ts'])
+    expect(callers.map(({ path }) => path).toSorted()).toEqual([
+      'domains/sessions/src/_components/SessionCard.tsx',
+      'domains/sessions/src/usecases/use-trace.ts',
+      'lib/polling/src/use-poll.ts',
+    ])
+    for (const { text } of callers) {
+      expect(text).toMatch(/\busePollInterval\(\)/)
+      expect([...text.matchAll(/\bstartPolling\s*\(/g)]).toHaveLength(1)
+      expect(text).not.toMatch(/\bstartPolling\s*\([^;\n]*,\s*\d/)
+    }
+  },
+)
+
 const importTargets = (source: string, pattern: RegExp): string[] => {
   const matches = [...source.matchAll(pattern)]
   return matches.map((match) => match[1] as string)

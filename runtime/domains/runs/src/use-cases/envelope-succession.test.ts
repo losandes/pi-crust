@@ -33,7 +33,7 @@ const fixtureWith = (activities: readonly Record<string, unknown>[] = []) => {
   writeFileSync(join(dir, 'src/work.ts'), 'export const original = true\n')
   writeFileSync(join(dir, 'src/fixed.ts'), 'export const revised = true\n')
   const entries = activities.map((entry) => ({
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     writes: [],
     ...entry,
   }))
@@ -400,7 +400,7 @@ const portsFor = (response: (template: string) => TEnvelopeBase) => {
 
   return {
     ports,
-    renders: () => renders.filter((one) => one.path.endsWith('/user')),
+    renders: () => renders.filter((one) => one.path.endsWith('/user.md')),
   }
 }
 
@@ -408,7 +408,7 @@ const agentEntry = (name: string, output: string) => ({
   name,
   output,
   purpose: `Run ${name} against the upstream work`,
-  prompts: { system: `${name}/system`, user: `${name}/user` },
+  prompts: name,
 })
 
 test(
@@ -552,7 +552,7 @@ test(
 
     // then
     const builder = renders()
-      .filter((one) => one.path === 'build/user')
+      .filter((one) => one.path === 'build/user.md')
       .at(-1)?.variables
     expect(JSON.parse(builder?.previous_envelope ?? '{}')).toEqual(first)
     expect(builder?.previous_envelopes).toContain(
@@ -578,7 +578,7 @@ test(
     ])
     expect(
       renders()
-        .filter((one) => one.path !== 'build/user')
+        .filter((one) => one.path !== 'build/user.md')
         .slice(-2)
         .map(
           (one) => JSON.parse(one.variables.previous_envelope ?? '{}').summary,

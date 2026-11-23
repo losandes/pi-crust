@@ -1,12 +1,13 @@
 import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   EXIT,
   type TPiCrustConfig,
   type TStage,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import { readRunState } from '../../../trace'
 import { gateFixture, portsFor, work } from './human-gate-fixture.test'
@@ -19,21 +20,23 @@ const plan: readonly TStage[] = [
 ]
 
 const configWithDelivery = (dir: string, cfg: TPiCrustConfig): string => {
-  const system = join(dir, 'delivery-system.md')
-  const user = join(dir, 'delivery-user.md')
+  const directory = join(dir, 'delivery-prompts')
+  mkdirSync(directory, { recursive: true })
+  const system = join(directory, 'system.md')
+  const user = join(directory, 'user.md')
   writeFileSync(system, '# Delivery fixture system\n')
   writeFileSync(user, '# Delivery fixture user\n')
   const terminal = {
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver the completed run',
-    prompts: { system, user },
+    prompts: dirname(system),
     writes: [],
   }
-  const path = join(dir, 'delivery.config.yaml')
+  const path = join(dir, 'delivery.config.toml')
   writeFileSync(
     path,
-    Bun.YAML.stringify({
+    configText({
       ...cfg,
       agents: [...cfg.agents, terminal],
       terminal: [terminal],

@@ -5,7 +5,7 @@ import { stepsValid } from './plan-gates'
 
 /*
  * The registry is the run's, because Activities are configuration: what
- * exists is whatever `crust.activities.yaml` turned out to hold.
+ * exists is whatever `crust.activities.toml` turned out to hold.
  */
 const anyRun = {
   cfg: {

@@ -27,7 +27,7 @@
  * one, on the theory that everything which changed while an agent ran was the
  * agent's. That theory is false for a developer working in the same branch,
  * which is a supported way to use this tool: observed once as a developer's
- * uncommitted edit to crust.config.yaml being discarded with no stash, no
+ * uncommitted edit to pi-crust.toml being discarded with no stash, no
  * commit and no way back. Detection is unchanged; the response is a report.
  *
  * A report is not a gate violation either. Gates are for work an agent can be
@@ -35,7 +35,7 @@
  * The paths worth defending are defended before the call instead, by the path
  * policy — which knows whose call it was.
  *
- * Two keys drive it, both in crust.config.yaml:
+ * Two keys drive it, both in pi-crust.toml:
  *     defaults.protected_files   paths no agent may touch unless it names them
  *     agents[].writes   ['*'] = unrestricted · [] = read-only · [...] = only these
  */

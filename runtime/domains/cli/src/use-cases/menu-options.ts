@@ -8,9 +8,8 @@
  * A menu that offers a chain nobody can run by any other route is worse
  * than no menu.
  *
- * So: lifecycles come from `crust.lifecycles.yaml` and Activities from
- * `crust.activities.yaml`, each in the order of its file. Something that
- * exists is offered; something offered exists.
+ * Lifecycles and Activities arrive in the loader's order: first-declaring
+ * layer, then name. This menu preserves that order rather than sorting again.
  *
  * An entry is named for the WORK — `plan`, `build` — because that is what a
  * Lifecycle names and what the menu's values become. There is no second

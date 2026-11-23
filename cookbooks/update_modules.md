@@ -4,7 +4,7 @@ Extend `<pi-crust>/runtime/domains/` or `<pi-crust>/runtime/lib/` with new low-l
 
 ## The rule
 
-**ALL low-level logic lives in a domain's `src/` or a `lib/` package; the entry points stay thin.** A Lifecycle is YAML and runs no code of its own; the Composer resolves it into runnable Activities and the driver runs them. An entry point parses arguments and returns an exit code. Anything else — subprocess handling, parsing, retry mechanics, git plumbing, reusable predicates — goes in a domain or `lib/` package.
+**ALL low-level logic lives in a domain's `src/` or a `lib/` package; the entry points stay thin.** A Lifecycle is TOML configuration and runs no code of its own; the Composer resolves it into runnable Activities and the driver runs them. An entry point parses arguments and returns an exit code. Anything else — subprocess handling, parsing, retry mechanics, git plumbing, reusable predicates — goes in a domain or `lib/` package.
 
 Each domain is layered, and the layer decides the file. The rule that settles every placement: **if it reads the clock, the filesystem, the environment, a subprocess, a database, or a random number, it is `data/`.** Types and schemas are `typedefs/`. Everything else — policy, orchestration, decisions — is `use-cases/`. Cross-domain access goes through a package's `index.ts`, never into another package's `src/`.
 
@@ -130,7 +130,7 @@ Reusable gates live in `domains/gates/src/use-cases/` and are re-exported from `
 - `data/` and `use-cases/` return settlements rather than throwing. The two sanctioned exceptions are `run-activity-run.ts`, which IS the error boundary, and `safeParseSettlement`, which wraps a throwing call once at the edge.
 - Build new values; do not mutate the ones you were handed. The run's counters live in a closure in `create-run.ts` precisely so no other layer has to.
 
-Runtime changes need no re-stamp. If template-owned stamp documents also changed, use `install.ts --refresh` or `just crust update`: existing examples are refreshed, new `.example.yaml` documents may be added under `config/`, and non-example config files are neither added nor overwritten once that directory exists. See [install.md](install.md) for the deprecated `--force` alias and deliberate adoption of settings.
+Runtime and package-default changes need no re-stamp. Configuration is read from `runtime/config/`, then `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`; tables merge recursively and arrays replace whole. If a template-owned file also changed, `install.ts --refresh` or `just crust update` refreshes it, never an existing repository TOML file or execution history. No configuration directory or prompt files are installed. See [install.md](install.md) for ownership and the deprecated installer `--force` alias.
 
 ## Before you finish
 

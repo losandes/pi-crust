@@ -1,95 +1,69 @@
 # pi-crust Overview
 
-The system map the orchestrator reads on startup — what pi-crust is, how the package and a stamped repo are laid out, and which cookbook to load next.
+The system map the orchestrator reads on startup: the package, the repository file, and the cookbook to load next.
 
 ## What pi-crust is
 
-pi-crust builds repeatable **agents plus code** workflows. Deterministic TypeScript (a workflow script) owns sequencing, retries, and acceptance; agents are bounded nodes inside that graph. Agent proposes, code disposes.
+pi-crust builds repeatable **agents plus code** workflows. Deterministic TypeScript owns sequencing, retries and acceptance; agents work inside bounded Activity Runs. A `run_id` identifies the same run in the trace, session directories and visualizer.
 
-Your job as orchestrator: **run the system, observe the system, help the engineer interact with it.** You do not do the work a workflow exists to do.
+Your job as orchestrator is to run and observe the system and help the engineer interact with it, not do the work inside its workflow.
 
-A run is identified by its `run_id` — the vocabulary the trace, the directory names, and the visualizer all share.
+## Package layout
 
-## Layout
-
-A stamped repository holds almost nothing. The installer copies in `config/` and `prompts/`, then writes `.pi-crust/data/pi-crust-home` — a pointer at the pi-crust package, not a copy of it. Every line of runtime code stays in the package, which is why an edit there is live for the next Activity any stamped repository starts. The two trees are not the same tree, and an orchestrator needs both.
-
-The package, where the code lives:
+Runtime code, default configuration and shipped prompts stay in the package. This directory tree shows their homes:
 
 ```text
-runtime/                      the package a stamp points at, never a copy
-├── cli.ts                    the one entry point a stamped repo reaches
-├── crust.just                the recipes `just crust <recipe>` dispatches to
-├── report.ts                 where did a run stop, and what resumes it
-├── verify.ts                 change tasks on their own, with no Lifecycle
-├── please.ts · consult.ts · steer.ts · resume.ts · prune.ts · workspaces.ts
-├── stages/                   the two Planners with an agent: operator, triage
-├── lifecycles/
-│   └── compose.ts            --lifecycle <name>, or --activities a,b+c
-├── domains/                  ALL low-level logic — entry points stay thin
-│   ├── activities/           what an Activity is, which ones exist, running one
-│   │   └── use-cases/        execute-agent · activity-registry · agent-activity
-│   ├── agents/               coding-agent hosts and their I/O
-│   │   ├── data/             pi-agent · claude-code-agent · prompt-files
-│   │   └── use-cases/        harness-project · validate-agents
-│   ├── cli/                  the developer-facing command surface
-│   │   └── use-cases/        parse-cli · menu · render-help · resolve-prompt
-│   ├── config/               reading crust.config.yaml and merging its layers
-│   │   └── use-cases/        load-config · merge-config · machine-config
-│   ├── gates/                acceptance — gates, disputes, regressions
-│   │   └── use-cases/        output-checks · claim-gates · dispute-ledger
-│   ├── handoff/              the session directory and inter-activity artifacts
-│   │   ├── data/             handoff-snapshot · handoff-pointer · artifact-lock
-│   │   └── use-cases/        consult · steer · handoff-location
-│   ├── planning/             activities and lifecycles become an ordered plan
-│   │   └── use-cases/        load-lifecycles · parse-activities · plan-units
-│   ├── policy/               what an agent may touch and which checks run
-│   │   └── use-cases/        enforce-permissions · path-policy · route-by-path
-│   ├── runs/                 the engine that executes a run and reports it
-│   │   └── use-cases/        run-activity-run · run-activities · revise-loop
-│   ├── trace/                the SQLite trace, its reader, and what observes it
-│   │   ├── data/             trace-db · trace-reader · visualizer
-│   │   └── use-cases/        read-run-state · prune
-│   └── workspace/            git, worktrees, roots, the workspace registry
-│       ├── data/             git · roots · working-tree · workspace-registry
-│       └── use-cases/        capture-changes · select-range
-├── lib/                      used across domains, each index.ts + a flat src/
-│   ├── contracts/            activity-run · envelope · config · gate
-│   ├── system/               clock · files · ids · env-overrides
-│   └── terminal/             terminal · clipboard
-├── prompts/{activity}/{system.md,user.md}
-│                             what each agent is told, one directory each
-├── extensions/               the package path-policy extension
-└── testing/                  the fakes and capture helpers the suites share
+<pi-crust>/
+├── runtime/
+│   ├── cli.ts                    Recipe dispatch
+│   ├── commands/                 Entry points and crust.just
+│   ├── config/
+│   │   ├── crust.config.toml     Defaults, database, polling and ports
+│   │   ├── crust.activities.toml Activity, Planner and terminal tables
+│   │   └── crust.lifecycles.toml Ordered lifecycle stages
+│   ├── domains/                  Capability-owned logic
+│   ├── lib/                      Contracts, system and terminal primitives
+│   ├── prompts/                  One directory per prompt pair
+│   ├── extensions/               Package path-policy adapter
+│   └── testing/                  Shared test fixtures
+├── apps/visualizer/              Trace API and browser UI
+├── templates/pi-crust.toml       Comment-only repository template
+├── cookbooks/                    Task procedures and TOML examples
+└── references/                   Configuration, handoff and trace contracts
 ```
 
-Each domain is an `index.ts` over `src/{data,typedefs,use-cases}`, and only the layers it uses appear above. Nothing imports another domain's `src/` directly; the `index.ts` is the seam.
+Each domain exposes `index.ts` over `src/{data,typedefs,use-cases}`. Cross-domain production imports use that index, not another domain's private source directory.
 
-The stamp, which is all a target repository carries:
+## Repository layout
+
+A fresh install writes five files. The data shown below the pointer is created by runs, not by installation:
 
 ```text
-.pi-crust/
-├── config/                   repo-owned settings; examples may be refreshed
-│   ├── crust.activities.yaml the Activity registry — what a Lifecycle may name
-│   ├── crust.lifecycles.yaml the Lifecycles, their Stages, and each strategy
-│   ├── crust.config.yaml     defaults and tasks
-│   ├── crust.observe.yaml    the trace db, the ports, the themes
-│   └── dracula.css · high-contrast.css        visualizer themes
-├── prompts/       overrides only; defaults ship with the package
-└── data/                     runtime only; nothing under here is authored
-    ├── pi-crust-home         the path to the package above, read on every run
-    ├── sessions/{run_id}/    gitignored runtime
-    │   ├── agent_map.json    agent → coding-agent session_id + model
-    │   ├── context_handoff/  where agents write files for those that follow
-    │   └── {agent}/{prompts/, raw_output.jsonl, envelope.json}
-    └── crust.db              gitignored SQLite trace db the visualizer polls
+<repository>/
+├── pi-crust.toml                 Only repository configuration file
+├── .env.pi-crust.example         Credential example, not active configuration
+├── .gitignore                    Gains the runtime-data ignore entry
+├── justfile                      Gains the crust passthrough recipe
+└── .pi-crust/data/               Gitignored execution history
+    ├── pi-crust-home             Package-home pointer written by installation
+    ├── crust.db                  Created by runs, not installation
+    ├── sessions/                 Created by runs, not installation
+    │   └── <run_id>/
+    │       ├── agent_map.json
+    │       ├── context_handoff/
+    │       └── <agent>/          Saved prompts, stream and envelope
+    └── checks/                   Repository command logs
 ```
 
-A missing `config/` is seeded on first install. Once it exists, `install.ts --refresh` neither adds nor overwrites non-example settings; only new `.example.yaml` documents are added there, and existing examples are refreshed on request. `--force` is a deprecated alias with the same exclusions — see [install.md](install.md).
+Configuration is read on every command in three layers: package `runtime/config/`, machine `~/.pi-crust/config/`, repository `pi-crust.toml`. The two directories each hold the same three TOML filenames. Tables merge recursively; arrays, including lifecycle stages, replace whole. The repository wins for fields it states. Lists group entries by first-declaring layer and sort names inside each group.
 
-`data/` is worth more than the rest put together: it cannot be regenerated. An install copies and appends, and deletes nothing here.
+Machine-only Activity prompts normally live under `~/.pi-crust/prompts/<name>/`. An entry names one directory; relative paths resolve against the first-declaring layer's root. Both required prompt files are validated when a run uses them. Shipped prompt changes belong in a package fork, not repository override lookup.
 
-**v1 runs Pi only.** `coding_agent: pi`, default model `gemini-3.6-flash`, thinking `medium`. `claude_code` is specced in the config and stubbed in the interface — it lands in v2.
+The installer never replaces an existing `pi-crust.toml`, even with `--refresh` or its deprecated `--force` alias. It creates no configuration or prompt directory; legacy directories are left untouched and no longer read for runtime configuration or prompt overrides. The trace UI still reads themes from an existing `crust.observe.yaml`. Package updates and machine edits need no re-stamp. See [Install](install.md) and the [configuration reference](../references/config.md).
+
+`data/` is execution history and is not migrated or deleted by a configuration update. Keep it intact.
+
+**v1 runs Pi only.** The package ships `anthropic/claude-haiku-5-5` with thinking `max`; `claude_code` remains unimplemented.
 
 ## The activity run model
 
@@ -103,7 +77,7 @@ Every run is a sequence of **activity runs**, each one `await activity run(activ
 
 ## The Activity model
 
-An **Activity** is a discrete unit of work and the agent that performs it — one entry in `config/crust.activities.yaml`, carrying both halves:
+An **Activity** is a discrete unit of work and the agent that performs it — one `[activities.<name>]` table in the merged TOML layers, carrying both halves:
 
 | Key                                               | Says                                                                 |
 | ------------------------------------------------- | -------------------------------------------------------------------- |
@@ -113,15 +87,15 @@ An **Activity** is a discrete unit of work and the agent that performs it — on
 | `attempts`                                        | Activity Runs of one instance this run may spend, the first included |
 | `commit`                                          | land its own change, in its envelope's words, once its gates pass    |
 
-There is no registry in TypeScript. A team adds an Activity by adding an entry, removes one by deleting it, and reaches it immediately: a Lifecycle names `plan`, and `plan` IS the entry. An `output` nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names. The engine derives [output checks](../references/config.md#output-checks) from each Activity's `output`; a registry entry does not list them.
+There is no registry in TypeScript. A new keyed table registers an Activity without changing a code registry: a Lifecycle names `plan`, and `plan` IS the entry. An `output` nothing publishes is refused at load, with the list of what was available — that refusal is what replaced the compiler's old union of Activity names. The engine derives [output checks](../references/config.md#output-checks) from each Activity's `output`; a registry entry does not list them.
 
 Three things are NOT Activities, deliberately:
 
-- **The Planners** — `operator`, `triage`, and the Composer. They decide what happens and perform none of it, they are a closed set in code, and a Lifecycle cannot name one. Configuration tunes their model, tools, writes and prompts under `planners:`.
-- **Repository tasks** — a command declared under `tasks:` runs at `change` when it selects paths the Activity changed. A failure goes back to the Activity that changed them.
-- **Delivery** — an Activity with `commit: true` lands its own change once its gates pass, so granularity follows the chain. `--commit false` turns it off for a whole run; there is no flag that turns it on.
+- **The Planners** — `operator`, `triage`, and the Composer. They decide what happens and perform none of it, they are a closed set in code, and a Lifecycle cannot name one. Configuration tunes their model, tools, writes and prompts under `[planners.<name>]`.
+- **Repository tasks** — a command declared under `[tasks.<name>]` in `pi-crust.toml` runs at `change` when it selects paths the Activity changed. A failure goes back to the Activity that changed them.
+- **Delivery** — an Activity with `commit = true` lands its own change once its gates pass, so granularity follows the chain. `--commit false` turns it off for a whole run; there is no flag that turns it on.
 
-A chain that ENDS in reviewing Activities — any declaring `output: reviewOutput` — gets the bounded revise loop from `use-cases/revise-loop.ts`, which re-asks all of them each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.
+A chain that ENDS in reviewing Activities — any declaring `output = "reviewOutput"` — gets the bounded revise loop from `use-cases/revise-loop.ts`, which re-asks all of them each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's `attempts` — one ceiling covers the gate retry, the revise round and the regression, because the three failure modes are correlated. The builder may dispute a finding instead of fixing it, with evidence the `disputes_supported` gate insists on; a finding a declared check decides may not be disputed at all; and a finding repeated with nothing new on either side ends the loop and writes `context_handoff/disputes.md` for the developer.
 
 ## Envelopes
 
@@ -164,7 +138,7 @@ Load one cookbook per request — this overview is the only one you read up fron
 | Set the system up in a repo                    | `install.md`                                                  |
 | Add a lifecycle                                | `create_lifecycle.md`                                         |
 | Change a lifecycle's stages or concurrency     | `update_lifecycle.md`                                         |
-| Generate `crust.config.yaml`                   | `create_config.md`                                            |
+| Generate `pi-crust.toml`                       | `create_config.md`                                            |
 | Add or retune an agent                         | `update_config.md`                                            |
 | Add low-level logic or a gate                  | `update_modules.md`                                           |
 | Run and monitor a workflow                     | `how_to_prompt_for_the_eng.md`, then `run_lifecycle.md`       |

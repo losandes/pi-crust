@@ -14,21 +14,18 @@ import {
 const activity = (name: string, over: Record<string, unknown> = {}) =>
   activityConfigSchema.parse({
     name,
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     ...over,
   })
 
-const sdlc = lifecycleConfigSchema.parse(
-  Bun.YAML.parse(`
-name: sdlc
-description: the whole thing
-stages:
-  - name: discover
-    activities: [identify]
-  - name: implement
-    activities: [build]
-`),
-)
+const sdlc = lifecycleConfigSchema.parse({
+  name: 'sdlc',
+  description: 'the whole thing',
+  stages: [
+    { name: 'discover', activities: ['identify'] },
+    { name: 'implement', activities: ['build'] },
+  ],
+})
 
 test(
   [

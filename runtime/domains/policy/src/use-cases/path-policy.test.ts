@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { crustConfigSchema, renderWarnings } from '../../../../lib/contracts'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import type {
   TGoverned,
   TPathSettings,
@@ -36,6 +37,36 @@ const settings = (overrides: Partial<TPathSettings> = {}): TPathSettings => ({
   ignoredPolicy: { read: 'warn', write: 'block' },
   ...overrides,
 })
+
+test(
+  [
+    'given @SC12 the shipped access policy',
+    'when an Activity attempts to write pi-crust.toml',
+    'it should decide block before the call executes',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = shippedConfig()
+    const policy = settings({
+      protectedFiles: cfg.defaults.protected_files,
+      protectedPolicy: cfg.defaults.protected,
+      ignoredPolicy: cfg.defaults.ignored,
+    })
+    // when
+    const actual = decidePath({
+      path: 'pi-crust.toml',
+      intent: 'write',
+      settings: policy,
+      isIgnored: () => false,
+    })
+    // then
+    expect(actual).toMatchObject({
+      path: 'pi-crust.toml',
+      reason: 'protected',
+      verb: 'block',
+    })
+  },
+)
 
 const never = () => false
 

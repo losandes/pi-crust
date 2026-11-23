@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * make-config — generate .pi-crust/config/crust.config.yaml with great defaults.
+ * make-config — generate the repository's commented pi-crust.toml template.
  *
  * Usage:
  *     bun <pi-crust>/scripts/make-config.ts [--force]
@@ -13,9 +13,7 @@ const TEMPLATE = resolve(
   dirname(new URL(import.meta.url).pathname),
   '..',
   'templates',
-  'stamp',
-  'config',
-  'crust.config.yaml',
+  'pi-crust.toml',
 )
 
 const say = (line: string): void => {
@@ -24,12 +22,7 @@ const say = (line: string): void => {
 
 const main = (): number => {
   const force = process.argv.includes('--force')
-  const destination = join(
-    process.cwd(),
-    '.pi-crust',
-    'config',
-    'crust.config.yaml',
-  )
+  const destination = join(process.cwd(), 'pi-crust.toml')
   if (existsSync(destination) && !force) {
     say(`${destination} already exists — use --force to overwrite`)
     return 1

@@ -30,7 +30,7 @@ test.skipIf(SKIP_INTEGRATION)(
       ...entry,
       purpose: `Exercise ${entry.name} through repeated review groups.`,
       model: `fixture/${entry.name}`,
-      prompts: { system: 'system', user: 'user' },
+      prompts: '.',
       writes: [],
     }))
     using f = fixture(

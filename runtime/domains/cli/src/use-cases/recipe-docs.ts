@@ -55,7 +55,7 @@ export const GLOBAL_FLAGS: readonly TDocLine[] = [
   {
     name: '--config <path>',
     detail:
-      'crust.config.yaml to read; most recipes pass {{config}} through automatically',
+      'pi-crust.toml to read; most recipes pass {{config}} through automatically',
   },
   {
     name: '--db <path>',
@@ -81,12 +81,13 @@ export const GLOBAL_ENV: readonly TDocLine[] = [
   },
   {
     name: 'CRUST_BE_PORT',
-    detail: 'the observability API port; default 4600, from crust.observe.yaml',
+    detail:
+      'the observability API port; default 4600, overriding merged TOML settings',
   },
   {
     name: 'CRUST_FE_PORT',
     detail:
-      'the observability web app port; default 4601, from crust.observe.yaml',
+      'the observability web app port; default 4601, overriding merged TOML settings',
   },
 ]
 
@@ -137,7 +138,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     name: 'config',
     group: 'getting started',
     summary:
-      'every effective defaults.* and observability.* value, and the file that set it',
+      'effective TOML settings, entry models and prompt directories, with their layer and file sources',
     usage: 'just crust config [--config <path>]',
     flags: [],
     env: [],
@@ -460,7 +461,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     name: 'observe',
     group: 'reading the trace',
     summary:
-      'boot the trace UI on the ports crust.observe.yaml names (4601, api on 4600)',
+      'boot the trace UI with merged TOML ports and polling interval (4601, api on 4600 by default)',
     usage: 'just crust observe [--host] [--open] [--strictPort]',
     flags: [
       {

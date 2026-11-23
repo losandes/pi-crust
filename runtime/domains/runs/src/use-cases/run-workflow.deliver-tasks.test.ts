@@ -8,6 +8,7 @@ import {
   pullRequestOutput,
   type TStage,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import type { TDeliveryPorts } from '../../../activities'
 import { readRunState } from '../../../trace'
@@ -34,7 +35,7 @@ const setup = (
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver the verified work',
-    prompts: { system: join(dir, 'system.md'), user: join(dir, 'user.md') },
+    prompts: dir,
     writes: [],
   }
   const planners = options.operator
@@ -48,7 +49,7 @@ const setup = (
         },
       ]
     : []
-  const config = join(dir, 'moments.config.yaml')
+  const config = join(dir, 'moments.config.toml')
   const activities = run.cfg.activities.map((activity) => ({
     ...activity,
     writes: ['*'],
@@ -56,7 +57,7 @@ const setup = (
   }))
   writeFileSync(
     config,
-    Bun.YAML.stringify({
+    configText({
       ...run.cfg,
       defaults: { ...run.cfg.defaults, data_dir: dir },
       activities,
@@ -111,6 +112,8 @@ const setup = (
     defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'topic',
+    pushDefault: () => '',
+    remotes: () => [],
     remoteExists: () => true,
     baseRef: () => 'main',
     commitsAhead: () => 1,

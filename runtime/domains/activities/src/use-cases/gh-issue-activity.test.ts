@@ -1,14 +1,7 @@
 import { expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import type { TPiCrustConfig } from '../../../../lib/contracts'
-import {
-  activitiesFileSchema,
-  crustConfigSchema,
-  DEFAULT_ATTEMPTS,
-  lifecyclesFileSchema,
-} from '../../../../lib/contracts'
-import { render } from '../../../agents'
+import { DEFAULT_ATTEMPTS } from '../../../../lib/contracts'
+import { shippedConfig } from '../../../../testing/shipped-layer'
+import { promptFile, render } from '../../../agents'
 import { loadLifecycles } from '../../../planning'
 import { resolveActivities, resolvedNamed } from './activity-registry'
 import { listAnnotatingHandoffs } from './list-annotating-handoffs'
@@ -18,7 +11,7 @@ import { offeredActivities, runnableActivities } from './resolve-activities'
  * github.com/losandes/pi-crust/issues/25 — a discovery chain can end by
  * opening one GitHub issue.
  *
- * These read the SHIPPED `crust.activities.yaml` and `crust.lifecycles.yaml`
+ * These read the SHIPPED `crust.activities.toml` and `crust.lifecycles.toml`
  * rather than a fixture shaped like them, because the issue's own success
  * criteria are about what a stamp installs: an Activity an operator can name
  * in `--activities` or a Planner can choose, and a Lifecycle that chains
@@ -27,30 +20,6 @@ import { offeredActivities, runnableActivities } from './resolve-activities'
  * file proves the SHAPE of the `gh-issue` entry and its Lifecycle match what
  * the issue asked for, which a registry-fault check does not look at.
  */
-const STAMP = join(
-  import.meta.dir,
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
-  'templates',
-  'stamp',
-  'config',
-)
-
-const shippedConfig = (): TPiCrustConfig => {
-  const registry = activitiesFileSchema.parse(
-    Bun.YAML.parse(readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8')),
-  )
-
-  return crustConfigSchema.parse({
-    activities: registry.activities,
-    planners: registry.planners,
-    agents: [...registry.activities, ...registry.planners],
-  })
-}
-
 test(
   [
     'given the shipped Activity roster',
@@ -99,7 +68,7 @@ test(
     })
 
     // when
-    const actual = render(activity?.prompts?.user ?? '', {
+    const actual = render(promptFile(activity?.prompts ?? '', 'user'), {
       annotating_handoffs: annotatingHandoffs,
     })
 
@@ -255,16 +224,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = join(STAMP, 'crust.lifecycles.yaml')
-    const file = lifecyclesFileSchema.parse(
-      Bun.YAML.parse(readFileSync(given, 'utf8')),
-    )
+    const file = shippedConfig()
     const named = file.lifecycles.find((one) =>
       one.stages.some((stage) => stage.activities.includes('gh-issue')),
     )
 
     // when
-    const actual = loadLifecycles(given, shippedConfig()).find(
+    const actual = loadLifecycles(shippedConfig()).find(
       (one) => one.name === named?.name,
     )
 
@@ -288,10 +254,8 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = join(STAMP, 'crust.lifecycles.yaml')
-
     // when
-    const actual = loadLifecycles(given, shippedConfig())
+    const actual = loadLifecycles(shippedConfig())
     const stagesOf = (name: string) =>
       actual.find((one) => one.name === name)?.stages.map((s) => s.activities)
 

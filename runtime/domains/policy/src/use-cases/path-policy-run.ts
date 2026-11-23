@@ -31,7 +31,7 @@ export const POLICY_ENV = 'CRUST_PATH_POLICY'
  * reused: the same builder running twice would otherwise append to one
  * record, and the second Activity Run would report the first one's refusals
  * as its own. The policy file is per Activity Run for the same reason in the
- * other direction — a local config layer may have changed between them.
+ * other direction — the configuration used by a later invocation may differ.
  */
 export const policyPaths = (
   agentDir: string,
@@ -74,9 +74,8 @@ export const settingsFor = (
 /**
  * Write the policy this call runs under, and return the variable naming it.
  *
- * Written every call rather than once per run: an agent's policy is its
- * config's, and a run whose local config layer changed between Activities
- * must not have the first Activity's answer applied to the last.
+ * Each spawned call receives the policy from its own configuration, not a
+ * policy file left behind by an earlier invocation.
  */
 export const armPolicy = (
   params: Readonly<{
@@ -163,4 +162,4 @@ export const stopMessage = (
   `${agent} reached a path this repository governs with 'stop':\n` +
   `${stopped.map((one) => `  - ${refusalLine(one)}`).join('\n')}\n` +
   'The call was not blocked, so assume it happened. Nothing was changed ' +
-  'back; the policy is in crust.config.yaml under defaults.'
+  'back; the policy is in pi-crust.toml under defaults.'

@@ -1,64 +1,40 @@
 # Create a Lifecycle
 
-A Lifecycle is configuration, not code. It lives in `.pi-crust/config/crust.lifecycles.yaml`, names Activities the registry already defines, and arranges them into Stages. There is no script to write.
+A lifecycle is TOML configuration, not code. Define it in `~/.pi-crust/config/crust.lifecycles.toml` for every repository on this machine, or in a repository's single `pi-crust.toml` for that repository. Package lifecycles live in `<pi-crust>/runtime/config/crust.lifecycles.toml`. The three layers merge in that order, with the repository winning.
 
-## Step 1 — Decide the Activities, in order
+## Choose Activities
 
-Pick from `crust.activities.yaml`. A Lifecycle names Activities; it does not define them. If the work needs an Activity the registry does not have, add it there first — see [create_config.md](create_config.md).
+Use `just crust list` to inspect the merged catalogue. A lifecycle names Activities the registry defines; it does not define agents, models or prompts. Add a missing Activity first using [Update Config](update_config.md).
 
-Order is the order of the work: find out, decide, do, check.
+## Declare ordered stages
 
-## Step 2 — Group them into Stages
-
-A Stage is one step of the progression. It holds Activities and says how they run:
-
-```yaml
-lifecycles:
-  - name: quick
-    description: Plan it, build it, and check it still compiles.
-    stages:
-      - name: deliver
-        activities: [plan, test, build]
+```toml
+[lifecycles.quick]
+description = "Plan, build and review."
+stages = [
+  { name = "work", serial = ["plan", "build"] },
+  { name = "accept", concurrent = ["outcome-review", "code-review"] },
+]
 ```
 
-`strategy` defaults to `serial`, which means the Activities run one after another in the order listed. A serial Stage is a **sequence**, so a chain of dependent work is one Stage rather than one Stage per Activity — the three above are one Stage for exactly that reason.
+The table key names the lifecycle. Stages execute in array order. Each stage has a non-empty name and exactly one non-empty `serial` or `concurrent` list. Neither key defaults implicitly; both, neither, an empty list or an unknown stage key stops configuration loading and names the lifecycle and stage.
 
-The shipped `sdlc` is cut the same way: `discover`, then `deliver` holding plan through build, then `accept`. Three Stages for eight Activities, because only two boundaries in that chain are real progression points.
+A serial Stage is a sequence: dependent Activities run one after another in the listed order. Group them where they form one progression step rather than creating one Stage per Activity. There is no `depends_on`; a Stage follows the one before it.
 
-Stages run in the order they are declared. There is no `depends_on`: a Stage depends on the Stage before it.
+## Claim concurrency only where true
 
-## Step 3 — Claim concurrency only where it is true
+Concurrent Activities share one working tree. Their declared `writes` must be disjoint, and a judging Activity cannot share a Stage with a writer. An Activity with `["*"]` overlaps everything. The mechanical checks cannot establish that two disjoint writers are logically independent: choose concurrency only when neither needs the other's unfinished work.
 
-```yaml
-      - name: accept
-        strategy: concurrent
-        activities: [review, code-review]
-```
+## Verify the declaration
 
-`concurrent` is a claim, not a grouping. It says these Activities can run against the same working tree at the same time without reading each other's half-finished work.
-
-It is checked rather than trusted. A concurrent Stage whose Activities declare overlapping `writes` is **refused at load**, naming both Activities and the paths that collide. An Activity declaring `['*']` overlaps everything and can never share a concurrent Stage.
-
-The test is not "could these run in either order" — it is "can these run at the same moment". A reviewer and a code-reviewer both read the finished diff and each writes only its own findings file, so neither can observe the other's work in progress. A tester and a builder cannot: the builder is supposed to read what the tester wrote.
-
-When in doubt, leave it serial. The cost is wall-clock time; the cost of being wrong is a race nobody can reproduce.
-
-## Step 4 — Run it
+Run `just crust list` or open `just crust please`. The lifecycle is offered automatically. Entries are grouped by first-declaring layer, package then machine then repository, with names sorted inside each group; rearranging TOML tables does not reorder the menu.
 
 ```bash
 just crust run "the request" --lifecycle quick
 ```
 
-It also appears in `just crust please` automatically, above the individual Activities.
+Starting a run executes agents. Listing the declaration does not.
 
-## What a Stage gives you beyond ordering
+A Stage is addressable with `--approve-after stage:accept`. Inside a concurrent Stage, an Activity approval point waits for its siblings before stopping. Stage names must be unique within a lifecycle, and one Stage cannot name the same Activity twice.
 
-A Stage is addressable. `--approve-after stage:accept` stops the run after that Stage, and an Activity gate inside a concurrent Stage is lifted to the Stage boundary so its siblings are never cut off mid-write. See the gate table in [../references/config.md](../references/config.md).
-
-## Checklist
-
-- Every Activity named exists in `crust.activities.yaml`
-- Stage names are unique within the Lifecycle — a gate naming a duplicate would be ambiguous, and it is refused
-- No Activity appears twice in one Stage
-- Every `concurrent` Stage holds Activities that could run at the same moment, and whose declared paths are disjoint
-- The Lifecycle loads: run it, or run `just crust please` and see it listed
+A later layer can replace a description without replacing stages, but any `stages` list replaces the earlier list whole. See [Update a Lifecycle](update_lifecycle.md), and [Importing referenced work](../references/handoff.md#importing-referenced-work) for the engine-only `import` step.

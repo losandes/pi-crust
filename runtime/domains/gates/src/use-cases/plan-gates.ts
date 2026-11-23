@@ -53,7 +53,7 @@ export const plannedNames = (envelope: TEnvelopeBase): readonly string[] => {
  * Every planned Activity exists, none is a Planner, and the plan is not empty.
  *
  * Checked against the registry the RUN loaded, because Activities are
- * configuration: what exists is whatever `crust.activities.yaml` turned out
+ * configuration: what exists is whatever `crust.activities.toml` turned out
  * to hold, and a gate holding its own list would be the hardcoding this
  * whole refactor removed.
  *

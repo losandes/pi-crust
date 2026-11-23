@@ -41,7 +41,7 @@ const config = (
     name: 'gh-pull-request',
     purpose: 'Push the run and open or update a pull request',
     writes: [],
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     delivery: { remote: 'origin', base: 'main', draft: false },
     ...overrides,
   })
@@ -83,6 +83,8 @@ const fakePorts = (
     defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'feature',
+    pushDefault: () => '',
+    remotes: () => [],
     remoteExists: () => true,
     baseRef: () => 'refs/remotes/origin/main',
     commitsAhead: () => 1,
@@ -648,34 +650,56 @@ test(
   },
 )
 
-test(
-  [
-    'given use-cases/activities/gh-pull-request::ghPullRequestActivity',
-    'when every precondition holds and the resumed envelope is usable',
-    'it should push the branch, find no open PR, and create one',
-  ].join(', '),
-  async () => {
-    // given
-    const { ports, calls } = fakePorts()
-    const activity = ghPullRequestActivity(config(), OPTIONS, ports)
-    const run = aRun({ resume: new Set(['gh-pull-request']) })
-    resumedEnvelope(run, {
-      status: 'success',
-      summary: 'done',
-      title: 'Ship the feature',
-      body: 'This does the thing.',
-    })
-
-    // when
-    const actual = await activity.deliver(aCtx(run), aHandle())
-
-    // then
-    expect(actual.action).toEqual('created')
-    expect(actual.recoverable).toBe(false)
-    expect(actual.fallback).toBe(false)
-    expect(calls.map((one) => one.op)).toEqual(['push', 'find', 'create'])
-  },
-)
+for (const [configured, pushDefault, remotes, expected] of [
+  ['configured', 'push-default', ['one', 'two'], 'configured'],
+  [undefined, 'push-default', ['one', 'two'], 'push-default'],
+  [undefined, '', ['upstream'], 'upstream'],
+  [undefined, '', ['one', 'two'], 'origin'],
+] as const) {
+  test(
+    [
+      `given @SC17 remote discovery selecting ${expected}`,
+      'when every delivery precondition holds and the resumed envelope is usable',
+      'it should push to the chosen remote and create one pull request',
+    ].join(', '),
+    async () => {
+      // given
+      const { ports, calls } = fakePorts({
+        pushDefault: () => pushDefault,
+        remotes: () => remotes,
+      })
+      const activity = ghPullRequestActivity(
+        config({ delivery: { remote: configured, base: 'main' } }),
+        OPTIONS,
+        ports,
+      )
+      const run = aRun({ resume: new Set(['gh-pull-request']) })
+      try {
+        resumedEnvelope(run, {
+          status: 'success',
+          summary: 'done',
+          title: 'Ship the feature',
+          body: 'This does the thing.',
+        })
+        // when
+        const actual = await activity.deliver(aCtx(run), aHandle())
+        // then
+        expect(actual.action).toEqual('created')
+        expect(actual.recoverable).toBe(false)
+        expect(actual.fallback).toBe(false)
+        expect(calls.map((one) => one.op)).toEqual(['push', 'find', 'create'])
+        expect(calls[0]).toEqual({
+          op: 'push',
+          remote: expected,
+          branch: 'feature',
+        })
+      } finally {
+        rmSync(run.contextHandoffDir, { recursive: true, force: true })
+        rmSync(run.sessionDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 test(
   [
@@ -966,16 +990,7 @@ test(
     // given
     const base = aRun()
     const terminal = config({
-      prompts: {
-        system: join(
-          import.meta.dir,
-          '../../../../prompts/gh-pull-request/system.md',
-        ),
-        user: join(
-          import.meta.dir,
-          '../../../../prompts/gh-pull-request/user.md',
-        ),
-      },
+      prompts: join(import.meta.dir, '../../../../prompts/gh-pull-request'),
     })
     const run: TRun = {
       ...base,

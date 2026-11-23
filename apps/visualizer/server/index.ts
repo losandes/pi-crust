@@ -22,6 +22,7 @@ import type {
 } from '../shared/types.ts'
 import type { PiCrustDb } from './db.ts'
 import { handoffDirFor } from './handoff.ts'
+import { pollMsFromEnv } from './poll-interval.ts'
 import { WorkspaceRegistry } from './registry.ts'
 import { BUILTIN_THEMES, themesForWorkspace } from './themes.ts'
 import { registryPath, registryStamp, resolveWorkspaces } from './workspaces.ts'
@@ -46,6 +47,7 @@ import {
  * with nothing explaining why. A named variable cannot be set by accident.
  */
 const PORT = Number(process.env.CRUST_BE_PORT ?? 4600)
+const POLL_MS = pollMsFromEnv()
 const DIST_DIR = resolve(import.meta.dir, '..', 'dist')
 
 /**
@@ -281,6 +283,7 @@ const server = Bun.serve({
         db: first?.dbPath ?? '',
         journal_mode: first?.db?.journalMode ?? 'unknown',
         sessions: registry.sessionCount(),
+        poll_ms: POLL_MS,
         workspaces: describeWorkspaces(),
       } satisfies HealthResponse)
     }),

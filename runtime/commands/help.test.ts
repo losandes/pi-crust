@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test'
-import { join, resolve } from 'node:path'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { EXIT } from '../lib/contracts'
+import {
+  EMPTY_REPOSITORY_PATH,
+  withShippedPackage,
+} from '../testing/shipped-layer'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -8,14 +14,7 @@ import {
 } from '../testing/terminal-capture'
 import { main } from './help'
 
-const SHIPPED_CONFIG = join(
-  resolve(import.meta.dir, '..'),
-  '..',
-  'templates',
-  'stamp',
-  'config',
-  'crust.config.yaml',
-)
+const SHIPPED_CONFIG = EMPTY_REPOSITORY_PATH
 
 test(
   [
@@ -29,7 +28,9 @@ test(
     try {
       // given
       // when
-      const actual = main(['--config', SHIPPED_CONFIG])
+      const actual = withShippedPackage(() =>
+        main(['--config', SHIPPED_CONFIG]),
+      )
 
       // then
       expect(actual).toBe(EXIT.SUCCESS)
@@ -53,7 +54,9 @@ test(
     try {
       // given
       // when
-      const actual = main(['--config', SHIPPED_CONFIG, 'run'])
+      const actual = withShippedPackage(() =>
+        main(['--config', SHIPPED_CONFIG, 'run']),
+      )
 
       // then
       expect(actual).toBe(EXIT.SUCCESS)
@@ -76,7 +79,9 @@ test(
     try {
       // given
       // when
-      const actual = main(['--config', SHIPPED_CONFIG, 'nonsuch'])
+      const actual = withShippedPackage(() =>
+        main(['--config', SHIPPED_CONFIG, 'nonsuch']),
+      )
 
       // then
       expect(actual).toBe(EXIT.USAGE)
@@ -98,7 +103,7 @@ test(
     try {
       // given
       // when
-      const actual = main(['--config', '/nope/missing.yaml'])
+      const actual = main(['--config', '/nope/missing.toml'])
 
       // then
       expect(actual).toBe(EXIT.SUCCESS)
@@ -124,7 +129,12 @@ test(
       delete process.env.CRUST_CONFIG
 
       // when
-      const actual = main([])
+      const cwd = process.cwd()
+      const directory = mkdtempSync(join(tmpdir(), 'crust-help-default-'))
+      process.chdir(directory)
+      const actual = withShippedPackage(() => main([]))
+      process.chdir(cwd)
+      rmSync(directory, { recursive: true, force: true })
 
       // then
       try {
@@ -158,7 +168,7 @@ test(
       process.env.CRUST_CONFIG = SHIPPED_CONFIG
 
       // when
-      const actual = main([])
+      const actual = withShippedPackage(() => main([]))
 
       // then
       try {

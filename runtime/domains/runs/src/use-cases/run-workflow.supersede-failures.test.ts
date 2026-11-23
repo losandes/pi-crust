@@ -7,6 +7,7 @@ import {
   EXIT,
   pullRequestOutput,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import type { TDeliveryPorts } from '../../../activities'
 import { readRunState } from '../../../trace'
@@ -32,20 +33,17 @@ const workflowFixture = (
     name: 'gh-pull-request',
     model: 'fixture/delivery',
     purpose: 'Deliver accepted work',
-    prompts: {
-      system: join(dir, 'system.md'),
-      user: join(dir, 'user.md'),
-    },
+    prompts: dir,
     writes: [],
   }
   const entries = run.cfg.activities.map((agent) => ({
     ...agent,
     output: options.concurrent ? 'reviewOutput' : agent.output,
   }))
-  const config = join(dir, 'workflow.config.yaml')
+  const config = join(dir, 'workflow.config.toml')
   writeFileSync(
     config,
-    Bun.YAML.stringify({
+    configText({
       ...run.cfg,
       defaults: { ...run.cfg.defaults, data_dir: dir },
       agents: [...entries, terminal],
@@ -97,6 +95,8 @@ const workflowFixture = (
     defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'topic',
+    pushDefault: () => '',
+    remotes: () => [],
     remoteExists: () => true,
     baseRef: () => 'main',
     commitsAhead: () => 1,

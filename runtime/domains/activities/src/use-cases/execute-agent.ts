@@ -15,7 +15,6 @@ import type {
   TAgentConfig,
   TEnvelopeBase,
   TEnvelopeSpec,
-  TPrompts,
   TRun,
   TTreeWarning,
 } from '../../../../lib/contracts'
@@ -41,8 +40,9 @@ import {
   inboxSince,
   mergeUsage,
   packageExtensionPath,
+  promptFile,
   readSteering,
-  revisePromptReference,
+  revisePromptPath,
 } from '../../../agents'
 import { resolveAgent } from '../../../config'
 import { steeringAppliedEvent, steeringBlock } from '../../../handoff'
@@ -92,7 +92,7 @@ export const findingsBlock = (findings: readonly string[]): string =>
       "repository's declared checks decides may not be disputed. Fix it."
 
 export type TUserMessage = Readonly<{
-  prompts: TPrompts
+  prompts: string
   variables: Readonly<Record<string, string>>
   /** the developer's standing instructions; '' when there are none */
   steering: string
@@ -104,7 +104,7 @@ export type TUserMessage = Readonly<{
 
 export type TUserMessagePorts = Readonly<{
   render: TAgentPorts['render']
-  reviseReference: (prompts: TPrompts) => string
+  reviseReference: (directory: string) => string
 }>
 
 export const userMessage =
@@ -114,7 +114,7 @@ export const userMessage =
       message.feedback.length === 0 && message.blockingFindings.length > 0
     const reference = revising
       ? ports.reviseReference(message.prompts)
-      : message.prompts.user
+      : promptFile(message.prompts, 'user')
     return (
       ports.render(reference, message.variables) +
       steeringBlock(message.steering) +
@@ -470,7 +470,10 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
      */
     trust_stance: trustStance(run.trust),
   }
-  const systemText = ports.render(agent.prompts.system, variables)
+  const systemText = ports.render(
+    promptFile(agent.prompts, 'system'),
+    variables,
+  )
   /*
    * Steering is APPENDED, not rendered from a placeholder.
    *
@@ -482,7 +485,7 @@ export const executeAgent = async <TEnvelope extends TEnvelopeBase>(
   const steering = readSteering(run.contextHandoffDir)
   const userText = userMessage({
     render: ports.render,
-    reviseReference: revisePromptReference,
+    reviseReference: revisePromptPath,
   })({
     prompts: agent.prompts,
     variables,

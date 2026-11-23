@@ -15,7 +15,7 @@ for (const kind of ['before', 'after'] as const) {
         activityConfigSchema.parse({
           name: 'build',
           aliases: ['implement'],
-          prompts: { system: 'system', user: 'user' },
+          prompts: '.',
         }),
       ]
       const task = taskSchema.parse({
@@ -60,7 +60,7 @@ test(
       activityConfigSchema.parse({
         name: 'diagnose',
         aliases: ['debug'],
-        prompts: { system: 'system.md', user: 'user.md' },
+        prompts: '.',
       }),
     ]
     const task = taskSchema.parse({

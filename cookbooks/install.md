@@ -1,16 +1,28 @@
 # Install
 
-`/skill:crust install` — stamp the entire factory out of the skill and into the current working directory.
-
-## Run it
+Run the installer from the target repository's Git root:
 
 ```bash
 bun <pi-crust>/scripts/install.ts
 ```
 
-Run from the **target repo root** — the cwd is where everything lands, whatever directory pi-crust itself is installed in. `<pi-crust>` is that directory: a package install, a git checkout, or a skill directory.
+`<pi-crust>` is the package directory, wherever installed. Runtime code and prompts stay there; nothing copies them into the target repository.
 
-The installer records where it ran from in `.pi-crust/data/pi-crust-home`, which is how `just crust observe` later finds the web app without being told. Move or reinstall pi-crust and that file is stale — re-run the installer, or set `CRUST_HOME`.
+## What is installed
+
+A fresh install creates exactly these files:
+
+| File                           | Ownership                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------- |
+| `pi-crust.toml`                | Repository configuration, written only when absent; every example task is commented out. |
+| `.env.pi-crust.example`        | Template-owned credential example; the installer does not create `.env`.                 |
+| `.gitignore`                   | Gains `.pi-crust/data/`. Existing contents are retained.                                 |
+| `justfile`                     | Gains the `crust` passthrough recipe and positional-argument setting when needed.        |
+| `.pi-crust/data/pi-crust-home` | Machine-local pointer to the package.                                                    |
+
+The repository's only pi-crust configuration file is `pi-crust.toml`. Defaults, Activities and lifecycles are read live from `<pi-crust>/runtime/config/`, then `~/.pi-crust/config/`, then that repository file. A package update reaches the next command without re-stamping. See the [configuration reference](../references/config.md).
+
+The installer creates no configuration or prompt directory. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and are no longer read for runtime configuration or prompt overrides; the trace UI still reads themes from an existing `crust.observe.yaml`. The report points to the reference's hand-migration instructions. Never delete execution history under `.pi-crust/data/` as part of configuration migration.
 
 ## Reinstall or refresh
 
@@ -19,83 +31,28 @@ bun <pi-crust>/scripts/install.ts --refresh
 # Or: just crust update
 ```
 
-Without flags, existing files are left alone. `--refresh` replaces template-owned files, including existing `.example.yaml` documents under `config/`. `--force` remains a deprecated alias through 0.1.x and is scheduled for removal in 0.2.0; it has exactly the same exclusions.
+An existing `pi-crust.toml` is never overwritten, even with `--refresh` or `--force`. Refresh applies only to template-owned files such as the credential example. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0.
 
-A missing `.pi-crust/config/` is seeded on first install. Once that directory exists, even if empty, only new `.example.yaml` documents are added there. Non-example settings, rosters, lifecycles and themes are neither added nor overwritten, with or without `--refresh`. To adopt a new settings file, review the corresponding file in `<pi-crust>/templates/stamp/config/` and copy it deliberately; to retune an existing one, edit it by hand. `make-config.ts --force` explicitly replaces just `crust.config.yaml` and is a separate command.
+The package-home pointer and justfile repairs keep their existing behavior. The explicit cleanup of obsolete stamped runtime paths is unchanged; legacy configuration and prompt directories are not cleanup candidates. The trace database and sessions are never migrated by installation.
 
-The report distinguishes `stamped`, `skipped (exists)` and `left to the repository (config/)`, naming the files and the config ownership exclusion. New examples have their own `added to config/ (new since your install)` section rather than being mixed with replacements.
+To generate the repository file separately, use `make-config.ts`. Unlike the installer, that command's explicit `--force` replaces the one TOML file; review and preserve existing contents first.
 
-## What gets stamped
-
-`install.ts` copies template-owned files from `templates/stamp/` into `./.pi-crust/` and seeds a missing `config/`. Non-example config becomes repository-owned; examples remain template-owned documentation:
-
-| Stamped                                  | What it is                                                   | Tracked?          |
-| ---------------------------------------- | ------------------------------------------------------------ | ----------------- |
-| `config/crust.config.yaml`               | defaults and tasks                                           | yes               |
-| `config/crust.activities.yaml`           | every Activity this repository offers                        | yes               |
-| `config/crust.lifecycles.yaml`           | every Lifecycle, as Stages and dependencies                  | yes               |
-| `config/crust.observe.yaml`              | the trace db, the UI's ports, every theme it offers          | yes               |
-| `config/high-contrast.css`               | a worked theme, registered in `crust.observe.yaml`           | yes               |
-| `config/crust.config.local.example.yaml` | what a personal override may say                             | yes               |
-| `prompts/README.md`                      | how to add or override a prompt                              | yes               |
-| `prompts/example/`                       | the shape of a prompt                                        | no — illustrative |
-| `data/`                                  | this developer's runs, and where pi-crust is on this machine | no — never shared |
-| `.env.pi-crust.example`                  | the variables a roster may need, at the repository root      | yes               |
-| `justfile`                               | gains a `crust` recipe; created if the repository has none   | yes               |
-
-**No code is stamped.** The runtime — modules, the Activity runner, the Planners, the shipped prompts, the pi extensions, the recipes — lives in the pi-crust package. That is what makes an update safe: it can replace every file it owns without touching a file you wrote, because none of them are the same file.
-
-An install also **removes** paths an earlier version stamped into `.pi-crust/`: the old module, stage, lifecycle and extension directories, `crust.just` and the root scripts. Those are dead copies no code reads. The list is explicit, so a file you created is never a deletion candidate.
-
-## Extending it
-
-Nothing here needs a `.gitignore` edit. Every directory that receives your work is already tracked.
-
-| To                                | Do                                                                                                   |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Add an Activity                   | Add an entry to `config/crust.activities.yaml`                                                       |
-| Remove one                        | Delete its entry — the file lists everything, so deleting removes the capability                     |
-| Reorder the menu                  | Reorder the file; nothing else records a sequence                                                    |
-| Hide one from `just crust please` | `hidden: true` on the Activity. It still runs by name, in a Lifecycle, and under a Planner           |
-| Add or change a Lifecycle         | Edit `config/crust.lifecycles.yaml`                                                                  |
-| Override a prompt                 | Write `.pi-crust/prompts/<activity>/system.md`. It wins; nothing else changes                        |
-| Add a theme                       | Register it in `config/crust.observe.yaml` and put the `.css` beside it, as `high-contrast.css` does |
-| Move the trace UI's ports         | `ports:` in `config/crust.observe.yaml`; `CRUST_BE_PORT` / `CRUST_FE_PORT` win, for one shell        |
-| Deviate personally                | Any of the above in a `*.local.yaml` sibling, which is gitignored                                    |
-
-A local layer may set any key and may add an Activity or Lifecycle the team file does not have. It is not restricted, because whoever writes it can equally write the committed file.
-
-Three capabilities are not configurable and cannot be removed: **Triage** recommends a Lifecycle, the **Operator** recommends and runs one, and the **Composer** runs the plan it is handed. They decide or initiate work rather than perform it.
-
-## Post-install checklist
-
-1. **Env** — `cp .env.pi-crust.example .env`, then set `OPENROUTER_API_KEY` in `.env`. The installer does not create `.env` for you, and does not ignore it either; confirm your repository already does. (v1 runs Pi; `ANTHROPIC_API_KEY` / `CLAUDE_CODE_PATH` are only needed once Claude Code lands in v2.)
-2. **Dependencies** — nothing to install into `.pi-crust/`. The stamp is configuration and documents only; the runtime and its one dependency (`zod`) live in the pi-crust package, and an install removes any `package.json`, `bun.lock` or `node_modules` an older version left in the stamp.
-3. **Pi is installed and on PATH** — `pi --version`. Set `PI_PATH` in `.env` if it is not.
-4. **The model resolves** — the config's default `gemini-3.6-flash` must be a registered id in `~/.pi/agent/models.json`. Check with `pi --list-models` or read the file directly; see `references/config.md` for model resolution.
-5. **Gitignore** — `install.ts` appends three lines for you; confirm they landed:
-
-   ```gitignore
-   # crust runtime
-   .pi-crust/data/
-   .pi-crust/config/*.local.yaml
-   .pi-crust/prompts/example/
-   ```
-
-   Everything else in `.pi-crust/` is yours and belongs in the repository.
-
-6. **Git repo** — an Activity that declares `commit: true` stages the paths it was observed to change and commits them, which throws if the cwd is not a git repository. Run `git init` and make a first commit before using any chain that ends in `commit`. `document.ts` needs one too: it measures the change with `git diff` against the [repository's base branch](../references/config.md#the-base-branch).
-7. **Smoke test** — `just crust demo` runs two cheap read-only workflows back to back, or run the smallest workflow directly:
+## Configure once for the machine
 
 ```bash
-just crust demo                                                    # both, end to end
-bun <pi-crust>/runtime/commands/run.ts "reply with a one-line summary of this repo" --activities scout   # the raw form
+mkdir -p ~/.pi-crust/config
+cp <pi-crust>/cookbooks/examples/crust.activities.machine.example.toml \
+   ~/.pi-crust/config/crust.activities.toml
 ```
 
-Green means the whole path works: config validated, session minted, Pi ran, envelope parsed, events landed in `.pi-crust/data/crust.db`. Verify the trace exists before trusting anything larger:
+If the destination already exists, merge the tables by hand rather than overwrite it. The same three file names are accepted at machine and package level: `crust.config.toml`, `crust.activities.toml`, `crust.lifecycles.toml`. The repository wins on fields it explicitly sets. Tasks may be declared only in the repository's `pi-crust.toml`.
 
-```bash
-sqlite3 .pi-crust/data/crust.db "select run_id, status from sessions order by started_at desc limit 1;"
-```
+## Post-install checks
 
-If the smoke test fails, fix it before composing chains — every multi-agent workflow rides on this exact path.
+1. Run `just crust list`; an unedited installation needs no task commands and lists the shipped catalogue.
+2. Copy `.env.pi-crust.example` to `.env` if needed, then set credentials for the providers named by the effective roster. Confirm the repository ignores credentials; the installer adds only the data ignore entry.
+3. Confirm Pi is on `PATH`, or set `PI_PATH`. Check model patterns with `pi --list-models`.
+4. Run `just crust config` to inspect effective settings and their sources. Uncomment example task tables in `pi-crust.toml` only after replacing their commands with the repository's real verification commands.
+5. If an end-to-end agent smoke test is wanted, run `just crust demo`. It starts agents and uses provider credentials; listing and configuration inspection do not.
+
+A fresh file declares no tasks, so a run reports that no commands ran rather than executing a placeholder command. `check:install` verifies a disposable fresh installation's exact file set, inactive task examples and successful catalogue loading; it does not compare or rewrite an existing repository's configuration.

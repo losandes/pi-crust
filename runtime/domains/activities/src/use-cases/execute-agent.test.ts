@@ -38,6 +38,7 @@ import {
   WARNING_EVENT,
 } from '../../../../lib/contracts'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import type { TPiControl, TPiHooks, TPiResult } from '../../../agents'
 import {
   appendSteering,
@@ -45,7 +46,6 @@ import {
   packageExtensionPath,
   postToInbox,
 } from '../../../agents'
-import { loadConfig } from '../../../config'
 import { PATHS_TOUCHED, policyPaths } from '../../../policy'
 import type { TAgentPorts } from './execute-agent'
 import {
@@ -144,7 +144,7 @@ const aConfig = (
       agentConfigSchema.parse({
         name: 'builder',
         purpose: 'build the thing',
-        prompts: { system: 's.md', user: 'u.md' },
+        prompts: '.',
         writes: ['*'],
         ...overrides,
       }),
@@ -463,17 +463,16 @@ test(
 for (const revising of [true, false]) {
   test(
     [
-      `given an agent with a revise override and findings ${revising}`,
+      `given an agent with a revise.md file and findings ${revising}`,
       'when executeAgent sends its prompt',
-      'it should select the revise override only for a revise round',
+      'it should select revise.md only for a revise round',
     ].join(', '),
     async () => {
       // given
       const repoRoot = aRepo()
+      writeFileSync(join(repoRoot, 'revise.md'), 'revise')
       const { run } = aRun(repoRoot, {
-        cfg: aConfig({
-          prompts: { system: 's.md', user: 'u.md', revise: 'r.md' },
-        }),
+        cfg: aConfig({ prompts: repoRoot }),
       })
       const requests: string[] = []
       const { ports, calls } = fakePorts({
@@ -498,9 +497,12 @@ for (const revising of [true, false]) {
           calls
             .filter((one) => one.op === 'render')
             .map((one) => one.templatePath),
-        ).toEqual(['s.md', revising ? 'r.md' : 'u.md'])
+        ).toEqual([
+          join(repoRoot, 'system.md'),
+          join(repoRoot, revising ? 'revise.md' : 'user.md'),
+        ])
         expect(requests[0]).toBe(
-          `rendered:${revising ? 'r.md' : 'u.md'}${findingsBlock(findings)}`,
+          `rendered:${join(repoRoot, revising ? 'revise.md' : 'user.md')}${findingsBlock(findings)}`,
         )
       } finally {
         rmSync(repoRoot, { recursive: true, force: true })
@@ -521,12 +523,7 @@ for (const shadow of [false, true]) {
     async () => {
       // given
       const repoRoot = aRepo()
-      const cfg = loadConfig(
-        join(
-          import.meta.dir,
-          '../../../../../templates/stamp/config/crust.config.yaml',
-        ),
-      )
+      const cfg = shippedConfig()
       const agent = cfg.agents.find((one) => one.name === 'build')
       if (agent === undefined) throw new Error('missing shipped build agent')
       const { run } = aRun(repoRoot, {
@@ -620,7 +617,7 @@ test(
       paths.refusals,
       `${JSON.stringify({
         tool: 'bash',
-        path: '.pi-crust/config/crust.config.yaml',
+        path: 'pi-crust.toml',
         intent: 'write',
         reason: 'protected',
         verb: 'stop',
@@ -819,7 +816,7 @@ test(
           agentConfigSchema.parse({
             name: 'reviewer',
             purpose: 'review only',
-            prompts: { system: 's.md', user: 'u.md' },
+            prompts: '.',
             writes: [],
           }),
         ],
@@ -925,7 +922,7 @@ for (const hasReviewer of [true, false]) {
                 name: 'reviewer',
                 output: 'reviewOutput',
                 writes: ['{handoff}/verdict.md'],
-                prompts: { system: 's.md', user: 'u.md' },
+                prompts: '.',
               },
             ],
           })
@@ -1077,12 +1074,12 @@ test(
         agents: [
           agentConfigSchema.parse({
             name: 'builder',
-            prompts: { system: 's.md', user: 'u.md' },
+            prompts: '.',
             writes: ['*'],
           }),
           agentConfigSchema.parse({
             name: 'reviewer',
-            prompts: { system: 's.md', user: 'u.md' },
+            prompts: '.',
             writes: ['*'],
           }),
         ],
@@ -1408,7 +1405,7 @@ for (const scenario of historyScenarios) {
           { name: 'code-reviewer', writes: ['code-reviews/'] },
           { name: 'builder', writes: ['*'] },
         ].map((agent) => ({
-          prompts: { system: 's.md', user: 'u.md' },
+          prompts: '.',
           ...agent,
         })),
       })

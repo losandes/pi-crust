@@ -40,7 +40,7 @@ const capturedTerminal = () => {
   return { [Symbol.dispose]: restoreTerminal }
 }
 
-const PROMPT_ENGINEERING = { system: 's.md', user: 'u.md' }
+const PROMPT_ENGINEERING = '.'
 
 const cfgWith = (
   activities: readonly Record<string, unknown>[],

@@ -1,0 +1,22 @@
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# Copy it to ~/.pi-crust/config/crust.lifecycles.toml and its lifecycles are
+# offered in every repository on this machine from the next command.
+#
+# A table whose name nothing ships is a new lifecycle. A table that names a
+# shipped lifecycle merges field by field, except `stages`, which replaces the
+# shipped stages whole. Each stage names its strategy with its key: `serial`
+# runs the listed Activities in order, `concurrent` runs them at once.
+
+[lifecycles.quick]
+description = "Plan it and build it."
+stages = [
+  { name = "deliver", serial = ["plan", "build"] },
+]
+
+[lifecycles.survey]
+description = "Look at it from two directions before deciding anything."
+stages = [
+  { name = "research", concurrent = ["technical-research", "domain-research"] },
+  { name = "decide", serial = ["conceptualize"] },
+]

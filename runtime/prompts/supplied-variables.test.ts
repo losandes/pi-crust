@@ -17,14 +17,13 @@ const supplied = [
 const root = join(import.meta.dir, '../..')
 const paths = [
   ...new Bun.Glob('runtime/prompts/**/*.md').scanSync({ cwd: root }),
-  ...new Bun.Glob('templates/stamp/prompts/**/*.md').scanSync({ cwd: root }),
 ]
 
 test(
   [
-    'given both shipped prompt directories',
+    'given the shipped runtime prompt directory',
     'when discovering Markdown prompts',
-    'it should include the runtime prompts and the stamp scaffold',
+    'it should include the runtime prompts',
   ].join(', '),
   () => {
     // given
@@ -32,7 +31,6 @@ test(
     const actual = paths
     // then
     expect(actual).toContain('runtime/prompts/build/user.md')
-    expect(actual).toContain('templates/stamp/prompts/example/system.md')
   },
 )
 

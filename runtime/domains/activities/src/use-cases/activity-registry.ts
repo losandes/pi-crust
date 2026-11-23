@@ -1,7 +1,7 @@
 /**
  * The Activity registry, resolved: configuration becomes something runnable.
  *
- * `crust.activities.yaml` names an envelope spec. This is where that name
+ * `crust.activities.toml` names an envelope spec. This is where that name
  * becomes the spec and its output checks, and where a
  * name nothing publishes is refused — at load, naming what was available,
  * because that refusal is what replaces the compiler's old union of activity

@@ -1,0 +1,65 @@
+# Lifecycle definitions. Activities are defined in crust.activities.toml.
+#
+# Stages execute in array order. Each names exactly one strategy:
+#   serial = [...]      sequential, in listed order
+#   concurrent = [...]  parallel, with no dependencies or overlapping writes
+#
+# Concurrent Activities share a working tree. Overlapping writes are refused
+# at lifecycle validation. Review Activities can run concurrently because each
+# reads completed changes and writes to a separate findings file.
+#
+# import is not an Activity. Named first in a serial first Stage, it brings
+# the issue or document the request references into the handoff before any
+# Activity runs. See <pi-crust>/references/handoff.md.
+
+[lifecycles.bugfix]
+description = "Fix a reported bug, start to finish. Reproduction comes first and gates the rest."
+stages = [
+  { name = "diagnose", serial = ["diagnose","plan"] },
+  { name = "review-plan", concurrent = ["plan-comprehension","plan-readiness"] },
+  { name = "deliver", serial = ["build"] },
+  { name = "accept", concurrent = ["outcome-review","code-review"] },
+  { name = "push", serial = ["gh-pull-request"] },
+]
+
+[lifecycles.de-risk]
+description = "Learn, disprove, de-risk. Evaluate a concept to determine its feasibility and learn through experimentation."
+stages = [
+  { name = "discover", serial = ["identify"] },
+  { name = "prove", serial = ["plan","build"] },
+]
+
+[lifecycles.gh-issue]
+description = "Analyze a topic, plan the work, and open a github issue."
+stages = [
+  { name = "discover", serial = ["identify"] },
+  { name = "file", serial = ["gh-issue"] },
+]
+
+[lifecycles.ship]
+description = "An e2e engineering lifecycle: identify, plan, build, and review."
+stages = [
+  { name = "discover", serial = ["identify","plan"] },
+  { name = "review-plan", concurrent = ["plan-comprehension","plan-readiness"] },
+  { name = "deliver", serial = ["build"] },
+  { name = "accept", concurrent = ["outcome-review","code-review"] },
+  { name = "push", serial = ["gh-pull-request"] },
+]
+
+[lifecycles.ship-to-outcome]
+description = "An e2e engineering lifecycle to launch after you already identified the outcome: plan, build, and review."
+stages = [
+  { name = "discover", serial = ["plan"] },
+  { name = "review-plan", concurrent = ["plan-comprehension","plan-readiness"] },
+  { name = "deliver", serial = ["build"] },
+  { name = "accept", concurrent = ["outcome-review","code-review"] },
+  { name = "push", serial = ["gh-pull-request"] },
+]
+
+[lifecycles.ship-to-plan]
+description = "An e2e engineering lifecycle to launch after you already identified the plan: import the work the request references, build, and review."
+stages = [
+  { name = "deliver", serial = ["import","build"] },
+  { name = "accept", concurrent = ["outcome-review","code-review"] },
+  { name = "push", serial = ["gh-pull-request"] },
+]

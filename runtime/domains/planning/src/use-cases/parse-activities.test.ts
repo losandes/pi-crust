@@ -19,7 +19,7 @@ const cfg = crustConfigSchema.parse({
     { name: 'gh-pull-request', writes: [], aliases: ['gh-pr'] },
   ].map((activity) => ({
     purpose: `Do the ${activity.name} work`,
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     ...activity,
   })),
 })

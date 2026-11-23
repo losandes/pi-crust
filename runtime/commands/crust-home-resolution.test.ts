@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SKIP_INTEGRATION } from '../testing/integration'
@@ -257,11 +257,6 @@ integrationTest(
       '#!/bin/sh\n[ "$2" = --refresh ] || exit 1\nprintf "fake-install-ran: %s %s\\n" "$1" "$2"\n',
       { mode: 0o755 },
     )
-    writeFileSync(
-      join(fakeHome, 'scripts', 'verify-install.sh'),
-      '#!/usr/bin/env bash\necho "fake-verify-ran"\n',
-    )
-    chmodSync(join(fakeHome, 'scripts', 'verify-install.sh'), 0o755)
     const { linked } = aPrimaryAndLinkedWorktree(fakeHome)
 
     // when
@@ -274,7 +269,6 @@ integrationTest(
     expect(actual.stdout).toContain(
       `fake-install-ran: ${join(fakeHome, 'scripts', 'install.ts')} --refresh`,
     )
-    expect(actual.stdout).toContain('fake-verify-ran')
   },
 )
 

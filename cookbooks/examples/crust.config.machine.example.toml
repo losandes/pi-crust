@@ -1,0 +1,25 @@
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# Copy it to ~/.pi-crust/config/crust.config.toml and it applies to every
+# repository on this machine from the next command:
+#
+#     mkdir -p ~/.pi-crust/config
+#     cp <pi-crust>/cookbooks/examples/crust.config.machine.example.toml \
+#        ~/.pi-crust/config/crust.config.toml
+#
+# Set only what you want different from the shipped defaults in
+# <pi-crust>/runtime/config/crust.config.toml. A repository's pi-crust.toml
+# that sets the same key wins over this file.
+
+# The trace UI, for every repository on this machine.
+poll_ms = 250
+
+[ports]
+backend = 4700
+frontend = 4701
+
+# Applies to every Activity, planner and terminal Activity that names no
+# model or thinking level of its own.
+[defaults]
+model = "anthropic/claude-opus-5"
+thinking = "high"

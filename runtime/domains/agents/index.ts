@@ -12,10 +12,9 @@ export {
 export type { TPiControl, TPiHooks } from './src/data/pi-agent-run'
 export { run } from './src/data/pi-agent-run'
 export {
+  promptFile,
   render,
-  resolvePromptPath,
-  resolveReference,
-  revisePromptReference,
+  revisePromptPath,
   savePrompt,
 } from './src/data/prompt-files'
 export { resolvePiSessionFileById } from './src/data/resolve-pi-session-file-by-id'

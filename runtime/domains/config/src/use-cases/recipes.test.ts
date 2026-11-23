@@ -1,10 +1,7 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  activitiesFileSchema,
-  lifecyclesFileSchema,
-} from '../../../../lib/contracts'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 
 /**
  * No recipe is named for an Activity or a Lifecycle, and nothing else checks.
@@ -20,38 +17,10 @@ import {
  *
  * Checked against the SHIPPED configuration, which is what a stamp installs.
  */
-const shipped = <T>(file: string, read: (text: string) => T): T =>
-  read(
-    readFileSync(
-      join(
-        import.meta.dir,
-        '..',
-        '..',
-        '..',
-        '..',
-        '..',
-        'templates',
-        'stamp',
-        'config',
-        file,
-      ),
-      'utf8',
-    ),
-  )
-
 const shippedActivities = (): readonly string[] =>
-  shipped('crust.activities.yaml', (text) =>
-    activitiesFileSchema
-      .parse(Bun.YAML.parse(text))
-      .activities.map((one) => one.name),
-  )
-
+  shippedConfig().activities.map((one) => one.name)
 const shippedLifecycles = (): readonly string[] =>
-  shipped('crust.lifecycles.yaml', (text) =>
-    lifecyclesFileSchema
-      .parse(Bun.YAML.parse(text))
-      .lifecycles.map((one) => one.name),
-  )
+  shippedConfig().lifecycles.map((one) => one.name)
 
 /** Recipe names, which are the lines that start in column one and end in `:`. */
 const recipeNames = (): readonly string[] =>

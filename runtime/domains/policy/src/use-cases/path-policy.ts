@@ -272,7 +272,7 @@ export const bashPaths = (command: string): readonly string[] =>
 export const refusalMessage = (decision: TPathDecision): string =>
   decision.reason === 'protected'
     ? `${decision.path} is a protected path in this repository's ` +
-      `crust.config.yaml, and may not be ${decision.intent === 'read' ? 'read' : 'written'}. ` +
+      `pi-crust.toml, and may not be ${decision.intent === 'read' ? 'read' : 'written'}. ` +
       'Report this in your envelope rather than working around it.'
     : `${decision.path} is gitignored, so it is not this repository's to ` +
       `${decision.intent === 'read' ? 'read' : 'change'}. Work on files the ` +

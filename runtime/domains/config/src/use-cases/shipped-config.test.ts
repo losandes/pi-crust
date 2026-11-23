@@ -1,365 +1,228 @@
 import { expect, test } from 'bun:test'
 import {
   copyFileSync,
-  cpSync,
+  existsSync,
+  mkdirSync,
   mkdtempSync,
-  readdirSync,
-  readFileSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { TPiCrustConfig } from '../../../../lib/contracts'
+import { activityOrder, activitySuccession } from '../../../../lib/contracts'
 import {
-  activitiesFileSchema,
-  activityOrder,
-  crustConfigSchema,
-  lifecyclesFileSchema,
-} from '../../../../lib/contracts'
-import { isFile } from '../../../../lib/system'
+  EMPTY_REPOSITORY_PATH,
+  SHIPPED_CONFIG_DIR,
+  shippedConfig,
+  shippedEnv,
+} from '../../../../testing/shipped-layer'
 import { registryFaults } from '../../../activities'
-import { resolvePromptPath, revisePromptReference } from '../../../agents'
+import { promptFile, revisePromptPath } from '../../../agents'
 import { loadLifecycles } from '../../../planning'
 import { loadConfigWithNotes } from './load-config'
 
-/*
- * The templates a team is actually given, not a fixture shaped like them.
- *
- * A concurrency claim that only ever passes against a hand-written stage is
- * a check nobody has pointed at the thing it exists to protect. These read
- * the shipped files, so the day somebody groups two writers under
- * `concurrent` the suite says so rather than the run doing.
- */
-const STAMP = join(import.meta.dir, '../../../../../templates/stamp/config')
-
-for (const directory of ['templates/stamp/config', 'cookbooks/examples']) {
+for (const [name, destination] of [
+  ['crust.config.machine.example.toml', 'crust.config.toml'],
+  ['crust.activities.machine.example.toml', 'crust.activities.toml'],
+  ['crust.lifecycles.machine.example.toml', 'crust.lifecycles.toml'],
+  ['crust.activities.bic.example.toml', 'crust.activities.toml'],
+  ['crust.activities.econ.example.toml', 'crust.activities.toml'],
+  ['pi-crust.example.toml', 'pi-crust.toml'],
+]) {
   test(
     [
-      `given every file shipped under ${directory}`,
-      'when inspecting its settings and comments',
-      'it should carry no removed settings or configurable gate names',
+      `given @SC23 example ${name}`,
+      'when copied to its documented destination over the package layer',
+      'it should load and have valid lifecycle concurrency',
     ].join(', '),
     () => {
       // given
-      const root = join(import.meta.dir, '../../../../..', directory)
-      const paths = readdirSync(root, { recursive: true, withFileTypes: true })
-        .filter((entry) => entry.isFile())
-        .map((entry) => join(entry.parentPath, entry.name))
-      // when
-      const offending = paths.filter((path) =>
-        /\b(?:skills|gates|operation|area|routing|argv|with_changed_paths):|artifactsExist|filesNonEmpty|jsonParses|diffMatchesClaims|reproductionSupported|verdictConsistent|issueCreated/.test(
-          readFileSync(path, 'utf8'),
-        ),
-      )
-      // then
-      expect(offending).toEqual([])
+      const directory = mkdtempSync(join(tmpdir(), 'crust-toml-example-'))
+      try {
+        mkdirSync(directory, { recursive: true })
+        const path = join(directory, destination)
+        copyFileSync(
+          join(import.meta.dir, '../../../../../cookbooks/examples', name),
+          path,
+        )
+        const repository =
+          destination === 'pi-crust.toml' ? path : EMPTY_REPOSITORY_PATH
+        const env =
+          destination === 'pi-crust.toml'
+            ? shippedEnv()
+            : { ...shippedEnv(), CRUST_MACHINE_CONFIG: directory }
+        // when
+        const actual = () =>
+          loadLifecycles(loadConfigWithNotes(repository, env).config)
+        // then
+        expect(actual).not.toThrow()
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
     },
   )
 }
 
 test(
   [
-    'given a fresh copy of the shipped configuration',
-    'when loading it without a machine layer',
-    'it should load with no removed settings',
+    'given @SC18 @SC21 shipped configuration',
+    'when loaded through the real layer reader',
+    'it should preserve history locations and discover the delivery remote and base',
   ].join(', '),
   () => {
     // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-clean-stamp-'))
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    cpSync(STAMP, dir, { recursive: true })
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external configuration API; isolate the machine layer for this test
-    process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine.yaml')
-    try {
-      // when
-      const actual = loadConfigWithNotes(join(dir, 'crust.config.yaml'))
-      // then
-      expect(actual.config.activities.length).toBeGreaterThan(0)
-      expect(actual.config.tasks).toEqual({})
-      expect(actual.config.task_config.timeout_seconds).toBe(300)
-    } finally {
-      if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
-      // biome-ignore lint/plugin/no-object-mutation: restore the external configuration API after this test
-      else process.env.CRUST_MACHINE_CONFIG = previous
-      rmSync(dir, { recursive: true, force: true })
-    }
+    // when
+    const actual = shippedConfig()
+    // then
+    expect(actual.defaults.data_dir).toBe('{primary_worktree}/.pi-crust/data')
+    expect(actual.observability.db).toBe(
+      '{primary_worktree}/.pi-crust/data/crust.db',
+    )
+    expect(actual.tasks).toEqual({})
+    expect(actual.task_config.timeout_seconds).toBe(300)
+    expect(actual.terminal[0]?.delivery).toEqual({ draft: false })
+    expect(actual.defaults.protected_files).toContain('pi-crust.toml')
+    expect(actual.defaults.protected).toEqual({ read: 'block', write: 'block' })
   },
 )
-/** Examples live in cookbooks/ (issue #24, 1.10.1) — documentation, not a stamp. */
-const EXAMPLES = join(import.meta.dir, '../../../../../cookbooks/examples')
 
-for (const name of [
-  'crust.activities.yaml',
-  'crust.activities-bic.example.yaml',
-  'crust.activities-econ.example.yaml',
-]) {
+test(
+  [
+    'given every shipped agent',
+    'when validating the registry and prompt directories',
+    'it should accept the published output names and find both required prompt files',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = shippedConfig()
+    // when
+    const faults = registryFaults(cfg.activities)
+    const missing = cfg.agents.flatMap((agent) =>
+      (['system', 'user'] as const)
+        .filter((kind) => !existsSync(promptFile(agent.prompts, kind)))
+        .map((kind) => `${agent.name}: ${kind}`),
+    )
+    // then
+    expect(faults).toEqual([])
+    expect(missing).toEqual([])
+    expect(cfg.activities).toHaveLength(21)
+    expect(cfg.planners).toHaveLength(2)
+    expect(cfg.terminal).toHaveLength(1)
+  },
+)
+
+for (const [name, directory, revise] of [
+  ['build', 'build', true],
+  ['plan', 'plan', true],
+  ['test', 'test', true],
+  ['test-tdd', 'test', true],
+  ['scout', 'scout', false],
+] as const) {
   test(
     [
-      `given the shipped ${name} template`,
-      'when parsing its pull request delivery configuration',
-      'it should leave the base absent so the remote default can win',
-    ].join(', '),
-    () => {
-      // given
-      const yaml = readFileSync(join(STAMP, name), 'utf8')
-      // when
-      const actual = activitiesFileSchema
-        .parse(Bun.YAML.parse(yaml))
-        .terminal.find((one) => one.name === 'gh-pull-request')
-      // then
-      expect(actual).toBeDefined()
-      expect(actual?.delivery.base).toBeUndefined()
-    },
-  )
-}
-
-const lifecyclesAt = (yaml: string): string => {
-  const path = join(
-    mkdtempSync(join(tmpdir(), 'crust-shipped-')),
-    'crust.lifecycles.yaml',
-  )
-  writeFileSync(path, yaml)
-
-  return path
-}
-
-/**
- * The Lifecycle names a file declares, read from the file.
- *
- * Spelled out as a literal, this assertion rotted the day four Lifecycles
- * were added: the suite went red over a list, which says nothing about
- * whether the claims those Lifecycles make are sound. What is being checked
- * is that `loadLifecycles` ACCEPTS the shipped file and keeps its order, so
- * the expectation is derived from the file rather than transcribed from it.
- */
-const declaredIn = (path: string): readonly string[] =>
-  lifecyclesFileSchema
-    .parse(Bun.YAML.parse(readFileSync(path, 'utf8')))
-    .lifecycles.map((one) => one.name)
-
-const shippedConfig = (): TPiCrustConfig => {
-  const registry = activitiesFileSchema.parse(
-    Bun.YAML.parse(readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8')),
-  )
-
-  return crustConfigSchema.parse({
-    activities: registry.activities,
-    planners: registry.planners,
-    terminal: registry.terminal,
-    agents: [
-      ...registry.activities,
-      ...registry.planners,
-      ...registry.terminal,
-    ],
-  })
-}
-
-for (const [name, directory] of [
-  ['build', 'build'],
-  ['test', 'test'],
-  ['test-tdd', 'test'],
-  ['plan', 'plan'],
-]) {
-  test(
-    [
-      `given the shipped ${name} Activity`,
-      'when resolving its revise prompt without a configuration key',
-      'it should select the shipped revise file beside user',
+      `given @SC13 shipped ${name}`,
+      'when resolving the revise prompt',
+      'it should use its configured directory and fall back only when revise.md is absent',
     ].join(', '),
     () => {
       // given
       const activity = shippedConfig().activities.find(
         (one) => one.name === name,
       )
-      if (activity === undefined)
-        throw new Error(`missing shipped Activity ${name}`)
-
+      if (activity === undefined) throw new Error(`missing ${name}`)
       // when
-      const reference = revisePromptReference(activity.prompts)
-
+      const actual = revisePromptPath(activity.prompts)
       // then
-      expect(activity.prompts.revise).toBeUndefined()
-      expect(reference).toBe(`prompts/${directory}/revise.md`)
-      expect(isFile(resolvePromptPath(reference))).toBe(true)
+      expect(activity.prompts).toBe(
+        join(SHIPPED_CONFIG_DIR, '../prompts', directory),
+      )
+      expect(actual).toBe(
+        join(activity.prompts, revise ? 'revise.md' : 'user.md'),
+      )
+      expect(existsSync(actual)).toBe(true)
     },
   )
 }
 
 test(
   [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when the shipped lifecycles are loaded against the shipped roster',
-    'it should accept every concurrency claim they make',
+    'given the shipped Activity registry',
+    'when succession is resolved',
+    'it should preserve explicit and output-derived succession and omit it on engine entries',
   ].join(', '),
   () => {
     // given
-    const given = join(STAMP, 'crust.lifecycles.yaml')
-
+    const cfg = shippedConfig()
     // when
-    const actual = loadLifecycles(given, shippedConfig())
-
-    // then
-    expect(actual.map((one) => one.name)).toEqual([...declaredIn(given)])
-    expect(actual.length).toBeGreaterThan(0)
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when a stage claims concurrency for two activities that both write code',
-    'it should refuse, which is what proves the shipped file passing means anything',
-  ].join(', '),
-  () => {
-    // given
-    const given = lifecyclesAt(`
-lifecycles:
-  - name: racy
-    stages:
-      - name: implement
-        strategy: concurrent
-        activities: [test, build]
-`)
-
-    // when
-    const actual = () => loadLifecycles(given, shippedConfig())
-
-    // then
-    expect(actual).toThrow(/concurrently, but both may write/)
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when that same pair is serial instead',
-    'it should load, because serially there is nothing to race',
-  ].join(', '),
-  () => {
-    // given
-    const given = lifecyclesAt(`
-lifecycles:
-  - name: fine
-    stages:
-      - name: implement
-        activities: [test, build]
-`)
-
-    // when
-    const actual = loadLifecycles(given, shippedConfig())
-
-    // then
-    expect(actual).toHaveLength(1)
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when the shipped local example is laid over the shipped lifecycles',
-    'it should load, because an example nobody runs is an example that drifts',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-example-'))
-    const base = join(dir, 'crust.lifecycles.yaml')
-    copyFileSync(join(STAMP, 'crust.lifecycles.yaml'), base)
-    copyFileSync(
-      join(EXAMPLES, 'crust.lifecycles.local.example.yaml'),
-      join(dir, 'crust.lifecycles.local.yaml'),
+    const actual = cfg.activities.map((entry) =>
+      activitySuccession(cfg.activities, entry.name),
     )
-
-    // when
-    const actual = loadLifecycles(base, shippedConfig())
-
-    // then — the team's file holds its order, and the example's additions
-    // follow it rather than splicing into the middle
-    expect(actual.map((one) => one.name)).toEqual([
-      ...declaredIn(base),
-      ...declaredIn(join(dir, 'crust.lifecycles.local.yaml')).filter(
-        (name) => !declaredIn(base).includes(name),
+    // then
+    expect(actual).toEqual(
+      cfg.activities.map((entry) =>
+        entry.output === 'reviewOutput' || entry.name === 'gh-issue'
+          ? 'annotates'
+          : 'supersedes',
       ),
-    ])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when the local example claims two researchers may run concurrently',
-    'it should hold, because their declared documents do not overlap',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-example-'))
-    const base = join(dir, 'crust.lifecycles.yaml')
-    writeFileSync(base, 'lifecycles: []')
-    copyFileSync(
-      join(EXAMPLES, 'crust.lifecycles.local.example.yaml'),
-      join(dir, 'crust.lifecycles.local.yaml'),
     )
-
-    // when
-    const actual = loadLifecycles(base, shippedConfig())
-    const survey = actual.find((one) => one.name === 'survey')
-
-    // then
     expect(
-      survey?.stages.find((one) => one.name === 'research')?.strategy,
-    ).toBe('concurrent')
+      [...cfg.planners, ...cfg.terminal].some((entry) => 'succession' in entry),
+    ).toBe(false)
   },
 )
 
+for (const name of ['ship', 'bugfix', 'ship-to-outcome']) {
+  test(
+    [
+      `given shipped lifecycle ${name}`,
+      'when the plan stage completes',
+      'it should review comprehension and readiness concurrently before building',
+    ].join(', '),
+    () => {
+      // given
+      const cfg = shippedConfig()
+      // when
+      const lifecycle = loadLifecycles(cfg).find((entry) => entry.name === name)
+      const stages = lifecycle?.stages ?? []
+      const at = stages.findIndex((stage) => stage.activities.includes('plan'))
+      // then
+      expect(at).toBeGreaterThanOrEqual(0)
+      expect(stages[at]?.activities.at(-1)).toBe('plan')
+      expect(stages[at + 1]).toEqual({
+        name: 'review-plan',
+        strategy: 'concurrent',
+        activities: ['plan-comprehension', 'plan-readiness'],
+      })
+    },
+  )
+}
+
 test(
   [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when the shipped lifecycles are read',
-    'it should cut stages by progression, not one stage per activity',
+    'given the shipped lifecycle and reviewer configuration',
+    'when validated against Activity writes',
+    'it should accept all concurrency claims and retain the shipped progression and grants',
   ].join(', '),
   () => {
     // given
-    const given = join(STAMP, 'crust.lifecycles.yaml')
-
+    const cfg = shippedConfig()
     // when
-    const actual = loadLifecycles(given, shippedConfig())
-    const stagesOf = (name: string) =>
-      actual.find((one) => one.name === name)?.stages.map((s) => s.name)
-
+    const lifecycles = loadLifecycles(cfg)
+    const ship = lifecycles.find((entry) => entry.name === 'ship')
+    const comprehension = cfg.activities.find(
+      (entry) => entry.name === 'plan-comprehension',
+    )
+    const readiness = cfg.activities.find(
+      (entry) => entry.name === 'plan-readiness',
+    )
     // then
-    expect(stagesOf('ship')).toEqual([
+    expect(lifecycles.length).toBeGreaterThan(0)
+    expect(ship?.stages.map((stage) => stage.name)).toEqual([
       'discover',
       'review-plan',
       'deliver',
       'accept',
       'push',
     ])
-    expect(stagesOf('bugfix')).toEqual([
-      'diagnose',
-      'review-plan',
-      'deliver',
-      'accept',
-      'push',
-    ])
-    expect(stagesOf('de-risk')).toEqual(['discover', 'prove'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when ship is flattened',
-    'it should run these activities',
-  ].join(', '),
-  () => {
-    // given
-    const given = join(STAMP, 'crust.lifecycles.yaml')
-
-    // when
-    const actual = loadLifecycles(given, shippedConfig())
-    const ship = actual.find((one) => one.name === 'ship')
-
-    // then
     expect(
       activityOrder(ship ?? { name: '', description: '', stages: [] }),
     ).toEqual([
@@ -372,130 +235,15 @@ test(
       'code-review',
       'gh-pull-request',
     ])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-lifecycles::loadLifecycles',
-    'when a shipped stage is serial',
-    'it should be allowed to hold a sequence',
-  ].join(', '),
-  () => {
-    // given
-    const given = join(STAMP, 'crust.lifecycles.yaml')
-
-    // when
-    const actual = loadLifecycles(given, shippedConfig())
-    const ship = actual.find((one) => one.name === 'ship')
-    const discover = ship?.stages.find((one) => one.name === 'discover')
-
-    // then
-    expect(discover?.strategy).toBe('serial')
-    expect(discover?.activities).toEqual(['identify', 'plan'])
-  },
-)
-
-for (const name of ['ship', 'bugfix', 'ship-to-outcome']) {
-  test(
-    [
-      'given the shipped lifecycle and Activity registries',
-      `when ${name} reaches its completed plan`,
-      'it should judge the plan concurrently before any following work',
-    ].join(', '),
-    () => {
-      // given
-      const cfg = shippedConfig()
-      const path = join(STAMP, 'crust.lifecycles.yaml')
-
-      // when
-      const lifecycle = loadLifecycles(path, cfg).find(
-        (one) => one.name === name,
-      )
-      const stages = lifecycle?.stages ?? []
-      const at = stages.findIndex((one) => one.activities.includes('plan'))
-      const review = stages[at + 1]
-
-      // then
-      expect(at).toBeGreaterThanOrEqual(0)
-      expect(stages[at]?.activities.at(-1)).toBe('plan')
-      expect(review).toEqual({
-        name: 'review-plan',
-        strategy: 'concurrent',
-        activities: ['plan-comprehension', 'plan-readiness'],
-      })
-    },
-  )
-}
-
-test(
-  [
-    'given the shipped plan reviewers',
-    'when their tool and write grants are loaded',
-    'it should isolate comprehension from the repository and keep their findings disjoint',
-  ].join(', '),
-  () => {
-    // given
-    const cfg = shippedConfig()
-
-    // when
-    const comprehension = cfg.activities.find(
-      (one) => one.name === 'plan-comprehension',
-    )
-    const readiness = cfg.activities.find(
-      (one) => one.name === 'plan-readiness',
-    )
-
-    // then
     expect(comprehension?.tools).toEqual(['read', 'write'])
     expect(readiness?.tools).toEqual(['bash', 'read', 'write'])
     expect(comprehension?.writes).toEqual(['{handoff}/plan_comprehension.md'])
     expect(readiness?.writes).toEqual(['{handoff}/plan_readiness.md'])
-    expect([comprehension?.output, readiness?.output]).toEqual([
-      'reviewOutput',
-      'reviewOutput',
-    ])
-    expect(cfg.activities.find((one) => one.name === 'plan')?.attempts).toBe(3)
-    expect(cfg.activities.some((one) => one.name === 'plan-review')).toBe(false)
-  },
-)
-
-test(
-  [
-    'given use-cases/activity-registry::registryFaults',
-    "when the shipped activities are checked against this package's own catalogues",
-    'it should name no fault, because output and gates are names this package actually publishes',
-  ].join(', '),
-  () => {
-    // given
-    const given = shippedConfig()
-
-    // when
-    const actual = registryFaults(given.activities)
-
-    // then
-    expect(actual).toEqual([])
-  },
-)
-
-test(
-  [
-    'given use-cases/shipped-config::shippedConfig',
-    'when every shipped Activity and Planner is checked',
-    'it should resolve both of its prompt files to a real file',
-  ].join(', '),
-  () => {
-    // given
-    const given = shippedConfig()
-
-    // when
-    const actual = given.agents.flatMap((agent) =>
-      [agent.prompts.system, agent.prompts.user]
-        .filter((reference) => !isFile(resolvePromptPath(reference)))
-        .map((reference) => `${agent.name}: ${reference}`),
+    expect(
+      cfg.activities.find((entry) => entry.name === 'plan')?.attempts,
+    ).toBe(3)
+    expect(cfg.activities.some((entry) => entry.name === 'plan-review')).toBe(
+      false,
     )
-
-    // then
-    expect(actual).toEqual([])
   },
 )

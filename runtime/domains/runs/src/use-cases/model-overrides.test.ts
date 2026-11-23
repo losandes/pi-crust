@@ -12,7 +12,7 @@ const configFor = () => {
     model: 'anthropic/claude-opus-5',
     thinking: 'medium',
     purpose: `Perform ${entry.name}`,
-    prompts: { system: 'system.md', user: 'user.md' },
+    prompts: '.',
     tools: ['read'],
     writes: ['src/'],
     ...entry,

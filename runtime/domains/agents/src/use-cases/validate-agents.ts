@@ -10,7 +10,7 @@ import type { TAgentConfig, TPiCrustConfig } from '../../../../lib/contracts'
 import { isFile } from '../../../../lib/system'
 import { resolveAgent } from '../../../config'
 import { resolveModel } from '../data/pi-agent'
-import { resolvePromptPath } from '../data/prompt-files'
+import { promptFile } from '../data/prompt-files'
 /**
  * How a model pattern becomes a provider and a model id, or throws saying
  * why it cannot.
@@ -36,24 +36,10 @@ const problemsForAgent = (
             'implemented in v1 (pi only)',
         ]
 
-  const prompts = (
-    [
-      ['system', agent.prompts.system],
-      ['user', agent.prompts.user],
-      ...(agent.prompts.revise === undefined
-        ? []
-        : [['revise', agent.prompts.revise] as const]),
-    ] as const
-  ).flatMap(([label, ref]) =>
-    isFile(resolvePromptPath(ref))
+  const prompts = (['system', 'user'] as const).flatMap((kind) =>
+    isFile(promptFile(agent.prompts, kind))
       ? []
-      : [
-          // Both paths: the reference is what a developer wrote, the
-          // resolved path is where it was actually looked for, and reporting
-          // only one of them sends them to the wrong place.
-          `agent '${name}': ${label} prompt not found: ${ref} ` +
-            `(looked in ${resolvePromptPath(ref)})`,
-        ],
+      : [`agent '${name}': ${kind}.md not found in ${agent.prompts}`],
   )
 
   const model = safeParseSettlement(() => resolve(agent.model))

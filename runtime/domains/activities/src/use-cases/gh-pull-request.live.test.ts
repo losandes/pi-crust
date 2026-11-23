@@ -41,7 +41,7 @@ const config = (
     name: 'gh-pull-request',
     purpose: 'Push the run and open or update a pull request',
     writes: [],
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     delivery: { remote: 'origin', base: 'main', draft: false },
     ...overrides,
   })
@@ -82,6 +82,8 @@ const fakePorts = (
     defaultBranch: () => '',
     isRepo: () => true,
     branch: () => 'feature',
+    pushDefault: () => '',
+    remotes: () => [],
     remoteExists: () => true,
     baseRef: () => 'refs/remotes/origin/main',
     commitsAhead: () => 1,
@@ -151,7 +153,7 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
         agentConfigSchema.parse({
           name: 'gh-pull-request',
           writes: [],
-          prompts: { system: 's.md', user: 'u.md' },
+          prompts: '.',
           purpose: 'Push the run and open or update a pull request',
         }),
       ],

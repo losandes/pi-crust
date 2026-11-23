@@ -214,7 +214,7 @@ for (const cause of ['uncommitted', 'forge'] as const) {
             CRUST_DATA_DIR: '',
             CRUST_DB: run.tracer.dbPath,
             CRUST_REGISTRY: join(dir, 'workspaces.jsonl'),
-            CRUST_MACHINE_CONFIG: join(dir, 'no-machine-config.yaml'),
+            CRUST_MACHINE_CONFIG: join(dir, 'no-machine-config'),
           },
           timeout: 10_000,
         },

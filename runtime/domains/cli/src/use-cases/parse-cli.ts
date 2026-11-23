@@ -34,7 +34,7 @@ export type TCliArgs = Readonly<{
    * two Activities at once. See `parse-activities.ts` for the whole grammar.
    */
   activities: string | undefined
-  /** `compose.ts` only: a Lifecycle by name, from crust.lifecycles.yaml */
+  /** `compose.ts` only: a Lifecycle by name, from crust.lifecycles.toml */
   lifecycle: string | undefined
   /** Per-activity model and thinking overrides, for this run only. */
   models: string | undefined
@@ -234,7 +234,7 @@ export const commitFlag = (value: string | undefined): string | undefined => {
   if (value !== 'false') {
     throw new Error(
       `--commit takes only 'false' (got '${value}'). Committing is declared ` +
-        'per Activity in crust.activities.yaml; the flag can only take it ' +
+        'per Activity in crust.activities.toml; the flag can only take it ' +
         'away, never grant it.',
     )
   }

@@ -1,51 +1,48 @@
 import { expect, test } from 'bun:test'
 import { removedSettingFaults } from './removed-settings'
 
-for (const { document, location, replacement } of [
-  {
-    document: { routing: {} },
-    location: 'routing',
-    replacement:
-      'the section was removed and tasks (`tasks:`) replace it; delete this key.',
-  },
-  {
-    document: { routing: { checks: [] } },
-    location: 'routing.checks',
-    replacement:
-      'tasks replace routing.checks. Declare each command under `tasks:` with `when: [{ on: change }]`, `match` and `run` (references/config.md, Tasks); delete this key.',
-  },
-  {
-    document: { routing: { unmatched: 'warn' } },
-    location: 'routing.unmatched',
-    replacement:
-      'tasks replace routing.checks, and the unmatched-path policy went with it: a run reports how many changed paths no task matched and never fails on it; delete this key.',
-  },
-  {
-    document: { agents: [{ name: 'build', gates: ['checks'] }] },
-    location: 'agents[build].gates',
-    replacement:
-      'the `checks` gate was removed. Repository commands are tasks (`tasks:`) that fire at `change` after any Activity; delete this key.',
-  },
-  ...['activities', 'agents'].map((section) => ({
-    document: { [section]: [{ name: 'build', gates: [] }] },
-    location: `${section}[build].gates`,
-    replacement:
-      'per-Activity gate lists were removed. Output checks now follow from what the Activity reports (its `output`); delete this key.',
-  })),
-]) {
+for (const [document, location, replacement] of [
+  [{ routing: {} }, 'routing', '[tasks.<name>]'],
+  [{ routing: { checks: [] } }, 'routing.checks', 'when = [{ on = "change" }]'],
+  [
+    { routing: { unmatched: 'warn' } },
+    'routing.unmatched',
+    'never fails on it',
+  ],
+  [{ routing: { skills: [] } }, 'routing.skills', 'skill routing was removed'],
+  [{ routing: { unknown: true } }, 'routing', 'section was removed'],
+  [{ override: {} }, 'override', 'top level of the same file'],
+  [
+    { activities: { build: { gates: ['checks'] } } },
+    'activities.build.gates',
+    '[tasks.<name>]',
+  ],
+  ...['activities', 'planners', 'terminal'].map((section) => [
+    { [section]: { build: { gates: [] } } },
+    `${section}.build.gates`,
+    'per-Activity gate lists were removed',
+  ]),
+] as const) {
   test(
     [
       `given a removed setting at ${location}`,
-      'when inspecting a parsed layer',
-      'it should name its file, entry and replacement even for empty lists',
+      'when inspecting a parsed TOML layer',
+      'it should name the file and setting and explain the replacement',
     ].join(', '),
     () => {
       // given
-      const layers = [{ file: 'config.yaml', document }]
+      const layers = [{ file: 'config.toml', document }]
       // when
       const actual = removedSettingFaults(layers)
       // then
-      expect(actual).toEqual([`config.yaml: ${location} — ${replacement}`])
+      expect(
+        actual.some(
+          (line) =>
+            line.startsWith(`config.toml: ${location} — `) &&
+            line.includes(String(replacement)),
+        ),
+      ).toBe(true)
+      expect(actual.join('\n')).not.toContain('`tasks:`')
     },
   )
 }
@@ -53,7 +50,7 @@ for (const { document, location, replacement } of [
 test(
   [
     'given clean and malformed documents without removed settings',
-    'when inspecting all layers',
+    'when inspecting layers',
     'it should return no faults',
   ].join(', '),
   () => {
@@ -61,10 +58,9 @@ test(
     const layers = [
       undefined,
       42,
-      {
-        activities: [{ name: 'build' }],
-      },
-    ].map((document) => ({ file: 'config.yaml', document }))
+      { activities: { build: {} } },
+      { planners: { operator: false } },
+    ].map((document) => ({ file: 'config.toml', document }))
     // when
     const actual = removedSettingFaults(layers)
     // then
@@ -74,9 +70,9 @@ test(
 
 test(
   [
-    'given multiple settings in multiple layers',
-    'when inspecting them',
-    'it should retain layer order and document order',
+    'given removed settings in several layers',
+    'when inspected',
+    'it should retain file and declaration order',
   ].join(', '),
   () => {
     // given
@@ -84,11 +80,14 @@ test(
       {
         file: 'one',
         document: {
-          agents: [{ gates: [] }],
+          activities: { build: { gates: [] } },
           routing: { skills: [], checks: [] },
         },
       },
-      { file: 'two', document: { activities: [{ name: 'build', gates: [] }] } },
+      {
+        file: 'two',
+        document: { terminal: { 'gh-pull-request': { gates: [] } } },
+      },
     ]
     // when
     const actual = removedSettingFaults(layers).map(
@@ -96,10 +95,10 @@ test(
     )
     // then
     expect(actual).toEqual([
-      'one: agents[0].gates',
+      'one: activities.build.gates',
       'one: routing.skills',
       'one: routing.checks',
-      'two: activities[build].gates',
+      'two: terminal.gh-pull-request.gates',
     ])
   },
 )

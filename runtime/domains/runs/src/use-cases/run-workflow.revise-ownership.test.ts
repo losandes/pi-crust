@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TEnvelopeBase } from '../../../../lib/contracts'
@@ -20,6 +20,7 @@ import {
   planOutputSchema,
   reviewOutputSchema,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -142,7 +143,7 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
   ] as const
   const before = keys.map((key) => [key, process.env[key]] as const)
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment boundary loadConfigWithNotes reads
-  process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent.yaml')
+  process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine')
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment boundary resolveDataPaths reads
   process.env.CRUST_DATA_DIR = data
   // biome-ignore lint/plugin/no-object-mutation: this fixture owns the environment boundary registerWorkspace reads
@@ -162,12 +163,12 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
     purpose: `Exercise ${entry.name} against the preceding work`,
     attempts: 3,
     writes: [],
-    prompts: { system, user },
+    prompts: dirname(system),
   }))
-  const config = join(dir, 'crust.config.yaml')
+  const config = join(dir, 'pi-crust.toml')
   writeFileSync(
     config,
-    JSON.stringify({
+    configText({
       defaults: { data_dir: data },
       observability: { db: dbPath },
       activities,

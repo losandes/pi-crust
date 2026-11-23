@@ -24,7 +24,7 @@ for (const recipe of ['operator', 'triage']) {
           join(import.meta.dir, `${recipe}.ts`),
           'do the work',
           '--config',
-          '/nonexistent/crust-model-overrides.yaml',
+          '/nonexistent/crust-model-overrides.toml',
           ...flags,
         ]
 

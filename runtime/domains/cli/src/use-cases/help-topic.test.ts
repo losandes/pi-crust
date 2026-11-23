@@ -16,7 +16,7 @@ test(
     silenceTerminal()
     try {
       // given
-      const argv = ['--config', '/some/path.yaml']
+      const argv = ['--config', '/some/path.toml']
 
       // when
       const actual = topicOf(argv)
@@ -40,7 +40,7 @@ test(
     silenceTerminal()
     try {
       // given
-      const argv = ['--config', '/some/path.yaml', 'run']
+      const argv = ['--config', '/some/path.toml', 'run']
 
       // when
       const actual = topicOf(argv)

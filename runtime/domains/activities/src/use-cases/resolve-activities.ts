@@ -3,7 +3,7 @@
  *
  * There is no registry in this file any more. `STEP_REGISTRY` was a table of
  * names to factories, which meant a team could add an agent and never reach
- * it: nothing bound a activity to it. The table is `crust.activities.yaml` now,
+ * it: nothing bound a activity to it. The table is `crust.activities.toml` now,
  * and this resolves names against whatever that file turned out to hold.
  *
  * An unknown name must still fail loudly and list what was available — a
@@ -75,8 +75,8 @@ export const terminalActivityFor = (
   const config = cfg.terminal.find((one) => one.name === name)
   if (config === undefined) {
     throw new Error(
-      `terminal Activity '${name}' has no entry under terminal: in ` +
-        'crust.activities.yaml, so it has no prompts to run with',
+      `terminal Activity '${name}' has no [terminal.${name}] table in ` +
+        'crust.activities.toml or pi-crust.toml, so it has no prompts to run with',
     )
   }
 
@@ -151,8 +151,8 @@ export const runnableActivities = (
     const planner = cfg.planners.find((one) => one.name === name)
     if (planner === undefined) {
       throw new Error(
-        `planner '${name}' has no entry under planners: in ` +
-          'crust.activities.yaml, so it has no prompts to run with',
+        `planner '${name}' has no [planners.${name}] table in ` +
+          'crust.activities.toml or pi-crust.toml, so it has no prompts to run with',
       )
     }
 

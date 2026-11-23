@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import type {
   TActivity,
   TActivityContext,
@@ -65,10 +65,8 @@ const review = (name: string, round: number, approved = false) =>
     ],
   })
 
-const shippedPrompts = (name: string) => ({
-  system: join(import.meta.dir, '../../../../prompts', name, 'system.md'),
-  user: join(import.meta.dir, '../../../../prompts', name, 'user.md'),
-})
+const shippedPrompts = (name: string) =>
+  join(import.meta.dir, '../../../../prompts', name)
 
 const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-history-boundary-'))
@@ -77,10 +75,7 @@ const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   const entries = activities.map((entry) => ({
     model: `fixture/${String(entry.name)}`,
     purpose: `Carry out ${String(entry.name)}`,
-    prompts: {
-      system: `${String(entry.name)}/system`,
-      user: `${String(entry.name)}/user`,
-    },
+    prompts: String(entry.name),
     writes: [],
     ...entry,
   }))
@@ -204,7 +199,9 @@ const portsFor = (
     untracked: () => [],
     render: (path, variables) => {
       renders = [...renders, { path, variables }]
-      return path.endsWith('.md') ? render(path, variables) : path
+      return path.startsWith(join(import.meta.dir, '../../../../prompts/'))
+        ? render(path, variables)
+        : path
     },
     savePrompt: (directory, name) => join(directory, name),
     snapshot: () => ({}),
@@ -565,8 +562,7 @@ test(
 
     // then
     const revisions = renders().filter(
-      (one) =>
-        one.path === join(dirname(shippedPrompts('build').user), 'revise.md'),
+      (one) => one.path === join(shippedPrompts('build'), 'revise.md'),
     )
     const prompts = requests()
       .filter((one) => one.model === 'fixture/build')

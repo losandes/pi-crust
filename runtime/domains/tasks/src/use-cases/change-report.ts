@@ -2,7 +2,7 @@ import type { TGateReport } from '../../../../lib/contracts'
 import type { TChangeOutcome, TTaskResult } from '../typedefs/task'
 
 export const NO_TASKS_DECLARED =
-  'no tasks are declared: `tasks` in crust.config.yaml is empty, so no command ran. Declare a task there to have changes verified.'
+  'no tasks are declared: pi-crust.toml declares no `[tasks.<name>]` table, so no command ran. Declare a task there to have changes verified.'
 
 export const taskResultNote = ({ passed, commands }: TTaskResult): string =>
   passed

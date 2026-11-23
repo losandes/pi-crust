@@ -1,0 +1,35 @@
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# A repository's pi-crust.toml once its tasks are filled in. The installer
+# writes the same file with every task commented out; this shows one with
+# commands. Replace each command with the repository's own.
+
+[task_config]
+timeout_seconds = 300
+
+[tasks.lint]
+when = [{ on = "change" }]
+match = ["**/*.ts", "**/*.tsx"]
+run = "bunx biome check {{changed_paths}}"
+
+[tasks.test]
+when = [{ on = "change", skip = ["diagnose", "test-tdd"] }]
+match = ["packages/api/**/*.ts"]
+cwd = "packages/api"
+run = "bun test {{changed_paths}}"
+timeout_seconds = 600
+
+[tasks.verify-all]
+when = [{ on = "deliver", skip = ["diagnose", "test-tdd"] }]
+run = "bun run check"
+
+# A repository may also set what it needs different from the machine and the
+# package. Only the fields named change.
+
+# Where this repository keeps its tests.
+[activities.diagnose]
+writes = ["{handoff}/diagnosis.md", "test/**"]
+
+# This repository's pull requests target `develop`.
+[terminal.gh-pull-request]
+delivery = { base = "develop" }

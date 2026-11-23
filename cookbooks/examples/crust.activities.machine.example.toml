@@ -1,0 +1,56 @@
+# EXAMPLE ONLY. Nothing reads this file.
+#
+# Copy it to ~/.pi-crust/config/crust.activities.toml and it applies to every
+# repository on this machine from the next command.
+#
+# A table here merges field by field with the shipped entry of the same name:
+# name an Activity and set only what you want different. A list replaces the
+# shipped list whole, which is the only way to take a tool away. A table
+# whose name nothing ships is a new Activity, on this machine only.
+
+# Override one Activity, and only the fields named. `aliases` is a personal
+# shorthand for --activities and for a lifecycle's stages.
+[activities.build]
+model = "anthropic/claude-opus-5"
+thinking = "high"
+aliases = ["b"]
+
+# The cheap end of a roster, while iterating on a prompt.
+[activities.scout]
+model = "anthropic/claude-haiku-4-5"
+thinking = "low"
+
+# Colour is a theme role, never a hex.
+[activities.outcome-review]
+color = "cyan"
+
+# Hidden from the `just crust please` menu, not disabled.
+[activities.security-research]
+hidden = true
+
+# Narrow what an Activity may reach, and stop it committing on this machine.
+[activities.document]
+tools = ["read", "write"]
+commit = false
+
+# The first run is an attempt, so 1 means no retry.
+[activities.test]
+attempts = 1
+
+# Something only this machine runs. It names no `prompts`, so its prompts are
+# read from ~/.pi-crust/prompts/spike/system.md and user.md.
+[activities.spike]
+model = "anthropic/claude-haiku-4-5"
+purpose = "Answer one throwaway question without touching the repository."
+output = "researchOutput"
+writes = ["{handoff}/spike.md"]
+
+# A planner is tuned the same way and cannot be added: the set is operator
+# and triage.
+[planners.triage]
+model = "anthropic/claude-haiku-4-5"
+
+# Open pull requests as drafts from this machine. `remote` and `base` stay
+# discovered.
+[terminal.gh-pull-request]
+delivery = { draft = true }

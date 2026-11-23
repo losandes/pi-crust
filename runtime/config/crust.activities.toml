@@ -1,0 +1,203 @@
+# Package Activities. Tables merge field by field across package, machine and repository.
+# Lists replace whole. Entries are listed by first-declaring layer, then name.
+
+[activities.build]
+output = "buildOutput"
+succession = "supersedes"
+attempts = 2
+commit = true
+color = "green"
+purpose = "Implement the plan exactly; report every changed file in the envelope."
+writes = ["*"]
+
+[activities.code-review]
+output = "reviewOutput"
+succession = "annotates"
+color = "indigo"
+purpose = "Judge the change against this repository's ratified conventions, through its own review skill."
+writes = ["{handoff}/code_review.md"]
+
+# Logical architecture only; technology selection belongs to design.
+[activities.conceptualize]
+output = "conceptualizeOutput"
+succession = "supersedes"
+color = "cyan"
+purpose = "Decide what the solution must mean and do; choose no technology."
+writes = ["{handoff}/conceptualize.md"]
+
+# No live database access; prepares queries for human execution.
+[activities.data-research]
+output = "researchOutput"
+succession = "supersedes"
+color = "violet"
+purpose = "Establish what the data can show, and what it cannot."
+writes = ["{handoff}/data-research.md"]
+tools = ["bash","edit","read","write","web_enable","web_search","fetch_content","source_check"]
+
+[activities.design]
+output = "designOutput"
+succession = "supersedes"
+color = "pink"
+purpose = "Give the logical architecture a physical shape here, observability included."
+writes = ["{handoff}/design.md"]
+
+# Reproduce and explain defects without implementing fixes.
+# May add failing tests; adjust allowed test paths for this repository.
+[activities.diagnose]
+output = "diagnosisOutput"
+succession = "supersedes"
+color = "purple"
+purpose = "Reproduce the reported behaviour and name its cause, with evidence."
+writes = ["{handoff}/diagnosis.md","**/*.test.*","**/*_test.*","**/test/**","**/tests/**","**/spec/**"]
+
+[activities.document]
+output = "documentOutput"
+succession = "supersedes"
+input = "changes"
+commit = true
+color = "blue"
+purpose = "Write up the change that was just made, from the diff; document only."
+writes = ["{handoff}/document.md","**/adr/","**/docs/","**/*.md","*.md"]
+
+# Distinguish established domain rules from local interpretations.
+[activities.domain-research]
+output = "researchOutput"
+succession = "supersedes"
+color = "pink"
+purpose = "Model the domain and the rules that actually govern it."
+writes = ["{handoff}/domain-research.md"]
+tools = ["bash","edit","read","write","web_enable","web_search","fetch_content","source_check"]
+
+# Creates an external issue; the handoff records what was filed.
+[activities.gh-issue]
+output = "ghIssueOutput"
+succession = "annotates"
+color = "indigo"
+purpose = "Open one GitHub issue carrying the chain's findings; change nothing in the repository."
+writes = ["{handoff}/gh_issue.md"]
+tools = ["bash","read","write"]
+
+# Define measurable outcomes, not implementation details.
+[activities.identify]
+output = "identifyOutput"
+succession = "supersedes"
+color = "blue"
+purpose = "Turn a problem into an outcome with criteria anyone could check."
+writes = ["{handoff}/identify.md"]
+
+[activities.outcome-review]
+output = "reviewOutput"
+succession = "annotates"
+color = "lime"
+purpose = "Confirm that what was built is what was asked for; change nothing."
+writes = ["{handoff}/outcome_review.md"]
+
+[activities.plan]
+attempts = 3
+output = "planOutput"
+succession = "supersedes"
+color = "violet"
+purpose = "Turn a request into a plan the builder can implement without asking questions."
+writes = ["{handoff}/plan.md"]
+tools = ["bash","edit","read","write"]
+
+# Reads the plan with no memory of the conversation that produced it, and
+# no access to the repository: self-containment is what it tests.
+[activities.plan-comprehension]
+output = "reviewOutput"
+color = "cyan"
+purpose = "Report whether the plan explains itself to a reader who has not seen this project; change nothing."
+writes = ["{handoff}/plan_comprehension.md"]
+tools = ["read","write"]
+
+# Judges the plan against the repository it will be executed in.
+[activities.plan-readiness]
+output = "reviewOutput"
+color = "cyan"
+purpose = "Rule on whether the plan can be executed without deciding anything; change nothing."
+writes = ["{handoff}/plan_readiness.md"]
+tools = ["bash","read","write"]
+
+[activities.scout]
+output = "scoutOutput"
+succession = "supersedes"
+color = "orange"
+purpose = "Find and report where things live; change nothing."
+writes = ["{handoff}/scout_findings.md"]
+tools = ["bash","edit","read","write"]
+
+# Distinguish demonstrated, plausible, and speculative risks.
+[activities.security-research]
+output = "researchOutput"
+succession = "supersedes"
+color = "rose"
+purpose = "Establish how this could fail, be misused, or be attacked."
+writes = ["{handoff}/security-research.md"]
+tools = ["bash","edit","read","write","web_enable","web_search","fetch_content","source_check"]
+
+# Treat repository code as primary evidence.
+[activities.technical-research]
+output = "researchOutput"
+succession = "supersedes"
+color = "purple"
+purpose = "Establish what is technically true, feasible, and evidenced."
+writes = ["{handoff}/technical-research.md"]
+tools = ["bash","edit","read","write","web_enable","web_search","fetch_content","source_check"]
+
+# Author tests after implementation; matching change tasks verify them before acceptance.
+[activities.test]
+output = "buildOutput"
+succession = "supersedes"
+commit = true
+color = "teal"
+purpose = "Write the tests that prove the request was implemented (after build); implement nothing else."
+writes = ["**/*.test.ts","**/*.test.tsx","**/*.spec.ts","**/__tests__/","**/tests/"]
+
+# Author tests before implementation; list test-tdd in `skip` for change tasks that require passing tests.
+[activities.test-tdd]
+output = "buildOutput"
+succession = "supersedes"
+commit = true
+color = "teal"
+purpose = "Write the tests that would prove the request was implemented (before build); implement nothing else."
+writes = ["**/*.test.ts","**/*.test.tsx","**/*.spec.ts","**/__tests__/","**/tests/"]
+prompts = "prompts/test"
+
+[activities.ux-design]
+output = "uxDesignOutput"
+succession = "supersedes"
+color = "orange"
+purpose = "Specify an interface precisely enough to implement without inventing UX."
+writes = ["{handoff}/ux-design.md"]
+tools = ["bash","edit","read","write","web_enable","web_search","fetch_content","source_check"]
+
+# Distinguish user needs from proposed features.
+[activities.ux-research]
+output = "researchOutput"
+succession = "supersedes"
+color = "cyan"
+purpose = "Establish what users need, experience, and struggle with."
+writes = ["{handoff}/ux-research.md"]
+tools = ["bash","edit","read","write","web_enable","web_search","fetch_content","source_check"]
+
+# Select and execute the smallest suitable Activity chain.
+[planners.operator]
+color = "amber"
+purpose = "Choose the smallest chain of Activities that can produce the outcome."
+writes = ["{handoff}/plan.md"]
+tools = ["read","write"]
+
+# Recommend an Activity chain without executing it.
+[planners.triage]
+color = "amber"
+purpose = "Choose the smallest chain that can produce the outcome, and hand it back."
+writes = ["{handoff}/plan.md"]
+tools = ["read","write"]
+
+# Harness handles GitHub operations; agent only drafts content.
+[terminal.gh-pull-request]
+color = "teal"
+purpose = "Push the run's branch and open or update one GitHub pull request describing it."
+writes = []
+tools = ["read"]
+delivery = { draft = false }

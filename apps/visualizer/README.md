@@ -3,9 +3,11 @@
 A web app for watching a run happen, and for reading one after it has. It ships with the pi-crust package rather than with the stamp, and `just crust observe` boots it against the trace database of whichever working tree you are standing in.
 
 ```sh
-just crust observe              # the ports crust.observe.yaml names (4601, api on 4600)
+just crust observe              # configured TOML ports (4601, api on 4600 by default)
 just crust observe --host       # listen on every interface, so a phone can watch
 ```
+
+Ports and `poll_ms` are read from the package's `runtime/config/crust.config.toml`, then `~/.pi-crust/config/crust.config.toml`, then the repository's single `pi-crust.toml`. Valid `CRUST_BE_PORT` and `CRUST_FE_PORT` overrides still win. The launcher forwards the polling interval to the API, and `GET /api/health` supplies it to the browser before its first render. A package or machine setting changes the next launch without re-stamping.
 
 ## Styling
 
@@ -35,7 +37,7 @@ The UI shows **Activity Runs**. It does not show which Stage one belonged to, wh
 
 That is a decision, not an omission. The trace records Activity Runs; Stage membership is a property of the Lifecycle that produced them, so drawing it would mean either re-reading configuration that may have changed since the run, or growing a column to carry it. Neither is worth it for a grouping the waterfall already shows: two Activities that ran at the same time are drawn overlapping, on their own lanes, which is what concurrency looks like.
 
-If you want the Stage names, they are in `crust.lifecycles.yaml`.
+Stage names come from `[lifecycles.<name>]` in the merged TOML layers: `crust.lifecycles.toml` in the package or machine configuration directory, or the repository's `pi-crust.toml`.
 
 ## What is true about time
 

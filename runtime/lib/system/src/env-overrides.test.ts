@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test'
-import { configPathFromEnv, dbPathFromEnv } from './env-overrides'
+import {
+  configPathFromEnv,
+  dbPathFromEnv,
+  machineConfigDirFromEnv,
+  packageConfigDirFromEnv,
+} from './env-overrides'
 
 test(
   [
@@ -9,13 +14,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const env = { CRUST_CONFIG: 'other/roster.yaml' }
+    const env = { CRUST_CONFIG: 'other/roster.toml' }
 
     // when
     const actual = configPathFromEnv(env)
 
     // then
-    expect(actual).toBe('other/roster.yaml')
+    expect(actual).toBe('other/roster.toml')
   },
 )
 
@@ -72,3 +77,25 @@ test(
     expect(actual).toBe('adws/adw_data/sssf.db')
   },
 )
+
+for (const [variable, resolve] of [
+  ['CRUST_MACHINE_CONFIG', machineConfigDirFromEnv],
+  ['CRUST_PACKAGE_CONFIG', packageConfigDirFromEnv],
+] as const) {
+  for (const value of [undefined, '', '   ', ' /config/directory ']) {
+    test(
+      [
+        `given ${variable} as ${String(value)}`,
+        'when resolving its directory',
+        'it should trim a value and treat blank as absent',
+      ].join(', '),
+      () => {
+        // given
+        // when
+        const actual = resolve({ [variable]: value })
+        // then
+        expect(actual).toBe(value?.trim() || undefined)
+      },
+    )
+  }
+}

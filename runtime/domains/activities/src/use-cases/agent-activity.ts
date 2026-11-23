@@ -5,7 +5,7 @@
  * three more for the deterministic ones — and the differences between them
  * were owner, output type, gates and what counted as acceptable. All four
  * are configuration now, so there is one factory, and adding an Activity is
- * an edit to `crust.activities.yaml` rather than a pull request here.
+ * an edit to `crust.activities.toml` rather than a pull request here.
  *
  * Gates are NOT run from inside this. They are carried on the activity and
  * judged by the driver, because the driver is what knows whether a sibling

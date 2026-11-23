@@ -1,23 +1,17 @@
 import { expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import {
-  activitiesFileSchema,
-  activityConfigSchema,
-} from '../../../../lib/contracts'
+import { activityConfigSchema } from '../../../../lib/contracts'
+import { shippedConfig } from '../../../../testing/shipped-layer'
 import {
   registryFaults,
   resolveActivities,
   resolvedNamed,
 } from './activity-registry'
 
-const STAMP = join(import.meta.dir, '../../../../../templates/stamp/config')
-
 const activity = (over: Readonly<Record<string, unknown>>) =>
   activityConfigSchema.parse({
     name: 'spike',
     purpose: 'Answer one throwaway question',
-    prompts: { system: 's.md', user: 'u.md' },
+    prompts: '.',
     ...over,
   })
 
@@ -92,11 +86,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const given = activitiesFileSchema.parse(
-      Bun.YAML.parse(
-        readFileSync(join(STAMP, 'crust.activities.yaml'), 'utf8'),
-      ),
-    ).activities
+    const given = shippedConfig().activities
 
     // when
     const actual = resolveActivities(given)

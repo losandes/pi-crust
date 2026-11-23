@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type {
   TActivityRun,
   TEnvelopeBase,
@@ -16,6 +16,7 @@ import {
   genericOutput,
   reviewOutputSchema,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import { fakeActivity, runWithTracer } from '../../../../testing/fake-activity'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
 import {
@@ -49,7 +50,7 @@ const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
   writeFileSync(system, '# System\n')
   writeFileSync(user, '# User\n')
   const entries = activities.map((entry) => ({
-    prompts: { system, user },
+    prompts: dirname(system),
     purpose: 'Carry the request through the fixture chain',
     writes: [],
     ...entry,
@@ -424,8 +425,8 @@ test.skipIf(SKIP_INTEGRATION)(
       envelope: { ...ENVELOPE, summary: 'the criteria' },
     })
     run.tracer.sessionFinish(run.runId, false)
-    const config = join(dir, 'crust.config.yaml')
-    writeFileSync(config, Bun.YAML.stringify(run.cfg))
+    const config = join(dir, 'pi-crust.toml')
+    writeFileSync(config, configText(run.cfg))
     let rendered: Readonly<Record<string, string>> = {}
     const ports: TAgentPorts = {
       run: async () => ({
@@ -459,7 +460,7 @@ test.skipIf(SKIP_INTEGRATION)(
     }
     process.chdir(dir)
     // biome-ignore lint/plugin/no-object-mutation: process.env is the configuration boundary this isolated fixture owns
-    process.env.CRUST_MACHINE_CONFIG = join(dir, 'no-machine-config.yaml')
+    process.env.CRUST_MACHINE_CONFIG = join(dir, 'no-machine-config')
     // biome-ignore lint/plugin/no-object-mutation: process.env is the configuration boundary this isolated fixture owns
     process.env.CRUST_DATA_DIR = ''
     // biome-ignore lint/plugin/no-object-mutation: process.env is the configuration boundary this isolated fixture owns

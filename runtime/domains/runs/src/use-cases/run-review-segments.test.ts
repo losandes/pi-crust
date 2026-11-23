@@ -100,10 +100,7 @@ const fixtureWith = (
     ...entry,
     model: `fixture/${entry.name}`,
     purpose: `Exercise ${entry.name} against the preceding work`,
-    prompts: {
-      system: `${entry.name}/system`,
-      user: `${entry.name}/user`,
-    },
+    prompts: entry.name,
     writes: [],
   }))
   const created = runWithTracer(
@@ -268,8 +265,9 @@ test(
     expect(ledger.causes('revise-plan')).toEqual([
       'revise round 1 after a review that did not approve',
     ])
-    const builtFrom = fixture.renders().find((one) => one.path === 'build/user')
-      ?.variables.previous_envelope
+    const builtFrom = fixture
+      .renders()
+      .find((one) => one.path === 'build/user.md')?.variables.previous_envelope
     expect(JSON.parse(builtFrom ?? '{}').summary).toBe('plan v2')
     expect(fixture.prompts()[3]).toContain('plan-comprehension finding')
     expect(fixture.prompts()[3]).toContain('plan-readiness finding')
@@ -489,7 +487,9 @@ test(
       'plan-readiness',
       'build',
     ])
-    const builds = fixture.renders().filter((one) => one.path === 'build/user')
+    const builds = fixture
+      .renders()
+      .filter((one) => one.path === 'build/user.md')
     expect(
       builds.map(
         (one) => JSON.parse(one.variables.previous_envelope ?? '{}').summary,

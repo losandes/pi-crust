@@ -1,6 +1,6 @@
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type {
   TActivityContext,
   TEnvelopeBase,
@@ -11,6 +11,7 @@ import {
   crustConfigSchema,
   reviewOutputSchema,
 } from '../../../../lib/contracts'
+import { configText } from '../../../../testing/config-document'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -80,7 +81,7 @@ export const gateFixture = (
   const environment = {
     CRUST_DATA_DIR: '',
     CRUST_DB: join(dir, 'crust.db'),
-    CRUST_MACHINE_CONFIG: join(dir, 'absent-machine-config.yaml'),
+    CRUST_MACHINE_CONFIG: join(dir, 'absent-machine-config'),
     CRUST_REGISTRY: join(dir, 'workspaces.jsonl'),
   }
   const original = Object.keys(environment).map((key) => ({
@@ -100,7 +101,7 @@ export const gateFixture = (
     purpose: `Perform the ${name} work`,
     output: name === 'review' ? 'reviewOutput' : 'buildOutput',
     attempts: options.attempts ?? 4,
-    prompts: { system, user },
+    prompts: dirname(system),
     writes: [],
   }))
   const cfg = crustConfigSchema.parse({
@@ -136,8 +137,8 @@ export const gateFixture = (
       return resumed
     },
     configPath: () => {
-      const path = join(dir, 'crust.config.yaml')
-      writeFileSync(path, Bun.YAML.stringify(cfg))
+      const path = join(dir, 'pi-crust.toml')
+      writeFileSync(path, configText(cfg))
       return path
     },
     [Symbol.dispose]: () => {

@@ -1,35 +1,6 @@
-
-# Trace database, visualizer settings, and UI themes.
-#
-# db, poll_ms, and ports load under `observability:` in the configuration.
-# The trace UI reads themes and default_theme directly.
-#
-# Configuration precedence (highest first):
-#   1. CLI flags
-#   2. Environment variables (CRUST_DB, CRUST_BE_PORT, CRUST_FE_PORT)
-#   3. Repository-local crust.config.local.yaml (observability:)
-#   4. Machine-level crust.config.yaml (override:)
-#   5. This file
-#   6. Machine-level crust.config.yaml (top level)
-#   7. Built-in defaults
-#
-# See references/config.md for details.
-
-# Shared trace database across worktrees. {primary_worktree} resolves to
-# the main checkout, preserving run history when worktrees are removed.
-# Keep this path aligned with defaults.data_dir; alignment is not enforced.
-#
-# For a per-worktree database, use .pi-crust/data/crust.db.
-# Relative paths resolve from the repository root; ~ expands to home.
-db: "{primary_worktree}/.pi-crust/data/crust.db"
-
-# Visualizer polling interval (milliseconds).
-poll_ms: 500
-
-# Ports for `just crust observe`. Environment variables override these.
-ports:
-  backend: 4600                    # API server
-  frontend: 4601                   # Web UI
+# Theme registrations only. This example is not installed.
+# The trace UI still reads themes and default_theme from existing repository files.
+# Set db, poll_ms and ports in crust.config.toml, not in this file.
 
 # Themes available in the trace UI. Removing an entry removes it from the picker.
 # Built-in themes ship with pi-crust; custom stylesheets are relative to .pi-crust/.

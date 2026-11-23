@@ -41,7 +41,7 @@ const DEFAULT_LIMIT = 500
  * (see `workspaces.ts`'s own `realOrRaw` and registry-reading duplication for
  * the same reason), and this is the one rule of that resolver which applies
  * to a value a developer TYPES \u2014 into `--db` or `CRUST_DB` \u2014 rather than one
- * read out of a repository's `crust.config.yaml`. `{primary_worktree}` is not
+ * read out of a repository's `pi-crust.toml`. `{primary_worktree}` is not
  * expanded here: that token exists for a committed config value a team
  * shares, not for a one-off flag or environment variable a single developer
  * types at a shell, which is all `resolveDbPath` ever sees.
@@ -56,7 +56,7 @@ const expandHome = (value: string): string =>
  * The db lives in the TARGET repo, so cwd is the repo the visualizer is pointed at.
  */
 export function resolveDbPath(
-  argv: string[] = Bun.argv,
+  argv: readonly string[] = Bun.argv,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   const flagIndex = argv.indexOf('--db')

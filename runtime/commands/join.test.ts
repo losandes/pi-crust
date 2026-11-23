@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import type { TSettlement } from '../../lib/typedefs'
 import { JOIN_USAGE as USAGE } from '../domains/cli'
 import { createTracer, readRunState } from '../domains/trace'
+import { configText } from '../testing/config-document'
 import { main } from './join'
 
 type TJoinDeps = Parameters<typeof main>[0]
@@ -28,10 +29,14 @@ type TFixtureOptions = Readonly<{
 
 const fixture = (dir: string, options: TFixtureOptions = {}) => {
   const dbPath = join(dir, 'crust.db')
-  const configPath = join(dir, 'crust.config.yaml')
+  const configPath = join(dir, 'pi-crust.toml')
   writeFileSync(
     configPath,
-    `defaults:\n  data_dir: ${dir}\nobservability:\n  db: ${dbPath}\nagents: []\n`,
+    configText({
+      defaults: { data_dir: dir },
+      observability: { db: dbPath },
+      agents: [],
+    }),
   )
   const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
   tracer.sessionStart('abcd1234', 'tester', 'sdlc')
@@ -65,7 +70,7 @@ const fixture = (dir: string, options: TFixtureOptions = {}) => {
       'abcd1234',
       agentConfigSchema.parse({
         name: 'planner',
-        prompts: { system: 'system.md', user: 'user.md' },
+        prompts: '.',
         writes: [],
       }),
       'session-1',
@@ -281,7 +286,7 @@ for (const argv of [
       let calls: readonly (readonly string[])[] = []
       let output = ''
       const deps: TJoinDeps = {
-        env: { CRUST_CONFIG: '/no-such-crust-join-config.yaml' },
+        env: { CRUST_CONFIG: '/no-such-crust-join-config.toml' },
         piBinary: 'test-pi',
         open: (args) => {
           calls = [...calls, args]
@@ -318,7 +323,7 @@ test(
       const f = fixture(dir)
       const deps = {
         ...f.deps,
-        env: { ...f.deps.env, CRUST_CONFIG: join(dir, 'missing.yaml') },
+        env: { ...f.deps.env, CRUST_CONFIG: join(dir, 'missing.toml') },
       }
 
       // when

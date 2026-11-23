@@ -1,153 +1,88 @@
-import { afterEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  realpathSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import {
+  promptFile,
   render,
-  resolvePromptPath,
-  resolveReference,
+  revisePromptPath,
   savePrompt,
 } from './prompt-files'
 
-const originalCwd = process.cwd()
-
-afterEach(() => {
-  process.chdir(originalCwd)
-})
+for (const mode of ['present', 'absent', 'directory'] as const) {
+  test(
+    [
+      `given a prompt directory with revise.md ${mode}`,
+      'when resolving a revision',
+      'it should use the revise file only when it is a regular file',
+    ].join(', '),
+    () => {
+      // given
+      const root = mkdtempSync(join(tmpdir(), 'crust-prompt-'))
+      try {
+        writeFileSync(join(root, 'user.md'), 'user')
+        if (mode === 'present') writeFileSync(join(root, 'revise.md'), 'revise')
+        if (mode === 'directory') mkdirSync(join(root, 'revise.md'))
+        // when
+        const actual = revisePromptPath(root)
+        // then
+        expect(actual).toBe(
+          promptFile(root, mode === 'present' ? 'revise' : 'user'),
+        )
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}
 
 test(
   [
-    'given data/prompt-files::resolveReference',
-    'when the reference is already absolute',
-    'it should return it verbatim, trusting what was written',
+    'given a template path with repeated and unknown placeholders',
+    'when rendered and saved',
+    'it should read exactly that path, substitute supplied variables and preserve the audit bytes',
   ].join(', '),
   () => {
     // given
-    const absolute = join(tmpdir(), 'already-absolute.md')
-
-    // when
-    const actual = resolveReference(absolute)
-
-    // then
-    expect(actual).toEqual(absolute)
+    const root = mkdtempSync(join(tmpdir(), 'crust-prompt-render-'))
+    try {
+      const path = join(root, 'system.md')
+      writeFileSync(
+        path,
+        'Hello {{name}}, {{name}} is building {{thing}}. {{unknown}}\n',
+      )
+      // when
+      const actual = render(path, { name: 'tester', thing: 'coverage' })
+      const saved = savePrompt(join(root, 'audit'), 'sent.md', actual)
+      // then
+      expect(actual).toBe(
+        'Hello tester, tester is building coverage. {{unknown}}\n',
+      )
+      expect(saved).toBe(join(root, 'audit/sent.md'))
+      expect(readFileSync(saved, 'utf8')).toBe(actual)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   },
 )
 
 test(
   [
-    'given data/prompt-files::resolveReference',
-    'when the repository has its own override under .pi-crust/',
-    'it should resolve to the repository copy rather than the shipped one',
+    'given a missing prompt directory',
+    'when choosing its revision path',
+    'it should retain the ordinary user path and let validation report missing files',
   ].join(', '),
   () => {
     // given
-    const repo = realpathSync(
-      mkdtempSync(join(tmpdir(), 'crust-prompt-files-override-')),
-    )
-    mkdirSync(join(repo, '.pi-crust', 'prompts', 'plan'), {
-      recursive: true,
-    })
-    const overridePath = join(repo, '.pi-crust', 'prompts', 'plan', 'system.md')
-    writeFileSync(overridePath, 'team override\n')
-    process.chdir(repo)
-
     // when
-    const actual = resolveReference('prompts/plan/system.md')
-
+    const actual = revisePromptPath('no-such-dir')
     // then
-    expect(actual).toEqual(overridePath)
-  },
-)
-
-test(
-  [
-    'given data/prompt-files::resolveReference',
-    'when the repository has no override for the reference',
-    'it should fall back to the copy that ships with the package',
-  ].join(', '),
-  () => {
-    // given — a repository with no .pi-crust/ override at all
-    const repo = mkdtempSync(join(tmpdir(), 'crust-prompt-files-fallback-'))
-    process.chdir(repo)
-
-    // when
-    const actual = resolveReference('prompts/plan/system.md')
-
-    // then — not inside the empty repository's .pi-crust/
-    expect(isAbsolute(actual)).toBe(true)
-    expect(actual).not.toContain(join(repo, '.pi-crust'))
-  },
-)
-
-test(
-  [
-    'given data/prompt-files::resolvePromptPath',
-    'when called the same way as resolveReference',
-    'it should resolve identically, because it is the same resolution',
-  ].join(', '),
-  () => {
-    // given
-    const repo = mkdtempSync(join(tmpdir(), 'crust-prompt-files-alias-'))
-    process.chdir(repo)
-
-    // when
-    const viaReference = resolveReference('prompts/plan/system.md')
-    const viaPromptPath = resolvePromptPath('prompts/plan/system.md')
-
-    // then
-    expect(viaPromptPath).toEqual(viaReference)
-  },
-)
-
-test(
-  [
-    'given data/prompt-files::render',
-    'when a template names a placeholder the caller supplied',
-    'it should substitute every occurrence',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-prompt-files-render-'))
-    const templatePath = join(dir, 'template.md')
-    writeFileSync(
-      templatePath,
-      'Hello {{name}}, {{name}} is building {{thing}}.\n',
-    )
-
-    // when
-    const actual = render(templatePath, { name: 'tester', thing: 'coverage' })
-
-    // then
-    expect(actual).toEqual('Hello tester, tester is building coverage.\n')
-  },
-)
-
-test(
-  [
-    'given data/prompt-files::savePrompt',
-    'when a rendered prompt is saved for the audit trail',
-    'it should write the exact content under the given directory and name',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-prompt-files-save-'))
-    const auditDir = join(dir, 'context_handoff')
-
-    // when
-    const path = savePrompt(
-      auditDir,
-      'build.prompt.md',
-      'the exact prompt sent\n',
-    )
-
-    // then
-    expect(path).toEqual(join(auditDir, 'build.prompt.md'))
-    expect(readFileSync(path, 'utf8')).toEqual('the exact prompt sent\n')
+    expect(actual).toBe('no-such-dir/user.md')
   },
 )

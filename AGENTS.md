@@ -89,7 +89,7 @@ Before the first edit of a task, confirm where you are with `git rev-parse --sho
 
 ## Editing while runs are in flight
 
-A run executes from the **stamp** — the `.pi-crust/` directory inside the target repository — but the stamp holds no runtime code. `templates/stamp/` carries only `config/` and `prompts/{example,README.md}`; `runtime/` (including its `domains/`, `lib/` and `extensions/`), `cookbooks/` and `SKILL.md` all live in this clone, and `.pi-crust/data/pi-crust-home` (or `CRUST_HOME`) is a pointer at it, not a copy. An edit to any of them is live for every process a stamped repository starts after the write — including the agent spawned for the next Activity of a run already going, and including the prompts under `runtime/prompts/`.
+A run executes from the **stamp** — the `.pi-crust/` directory inside the target repository — but the stamp holds no runtime code. `templates/pi-crust.toml` supplies the repository's single configuration file, package defaults live in `runtime/config/`, and `templates/stamp/` retains only uninstalled theme examples; `runtime/` (including its `domains/`, `lib/` and `extensions/`), `cookbooks/` and `SKILL.md` all live in this clone, and `.pi-crust/data/pi-crust-home` (or `CRUST_HOME`) is a pointer at it, not a copy. An edit to any of them is live for every process a stamped repository starts after the write — including the agent spawned for the next Activity of a run already going, and including the prompts under `runtime/prompts/`.
 
 The corollary is the trap this file used to walk a reader into: a process already running keeps the modules it imported at startup. A fix a run writes to `runtime/` does not govern the run that wrote it — it has to be re-run before it is exercised. A run that dies against the bug it is fixing in the same breath is not a sign the fix is wrong.
 
@@ -117,14 +117,14 @@ This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` i
 `install.ts` contains no deletion of any kind — only copies and appends — and `data/` has no counterpart in the template, so there is nothing for an update to overwrite. Keep it that way:
 
 - An update may replace anything the template owns. It may not remove anything.
-- `config/` belongs to the repository being stamped, not to the template. `--force` skips it.
+- `pi-crust.toml` belongs to the repository, not the template. The installer never replaces an existing one, even with `--refresh` or `--force`; legacy configuration and prompt directories are left untouched.
 - Schema migration is a separate, explicitly invoked verb. It reads the old database and writes a new one, keeping the old. It is never a step inside something people run routinely.
 
 ## Verification
 
 An agent proves its own change with scoped commands and nothing wider. The full gate — lint over every root, typecheck, coverage across the whole repository, the visualizer build and the stamp check — runs after the agent, so running it yourself spends minutes to learn what the gate will report anyway. That holds in both places an agent works here:
 
-- **Inside a pi-crust run.** After an Activity changes files, the run executes the `change` tasks under `tasks:` in `.pi-crust/config/crust.config.yaml` whose `match` selects those files, and reports a task failure back to the Activity that changed them. At delivery it runs the `deliver` tasks, which take the repository-wide pass
+- **Inside a pi-crust run.** After an Activity changes files, the run executes the `change` tasks under `[tasks.*]` in `pi-crust.toml` whose `match` selects those files, and reports a task failure back to the Activity that changed them. At delivery it runs the `deliver` tasks, which take the repository-wide pass
 - **In an interactive session.** CI runs `mise run check` on every push to `main` and every pull request against it (`.github/workflows/check.yml`), and `pr-check` runs its own repository-wide pass before a pull request is opened
 
 ### What an agent runs
@@ -189,7 +189,7 @@ That gap is accepted rather than hidden. Installing pi on a runner is not worth 
 
 `mise run typecheck` is three checks in sequence: `typecheck:runtime`, `typecheck:harness`, and `typecheck:visualizer`. `runtime/tsconfig.json` excludes `extensions/`, so the first does not check it. The second does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one — and under `CRUST_STRICT` it exits 1 instead, for anywhere that would rather fail than carry the gap.
 
-`check:install` stamps `templates/stamp/` into a throwaway directory and runs `verify-install.sh` against it, expecting `drift=0`. It needs no git, no network and no cleanup of your own — an install into a bare `mktemp -d` is a legitimate install, which is what makes it runnable unchanged on a runner. Anything other than `drift=0` means the template and the stamp disagree, and that failure ships into other people's repositories. `mise run check:install` runs it without the rest of the gate. To check a repository that is already stamped, which `mise run check` cannot do because it works in a throwaway directory, run `scripts/verify-install.sh /path/to/a/stamped/repo`.
+`check:install` installs into a throwaway directory and verifies the exact fresh-install file set, byte identity with `templates/pi-crust.toml`, an empty parsed TOML document, commented task examples with triggers and skip lists, and a successful catalogue listing over the real package defaults. It needs no Git or network and removes its scratch directory. It does not inspect or rewrite an existing repository's configuration. `mise run check:install` runs that check without the rest of the gate.
 
 A runner also needs `bunx playwright install --with-deps chromium`, run from `apps/visualizer`, or the browser-driven visualizer tests skip and the suite is green having not run them. Run from the root, `bunx` resolves the latest playwright rather than the version `apps/visualizer` pins, downloads a Chromium revision the pinned version never looks for, and every browser test still skips.
 

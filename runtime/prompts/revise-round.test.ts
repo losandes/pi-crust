@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { TUserMessage } from '../domains/activities/src/use-cases/execute-agent'
 import {
   findingsBlock,
   userMessage,
 } from '../domains/activities/src/use-cases/execute-agent'
-import { render, revisePromptReference } from '../domains/agents'
+import { render, revisePromptPath } from '../domains/agents'
 import { buildOutputSchema, planOutputSchema } from '../lib/contracts'
 
 const S_TASK =
@@ -40,16 +39,13 @@ const VARIABLES = {
 }
 const FINDINGS = ['SENTINEL_FINDING_ONE', 'SENTINEL_FINDING_TWO']
 const messageFor = (activity: keyof typeof FULL_TASK): TUserMessage => ({
-  prompts: {
-    system: join(import.meta.dir, activity, 'system.md'),
-    user: join(import.meta.dir, activity, 'user.md'),
-  },
+  prompts: join(import.meta.dir, activity),
   variables: VARIABLES,
   steering: 'SENTINEL_STEERING',
   feedback: [],
   blockingFindings: FINDINGS,
 })
-const compose = userMessage({ render, reviseReference: revisePromptReference })
+const compose = userMessage({ render, reviseReference: revisePromptPath })
 const source = (activity: string, name: string): string =>
   readFileSync(join(import.meta.dir, activity, name), 'utf8')
 const section = (text: string, heading: string): string =>
@@ -213,38 +209,5 @@ test(
 
     // then
     expect(actual).toBe(compose({ ...message, blockingFindings: [] }))
-  },
-)
-
-test(
-  [
-    'given an explicitly configured revise prompt',
-    'when composing a revise round',
-    'it should render that template instead of the shipped one and still append steering and findings',
-  ].join(', '),
-  () => {
-    // given
-    const root = mkdtempSync(join(tmpdir(), 'crust-revise-message-'))
-    try {
-      const path = join(root, 'custom.md')
-      writeFileSync(path, 'Custom revise {{previous_envelope}}', { flag: 'wx' })
-      const message = messageFor('build')
-
-      // when
-      const actual = compose({
-        ...message,
-        prompts: { ...message.prompts, revise: path },
-      })
-
-      // then
-      expect(
-        actual.startsWith(`Custom revise ${VARIABLES.previous_envelope}`),
-      ).toBe(true)
-      expect(actual).not.toContain(S_TASK)
-      expect(actual).toContain(message.steering)
-      expect(actual.endsWith(findingsBlock(FINDINGS))).toBe(true)
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
   },
 )

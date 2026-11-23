@@ -8,14 +8,13 @@
  * on offering three.
  *
  * So the recipes stopped naming them and this reads the registry instead.
- * Add an Activity to `crust.activities.yaml` — or to the local layer beside
- * it — and it appears here, with no change to this package.
+ * A new Activity table in any TOML layer appears here without a second registry.
  */
 
-import { PLANNER_NAMES } from '../../../../lib/contracts'
+import type { TEnv } from '../../../../lib/system'
 import { paint } from '../../../../lib/terminal'
 import { loadConfig } from '../../../config'
-import { lifecyclesBeside, loadLifecycles } from '../../../planning'
+import { loadLifecycles } from '../../../planning'
 import { PLANNERS } from './menu-options'
 import { RUN_RECIPE } from './recipe-line'
 
@@ -86,22 +85,23 @@ export const renderCatalogue = (catalogue: TCatalogue): string => {
   ].join('\n')
 }
 
-export const catalogueOf = (configPath: string): TCatalogue => {
-  const cfg = loadConfig(configPath)
+export const catalogueOf = (
+  configPath: string,
+  env: TEnv = process.env,
+): TCatalogue => {
+  const cfg = loadConfig(configPath, env)
 
   return {
-    lifecycles: loadLifecycles(lifecyclesBeside(configPath), cfg).map(
-      (lifecycle) => ({
-        name: lifecycle.name,
-        detail: lifecycle.description,
-      }),
-    ),
+    lifecycles: loadLifecycles(cfg).map((lifecycle) => ({
+      name: lifecycle.name,
+      detail: lifecycle.description,
+    })),
     /*
      * Every Planner, not only the ones the interactive menu offers. `triage`
      * has a recipe and chooses a chain; a list of what this repository can
      * run that left it out would be answering a different question.
      */
-    planners: PLANNER_NAMES.map((name) => ({
+    planners: cfg.planners.map(({ name }) => ({
       name,
       detail:
         PLANNERS.find((planner) => planner.name === name)?.summary ??

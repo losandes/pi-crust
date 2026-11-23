@@ -1,6 +1,6 @@
 ---
 name: pi-crust
-description: pi-crust — deploy and operate repeatable agents-plus-code lifecycles in any codebase, written in TypeScript and stamped into .pi-crust/. Use when the user says /skill:pi-crust install, wants to create, run, or update a workflow, manage the agent roster in crust.config.yaml, or observe a running agent workflow. Keywords - pi-crust, crust, software factory, AI developer workflow, agent pipeline, install factory, run_id, trace db.
+description: pi-crust — deploy and operate repeatable agents-plus-code lifecycles in any codebase, written in TypeScript and stamped into .pi-crust/. Use when the user says /skill:pi-crust install, wants to create, run, or update a workflow, manage three TOML configuration layers and the repository pi-crust.toml, or observe a running agent workflow. Keywords - pi-crust, crust, software factory, AI developer workflow, agent pipeline, install factory, run_id, trace db.
 argument-hint: "[install | create workflow | run workflow | update config | ...]"
 ---
 
@@ -11,7 +11,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 ## Use this skill when
 
 - The engineer says `/skill:pi-crust install`, or asks to set the factory up in a repository
-- A stage or a lifecycle needs creating, changing, or running — the definitions in `.pi-crust/config/crust.lifecycles.yaml` or the entry points under `<pi-crust>/runtime/commands/`
+- A stage or a lifecycle needs creating, changing, or running — keyed TOML definitions in the package, `~/.pi-crust/config/` or the repository's `pi-crust.toml`, executed through `<pi-crust>/runtime/commands/`
 - The agent roster needs tuning: a model, a thinking level, a tool list, a `writes` boundary
 - A run needs watching or explaining — which activity run failed, what a gate rejected, what it cost
 - Someone asks what `.pi-crust/` is, or how to drive it
@@ -48,7 +48,7 @@ The two directories are not the same kind of thing, and the table should not pre
 | diagnose | reproduce a reported behaviour and name its cause | the report is a symptom |
 ```
 
-Take the rows from the two config files, never from this list: a team adds, removes and renames Activities without touching this package, so a table written here is a table that drifts.
+Take the rows from the merged catalogue reported by the command, never from this list: a team adds, removes and renames Activities without touching this package, so a table written here is a table that drifts.
 
 Every Activity runs on its own, and `run --activities a,b,c` runs any ordered subset of them in any order, with repeats; `a+b` runs two at once. Say so when you print the table: an engineer who wants only a code review should not be told to run a lifecycle, and one who wants an unusual order does not need a new file written for them.
 
@@ -60,7 +60,7 @@ Every Activity runs on its own, and `run --activities a,b,c` runs any ordered su
 
 Everything else — the db schema, the roster, the handoff contract — is lazy-loaded through the routing table below, when a request actually calls for it. Reading it early defeats the mechanism.
 
-Two exceptions, both narrow: if the engineer's first message already contains a request, skip the waiting and route it; and if the factory is plainly not installed (no `.pi-crust/`), say that in one line instead of the table.
+Two exceptions, both narrow: if the engineer's first message already contains a request, skip the waiting and route it; and if the factory recipes and package-home resolution are unavailable, say that in one line instead of the table.
 
 ## Orchestrator rules
 
@@ -101,29 +101,29 @@ The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are 
 | 3.1 Verify        | `outcome-review`, `code-review` | is it what was asked for; does it conform                            |
 | 3.2 Launch        | `document` + a human            | handing a reviewable change to the person who launches it            |
 
-An Activity is named for the WORK, and IS its agent: `crust.activities.yaml` holds both halves of it — the model, tools, writes and prompts that say who performs it, and the `output`, `attempts` and `commit` that say what the work is. The engine attaches [output checks](references/config.md#output-checks) from `output`. There is no second registry and no performer to bridge to.
+An Activity is named for the WORK, and IS its agent: `[activities.<name>]` in the merged TOML layers holds both halves of it — the model, tools, writes and prompts that say who performs it, and the `output`, `attempts` and `commit` that say what the work is. The engine attaches [output checks](references/config.md#output-checks) from `output`. There is no second registry and no performer to bridge to.
 
 `scout` is stage 1.1. It kept its name because every chain, recipe and habit already uses it, and a rename would cost more than the tidiness is worth — but it is Evaluate, and the record's rules for Evaluate are the ones it follows.
 
 Stages may send the run BACKWARDS. Any stage can set `regress_to` when evidence invalidates earlier work: a builder that finds the design cannot work has found something, and `conceptualize` should hear it rather than `build` burying it in a workaround. A lap is an Activity Run of the destination, so it comes out of that instance's `attempts` — the same budget a failed gate and a revise round spend from. When it is gone, the developer is asked, with an itemised account of where it went.
 
-## The five scripts
+## Package commands
 
 Each does one thing, and each is invoked by path. `<pi-crust>` below is this skill's own directory, whose absolute path is in the skill listing — pi-crust is a package and may be installed anywhere, so there is no fixed path to quote:
 
-| Task                                                                       | Command                                                                 |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Stamp the factory into the current repo; `--refresh` template-owned files. | `bun <pi-crust>/scripts/install.ts`                                     |
-| Prove the installed `.pi-crust/` is the tree this skill ships              | `<pi-crust>/scripts/verify-install.sh`                                  |
-| Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                 |
-| Add a Lifecycle or an Activity                                             | edit `.pi-crust/config/crust.lifecycles.yaml` / `crust.activities.yaml` |
-| Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                     |
+| Task                                                                       | Command                                                                |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Stamp the factory into the current repo; `--refresh` template-owned files. | `bun <pi-crust>/scripts/install.ts`                                    |
+| Inspect effective settings and their source                                | `just crust config`                                                    |
+| Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                |
+| Add a Lifecycle or an Activity                                             | edit the appropriate table in `~/.pi-crust/config/` or `pi-crust.toml` |
+| Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                    |
 
-`install.ts --refresh` replaces existing template-owned files, including `.example.yaml` documents under `config/`. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. A missing `config/` is seeded on first install; once it exists, non-example files are neither added nor overwritten. New examples are added even without flags and reported separately from replacements. Adopt new settings files deliberately — see [cookbooks/install.md](cookbooks/install.md).
+`install.ts` writes `pi-crust.toml` only when absent. Its example tasks are all commented out, so a fresh repository runs with no tasks declared and no placeholder command executed. The installer also writes the credential example, appends `.pi-crust/data/` to gitignore, ensures the root justfile passthrough and records the package-home pointer. It creates no configuration directory or prompt files.
 
-Run `verify-install.sh` after installing and after any change to the template. The skill is the source and `.pi-crust/` is a copy, so an edit made to one and not the other ships a factory that differs from the one it was tested in, and nothing says so until a run behaves strangely. It exempts `config/` (the repository's own roster and tasks), `data/` (runtime), and tests, which `install.ts` never stamps.
+The package's `runtime/config/` defaults are read live, then `~/.pi-crust/config/`, then the repository file. Each package or machine directory holds `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge recursively and arrays replace whole; the repository wins on the fields it states. Tasks are declared only in `pi-crust.toml`. Lists group entries by first declaration, package then machine then repository, sorting names within each group.
 
-`install.ts` stamps `.pi-crust/` — the activity registry, the lifecycles, the themes, a prompts directory for yours, and `data/` for this machine's runs. No code is stamped: the runtime lives in the package, which is what lets an update replace everything it owns without touching anything a team wrote. It also appends three gitignore lines and a `crust` passthrough recipe to the root justfile, so the recipes land as `just crust <recipe>` without colliding with recipes the repository already has.
+`install.ts --refresh` updates template-owned files, never an existing `pi-crust.toml` or execution history. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and no longer read for runtime configuration or prompt overrides; the trace UI still reads themes from an existing `crust.observe.yaml`. Migrate by hand following [references/config.md](references/config.md). No code or shipped defaults are copied into a repository.
 
 ## Hard rules (enforced across everything the factory generates)
 
@@ -137,7 +137,7 @@ Run `verify-install.sh` after installing and after any change to the template. T
 8. **A known command is a task, not an agent** — declare it in [Tasks](references/config.md#tasks). A matching `change` task runs before the Activity's work is accepted and sends failures back to the Activity that changed the files.
 9. **`tools:` is a capability list, `writes:` is the boundary, and the working tree is the developer's** — `bash` runs anything (including `git checkout`) and `write` reaches any path, so a tool list can never make "this agent changes nothing" true. Two mechanisms, and the difference between them is attribution. `defaults.protected_files` and gitignored paths are governed by `defaults.protected` and `defaults.ignored` and enforced BEFORE the call, in `<pi-crust>/runtime/extensions/path-policy.ts`, because a tool call belongs to the agent that made it and a secret that has been read cannot be unread; the shipped default is `block` both ways for a protected path, and `warn`/`block` for a gitignored one. `writes:` per agent is observed AFTER the call in `<pi-crust>/runtime/domains/policy/src/use-cases/enforce-permissions.ts`, and an overstep is reported, never reverted: a developer editing the same branch is indistinguishable from an agent in a diff, and `git checkout --` has no undo. The session runtime under `data_dir` is always writable and never governed — a read-only agent is read-only with respect to the REPO, never mute. `bash` is best-effort only; if a path must not leak, do not give that Activity `bash`.
 10. **Every workflow ends in `finish(run)`** — activity runs passing is not the same as the run being accepted. A test activity run that ran a red suite succeeded at its job. Pass `accepted:` so the exit code, the session status, and the banner are decided together and cannot disagree.
-11. **Repository commands are configured, never hardcoded** — `tasks:` in `crust.config.yaml` declares commands, and `match` selects existing changed paths. Skills belong where the coding agent discovers them.
+11. **Repository commands are configured, never hardcoded** — `[tasks.<name>]` in `pi-crust.toml` declares commands, and `match` selects existing changed paths. Skills belong where the coding agent discovers them.
 12. **Unmatched paths are not verified** — the run reports the number of existing changed paths no task matched, without failing on that count.
 14. **The harness settles a dispute, neither agent** — a chain ending in Activities that declare `output: reviewOutput` feeds their blocking findings back to the Activity that wrote the work, as a `revise` Activity Run, bounded by that Activity's `attempts`. The builder may answer a finding with evidence instead of a fix, under three rules the harness applies: a finding a declared task decides may not be disputed at all; a dispute must carry a `path:line` or a command and its exit status, or `disputes_supported` rejects it as the refusal it is; and a finding raised twice with no new evidence on either side ends the loop and lands in `context_handoff/disputes.md` for the developer. The repeat count is the harness's, read from a persisted ledger — an agent that decides when the argument is over has decided its own case.
 
@@ -149,4 +149,4 @@ Run `verify-install.sh` after installing and after any change to the template. T
 
 ## v1 scope
 
-Pi coding agent only (`coding_agent: pi`), default model `gemini-3.6-flash` via openrouter, thinking `medium`. `claude_code` is schema-valid but stubbed until v2. The stamped tree is pure TypeScript run by bun, with exactly one runtime dependency (`zod`). The visualizer lives in `apps/visualizer/` and polls the same trace db the sqlite queries read.
+Pi coding agent only (`coding_agent = "pi"`); the package configuration ships `anthropic/claude-haiku-5-5` with thinking `max`. `claude_code` remains schema-valid but unimplemented. The TypeScript runtime and its `zod` dependency live in the package, not the stamp. The visualizer in `apps/visualizer/` polls the same trace database; its interval comes from merged TOML settings through `GET /api/health`.

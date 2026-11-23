@@ -16,7 +16,14 @@ export {
 } from './src/data/resolve-waiting-runs'
 export { createTracer } from './src/data/trace-db'
 export { runHasLiveProcess } from './src/data/trace-reader'
-export { runLink, visualizerIsUp } from './src/data/visualizer'
+export type { TObserveEnv } from './src/data/visualizer'
+export {
+  backendPort,
+  frontendPort,
+  observeEnv,
+  runLink,
+  visualizerIsUp,
+} from './src/data/visualizer'
 export type { TPrunable } from './src/use-cases/prune'
 export { parseAge, pruneVerdict, workspacesIn } from './src/use-cases/prune'
 export {

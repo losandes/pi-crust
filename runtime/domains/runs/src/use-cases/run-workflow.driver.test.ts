@@ -1,9 +1,10 @@
+import { configText } from '../../../../testing/config-document'
 /**
  * `run-workflow.ts` (COVERAGE-WORKFLOW-DRIVERS.md).
  *
  * `spentAlready`, `pinBaseline` and `runPlannedChain` are unit-tested
  * directly. `runWorkflow` itself builds its Activities from
- * `crust.activities.yaml` through `runnableActivities`, which resolves to
+ * `crust.activities.toml` through `runnableActivities`, which resolves to
  * `agentActivity` with its live `TAgentPorts` default. Most scenarios here
  * drive `runWorkflow` through a real `--resume`: every Activity Run the
  * chain would execute is already recorded successful in the trace, with its
@@ -40,7 +41,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   activityRunParams,
   crustConfigSchema,
@@ -106,7 +107,7 @@ const workflowEnvironment = () => {
   }
   silenceTerminal()
   /*
-   * This machine may carry its own `~/.pi-crust/config/crust.config.yaml`,
+   * This machine may carry its own `~/.pi-crust/config/crust.config.toml`,
    * whose `override:` section beats a repository's own config (1.2.3 of
    * issue #24) — observed here forcing `observability.db` to
    * `{primary_worktree}/.pi-crust/data/crust.db` regardless of what a test's
@@ -114,7 +115,7 @@ const workflowEnvironment = () => {
    * see only the config they wrote.
    */
   // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
-  process.env.CRUST_MACHINE_CONFIG = '/nonexistent/crust-machine-config.yaml'
+  process.env.CRUST_MACHINE_CONFIG = '/nonexistent/crust-machine-config'
   /*
    * Empty, never `undefined`.
    *
@@ -352,23 +353,23 @@ const configFor = (
   writeFileSync(system, '# system\n')
   writeFileSync(user, '# user\n')
   const dataDir = join(dir, 'data')
-  const configPath = join(dir, 'crust.config.yaml')
+  const configPath = join(dir, 'pi-crust.toml')
   const entries = activities.map((activity) => ({
     model: MODEL,
     purpose: `Perform ${activity.name}`,
-    prompts: { system, user },
+    prompts: dirname(system),
     writes: [],
     ...activity,
   }))
   const terminalEntries = terminal.map((one) => ({
     model: MODEL,
-    prompts: { system, user },
+    prompts: dirname(system),
     writes: [],
     ...one,
   }))
   writeFileSync(
     configPath,
-    Bun.YAML.stringify({
+    configText({
       defaults: { data_dir: dataDir },
       observability: { db: join(dataDir, 'crust.db') },
       agents: [...entries, ...terminalEntries],
@@ -550,7 +551,7 @@ for (const {
 
 test(
   [
-    'given #112 requirements 1.3.6 and 1.4.4, all config layers and a stale local override',
+    'given #112 requirements 1.3.6 and 1.4.4, repository and machine settings and an unread legacy file',
     'when a model override is followed by a separate run without the flag',
     'it should win only in the first run, leave every file unchanged, and print config warnings before override warnings',
   ].join(', '),
@@ -561,64 +562,40 @@ test(
     const configPath = configFor(dir, [
       { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
     ])
-    const prompts = {
-      system: join(dir, 'system.md'),
-      user: join(dir, 'user.md'),
-    }
-    const registered = {
-      name: 'build',
-      purpose: 'Build the requested change',
-      model: 'repository/activity',
-      thinking: 'low',
-      prompts: prompts,
-      writes: [],
-      attempts: 1,
-      commit: false,
-    }
-    const machinePath = join(dir, 'machine.yaml')
+    const machinePath = join(dir, 'machine')
+    const legacyDirectory = join(dir, '.pi-crust/config')
+    mkdirSync(machinePath, { recursive: true })
+    mkdirSync(legacyDirectory, { recursive: true })
     const layers = [
       {
-        path: join(dir, 'crust.activities.yaml'),
-        document: {
-          activities: [registered],
-          planners: ['operator', 'triage'].map((name) => ({
-            ...registered,
-            name,
-          })),
-          terminal: [{ ...registered, name: 'gh-pull-request' }],
-        },
+        path: join(machinePath, 'crust.activities.toml'),
+        text: '[activities.build]\nmodel = "machine/model"\nthinking = "high"\n',
       },
       {
-        path: join(dir, 'crust.activities.local.yaml'),
-        document: {
-          activities: [
-            { name: 'build', model: 'local/activity', thinking: 'medium' },
-          ],
-        },
-      },
-      {
-        path: machinePath,
-        document: {
-          override: {
-            agents: [
-              { name: 'build', model: 'machine/model', thinking: 'high' },
-            ],
-          },
-        },
-      },
-      {
-        path: join(dir, 'crust.config.local.yaml'),
-        document: {
-          agents: [
-            { name: 'build', model: 'local/config', thinking: 'max' },
-            { name: 'retired', model: 'unused/model' },
-          ],
-        },
+        path: join(legacyDirectory, 'crust.activities.local.yaml'),
+        text: 'unread legacy configuration',
       },
     ]
-    for (const { path, document } of layers) {
-      writeFileSync(path, Bun.YAML.stringify(document))
-    }
+    for (const { path, text } of layers) writeFileSync(path, text)
+    const repository = Bun.TOML.parse(readFileSync(configPath, 'utf8'))
+    writeFileSync(
+      configPath,
+      Bun.TOML.stringify({
+        ...repository,
+        activities: {
+          build: {
+            purpose: 'Build the requested change',
+            prompts: dir,
+            writes: [],
+            output: 'genericOutput',
+            attempts: 1,
+            commit: false,
+            model: 'repository/model',
+            thinking: 'max',
+          },
+        },
+      }),
+    )
     // biome-ignore lint/plugin/no-object-mutation: this disposable fixture owns the machine-config environment boundary
     process.env.CRUST_MACHINE_CONFIG = machinePath
     const filesBefore = [configPath, ...layers.map(({ path }) => path)].map(
@@ -660,7 +637,7 @@ test(
     const notices = firstEvents.filter(
       (event) =>
         event.type === 'log' &&
-        (String(event.payload.message).includes('local config names') ||
+        (String(event.payload.message).includes('not read') ||
           String(event.payload.message).includes('--model:')),
     )
 
@@ -677,18 +654,16 @@ test(
       ),
     ).toEqual([
       { model: 'openai/gpt-5', thinking: 'xhigh' },
-      { model: 'local/config', thinking: 'max' },
+      { model: 'repository/model', thinking: 'max' },
     ])
     expect(
       notices.map((event) => {
         const message = String(event.payload.message)
-        const marker = message.includes('--model:')
-          ? '--model:'
-          : 'local config names'
+        const marker = message.includes('--model:') ? '--model:' : 'not read'
         return message.slice(message.indexOf(marker))
       }),
     ).toEqual([
-      "local config names agent 'retired', which this config does not have — that override did nothing. Activities are registered in crust.activities.yaml.",
+      expect.stringContaining('not read'),
       "--model: ignored 'nameless' — name the activity it applies to, as <activity>=<provider/model>@<thinking>",
       "--model: no activity named 'biuld' in this repository — ignored",
     ])
@@ -915,7 +890,7 @@ for (const selection of [
     [
       'given use-cases/run-workflow::runWorkflow',
       `when --model overrides a run selected by ${selection.lifecycle === undefined ? '--activities' : '--lifecycle'}`,
-      'it should validate and trace the overridden model and thinking level instead of the local config',
+      'it should validate and trace the overridden model and thinking level instead of machine configuration',
     ].join(', '),
     async () => {
       // given
@@ -924,12 +899,14 @@ for (const selection of [
       const configPath = configFor(dir, [
         { name: 'build', output: 'genericOutput', attempts: 1, commit: false },
       ])
+      const machine = join(dir, 'machine')
+      mkdirSync(machine)
       writeFileSync(
-        join(dir, 'crust.config.local.yaml'),
-        Bun.YAML.stringify({
-          agents: [{ name: 'build', model: 'local/model', thinking: 'low' }],
-        }),
+        join(machine, 'crust.activities.toml'),
+        '[activities.build]\nmodel = "machine/model"\nthinking = "low"\n',
       )
+      // biome-ignore lint/plugin/no-object-mutation: the disposable fixture owns this external configuration boundary and restores it on disposal
+      process.env.CRUST_MACHINE_CONFIG = machine
       const runId = '1120aa01'
       const ports = fakeAgentPorts({
         status: 'success',
@@ -1060,21 +1037,21 @@ test(
 test(
   [
     'given use-cases/run-workflow::runWorkflow',
-    'when the plan names an Activity the configuration has no agent for',
-    'it should refuse before a session is even minted, naming the missing agent',
+    'when the plan names an Activity missing required prompt files',
+    'it should refuse before a session is even minted, naming the Activity and missing prompts',
   ].join(', '),
   async () => {
-    // given — 'build' is a planned Activity but no 'agents' entry answers to it
+    // given — the roster is assembled by the loader, but prompts are checked at run start
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-validate-'))
-    const configPath = join(dir, 'crust.config.yaml')
+    const configPath = join(dir, 'pi-crust.toml')
     const system = join(dir, 'system.md')
     const user = join(dir, 'user.md')
     writeFileSync(system, '# system\n')
     writeFileSync(user, '# user\n')
     writeFileSync(
       configPath,
-      Bun.YAML.stringify({
+      configText({
         defaults: { data_dir: join(dir, 'data') },
         observability: { db: join(dir, 'data', 'crust.db') },
         agents: [],
@@ -1082,7 +1059,7 @@ test(
           {
             name: 'build',
             purpose: 'Build the thing',
-            prompts: { system, user },
+            prompts: join(dir, 'missing-prompts'),
             output: 'genericOutput',
           },
         ],
@@ -1100,7 +1077,8 @@ test(
         undefined,
         fixtureModel,
       ),
-    ).rejects.toThrow(/build.*is not defined/s)
+    ).rejects.toThrow(/build.*user\.md not found/s)
+    expect(existsSync(join(dir, 'data'))).toBe(false)
   },
 )
 
@@ -1507,8 +1485,8 @@ test(
 test(
   [
     'given use-cases/run-workflow::runWorkflow',
-    'when a gitignored crust.config.local.yaml sits beside the repository config',
-    'it should note that a local layer is in force, on the console, before anything runs',
+    'when an old local file remains under the legacy configuration directory',
+    'it should announce that the file is not read before anything runs',
   ].join(', '),
   async () => {
     // given
@@ -1525,9 +1503,10 @@ test(
         commit: false,
       },
     ])
+    mkdirSync(join(dir, '.pi-crust/config'), { recursive: true })
     writeFileSync(
-      join(dir, 'crust.config.local.yaml'),
-      Bun.YAML.stringify({ defaults: { commit: false } }),
+      join(dir, '.pi-crust/config/crust.config.local.yaml'),
+      'defaults: { commit: true }',
     )
     const dataDir = join(dir, 'data')
     const dbPath = join(dataDir, 'crust.db')
@@ -1576,7 +1555,7 @@ test(
 
     // then
     expect(exitCode).toEqual(EXIT.SUCCESS)
-    expect(terminalOutput()).toContain('local config in force')
+    expect(terminalOutput()).toContain('not read')
   },
 )
 
@@ -1604,10 +1583,11 @@ test(
       },
     ])
     const dataDir = join(dir, 'data')
-    const machineConfig = join(dir, 'machine.yaml')
+    const machineConfig = join(dir, 'machine')
+    mkdirSync(machineConfig)
     writeFileSync(
-      machineConfig,
-      Bun.YAML.stringify({ defaults: { data_dir: dataDir } }),
+      join(machineConfig, 'crust.config.toml'),
+      Bun.TOML.stringify({ defaults: { data_dir: dataDir } }),
     )
     // biome-ignore lint/plugin/no-object-mutation: process.env is the external API load-config reads, and this fixture is the adapter that owns the assignment
     process.env.CRUST_MACHINE_CONFIG = machineConfig

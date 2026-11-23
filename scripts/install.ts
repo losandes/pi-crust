@@ -5,13 +5,11 @@
  * Usage:
  *     bun <pi-crust>/scripts/install.ts [--refresh]
  *
- * Stamps .pi-crust/ config and prompt documents, .env.pi-crust.example,
- * .gitignore entries, and a `crust` passthrough recipe in the root justfile.
- * Existing template-owned files are skipped unless --refresh. --force is a
- * deprecated alias through 0.1.x; remove it in 0.2.0.
- * A missing config/ is seeded once. Once it exists, non-.example.yaml files
- * are neither added nor overwritten; examples are added and may be refreshed.
- * The report separates existing files, repo-owned config, and new examples.
+ * Writes pi-crust.toml once, the credential example, a data ignore entry,
+ * the package-home pointer and the root justfile passthrough recipe.
+ * --refresh replaces template-owned files, never the repository TOML file.
+ * --force is a deprecated alias through 0.1.x; remove it in 0.2.0.
+ * Legacy configuration and prompt directories are left untouched.
  */
 
 import {
@@ -19,10 +17,8 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -33,18 +29,6 @@ const TEMPLATES = resolve(
   'templates',
 )
 
-/**
- * What a team does not share.
- *
- * Everything else in the stamp IS the team's: the roster, the lifecycles,
- * the themes, and any prompt they wrote. The runtime that reads them lives
- * in the pi-crust package rather than here, so there is no generated code in
- * the stamp to decide about.
- *
- * `data/` is one developer's runs and the machine-local path to pi-crust.
- * A `.local.yaml` is one developer's deviation from the team's answer. The
- * example prompt is illustrative, so it is ignored rather than maintained.
- */
 /**
  * Paths the stamp used to own, removed when an install finds them.
  *
@@ -94,11 +78,7 @@ const removeOrphans = (root: string): TTally => {
     : EMPTY_TALLY
 }
 
-const GITIGNORE_ENTRIES = [
-  '.pi-crust/data/',
-  '.pi-crust/config/*.local.yaml',
-  '.pi-crust/prompts/example/',
-]
+const GITIGNORE_ENTRIES = ['.pi-crust/data/']
 
 /**
  * The setting that keeps a prompt one argument.
@@ -200,22 +180,14 @@ const recordHome = (root: string): TTally => {
   return tallyOf('stamped', `${path} (${home})`)
 }
 
-/** Never stamped into a target repo: the skill's own tests and its installs. */
-const isSkipped = (name: string): boolean =>
-  name === 'node_modules' || name.endsWith('.test.ts')
-
 type TTally = Readonly<{
   stamped: readonly string[]
   skipped: readonly string[]
-  repoOwned: readonly string[]
-  configAdded: readonly string[]
 }>
 
 const EMPTY_TALLY: TTally = {
   stamped: [],
   skipped: [],
-  repoOwned: [],
-  configAdded: [],
 }
 
 /** One entry, as a `TTally` ready to merge \u2014 the unit every helper below returns. */
@@ -230,49 +202,18 @@ const mergeTally = (tallies: readonly TTally[]): TTally =>
     (merged, next) => ({
       stamped: [...merged.stamped, ...next.stamped],
       skipped: [...merged.skipped, ...next.skipped],
-      repoOwned: [...merged.repoOwned, ...next.repoOwned],
-      configAdded: [...merged.configAdded, ...next.configAdded],
     }),
     EMPTY_TALLY,
   )
 
 const stamp =
-  (refresh: boolean, configExists: boolean) =>
+  (refresh: boolean) =>
   (source: string, destination: string): TTally => {
-    if (isSkipped(source.split('/').at(-1) ?? '')) {
-      return EMPTY_TALLY
-    }
-    if (statSync(source).isDirectory()) {
-      return mergeTally(
-        readdirSync(source)
-          .toSorted()
-          .map((child) =>
-            stamp(refresh, configExists)(
-              join(source, child),
-              join(destination, child),
-            ),
-          ),
-      )
-    }
-    /*
-     * An existing config/ belongs to the repository, including filenames it
-     * has not adopted. Only .example.yaml documentation is template-owned:
-     * add new examples, but refresh existing ones only when requested.
-     */
-    const inConfig = destination.includes('/.pi-crust/config/')
-    if (configExists && inConfig && !destination.endsWith('.example.yaml')) {
-      return tallyOf('repoOwned', destination)
-    }
-    const exists = existsSync(destination)
-    if (exists && !refresh) {
+    if (existsSync(destination) && !refresh)
       return tallyOf('skipped', destination)
-    }
     mkdirSync(dirname(destination), { recursive: true })
     copyFileSync(source, destination)
-    return tallyOf(
-      configExists && inConfig && !exists ? 'configAdded' : 'stamped',
-      destination,
-    )
+    return tallyOf('stamped', destination)
   }
 
 const ensureGitignore = (root: string): TTally => {
@@ -412,14 +353,9 @@ const main = (): number => {
   const deprecatedForce = process.argv.includes('--force')
   const refresh = process.argv.includes('--refresh') || deprecatedForce
   const root = process.cwd()
-  // Capture ownership before stamping: creating config/ during a fresh
-  // install must not prevent the remaining initial settings from landing.
-  const stampFile = stamp(
-    refresh,
-    existsSync(join(root, '.pi-crust', 'config')),
-  )
+  const stampFile = stamp(refresh)
   const tally = mergeTally([
-    stampFile(join(TEMPLATES, 'stamp'), join(root, '.pi-crust')),
+    stamp(false)(join(TEMPLATES, 'pi-crust.toml'), join(root, 'pi-crust.toml')),
     // Namespaced rather than `.env.example`: the root of somebody else's
     // repository is not ours to claim, and a project with its own example
     // would otherwise have it overwritten by an install.
@@ -443,14 +379,6 @@ const main = (): number => {
   for (const path of tally.stamped) {
     say(`    + ${path}`)
   }
-  if (tally.configAdded.length > 0) {
-    say(
-      `  added to config/ (new since your install): ${tally.configAdded.length} file(s)`,
-    )
-    for (const path of tally.configAdded) {
-      say(`    + ${path}`)
-    }
-  }
   if (tally.skipped.length > 0) {
     say(
       `  skipped (exists): ${tally.skipped.length} file(s) — use --refresh to replace template-owned files`,
@@ -459,12 +387,12 @@ const main = (): number => {
       say(`    = ${path}`)
     }
   }
-  say(
-    '  config/ is repo-owned: non-.example.yaml files are neither added nor overwritten once config/ exists, even with --refresh.',
-  )
-  say(`  left to the repository (config/): ${tally.repoOwned.length} file(s)`)
-  for (const path of tally.repoOwned) {
-    say(`    = ${path}`)
+  for (const name of ['config', 'prompts']) {
+    const path = join(root, '.pi-crust', name)
+    if (existsSync(path))
+      say(
+        `  ${path}: no longer read, left untouched. Migrate by hand; see <pi-crust>/references/config.md.`,
+      )
   }
   say('\nnext steps:')
   say(
@@ -478,7 +406,9 @@ const main = (): number => {
     '     bun "$(cat .pi-crust/data/pi-crust-home)/runtime/commands/run.ts" \\\n' +
       '       "list the top-level directories in this repo" --activities scout',
   )
-  say('\n  read .pi-crust/prompts/README.md — it explains what is yours here.')
+  say(
+    '\n  read <pi-crust>/references/config.md for the three TOML configuration layers.',
+  )
   return 0
 }
 

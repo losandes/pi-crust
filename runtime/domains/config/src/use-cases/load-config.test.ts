@@ -1,997 +1,343 @@
 import { expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { runnableActivities } from '../../../activities'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { crustConfigSchema } from '../../../../lib/contracts'
+import { validateAgents } from '../../../agents'
+import { assembleConfig } from './assemble-config'
+import { aLayer, layersFixture } from './config-layer-fixture.test'
 import {
-  configProvenance,
   loadConfig,
   loadConfigWithNotes,
-  parseConfig,
   resolveAgent,
   resolveConfig,
 } from './load-config'
 
-test(
-  [
-    'given @SC10 unknown before and after names and a terminal trigger',
-    'when resolving configuration',
-    'it should report every task, defined name, and definition location',
-  ].join(', '),
-  () => {
-    // given
-    const document = {
-      activities: [
-        {
-          name: 'build',
-          aliases: ['implement'],
-          prompts: { system: 'system', user: 'user' },
-        },
-      ],
-      tasks: {
-        first: {
-          when: [{ before: 'missing' }, { after: 'absent' }],
-          run: 'true',
-        },
-        second: { when: [{ before: 'gh-pull-request' }], run: 'true' },
-      },
-    }
-    // when
-    const resolve = () => resolveConfig(document)
-    // then
-    expect(resolve).toThrow('the task configuration cannot run:')
-    expect(resolve).toThrow("task 'first': `before: missing`")
-    expect(resolve).toThrow('`after: absent`')
-    expect(resolve).toThrow('Defined Activities: build, implement.')
-    expect(resolve).toThrow('crust.activities.local.yaml')
-    expect(resolve).toThrow('use `on: deliver`')
-  },
-)
-
-test(
-  [
-    'given @SC10 an Activity alias, a Planner and an unknown skip name',
-    'when resolving task triggers',
-    'it should accept them without validating skip names',
-  ].join(', '),
-  () => {
-    // given
-    const document = {
-      activities: [
-        {
-          name: 'build',
-          aliases: ['implement'],
-          prompts: { system: 'system', user: 'user' },
-        },
-      ],
-      planners: [
-        { name: 'operator', prompts: { system: 'system', user: 'user' } },
-      ],
-      tasks: {
-        check: {
-          when: [
-            { before: 'implement' },
-            { after: 'operator' },
-            { on: 'deliver', skip: ['not-defined'] },
-          ],
-          run: 'true',
-        },
-      },
-    }
-    // when
-    const actual = resolveConfig(document)
-    // then
-    expect(actual.tasks.check?.when).toHaveLength(3)
-  },
-)
-
-for (const scenario of [
-  {
-    name: 'shared registry gates',
-    files: {
-      'crust.activities.yaml': 'activities: [{name: build, gates: []}]',
-    },
-    expected: ['crust.activities.yaml: activities[build].gates'],
-  },
-  {
-    name: 'routing skills',
-    files: { 'crust.config.yaml': 'routing: {skills: []}' },
-    expected: ['crust.config.yaml: routing.skills'],
-  },
-  {
-    name: 'local registry gates',
-    files: {
-      'crust.activities.local.yaml': 'activities: [{name: spike, gates: []}]',
-    },
-    expected: ['crust.activities.local.yaml: activities[spike].gates'],
-  },
-  {
-    name: 'machine override',
-    files: { 'machine.yaml': 'override: {agents: [{name: build, gates: []}]}' },
-    expected: ['machine.yaml (override:): agents[build].gates'],
-  },
-  {
-    name: 'faults across files',
-    files: {
-      'crust.config.yaml': 'routing: {skills: []}',
-      'crust.config.local.yaml': 'routing: {checks: []}',
-    },
-    expected: [
-      'crust.config.yaml: routing.skills',
-      'crust.config.local.yaml: routing.checks',
-    ],
-  },
-]) {
+for (const machine of [false, true]) {
   test(
     [
-      `given removed settings in ${scenario.name}`,
-      'when loading configuration layers',
-      'it should refuse before resolution and name every occurrence and file',
+      `given @SC4 @SC7 package and ${machine ? 'machine' : 'repository'} models`,
+      'when loading two repositories after a machine edit',
+      'it should merge on every load without modifying either repository',
     ].join(', '),
     () => {
       // given
-      const dir = mkdtempSync(join(tmpdir(), 'crust-removed-layers-'))
-      const previous = process.env.CRUST_MACHINE_CONFIG
-      writeFileSync(join(dir, 'crust.config.yaml'), 'agents: []')
-      for (const [name, text] of Object.entries(scenario.files)) {
-        writeFileSync(join(dir, name), text)
-      }
-      // biome-ignore lint/plugin/no-object-mutation: process.env is the external configuration API; isolate the machine layer for this test
-      process.env.CRUST_MACHINE_CONFIG = join(dir, 'machine.yaml')
-      try {
-        // when
-        const actual = () => loadConfigWithNotes(join(dir, 'crust.config.yaml'))
-        // then
-        expect(actual).toThrow(
-          'this configuration still carries settings pi-crust has removed:',
-        )
-        for (const location of scenario.expected)
-          expect(actual).toThrow(location)
-        expect(actual).toThrow('delete this key.')
-      } finally {
-        if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
-        // biome-ignore lint/plugin/no-object-mutation: restore the external configuration API after this test
-        else process.env.CRUST_MACHINE_CONFIG = previous
-        rmSync(dir, { recursive: true, force: true })
-      }
+      using f = layersFixture({
+        'package/crust.config.toml':
+          '[defaults]\nmodel = "package/model"\nthinking = "high"\n',
+        'package/crust.activities.toml':
+          '[activities.build]\nwrites = ["src/"]\nattempts = 3\npurpose = "Build"\n[planners.operator]\nwrites = []\n[planners.triage]\nwrites = []\n[terminal.gh-pull-request]\nwrites = []\n',
+        'machine/crust.activities.toml':
+          '[activities.build]\nmodel = "machine/model"\n',
+        'repository/pi-crust.toml': machine
+          ? '# empty\n'
+          : '[activities.build]\nmodel = "repository/model"\n',
+      })
+      const other = f.write('other/pi-crust.toml', '# empty\n')
+      const before = [f.repositoryPath, other].map((path) =>
+        readFileSync(path, 'utf8'),
+      )
+      // when
+      const one = loadConfigWithNotes(f.repositoryPath, f.env)
+      f.write(
+        'machine/crust.activities.toml',
+        '[activities.build]\nmodel = "machine/new"\n',
+      )
+      const two = [f.repositoryPath, other].map(
+        (path) => loadConfigWithNotes(path, f.env).config,
+      )
+      // then
+      expect(one.config.activities[0]?.model).toBe(
+        machine ? 'machine/model' : 'repository/model',
+      )
+      expect(two.map((cfg) => cfg.activities[0]?.model)).toEqual([
+        machine ? 'machine/new' : 'repository/model',
+        'machine/new',
+      ])
+      expect(two[0]?.activities[0]).toMatchObject({
+        purpose: 'Build',
+        writes: ['src/'],
+        attempts: 3,
+        thinking: 'high',
+      })
+      expect(
+        [f.repositoryPath, other].map((path) => readFileSync(path, 'utf8')),
+      ).toEqual(before)
+      expect(one.machinePath).toBe(f.env.CRUST_MACHINE_CONFIG)
     },
   )
 }
 
 test(
   [
-    'given tasks in shared and local config layers and a skip for an unknown Activity',
-    'when loading the configuration',
-    'it should preserve declaration order and load without warnings',
+    'given @SC6 a package setting',
+    'when the package file changes between loads',
+    'it should use the changed value without reinstalling',
   ].join(', '),
   () => {
     // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-task-layers-'))
-    const base = join(dir, 'crust.config.yaml')
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: isolate the machine config during this test
-    process.env.CRUST_MACHINE_CONFIG = join(dir, 'machine.yaml')
-    try {
-      writeFileSync(
-        base,
-        'tasks:\n  zeta: { when: [{on: change, skip: [not-installed]}], run: true-command }\n  alpha: { when: [{on: change}], run: true-command }\n',
-      )
-      writeFileSync(
-        join(dir, 'crust.config.local.yaml'),
-        'tasks:\n  alpha: { timeout_seconds: 12 }\n  middle: { when: [{on: change}], run: true-command }\n',
-      )
+    using f = layersFixture({
+      'package/crust.config.toml': '[defaults]\nmodel = "first"\n',
+    })
+    const before = loadConfig(f.repositoryPath, f.env)
+    f.write('package/crust.config.toml', '[defaults]\nmodel = "second"\n')
+    // when
+    const after = loadConfig(f.repositoryPath, f.env)
+    // then
+    expect(before.defaults.model).toBe('first')
+    expect(after.defaults.model).toBe('second')
+  },
+)
+
+for (const [text, message] of [
+  [
+    'stages = [{ name = "bad", serial = ["build"], concurrent = ["build"] }]',
+    'both serial and concurrent',
+  ],
+  ['stages = [{ name = "bad" }]', 'neither serial nor concurrent'],
+  ['stages = [{ name = "bad", serial = [] }]', 'lists no Activities'],
+  [
+    'stages = [{ name = "bad", strategy = "serial", activities = ["build"] }]',
+    "key 'strategy'",
+  ],
+  ['stages = [{ serial = ["build"] }]', 'position 0'],
+]) {
+  test(
+    [
+      `given @SC10 ${text}`,
+      'when configuration loads',
+      'it should name the lifecycle and malformed stage',
+    ].join(', '),
+    () => {
+      // given
+      using f = layersFixture({
+        'repository/pi-crust.toml': `[lifecycles.broken]\n${text}\n`,
+      })
       // when
-      const actual = loadConfigWithNotes(base)
+      const actual = () => loadConfig(f.repositoryPath, f.env)
       // then
-      expect(Object.keys(actual.config.tasks)).toEqual([
-        'zeta',
-        'alpha',
-        'middle',
-      ])
-      expect(actual.config.tasks.alpha?.timeout_seconds).toBe(12)
-      expect(actual.warnings).toEqual([])
-    } finally {
-      if (previous === undefined) delete process.env.CRUST_MACHINE_CONFIG
-      // biome-ignore lint/plugin/no-object-mutation: restore the machine config path
-      else process.env.CRUST_MACHINE_CONFIG = previous
-      rmSync(dir, { recursive: true, force: true })
-    }
-  },
-)
-
-const ROSTER = `
-defaults:
-  model: google/gemini-3.6-flash
-  thinking: medium
-  tools: [read, bash]
-  data_dir: .pi-crust/data
-agents:
-  - name: planner
-    thinking: high
-    writes: [specs/]
-    prompts:
-      system: .pi-crust/prompts/plan/system.md
-      user: .pi-crust/prompts/plan/user.md
-  - name: scout
-    writes: []
-    tools: [read]
-    prompts:
-      system: .pi-crust/prompts/scout/system.md
-      user: .pi-crust/prompts/scout/user.md
-`
-
-test(
-  [
-    'given use-cases/load-config::parseConfig',
-    'when an agent omits a key the defaults set',
-    'it should inherit the default',
-  ].join(', '),
-  () => {
-    // given
-    const yaml = ROSTER
-
-    // when
-    const actual = resolveAgent(parseConfig(yaml), 'planner')
-
-    // then
-    expect(actual.model).toEqual('google/gemini-3.6-flash')
-    expect(actual.tools).toEqual(['read', 'bash'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::parseConfig',
-    'when an agent states its own value',
-    'it should win over the default',
-  ].join(', '),
-  () => {
-    // given
-    const yaml = ROSTER
-
-    // when
-    const actual = resolveAgent(parseConfig(yaml), 'scout')
-
-    // then
-    expect(actual.thinking).toEqual('medium')
-    expect(actual.tools).toEqual(['read'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::parseConfig',
-    'when an agent declares writes as an empty list',
-    'it should stay empty, and not inherit the default the other keys do',
-  ].join(', '),
-  () => {
-    // given
-    const yaml = ROSTER
-
-    // when
-    const parsed = parseConfig(yaml)
-
-    // then
-    expect(resolveAgent(parsed, 'scout').writes).toEqual([])
-    expect(resolveAgent(parsed, 'planner').writes).toEqual(['specs/'])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::parseConfig',
-    'when the document omits observability entirely',
-    'it should fall back to the stamped trace db path',
-  ].join(', '),
-  () => {
-    // given
-    const yaml = 'agents: []'
-
-    // when
-    const actual = parseConfig(yaml)
-
-    // then
-    expect(actual.observability.db).toEqual('.pi-crust/data/crust.db')
-    expect(actual.defaults.data_dir).toEqual('.pi-crust/data')
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::resolveAgent',
-    'when the name is not in the roster',
-    'it should throw listing what is available',
-  ].join(', '),
-  () => {
-    // given
-    const parsed = parseConfig(ROSTER)
-
-    // when, then
-    expect(() => resolveAgent(parsed, 'tester')).toThrow(
-      /not defined in the config — available: planner, scout/,
-    )
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::parseConfig',
-    'when an agent declares no writes at all',
-    'it should refuse, because silence used to grant the widest permission',
-  ].join(', '),
-  () => {
-    // given
-    const yaml = `
-agents:
-  - name: drifter
-    prompts:
-      system: s.md
-      user: u.md
-`
-
-    // when
-    const actual = () => parseConfig(yaml)
-
-    // then
-    expect(actual).toThrow()
-  },
-)
-
-/** A stamp on disk, because this is the one thing that is about files. */
-const stamped = (files: Readonly<Record<string, string>>): string => {
-  const config = join(mkdtempSync(join(tmpdir(), 'crust-config-')), 'config')
-  mkdirSync(config, { recursive: true })
-  for (const [name, text] of Object.entries(files)) {
-    writeFileSync(join(config, name), text)
-  }
-
-  return join(config, 'crust.config.yaml')
+      expect(actual).toThrow('lifecycle configuration cannot load:')
+      expect(actual).toThrow('broken:')
+      expect(actual).toThrow(message)
+    },
+  )
 }
 
 test(
   [
-    'given use-cases/load-config::loadConfig',
-    'when observability lives in crust.observe.yaml beside the roster',
-    'it should be read from there, under the key every caller already uses',
+    'given @SC11 entries in parser order including numeric names',
+    'when loaded twice',
+    'it should group by first declaration and sort by code unit',
   ].join(', '),
   () => {
     // given
-    const path = stamped({
-      'crust.config.yaml': 'agents: []\n',
-      'crust.observe.yaml':
-        'db: .pi-crust/data/other.db\npoll_ms: 100\n' +
-        'ports:\n  backend: 5600\n  frontend: 5601\n' +
-        'themes:\n  - name: dark\n    builtin: true\n',
+    const declarations = (prefix: string) =>
+      ['zeta', '10', 'alpha', '2']
+        .map((name) => `[activities.${prefix}${name}]\nwrites = []\n`)
+        .join('')
+    using f = layersFixture({
+      'package/crust.activities.toml': `${declarations('')}[planners.operator]\nwrites = []\n[planners.triage]\nwrites = []\n[terminal.gh-pull-request]\nwrites = []\n`,
+      'machine/crust.activities.toml': `${declarations('m-')}[activities.alpha]\nmodel = "override"\n`,
     })
-    // Isolated from whatever machine layer this developer's own $HOME may
-    // carry (issue #24): a path naming no file reads as 'no machine config'
-    // regardless of what ~/.pi-crust/config/crust.config.yaml says on the
-    // machine the suite happens to run on.
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = join(
-      dirname(path),
-      'no-machine-config.yaml',
-    )
-
     // when
-    try {
-      const actual = loadConfig(path)
-      // then
-      expect(actual.observability.db).toEqual('.pi-crust/data/other.db')
-      expect(actual.observability.poll_ms).toBe(100)
-      expect(actual.observability.ports).toEqual({
-        backend: 5600,
-        frontend: 5601,
-      })
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CRUST_MACHINE_CONFIG
-      } else {
-        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
-        process.env.CRUST_MACHINE_CONFIG = previous
-      }
-    }
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a local layer overrides one port of the observe file',
-    'it should win there and leave the rest of the file standing',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({
-      'crust.config.yaml': 'agents: []\n',
-      'crust.observe.yaml':
-        'poll_ms: 500\nports:\n  backend: 4600\n  frontend: 4601\n',
-      'crust.config.local.yaml':
-        'observability:\n  poll_ms: 250\n  ports:\n    frontend: 4701\n',
-    })
-
-    // when
-    const actual = loadConfig(path)
-
+    const names = () =>
+      loadConfig(f.repositoryPath, f.env).activities.map((entry) => entry.name)
     // then
-    expect(actual.observability.poll_ms).toBe(250)
-    expect(actual.observability.ports.frontend).toBe(4701)
-    expect(actual.observability.ports.backend).toBe(4600)
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a tree has no crust.observe.yaml, as an older stamp does not',
-    'it should keep the defaults rather than fail to load the roster',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({ 'crust.config.yaml': 'agents: []\n' })
-    // Isolated from this developer's own $HOME machine layer — see the
-    // identically-reasoned fixture two tests above.
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = join(
-      dirname(path),
-      'no-machine-config.yaml',
-    )
-
-    // when
-    try {
-      const actual = loadConfig(path)
-      // then
-      expect(actual.observability.db).toEqual('.pi-crust/data/crust.db')
-      expect(actual.observability.ports).toEqual({
-        backend: 4600,
-        frontend: 4601,
-      })
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CRUST_MACHINE_CONFIG
-      } else {
-        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
-        process.env.CRUST_MACHINE_CONFIG = previous
-      }
-    }
-  },
-)
-
-const ACTIVITIES = `
-activities:
-  - name: plan
-    output: planOutput
-    purpose: Turn the request into an implementable plan
-    writes: ['{handoff}/plan.md']
-    prompts:
-      system: prompts/plan/system.md
-      user: prompts/plan/user.md
-planners:
-  - name: operator
-    purpose: Choose the smallest chain that can produce the outcome
-    writes: ['{handoff}/plan.md']
-    prompts:
-      system: prompts/operator/system.md
-      user: prompts/operator/user.md
-  - name: triage
-    purpose: Choose the chain and hand it back as a command
-    writes: ['{handoff}/plan.md']
-    prompts:
-      system: prompts/triage/system.md
-      user: prompts/triage/user.md
-terminal:
-  - name: gh-pull-request
-    purpose: Push the run's branch and open or update one GitHub pull request
-    writes: []
-    prompts:
-      system: prompts/gh-pull-request/system.md
-      user: prompts/gh-pull-request/user.md
-`
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a team adds an Activity in a LOCAL layer only',
-    'it should be registered, resolvable and runnable without editing this package',
-  ].join(', '),
-  () => {
-    // given
-    /*
-     * This is the whole point of the registry being configuration.
-     * Before it, a team could add an agent and never reach it: nothing bound
-     * a activity to it.
-     */
-    const path = stamped({
-      'crust.config.yaml': 'defaults:\n  data_dir: .pi-crust/data\n',
-      'crust.activities.yaml': ACTIVITIES,
-      'crust.activities.local.yaml': `
-activities:
-  - name: spike
-    output: researchOutput
-    attempts: 1
-    purpose: Answer one throwaway question without touching the repository
-    writes: ['{handoff}/spike.md']
-    prompts:
-      system: prompts/spike/system.md
-      user: prompts/spike/user.md
-`,
-    })
-
-    // when
-    const cfg = loadConfig(path)
-    const actual = runnableActivities(['plan', 'spike'], cfg)
-
-    // then — registered, on the roster, and resolved into something runnable
-    expect(cfg.activities.map((one) => one.name)).toEqual(['plan', 'spike'])
-    expect(cfg.agents.map((one) => one.name)).toContain('spike')
-    expect(actual.map((activity) => activity.params.owner)).toEqual([
-      'plan',
-      'spike',
+    expect(names()).toEqual([
+      '10',
+      '2',
+      'alpha',
+      'zeta',
+      'm-10',
+      'm-2',
+      'm-alpha',
+      'm-zeta',
     ])
-    expect(actual[1]?.attempts).toEqual(1)
-    expect(actual[1]?.gates.map((gate) => gate.name)).toEqual([
-      'artifacts_exist',
-      'files_non_empty',
-      'json_parses',
+    expect(names()).toEqual(names())
+  },
+)
+
+test(
+  [
+    'given @SC15 an old repository prompt override',
+    'when loading a package Activity',
+    'it should retain the package prompt directory',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({
+      'package/crust.activities.toml':
+        '[activities.plan]\nwrites = []\n[planners.operator]\nwrites = []\n[planners.triage]\nwrites = []\n[terminal.gh-pull-request]\nwrites = []\n',
+      'repository/.pi-crust/prompts/plan/system.md': 'ignored',
+    })
+    // when
+    const actual = loadConfig(f.repositoryPath, f.env)
+    // then
+    expect(actual.activities[0]?.prompts).toBe(join(f.root, 'prompts/plan'))
+  },
+)
+
+test(
+  [
+    'given @SC16 a machine-only Activity and its required prompts',
+    'when loaded and validated',
+    'it should resolve beside the machine configuration directory',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({
+      'machine/crust.activities.toml': '[activities.spike]\nwrites = []\n',
+      'prompts/spike/system.md': 'system',
+      'prompts/spike/user.md': 'user',
+    })
+    // when
+    const cfg = loadConfig(f.repositoryPath, f.env)
+    const actual = () =>
+      validateAgents(cfg, ['spike'], () => ({
+        provider: 'fixture',
+        modelId: 'model',
+      }))
+    // then
+    expect(resolveAgent(cfg, 'spike').prompts).toBe(
+      join(f.root, 'prompts/spike'),
+    )
+    expect(actual).not.toThrow()
+  },
+)
+
+test(
+  [
+    'given @SC19 machine ports and polling interval',
+    'when loaded',
+    'it should assemble observability from the top-level settings',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({
+      'machine/crust.config.toml':
+        'poll_ms = 250\n[ports]\nbackend = 4700\nfrontend = 4701\n',
+    })
+    // when
+    const actual = loadConfig(f.repositoryPath, f.env)
+    // then
+    expect(actual.observability).toMatchObject({
+      poll_ms: 250,
+      ports: { backend: 4700, frontend: 4701 },
+    })
+  },
+)
+
+for (const [text, message] of [
+  [
+    '[activities.incomplete]\npurpose = "no writes"\n',
+    'activities.incomplete.writes',
+  ],
+  ['[activities.bad]\nwrites = []\nmodel = 5\n', 'activities.bad.model'],
+  ['[planners.strategist]\nwrites = []\n', 'strategist'],
+  ['[terminal.other]\nwrites = []\n', 'other'],
+  [
+    '[tasks.check]\nwhen = [{ before = "missing" }]\nrun = "true"\n',
+    "task 'check'",
+  ],
+  ['override = {}\n', 'section was removed'],
+  ['unknown = 1\n', "key 'unknown'"],
+  ['[activities.build]\ngates = []\n', 'activities.build.gates'],
+]) {
+  test(
+    [
+      `given invalid repository settings ${text}`,
+      'when loading',
+      `it should report ${message}`,
+    ].join(', '),
+    () => {
+      // given
+      using f = layersFixture({ 'repository/pi-crust.toml': text })
+      // when
+      const actual = () => loadConfig(f.repositoryPath, f.env)
+      // then
+      expect(actual).toThrow(message)
+    },
+  )
+}
+
+test(
+  [
+    'given defaults and explicit entry values',
+    'when resolving an assembled configuration',
+    'it should inherit only absent fields and refuse an unknown agent',
+  ].join(', '),
+  () => {
+    // given
+    const assembled = assembleConfig([
+      aLayer('repository', {
+        defaults: {
+          model: 'inherited',
+          thinking: 'high',
+          tools: ['read'],
+          writes: ['src/'],
+        },
+        activities: {
+          plan: {},
+          scout: { tools: [], writes: [], thinking: 'low' },
+        },
+        planners: { operator: {}, triage: {} },
+        terminal: { 'gh-pull-request': {} },
+      }),
     ])
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a local layer tunes a Planner',
-    'it should take the override and keep the Planner the engine knows',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({
-      'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': ACTIVITIES,
-      'crust.activities.local.yaml':
-        'planners:\n  - name: triage\n    model: anthropic/claude-haiku-4-5\n',
+    // when
+    const cfg = resolveConfig(assembled.document)
+    // then
+    expect(resolveAgent(cfg, 'plan')).toMatchObject({
+      model: 'inherited',
+      thinking: 'high',
+      tools: ['read'],
+      writes: ['src/'],
     })
-
-    // when
-    const actual = loadConfig(path)
-
-    // then
-    expect(actual.planners.map((one) => one.name)).toEqual([
-      'operator',
-      'triage',
-    ])
-    expect(actual.planners.find((one) => one.name === 'triage')?.model).toEqual(
-      'anthropic/claude-haiku-4-5',
-    )
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a terminal: entry is declared',
-    'it should reach cfg.terminal and resolve on cfg.agents, the way a Planner does',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({
-      'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': ACTIVITIES,
+    expect(resolveAgent(cfg, 'scout')).toMatchObject({
+      tools: [],
+      writes: [],
+      thinking: 'low',
     })
-
-    // when
-    const actual = loadConfig(path)
-
-    // then
-    expect(actual.terminal.map((one) => one.name)).toEqual(['gh-pull-request'])
-    expect(actual.agents.map((one) => one.name)).toContain('gh-pull-request')
-    expect(resolveAgent(actual, 'gh-pull-request').prompts.system).toEqual(
-      'prompts/gh-pull-request/system.md',
-    )
+    expect(() => resolveAgent(cfg, 'missing')).toThrow('available: plan, scout')
   },
 )
 
 test(
   [
-    'given use-cases/load-config::loadConfig',
-    'when a local layer tunes the terminal Activity',
-    'it should take the override and keep gh-pull-request the only terminal entry',
+    'given no Planners or terminal entries and no ordinary Activities',
+    'when resolving the configuration',
+    'it should still report the required engine entries',
   ].join(', '),
   () => {
     // given
-    const path = stamped({
-      'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': ACTIVITIES,
-      'crust.activities.local.yaml':
-        'terminal:\n  - name: gh-pull-request\n    model: anthropic/claude-haiku-4-5\n',
+    const document = crustConfigSchema.parse({})
+    // when
+    const actual = () => resolveConfig(document)
+    // then
+    expect(actual).toThrow("planner 'operator'")
+    expect(actual).toThrow("terminal Activity 'gh-pull-request'")
+  },
+)
+
+test(
+  [
+    'given a legacy configuration beside a valid repository file',
+    'when loading with a notifier',
+    'it should announce the unread file without applying its settings',
+  ].join(', '),
+  () => {
+    // given
+    using f = layersFixture({
+      'repository/.pi-crust/config/crust.config.yaml':
+        'defaults: { model: ignored }',
     })
-
+    const notices: string[] = []
     // when
-    const actual = loadConfig(path)
-
-    // then
-    expect(actual.terminal.map((one) => one.name)).toEqual(['gh-pull-request'])
-    expect(
-      actual.terminal.find((one) => one.name === 'gh-pull-request')?.model,
-    ).toEqual('anthropic/claude-haiku-4-5')
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a file puts something under terminal: that is not a terminal Activity',
-    'it should refuse, because configuration cannot add one',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({
-      'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': ACTIVITIES.replace(
-        '  - name: gh-pull-request',
-        [
-          '  - name: gh-merge-request',
-          '    purpose: Open a GitLab merge request, differently',
-          '    writes: []',
-          '    prompts:',
-          '      system: s.md',
-          '      user: u.md',
-          '  - name: gh-pull-request',
-        ].join('\n'),
-      ),
+    const cfg = loadConfig(f.repositoryPath, f.env, (notice) => {
+      // biome-ignore lint/plugin/no-array-mutation: recording the injected notification boundary is this test's assertion input
+      notices.push(notice)
     })
-
-    // when
-    const actual = () => loadConfig(path)
-
     // then
-    expect(actual).toThrow(
-      /'gh-merge-request' is under terminal: and is not a terminal Activity/,
-    )
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a file puts something under planners: that is not a Planner',
-    'it should refuse, because configuration cannot add one',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({
-      'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': ACTIVITIES.replace(
-        'terminal:',
-        [
-          '  - name: strategist',
-          '    purpose: Choose the chain, differently',
-          '    writes: []',
-          '    prompts:',
-          '      system: s.md',
-          '      user: u.md',
-          'terminal:',
-        ].join('\n'),
-      ),
-    })
-
-    // when
-    const actual = () => loadConfig(path)
-
-    // then
-    expect(actual).toThrow(
-      /'strategist' is under planners: and is not a Planner/,
-    )
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when a Planner has no entry at all',
-    'it should refuse, because configuration cannot remove one either',
-  ].join(', '),
-  () => {
-    // given
-    const path = stamped({
-      'crust.config.yaml': 'defaults: {}\n',
-      'crust.activities.yaml': ACTIVITIES.split('- name: triage')[0] ?? '',
-    })
-
-    // when
-    const actual = () => loadConfig(path)
-
-    // then
-    expect(actual).toThrow(/planner 'triage' has no entry/)
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when an Activity states no model',
-    'it should inherit the roster default rather than a model in this package',
-  ].join(', '),
-  () => {
-    // given — `defaults.model` is the one knob crust.config.yaml documents,
-    // and the registry schema's own fallback used to win over it silently
-    const dir = mkdtempSync(join(tmpdir(), 'crust-inherit-'))
-    writeFileSync(
-      join(dir, 'crust.config.yaml'),
-      'defaults:\n  model: anthropic/claude-sonnet-5\n  thinking: high\n',
-    )
-    writeFileSync(
-      join(dir, 'crust.activities.yaml'),
-      [
-        'activities:',
-        '  - name: plan',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-        '  - name: build',
-        '    model: openai/gpt-5.6-terra',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-        'planners:',
-        '  - name: operator',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-        '  - name: triage',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-        'terminal:',
-        '  - name: gh-pull-request',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-      ].join('\n'),
-    )
-
-    // when
-    const actual = loadConfig(join(dir, 'crust.config.yaml'))
-    const modelOf = (name: string) =>
-      actual.activities.find((one) => one.name === name)?.model
-
-    // then — inherited where silent, kept where stated
-    expect(modelOf('plan')).toEqual('anthropic/claude-sonnet-5')
-    expect(modelOf('build')).toEqual('openai/gpt-5.6-terra')
-    expect(actual.planners[0]?.model).toEqual('anthropic/claude-sonnet-5')
-    expect(
-      actual.activities.find((one) => one.name === 'plan')?.thinking,
-    ).toEqual('high')
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when the repository states data_dir and the machine layer also does, ordinary vs override',
-    'it should let the repository win over the ordinary layer and lose to override: (1.2.3, 1.2.4)',
-  ].join(', '),
-  () => {
-    // given — a repository config that states its own data_dir, exactly as
-    // every stamp does today
-    const dir = mkdtempSync(join(tmpdir(), 'crust-config-machine-'))
-    const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(
-      configPath,
-      [
-        'defaults:',
-        '  data_dir: repo-stated-dir',
-        'agents:',
-        '  - name: builder',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-      ].join('\n'),
-    )
-    const machinePath = join(dir, 'machine-crust.config.yaml')
-    writeFileSync(
-      machinePath,
-      [
-        'defaults:',
-        '  data_dir: machine-ordinary-dir',
-        'override:',
-        '  defaults:',
-        '    data_dir: machine-override-dir',
-      ].join('\n'),
-    )
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = machinePath
-
-    // when, then — the repository's own value beats the ordinary layer
-    try {
-      const ordinaryBeaten = loadConfig(configPath)
-      expect(ordinaryBeaten.defaults.data_dir).toEqual('machine-override-dir')
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CRUST_MACHINE_CONFIG
-      } else {
-        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
-        process.env.CRUST_MACHINE_CONFIG = previous
-      }
-    }
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::loadConfig',
-    'when the machine layer only has an ordinary section and the repository states nothing',
-    'it should fall through to the machine ordinary value',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-config-machine-ordinary-'))
-    const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(
-      configPath,
-      [
-        'agents:',
-        '  - name: builder',
-        '    writes: []',
-        '    prompts:',
-        '      system: s.md',
-        '      user: u.md',
-      ].join('\n'),
-    )
-    const machinePath = join(dir, 'machine-crust.config.yaml')
-    writeFileSync(
-      machinePath,
-      ['defaults:', '  data_dir: machine-ordinary-dir'].join('\n'),
-    )
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API loadConfigWithNotes reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = machinePath
-
-    // when
-    try {
-      const actual = loadConfig(configPath)
-      // then
-      expect(actual.defaults.data_dir).toEqual('machine-ordinary-dir')
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CRUST_MACHINE_CONFIG
-      } else {
-        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
-        process.env.CRUST_MACHINE_CONFIG = previous
-      }
-    }
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::configProvenance',
-    'when a key is stated nowhere at all',
-    'it should name the built-in default as its source',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-builtin-'))
-    const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(configPath, 'agents: []')
-
-    // when
-    const actual = configProvenance(configPath)
-    const thinking = actual.find((entry) => entry.key === 'defaults.thinking')
-
-    // then
-    expect(thinking?.value).toEqual('medium')
-    expect(thinking?.source).toContain('built-in default')
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::configProvenance',
-    'when the repository states a value itself',
-    'it should name the repository\u2019s own config path as the source',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-repo-'))
-    const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(
-      configPath,
-      'defaults:\n  data_dir: repo-stated-dir\nagents: []',
-    )
-    // Isolated from this developer's own $HOME machine layer — see the
-    // identically-reasoned loadConfig fixtures above.
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = join(dir, 'no-machine-config.yaml')
-
-    // when
-    try {
-      const actual = configProvenance(configPath)
-      const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
-      // then
-      expect(dataDir?.value).toEqual('repo-stated-dir')
-      expect(dataDir?.source).toEqual(`${configPath} (repository, committed)`)
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CRUST_MACHINE_CONFIG
-      } else {
-        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
-        process.env.CRUST_MACHINE_CONFIG = previous
-      }
-    }
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::configProvenance',
-    'when the machine override: layer beats a value the repository also states',
-    'it should name the machine file as the source, not the repository',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-override-'))
-    const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(
-      configPath,
-      'defaults:\n  data_dir: repo-stated-dir\nagents: []',
-    )
-    const machinePath = join(dir, 'machine-crust.config.yaml')
-    writeFileSync(
-      machinePath,
-      ['override:', '  defaults:', '    data_dir: machine-override-dir'].join(
-        '\n',
-      ),
-    )
-    const previous = process.env.CRUST_MACHINE_CONFIG
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API configProvenance reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_MACHINE_CONFIG = machinePath
-
-    // when
-    try {
-      const actual = configProvenance(configPath)
-      const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
-      // then
-      expect(dataDir?.value).toEqual('machine-override-dir')
-      expect(dataDir?.source).toEqual(`${machinePath} (machine, override:)`)
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CRUST_MACHINE_CONFIG
-      } else {
-        // biome-ignore lint/plugin/no-object-mutation: restoring the external process.env to what it was before this fixture changed it
-        process.env.CRUST_MACHINE_CONFIG = previous
-      }
-    }
-  },
-)
-
-test(
-  [
-    'given use-cases/load-config::configProvenance',
-    'when CRUST_DATA_DIR is set in the environment',
-    'it should beat every file-based layer, including the machine override:',
-  ].join(', '),
-  () => {
-    // given
-    const dir = mkdtempSync(join(tmpdir(), 'crust-provenance-env-'))
-    const configPath = join(dir, 'crust.config.yaml')
-    writeFileSync(configPath, 'agents: []')
-
-    // when
-    const actual = configProvenance(configPath, { CRUST_DATA_DIR: '/env/data' })
-    const dataDir = actual.find((entry) => entry.key === 'defaults.data_dir')
-
-    // then
-    expect(dataDir?.source).toEqual('CRUST_DATA_DIR (environment)')
+    expect(cfg.defaults.model).not.toBe('ignored')
+    expect(notices[0]).toContain('not read')
   },
 )

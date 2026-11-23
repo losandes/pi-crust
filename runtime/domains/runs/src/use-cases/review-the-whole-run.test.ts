@@ -325,10 +325,7 @@ for (const scenario of scenarios) {
           name,
           purpose: `Execute the ${name} scenario against fixture files`,
           output: name.endsWith('review') ? 'reviewOutput' : 'buildOutput',
-          prompts: {
-            system: `${name}/system`,
-            user: `${name}/user`,
-          },
+          prompts: name,
           writes: ['*'],
           commit: false,
         }))
@@ -439,7 +436,7 @@ for (const scenario of scenarios) {
         // when
         await execute(run, judge, scope)
         const first = renders
-          .filter((one) => one.path === `${judge.name}/user`)
+          .filter((one) => one.path === `${judge.name}/user.md`)
           .at(-1)?.variables
         if (scenario.resume) {
           const resumed = createRun({
@@ -466,7 +463,7 @@ for (const scenario of scenarios) {
         }
         // then
         const actual = renders
-          .filter((one) => one.path === `${judge.name}/user`)
+          .filter((one) => one.path === `${judge.name}/user.md`)
           .at(-1)?.variables
         expect(actual?.changed_files).toBe(scenario.expected.join('\n'))
         expect(actual?.change_base).toBe(

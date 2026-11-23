@@ -6,6 +6,7 @@ import { StatChip, StatusChip } from '@/lib/_components'
 import { cx } from '@/lib/cx'
 import { axisTicks, fmtDate, fmtOffset, ts } from '@/lib/format'
 import { paletteColor } from '@/lib/palette'
+import { startPolling, usePollInterval } from '@/lib/polling'
 import { hrefFor } from '@/lib/router'
 import { archiveSession } from '../io/send-archive-session'
 import type { SessionSummary } from '../typedefs/session'
@@ -51,6 +52,7 @@ const useCardEvents = (
   running: boolean,
   workspace: string,
 ): readonly EventRow[] => {
+  const intervalMs = usePollInterval()
   const [events, setEvents] = useState<readonly EventRow[]>([])
   const cursor = useRef(0)
   const inflight = useRef(false)
@@ -82,18 +84,19 @@ const useCardEvents = (
       }
     }
 
-    void pull()
-    if (!running)
+    if (!running) {
+      void pull()
       return () => {
         live = false
       }
+    }
 
-    const timer = setInterval(() => void pull(), 500)
+    const stop = startPolling(() => void pull(), intervalMs)
     return () => {
       live = false
-      clearInterval(timer)
+      stop()
     }
-  }, [runId, running, workspace])
+  }, [runId, running, workspace, intervalMs])
 
   return events
 }
