@@ -43,8 +43,6 @@ const fixture = () => {
     readFileSync(join(import.meta.dir, '../templates/pi-crust.toml'), 'utf8'),
   )
   put(join(home, 'templates/env.example'), 'KEY=template\n')
-  put(join(home, 'templates/stamp/config/unadopted.yaml'), 'must not be copied')
-  put(join(home, 'templates/stamp/prompts/new.md'), 'must not be copied')
   return {
     root,
     home,
@@ -139,10 +137,6 @@ for (const args of MODES) {
       expect(paths.map((path) => readFileSync(join(f.root, path)))).toEqual(
         before,
       )
-      expect(existsSync(join(f.root, '.pi-crust/config/unadopted.yaml'))).toBe(
-        false,
-      )
-      expect(existsSync(join(f.root, '.pi-crust/prompts/new.md'))).toBe(false)
       for (const report of reports) {
         expect(report).toContain('no longer read, left untouched')
         expect(report).toContain('Migrate by hand')

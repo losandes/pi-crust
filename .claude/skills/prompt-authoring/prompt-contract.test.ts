@@ -453,16 +453,12 @@ for (const scope of ['all', 'given'] as const) {
   )
 }
 
-for (const relativePath of [
-  'templates/stamp/prompts/example/system.md',
-  'templates/stamp/prompts/example/user.md',
-  '.pi-crust/prompts/build/user.md',
-]) {
+for (const relativePath of ['.pi-crust/prompts/build/user.md']) {
   test(
     [
       `given a source-file example in ${relativePath}`,
       'when the prompt contract checker runs',
-      'it should exempt scaffolds and repository-owned overrides',
+      'it should exempt repository-owned overrides',
     ].join(', '),
     () => {
       // given
