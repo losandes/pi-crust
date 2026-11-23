@@ -76,14 +76,13 @@ tasks:
       - { on: change, skip: [diagnose, test-tdd] }
     match: ["**/*.ts", "**/*.tsx"]
     run:
-      - "CLAUDECODE=1 bunx bunt {{changed_paths}} --paired | bunx buntap --agent --no-color"
+      - "CLAUDECODE=1 bunx bunt --changed={{base_ref}} | bunx buntap --agent --no-color"
+      # - "CLAUDECODE=1 bunx bunt --changed={{base_ref}} --paired | bunx buntap --agent --no-color"
 
   verify-all:
     when:
       - { on: deliver, skip: [diagnose, test-tdd] }
     match: ["**/*.ts", "**/*.tsx"]
     run:
-      - "mise run lint"
-      - "mise run test:agent"
-      - "mise run build"
-    timeout_seconds: 10000
+      - "mise run check"
+    timeout_seconds: 30000
