@@ -51,10 +51,11 @@ Three absences are deliberate and worth knowing before inventing a placeholder:
 
 ## Sections tests assert
 
-Three suites read prompt files and assert on their contents, so a heading or sentence they name is part of the contract:
+Four suites read prompt files and assert on their contents, so a heading or sentence they name is part of the contract:
 
 - `runtime/prompts/request-capture.test.ts` — the `## Carry the request forward` section in `identify/user.md` and `diagnose/user.md`, required to be byte-identical in both, and the equivalent instruction in `gh-issue/user.md`
 - `runtime/prompts/gh-pull-request/prompt-content.test.ts` — the prohibition on arguing the change should be merged, the statement that the harness owns the issue link and the `## Activities` and `## Checks` sections, and the no-attribution, no-envelope-JSON, no-git-or-`gh`, read-only instructions
+- `runtime/prompts/handoff-authorization.test.ts` — the paragraph opening `## Intake` in every prompt that names `{{context_handoff_dir}}`, which authorizes reading and writing the run's handoff directory although it is gitignored and may sit outside the worktree. An agent whose own instructions forbid either stops and asks for permission without it
 - `runtime/prompts/revise-round.test.ts` — the findings-only task, preservation and scope sentences in all three revise prompts, the tester-only restrictions and escalation sentences, and the copied Intake and Report spans from each Activity's `user.md`
 
 Run `RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompts --parallel | bunx buntap --agent --no-color` after any edit. A new assertion belongs with any instruction a later rewrite must not quietly drop.

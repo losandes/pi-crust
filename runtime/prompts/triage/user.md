@@ -22,6 +22,8 @@ The steps you may plan, what each is for, and who performs it. This list is gene
 
 ## Intake
 
+`context_handoff_dir` and everything under it belong to this run: the handoff documents, envelopes and plans earlier Activities wrote for you. Read and write them as your own inputs and outputs. They are gitignored by design and may sit outside your working tree, in the clone the worktree was created from. Neither is a reason to ask permission, and neither makes them another repository.
+
 Read `prompt` and establish what outcome is actually wanted. The request may be a question, a requirement, a concept, a bug, or an implementation ask, and each of those wants a different chain.
 
 Read `previous_envelope` if there is one. When a stage already established facts, the chain you choose should not re-establish them.
