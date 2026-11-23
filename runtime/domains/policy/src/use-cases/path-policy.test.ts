@@ -12,6 +12,7 @@ import type {
   TToolCall,
 } from './path-policy'
 import {
+  bashPaths,
   bashTokens,
   decidePath,
   governToolCall,
@@ -245,6 +246,111 @@ test(
 
     // then
     expect(actual).toContain('.env')
+  },
+)
+
+const shellCases = [
+  {
+    name: 'a command that never changes directory',
+    command: 'cat .env | head -2',
+    expected: ['cat', '.env', 'head'],
+  },
+  {
+    name: 'a git -C into another clone',
+    command: 'git -C /clone check-ignore -v .pi-crust/data/x.md',
+    expected: [
+      'git',
+      '/clone',
+      '/clone/check-ignore',
+      '/clone/.pi-crust/data/x.md',
+    ],
+  },
+  {
+    name: 'a git -C that is relative to the root',
+    command: 'git -C apps status a.ts',
+    expected: ['git', 'apps', 'apps/status', 'apps/a.ts'],
+  },
+  {
+    name: 'a cd that moves every later segment',
+    command: 'cd /clone && cat .env; ls dist',
+    expected: [
+      'cd',
+      '/clone',
+      '/clone/cat',
+      '/clone/.env',
+      '/clone/ls',
+      '/clone/dist',
+    ],
+  },
+  {
+    name: 'a git -C that moves only its own segment',
+    command: 'git -C /clone show a.ts && cat .env',
+    expected: ['git', '/clone', '/clone/show', '/clone/a.ts', 'cat', '.env'],
+  },
+  {
+    name: 'a cd to a directory the shell would expand',
+    command: 'cd $HOME && cat .env',
+    expected: ['cd', '$HOME', 'cat', '.env'],
+  },
+]
+
+for (const { name, command, expected } of shellCases) {
+  test(
+    [
+      'given use-cases/path-policy::bashPaths',
+      `when the command is ${name}`,
+      'it should resolve each token against the directory it runs from',
+    ].join(', '),
+    () => {
+      // given
+      const given = command
+
+      // when
+      const actual = bashPaths(given)
+
+      // then
+      expect(actual).toEqual(expected)
+    },
+  )
+}
+
+test(
+  [
+    'given use-cases/path-policy::governToolCall',
+    "when a linked worktree's agent names the run's handoff through git -C",
+    "it should not govern it, because it is the exempt data_dir and not the worktree's",
+  ].join(', '),
+  () => {
+    // given
+    /*
+     * Run 387bf521: data_dir is `{primary_worktree}/.pi-crust/data`, so a
+     * linked worktree's policy carries it as an absolute path in the primary
+     * clone. The builder ran `git -C <primary clone> check-ignore` on the
+     * handoff with a relative spelling, which used to be read from the
+     * worktree and reported as the worktree's own ignored data directory.
+     */
+    const given = settings({
+      repoRoot: '/worktree',
+      dataDir: '/clone/.pi-crust/data',
+      handoffDir: '/clone/.pi-crust/data/sessions/r1/context_handoff',
+    })
+    const call: TToolCall = {
+      toolName: 'bash',
+      input: {
+        command:
+          'git -C /clone check-ignore -v .pi-crust/data/sessions/r1/context_handoff/plan.md',
+      },
+    }
+
+    // when
+    const actual = governToolCall({
+      call,
+      settings: given,
+      isIgnored: (path) => path.includes('.pi-crust/data'),
+    })
+
+    // then
+    expect(actual.refusals).toEqual([])
   },
 )
 

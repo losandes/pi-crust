@@ -33,7 +33,7 @@
  * having none.
  */
 
-import { isAbsolute, relative, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { TPathPolicy, TPathPolicyVerb } from '../../../../lib/contracts'
 import { matchesPattern } from './enforce-permissions'
 
@@ -183,6 +183,9 @@ export const pathsFromInput = (
   })
 }
 
+const stripShellToken = (token: string): string =>
+  token.replace(/^[<>'"`(]+|['"`)]+$/g, '')
+
 /**
  * Paths a shell command appears to name — best-effort, and no more.
  *
@@ -196,8 +199,74 @@ export const pathsFromInput = (
 export const bashTokens = (command: string): readonly string[] =>
   command
     .split(/[\s;|&]+/)
-    .map((token) => token.replace(/^[<>'"`(]+|['"`)]+$/g, ''))
+    .map(stripShellToken)
     .filter((token) => token !== '' && !token.startsWith('-'))
+
+/** A directory the shell can be told to use, as opposed to `~`, `-` or a `$VAR`. */
+const literalDir = (token: string | undefined): string | undefined =>
+  token === undefined ||
+  token === '' ||
+  token.startsWith('-') ||
+  token.startsWith('~') ||
+  token.includes('$')
+    ? undefined
+    : token
+
+/**
+ * `path` as seen from `base`. A relative `base` stays relative, so the result
+ * is still read from the repository root by `repoRelative`; an absolute one
+ * stays absolute, and `repoRelative` decides whether it is inside the root.
+ */
+const under = (base: string | undefined, path: string): string =>
+  base === undefined || isAbsolute(path) ? path : join(base, path)
+
+type TShellScan = Readonly<{
+  /** where `cd` left the shell, or undefined for the repository root */
+  cwd: string | undefined
+  paths: readonly string[]
+}>
+
+/**
+ * The tokens of one command segment, resolved against where it runs.
+ *
+ * A `cd <dir>` moves every later segment; a `git -C <dir>` moves only its
+ * own. A relative token is otherwise read from the repository root, which is
+ * wrong for a command that runs elsewhere: run 387bf521's builder ran
+ * `git -C <primary clone> check-ignore .pi-crust/data/...` from a linked
+ * worktree, and the token was governed as the WORKTREE's ignored data
+ * directory rather than as the run's own, exempt one.
+ */
+const scanSegment = (scan: TShellScan, segment: string): TShellScan => {
+  const words = segment.split(/\s+/).map(stripShellToken).filter(Boolean)
+  const gitAt = words.includes('git') ? words.indexOf('-C') : -1
+  const gitDir = gitAt >= 0 ? literalDir(words[gitAt + 1]) : undefined
+  const base = gitDir === undefined ? scan.cwd : under(scan.cwd, gitDir)
+  const cdDir = words[0] === 'cd' ? literalDir(words[1]) : undefined
+
+  return {
+    cwd: cdDir === undefined ? scan.cwd : under(scan.cwd, cdDir),
+    paths: [
+      ...scan.paths,
+      ...words.flatMap((token, index) =>
+        token.startsWith('-')
+          ? []
+          : // `git -C <dir>` moves what follows it, not `git` or `<dir>` itself
+            [under(index > gitAt + 1 ? base : scan.cwd, token)],
+      ),
+    ],
+  }
+}
+
+/**
+ * Paths a shell command appears to name, each resolved against the directory
+ * the command runs it from — still best-effort, for every reason
+ * `bashTokens` gives. A command that never changes directory yields exactly
+ * the tokens `bashTokens` does.
+ */
+export const bashPaths = (command: string): readonly string[] =>
+  command
+    .split(/&&|\|\||[;|&\n]/)
+    .reduce<TShellScan>(scanSegment, { cwd: undefined, paths: [] }).paths
 
 /** What the agent is told, in the turn where it asked. */
 export const refusalMessage = (decision: TPathDecision): string =>
@@ -258,7 +327,7 @@ export const targetsOf = (
   const command = call.input.command
 
   return tool === 'bash' && typeof command === 'string'
-    ? bashTokens(command).map((path) => ({
+    ? bashPaths(command).map((path) => ({
         path,
         intent: 'read' as const,
         bestEffort: true,
