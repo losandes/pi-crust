@@ -9,7 +9,81 @@ import {
   loadConfigWithNotes,
   parseConfig,
   resolveAgent,
+  resolveConfig,
 } from './load-config'
+
+test(
+  [
+    'given @SC10 unknown before and after names and a terminal trigger',
+    'when resolving configuration',
+    'it should report every task, defined name, and definition location',
+  ].join(', '),
+  () => {
+    // given
+    const document = {
+      activities: [
+        {
+          name: 'build',
+          aliases: ['implement'],
+          prompts: { system: 'system', user: 'user' },
+        },
+      ],
+      tasks: {
+        first: {
+          when: [{ before: 'missing' }, { after: 'absent' }],
+          run: 'true',
+        },
+        second: { when: [{ before: 'gh-pull-request' }], run: 'true' },
+      },
+    }
+    // when
+    const resolve = () => resolveConfig(document)
+    // then
+    expect(resolve).toThrow('the task configuration cannot run:')
+    expect(resolve).toThrow("task 'first': `before: missing`")
+    expect(resolve).toThrow('`after: absent`')
+    expect(resolve).toThrow('Defined Activities: build, implement.')
+    expect(resolve).toThrow('crust.activities.local.yaml')
+    expect(resolve).toThrow('use `on: deliver`')
+  },
+)
+
+test(
+  [
+    'given @SC10 an Activity alias, a Planner and an unknown skip name',
+    'when resolving task triggers',
+    'it should accept them without validating skip names',
+  ].join(', '),
+  () => {
+    // given
+    const document = {
+      activities: [
+        {
+          name: 'build',
+          aliases: ['implement'],
+          prompts: { system: 'system', user: 'user' },
+        },
+      ],
+      planners: [
+        { name: 'operator', prompts: { system: 'system', user: 'user' } },
+      ],
+      tasks: {
+        check: {
+          when: [
+            { before: 'implement' },
+            { after: 'operator' },
+            { on: 'deliver', skip: ['not-defined'] },
+          ],
+          run: 'true',
+        },
+      },
+    }
+    // when
+    const actual = resolveConfig(document)
+    // then
+    expect(actual.tasks.check?.when).toHaveLength(3)
+  },
+)
 
 for (const scenario of [
   {

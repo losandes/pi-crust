@@ -3,6 +3,34 @@ import { crustConfigSchema } from './config'
 
 const task = { when: [{ on: 'change' }], run: 'true' }
 
+test(
+  [
+    'given all four triggers on one task',
+    'when parsing its schema',
+    'it should accept distinct moments and default only on skip lists',
+  ].join(', '),
+  () => {
+    // given
+    const when = [
+      { on: 'change' },
+      { on: 'deliver' },
+      { before: 'build' },
+      { after: 'build' },
+    ]
+    // when
+    const actual = crustConfigSchema.parse({
+      tasks: { verify: { when, run: 'true' } },
+    })
+    // then
+    expect(actual.tasks.verify?.when).toEqual([
+      { on: 'change', skip: [] },
+      { on: 'deliver', skip: [] },
+      { before: 'build' },
+      { after: 'build' },
+    ])
+  },
+)
+
 for (const [name, input] of [
   ['2', task],
   ['10', task],
@@ -10,7 +38,12 @@ for (const [name, input] of [
   ['lint', { run: 'true' }],
   ['lint', { ...task, when: [] }],
   ['lint', { ...task, when: [...task.when, ...task.when] }],
-  ['lint', { ...task, when: [{ on: 'deliver' }] }],
+  ['lint', { ...task, when: [{ on: 'unknown' }] }],
+  ['lint', { ...task, when: [{ before: 'build', skip: [] }] }],
+  ['lint', { ...task, when: [{ after: 'build', on: 'deliver' }] }],
+  ['lint', { ...task, when: [{ before: '' }] }],
+  ['lint', { ...task, when: [{ after: 'build' }, { after: 'build' }] }],
+  ['lint', { ...task, when: [{ before: 'build' }, { before: 'build' }] }],
   ['lint', { ...task, run: [] }],
   ['lint', { ...task, run: '' }],
   ['lint', { ...task, run: ['true', ''] }],

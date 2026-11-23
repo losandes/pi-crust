@@ -88,5 +88,10 @@ export const gateCause = (violations: readonly string[]): string =>
 export const regressionCause = (from: string, because: string): string =>
   `sent back by '${from}': ${because}`
 
+export const taskCause = (
+  moment: 'deliver' | 'before',
+  tasks: readonly string[],
+): string => `${moment} task(s) failed: ${tasks.join(', ')}`
+
 export const reviseCause = (round: number): string =>
   `revise round ${round} after a review that did not approve`

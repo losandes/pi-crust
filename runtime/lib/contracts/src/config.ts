@@ -11,6 +11,7 @@ import {
   activityConfigSchema,
   CODING_AGENTS,
   DEFAULT_MODEL,
+  isTerminalName,
   plannerConfigSchema,
   promptsSchema,
   terminalConfigSchema,
@@ -188,13 +189,17 @@ export type TObservabilityConfig = Readonly<
 >
 
 // Repository tasks select existing changed paths using git-root-relative globs.
-export const TASK_MOMENTS = ['change'] as const
+export const TASK_MOMENTS = ['change', 'deliver'] as const
 export const TASK_NAME = /^[A-Za-z][A-Za-z0-9_.:-]*$/
 
-export const taskTriggerSchema = z.strictObject({
-  on: z.enum(TASK_MOMENTS),
-  skip: z.array(z.string().min(1)).default([]),
-})
+export const taskTriggerSchema = z.union([
+  z.strictObject({
+    on: z.enum(TASK_MOMENTS),
+    skip: z.array(z.string().min(1)).default([]),
+  }),
+  z.strictObject({ before: z.string().min(1) }),
+  z.strictObject({ after: z.string().min(1) }),
+])
 
 const taskCommandSchema = z
   .string()
@@ -210,7 +215,15 @@ export const taskSchema = z.strictObject({
     .min(1)
     .refine(
       (triggers) =>
-        new Set(triggers.map(({ on }) => on)).size === triggers.length,
+        new Set(
+          triggers.map((trigger) =>
+            'on' in trigger
+              ? `on:${trigger.on}`
+              : 'before' in trigger
+                ? `before:${trigger.before}`
+                : `after:${trigger.after}`,
+          ),
+        ).size === triggers.length,
       'a task may declare each moment only once',
     ),
   match: z.array(z.string().min(1)).default([]),
@@ -254,3 +267,33 @@ export const crustConfigSchema = z.object({
   terminal: z.array(terminalConfigSchema).default([]),
 })
 export type TPiCrustConfig = Readonly<z.infer<typeof crustConfigSchema>>
+
+export const taskTriggerFaults = (
+  cfg: Readonly<Pick<TPiCrustConfig, 'tasks' | 'activities' | 'planners'>>,
+): readonly string[] => {
+  const names = [
+    ...cfg.activities.flatMap((activity) => [
+      activity.name,
+      ...activity.aliases,
+    ]),
+    ...cfg.planners.map((planner) => planner.name),
+  ]
+  const defined = names.join(', ') || '(none)'
+  return Object.entries(cfg.tasks).flatMap(([task, declaration]) =>
+    declaration.when.flatMap((trigger) => {
+      if ('on' in trigger) return []
+      const kind = 'before' in trigger ? 'before' : 'after'
+      const name = 'before' in trigger ? trigger.before : trigger.after
+      const prefix = `task '${task}': \`${kind}: ${name}\``
+      if (isTerminalName(name))
+        return [
+          `${prefix} names a terminal Activity, which runs outside every stage; use \`on: deliver\` to run a task before it. Defined Activities: ${defined}.`,
+        ]
+      return names.includes(name)
+        ? []
+        : [
+            `${prefix} names an Activity this machine does not define. Defined Activities: ${defined}. Define an Activity under \`activities:\` in crust.activities.yaml beside this configuration, or in crust.activities.local.yaml for this machine only.`,
+          ]
+    }),
+  )
+}

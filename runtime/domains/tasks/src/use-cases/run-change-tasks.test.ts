@@ -1,8 +1,64 @@
 import { expect, test } from 'bun:test'
 import { crustConfigSchema } from '../../../../lib/contracts'
 import type { TChangeTasksParams, TTaskPorts } from '../typedefs/task'
-import { runChangeTasks } from './run-change-tasks'
+import { runChangeTasks, runTasks } from './run-change-tasks'
 import { taskArtifactName } from './task-artifact-name'
+
+test(
+  [
+    'given deliver tasks with a skip, multiple commands and a cwd',
+    'when evaluating a whole-run contribution',
+    'it should report skipped selections and reuse command execution and rebasing',
+  ].join(', '),
+  async () => {
+    // given
+    const { ports, params, events } = setup()
+    const cfg = crustConfigSchema.parse({
+      tasks: {
+        skip: {
+          when: [{ on: 'deliver', skip: ['build'] }],
+          match: ['**/*.ts'],
+          run: 'false',
+        },
+        verify: {
+          when: [{ on: 'deliver' }],
+          cwd: 'api',
+          run: ['false', 'printf {{changed_paths}} {{base_ref}}'],
+        },
+        unmatched: {
+          when: [{ on: 'deliver', skip: ['build'] }],
+          match: ['*.md'],
+          run: 'false',
+        },
+      },
+    })
+    // when
+    const actual = await runTasks(ports)({
+      ...params,
+      cfg,
+      moment: { kind: 'deliver' },
+      contributions: [params.contributions[0]].filter(
+        (entry) => entry !== undefined,
+      ),
+    })
+    // then
+    expect(actual.skipped).toEqual([
+      { task: 'skip', instance: 'build_2', activity: 'build' },
+    ])
+    expect(
+      actual.results.map((result) => [
+        result.name,
+        result.passed,
+        result.commands.length,
+      ]),
+    ).toEqual([['verify', false, 2]])
+    expect(
+      events.some((event) =>
+        event.includes('printf z.ts ../outside.ts old-ref'),
+      ),
+    ).toBe(true)
+  },
+)
 
 const setup = () => {
   const cfg = crustConfigSchema.parse({

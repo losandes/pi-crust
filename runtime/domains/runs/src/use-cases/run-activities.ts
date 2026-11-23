@@ -46,6 +46,7 @@ import {
   FIRST_ATTEMPT,
   gateCause,
   regressionCause,
+  taskCause,
 } from './attempts'
 import { changeTasks, noteUnverified } from './change-tasks'
 import { commitActivity } from './deliver'
@@ -59,6 +60,8 @@ import {
   withDecisionAnswer,
   writeDecisionRequest,
 } from './human-gate'
+import type { TMoments, TMomentVerdict } from './moment-tasks'
+import { destinationOf } from './moment-tasks'
 import { isReplayedActivityRunId, skipIfDone } from './resume'
 
 /**
@@ -158,7 +161,11 @@ const runStep = (
   ctx: TActivityContext,
   activity: TActivity,
   ledger: TAttemptLedger,
-  params: Readonly<{ cause: string; feedback: readonly string[] }>,
+  params: Readonly<{
+    cause: string
+    feedback: readonly string[]
+    moments?: TMoments
+  }>,
 ): Promise<TRan> => {
   /*
    * Each Activity is told who else is running, and never itself. Permission
@@ -183,7 +190,18 @@ const runStep = (
     activity.params,
     (handle) => {
       ledger.spend(activity.instance, params.cause)
-
+      if (params.moments !== undefined) {
+        run.tracer.event({
+          run_id: run.runId,
+          activity_run_id: handle.activityRun.activity_run_id,
+          type: 'log',
+          name: 'chain_run',
+          payload: {
+            activity_run_id: handle.activityRun.activity_run_id,
+            instance: activity.instance,
+          },
+        })
+      }
       return activity.execute(given, handle)
     },
     () => activity.replay(given),
@@ -194,12 +212,24 @@ const runUnit = async (
   run: TRun,
   unit: TUnit,
   ctx: TActivityContext,
-  params: Readonly<{ ledger: TAttemptLedger; cause: string }>,
+  params: Readonly<{
+    ledger: TAttemptLedger
+    cause: string
+    moments?: TMoments
+    pending?: ReadonlyMap<
+      string,
+      Readonly<{ cause: string; violations: readonly string[] }>
+    >
+  }>,
 ): Promise<readonly TRan[]> => {
   const one = (activity: TActivity): Promise<TRan> =>
     runStep(run, unit, ctx, activity, params.ledger, {
-      cause: params.cause,
-      feedback: ctx.feedback,
+      cause: params.pending?.get(activity.instance)?.cause ?? params.cause,
+      feedback: [
+        ...ctx.feedback,
+        ...(params.pending?.get(activity.instance)?.violations ?? []),
+      ],
+      ...(params.moments === undefined ? {} : { moments: params.moments }),
     })
 
   if (unit.strategy !== 'concurrent') {
@@ -288,6 +318,7 @@ const settleGates = (
     ledger: TAttemptLedger
     trust: number
     hasSuccessor: boolean
+    moments?: TMoments
   }>,
 ): Promise<readonly TRan[]> => {
   const { run, unit, ctx, ran, ledger, trust, hasSuccessor } = params
@@ -376,6 +407,7 @@ const settleGates = (
     return runStep(run, unit, ctx, entry.activity, ledger, {
       cause: gateCause(violations),
       feedback: violations,
+      ...(params.moments === undefined ? {} : { moments: params.moments }),
     })
   }
 
@@ -543,7 +575,15 @@ const noteDisagreement = (
  * rather than minted here because the revise loop spends from the SAME
  * budget — one ceiling means one ledger for the whole run.
  */
+export type TTasksBlocked = Readonly<{
+  moment: 'deliver' | 'before'
+  tasks: readonly string[]
+  reason: string
+}>
+
 export type TRunUnitsParams = Readonly<{
+  moments?: TMoments
+  onTasksBlocked?: (blocked: TTasksBlocked) => void
   run: TRun
   units: readonly TUnit[]
   start: TActivityContext
@@ -582,6 +622,209 @@ export const runUnits = (
     unit.activities.map((activity) => activity.name),
   )
   const gatedActivities = activityGates(approveAfter)
+  const pending = new Map<
+    string,
+    Readonly<{ cause: string; violations: readonly string[] }>
+  >()
+  const visited = new Set<string>()
+  const entered = new Map<
+    number,
+    Readonly<{ ctx: TActivityContext; ran: readonly TRan[] }>
+  >()
+  // The fold coordinates entries across forward steps, returns and regressions.
+  let previousStage: number | undefined
+  const stageStart = (index: number): number => {
+    const prior = units.slice(0, index).findLastIndex((unit) => unit.endsStage)
+    return prior + 1
+  }
+  const stageActivities = (index: number): readonly TActivity[] => {
+    const first = stageStart(index)
+    const end = units.findIndex((unit, at) => at >= index && unit.endsStage)
+    return units
+      .slice(first, end < 0 ? units.length : end + 1)
+      .flatMap((unit) => unit.activities)
+  }
+
+  const taskReturn = (
+    ctx: TActivityContext,
+    index: number,
+    history: readonly TRegressionRecord[],
+    verdict: Extract<TMomentVerdict, { kind: 'fail' }>,
+  ): Promise<TActivityContext> => {
+    const destination = destinationOf(run, units)(verdict.writer)
+    const tasks = verdict.tasks.join(', ')
+    const reason =
+      destination === undefined
+        ? `${verdict.moment} task(s) ${tasks} failed and this chain holds no Activity to return to ('${verdict.writer.instance}' changed files last)`
+        : verdict.moment === 'before' && destination.unit >= stageStart(index)
+          ? `before task(s) ${tasks} failed and '${verdict.writer.instance}', which changed files last, is not ahead of the stage being entered; returning to it would start the stage`
+          : ledger.remaining(
+                destination.activity.instance,
+                destination.activity.attempts,
+              ) === 0
+            ? `${verdict.moment} task(s) ${tasks} failed and '${destination.activity.instance}' has no attempts left\n${ledger.report(destination.activity.instance, destination.activity.attempts)}`
+            : undefined
+    if (reason !== undefined || destination === undefined) {
+      const blockedReason = reason ?? 'no destination'
+      run.tracer.event({
+        run_id: run.runId,
+        type: 'log',
+        name: 'regression_exhausted',
+        payload: { from: `tasks:${verdict.moment}`, reason: blockedReason },
+      })
+      run.console.note(blockedReason)
+      recordUnreached(run, units.slice(index), 'cancelled', blockedReason)
+      params.onTasksBlocked?.({
+        moment: verdict.moment,
+        tasks: verdict.tasks,
+        reason: blockedReason,
+      })
+      return Promise.resolve({
+        ...ctx,
+        outcomes: [
+          ...ctx.outcomes,
+          { activity: `tasks:${verdict.moment}`, accepted: false },
+        ],
+      })
+    }
+    const record = {
+      from: `tasks:${verdict.moment}`,
+      to: destination.activity.name,
+      because: taskCause(verdict.moment, verdict.tasks),
+    }
+    run.tracer.event({
+      run_id: run.runId,
+      type: 'log',
+      name: 'regression',
+      payload: { ...record, instance: destination.activity.instance },
+    })
+    run.console.note(regressionNote(record))
+    pending.set(destination.activity.instance, {
+      cause: record.because,
+      violations: verdict.violations,
+    })
+    return fold(ctx, destination.unit, [...history, record])
+  }
+
+  const settleAfter = async (
+    index: number,
+    ctx: TActivityContext,
+    ran: readonly TRan[],
+  ): Promise<Readonly<{ ctx: TActivityContext; ran: readonly TRan[] }>> => {
+    const unit = units[index]
+    if (params.moments === undefined || unit === undefined || !unit.endsStage)
+      return { ctx, ran }
+    const moments = params.moments
+    const stage = stageActivities(index)
+    const eligible = stage.filter((activity) => {
+      const at = units.findIndex((one) => one.activities.includes(activity))
+      const entry = entered
+        .get(at)
+        ?.ran.find((one) => one.activity.instance === activity.instance)
+      return (
+        entry !== undefined &&
+        gateReason({
+          activity: activity.name,
+          envelope: entry.result.previous,
+          approveAfter: [],
+          hasSuccessor: at + 1 < units.length || params.hasSuccessor === true,
+          trust,
+        })?.kind !== 'escalated'
+      )
+    })
+    const verdict = await moments.after(
+      stage,
+      stage
+        .filter((activity) => !eligible.includes(activity))
+        .map((activity) => activity.instance),
+    )
+    const failing = eligible.filter(
+      (activity) =>
+        (verdict.get(activity.instance)?.violations.length ?? 0) > 0,
+    )
+    if (failing.length === 0) return { ctx, ran }
+    const repaired = await failing.reduce<
+      Promise<Readonly<{ ctx: TActivityContext; ran: readonly TRan[] }>>
+    >(async (prior, activity) => {
+      const state = await prior
+      const at = units.findIndex((one) => one.activities.includes(activity))
+      const ownUnit = units[at]
+      const entry = entered.get(at)
+      if (ownUnit === undefined || entry === undefined) return state
+      const violations = verdict.get(activity.instance)?.violations ?? []
+      const standing = activityRunFor(run, activity.instance)
+      if (ledger.remaining(activity.instance, activity.attempts) === 0) {
+        if (standing !== undefined)
+          settleStatus(run, standing.activity_run_id, 'fail')
+        throw new Error(
+          `${activity.instance} failed its gates and has no attempts left:\n- ${violations.join('\n- ')}\n\n${ledger.report(activity.instance, activity.attempts)}`,
+        )
+      }
+      if (standing !== undefined)
+        settleStatus(run, standing.activity_run_id, 'superseded')
+      const retried = await runStep(run, ownUnit, entry.ctx, activity, ledger, {
+        cause: gateCause(violations),
+        feedback: violations,
+        moments,
+      })
+      const settled = await settleGates({
+        run,
+        unit: ownUnit,
+        ctx: entry.ctx,
+        ran: [retried],
+        ledger,
+        trust,
+        hasSuccessor: at + 1 < units.length || params.hasSuccessor === true,
+        moments,
+      })
+      const replacement = settled[0] ?? retried
+      entered.set(at, {
+        ...entry,
+        ran: entry.ran.map((one) =>
+          one.activity.instance === activity.instance ? replacement : one,
+        ),
+      })
+      if (at === index)
+        return {
+          ...state,
+          ran: state.ran.map((one) =>
+            one.activity.instance === activity.instance ? replacement : one,
+          ),
+        }
+      const envelope = replacement.result.previous
+      return {
+        ...state,
+        ctx: {
+          ...state.ctx,
+          upstream:
+            envelope === undefined
+              ? state.ctx.upstream.filter(
+                  (one) => one.activity !== activity.name,
+                )
+              : [
+                  ...new Map([
+                    ...state.ctx.upstream.map(
+                      (one) => [one.activity, one] as const,
+                    ),
+                    [
+                      activity.name,
+                      { activity: activity.name, envelope },
+                    ] as const,
+                  ]).values(),
+                ],
+          previous:
+            state.ctx.previousStep === activity.name
+              ? envelope
+              : state.ctx.previous,
+          outcomes: [
+            ...state.ctx.outcomes,
+            { activity: activity.name, accepted: replacement.result.accepted },
+          ],
+        },
+      }
+    }, Promise.resolve({ ctx, ran }))
+    return settleAfter(index, repaired.ctx, repaired.ran)
+  }
 
   /** Where in `names` a Unit's first Activity sits, for the regression rules. */
   const startOf = (index: number): number =>
@@ -602,22 +845,48 @@ export const runUnits = (
   ): Promise<TActivityContext> => {
     const unit = units[index]
     if (unit === undefined) {
-      return ctx
+      const verdict = await params.moments?.deliver(ctx)
+      return verdict?.kind === 'fail'
+        ? taskReturn(ctx, index, history, verdict)
+        : ctx
     }
+    const first = stageStart(index)
+    const replaying = unit.activities.every(
+      (activity) =>
+        run.resume.has(activity.params.name) &&
+        !visited.has(activity.params.name),
+    )
+    if (first !== previousStage && !replaying) {
+      const verdict = await params.moments?.before(stageActivities(index))
+      if (verdict?.kind === 'fail')
+        return taskReturn(ctx, index, history, verdict)
+    }
+    previousStage = first
     const hasSuccessor =
       index + 1 < units.length || params.hasSuccessor === true
-    const ran = await settleGates({
+    const gated = await settleGates({
       run,
       unit,
       ctx,
       ran: await runUnit(run, unit, ctx, {
         ledger,
         cause: params.cause ?? FIRST_ATTEMPT,
+        pending,
+        ...(params.moments === undefined ? {} : { moments: params.moments }),
       }),
       ledger,
       trust,
       hasSuccessor,
+      ...(params.moments === undefined ? {} : { moments: params.moments }),
     })
+    for (const activity of unit.activities) {
+      pending.delete(activity.instance)
+      visited.add(activity.params.name)
+    }
+    entered.set(index, { ctx, ran: gated })
+    const afterStage = await settleAfter(index, ctx, gated)
+    const ran = afterStage.ran
+    const composedCtx = afterStage.ctx
     noteDisagreement(run, unit, ran)
     noteUnexpectedChanges(run, unit, ran)
 
@@ -630,7 +899,10 @@ export const runUnits = (
     // history to the latest envelope per participant, not per attempt.
     const upstream = [
       ...new Map(
-        [...ctx.upstream, ...produced].map((one) => [one.activity, one]),
+        [...composedCtx.upstream, ...produced].map((one) => [
+          one.activity,
+          one,
+        ]),
       ).values(),
     ]
     // The first superseding result wins within a Unit, regardless of which
@@ -658,16 +930,16 @@ export const runUnits = (
     const primary = ran[0]
     const last = ran.at(-1)
     const next: TActivityContext = {
-      ...ctx,
-      previous: superseding?.result.previous ?? ctx.previous,
+      ...composedCtx,
+      previous: superseding?.result.previous ?? composedCtx.previous,
       previousStep:
         superseding === undefined
-          ? ctx.previousStep
+          ? composedCtx.previousStep
           : superseding.activity.name,
       upstream,
       cohort: [],
       outcomes: [
-        ...ctx.outcomes,
+        ...composedCtx.outcomes,
         ...ran.map((one) => ({
           activity: one.activity.name,
           accepted: one.result.accepted,

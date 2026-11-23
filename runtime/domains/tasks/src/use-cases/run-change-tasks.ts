@@ -2,6 +2,7 @@ import { isAbsolute, join, posix } from 'node:path'
 import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TTask } from '../../../../lib/contracts'
 import { operatorEnv } from '../../../../lib/system'
+import { canonicalActivityName } from '../../../activities'
 import type {
   TChangeOutcome,
   TChangeTasksParams,
@@ -9,6 +10,8 @@ import type {
   TTaskCommandResult,
   TTaskPorts,
   TTaskResult,
+  TTasksOutcome,
+  TTasksParams,
 } from '../typedefs/task'
 import { renderTaskCommand } from './render-task-command'
 import { existingTaskPaths, selectTaskPaths } from './select-task-paths'
@@ -102,9 +105,9 @@ const executeTask =
     }
   }
 
-export const runChangeTasks =
+export const runTasks =
   (ports: TTaskPorts) =>
-  async (params: TChangeTasksParams): Promise<TChangeOutcome> => {
+  async (params: TTasksParams): Promise<TTasksOutcome> => {
     const { cfg, root, contributions } = params
     const tasks = Object.entries(cfg.tasks)
     const existingPaths = existingTaskPaths(ports, root)
@@ -115,7 +118,12 @@ export const runChangeTasks =
     const results = await tasks.reduce<Promise<readonly TTaskResult[]>>(
       async (prior, [name, task], index) => {
         const previous = await prior
-        const select = selectTaskPaths(cfg.activities, existingPaths, task)
+        const select = selectTaskPaths(
+          cfg.activities,
+          existingPaths,
+          task,
+          params.moment,
+        )
         const selections = contributions.map(
           (contribution) =>
             [contribution.instance, select(contribution)] as const,
@@ -140,6 +148,30 @@ export const runChangeTasks =
     )
     return {
       declared: tasks.length,
+      skipped: tasks.flatMap(([name, task]) => {
+        const select = selectTaskPaths(
+          cfg.activities,
+          existingPaths,
+          task,
+          params.moment,
+        )
+        return contributions.flatMap((contribution) =>
+          contribution.activity !== undefined &&
+          select(contribution).length === 0 &&
+          select({ ...contribution, activity: undefined }).length > 0
+            ? [
+                {
+                  task: name,
+                  instance: contribution.instance,
+                  activity: canonicalActivityName(
+                    cfg.activities,
+                    contribution.activity,
+                  ),
+                },
+              ]
+            : [],
+        )
+      }),
       results,
       existing: Object.fromEntries(
         initial.map(([name, paths]) => [name, paths.length]),
@@ -154,4 +186,14 @@ export const runChangeTasks =
         ]),
       ),
     }
+  }
+
+export const runChangeTasks =
+  (ports: TTaskPorts) =>
+  async (params: TChangeTasksParams): Promise<TChangeOutcome> => {
+    const { skipped: _skipped, ...outcome } = await runTasks(ports)({
+      ...params,
+      moment: { kind: 'change' },
+    })
+    return outcome
   }

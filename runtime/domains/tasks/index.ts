@@ -12,15 +12,19 @@ export type {
   TTaskCommandResult,
   TTaskCommandStart,
   TTaskContribution,
+  TTaskMoment,
   TTaskPorts,
   TTaskResult,
+  TTaskSkip,
+  TTasksOutcome,
+  TTasksParams,
 } from './src/typedefs/task'
 export {
   changeReport,
   NO_TASKS_DECLARED,
   taskResultNote,
 } from './src/use-cases/change-report'
-export { runChangeTasks } from './src/use-cases/run-change-tasks'
+export { runChangeTasks, runTasks } from './src/use-cases/run-change-tasks'
 export { taskArtifactName } from './src/use-cases/task-artifact-name'
 
 export const liveTaskPorts: TTaskPorts = {
