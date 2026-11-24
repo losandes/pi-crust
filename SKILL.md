@@ -34,18 +34,18 @@ Three steps. Then stop.
 The two directories are not the same kind of thing, and the table should not pretend otherwise:
 
 ```text
-| Lifecycle | Chain | Use when |
-|---|---|---|
-| tdd | identify → conceptualize → plan → design → test-tdd → build → outcome-review → code-review | the tests should be written before the thing they prove |
-| sdlc | identify → conceptualize → plan → design → build → test → outcome-review → code-review | the work starts from a wish and its shape is not obvious |
-| bugfix | diagnose → plan → test → build → outcome-review → code-review | the work starts from a symptom somebody reported |
-| de-risk | identify → plan → build | the expensive question is whether the approach works at all |
-| run | whatever `--activities` names | you know exactly which Activities you want |
+| Lifecycle | Chain                                                                                      | Use when                                                    |
+| --------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| tdd       | identify → conceptualize → plan → design → test-tdd → build → outcome-review → code-review | the tests should be written before the thing they prove     |
+| sdlc      | identify → conceptualize → plan → design → build → test → outcome-review → code-review     | the work starts from a wish and its shape is not obvious    |
+| bugfix    | diagnose → plan → test → build → outcome-review → code-review                              | the work starts from a symptom somebody reported            |
+| de-risk   | identify → plan → build                                                                    | the expensive question is whether the approach works at all |
+| run       | whatever `--activities` names                                                              | you know exactly which Activities you want                  |
 
-| Activity | Purpose | Use when |
-|---|---|---|
-| scout | find and report where things live | read-only recon; nothing changes |
-| diagnose | reproduce a reported behaviour and name its cause | the report is a symptom |
+| Activity | Purpose                                           | Use when                         |
+| -------- | ------------------------------------------------- | -------------------------------- |
+| scout    | find and report where things live                 | read-only recon; nothing changes |
+| diagnose | reproduce a reported behaviour and name its cause | the report is a symptom          |
 ```
 
 Take the rows from the merged catalogue reported by the command, never from this list: a team adds, removes and renames Activities without touching this package, so a table written here is a table that drifts.
@@ -68,7 +68,7 @@ You run the system, observe the system, and help the user interact with it. **Yo
 
 - Never implement, plan, or test in an agent's place — launch the workflow and watch it.
 - Never edit files inside `.pi-crust/data/sessions/` — that is the run record.
-- Observe by querying `.pi-crust/data/crust.db` (WAL — reads never block writers) **when observing is the task**. This is a capability, not a startup step: query it to follow a run you launched or one the engineer asked about, never to volunteer a status report nobody requested.
+- Observe by querying `~/.pi-crust/data/crust.db` (WAL — reads never block writers) **when observing is the task**. This is a capability, not a startup step: query it to follow a run you launched or one the engineer asked about, never to volunteer a status report nobody requested.
 - Report activity run status plainly: name, owner, status, error if any.
 
 ## Request routing (lazy-load the cookbook, then follow it)
@@ -119,11 +119,11 @@ Each does one thing, and each is invoked by path. `<pi-crust>` below is this ski
 | Add a Lifecycle or an Activity                                             | edit the appropriate table in `~/.pi-crust/config/` or `pi-crust.toml` |
 | Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                    |
 
-`install.ts` writes `pi-crust.toml` only when absent. Its example tasks are all commented out, so a fresh repository runs with no tasks declared and no placeholder command executed. The installer also writes the credential example, appends `.pi-crust/data/` to gitignore, ensures the root justfile passthrough and records the package-home pointer. It creates no configuration directory or prompt files.
+`install.ts` writes `pi-crust.toml` only when absent. Its example tasks are all commented out, so a fresh repository runs with no tasks declared and no placeholder command executed. The installer also writes the credential example, appends `.pi-crust/data/` to gitignore, ensures the root justfile passthrough and records the package home at `~/.pi-crust/pi-crust-home`, writing nothing under the repository's `.pi-crust/`. It creates no configuration directory or prompt files.
 
 The package's `runtime/config/` defaults are read live, then `~/.pi-crust/config/`, then the repository file. Each package or machine directory holds `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge recursively and arrays replace whole; the repository wins on the fields it states. Tasks are declared only in `pi-crust.toml`. Lists group entries by first declaration, package then machine then repository, sorting names within each group.
 
-`install.ts --refresh` updates template-owned files, never an existing `pi-crust.toml` or execution history. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and no longer read for runtime configuration or prompt overrides; the trace UI still reads themes from an existing `crust.observe.yaml`. Migrate by hand following [references/config.md](references/config.md). No code or shipped defaults are copied into a repository.
+`install.ts --refresh` updates template-owned files, never an existing `pi-crust.toml` or execution history. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and no longer read for runtime configuration or prompt overrides; viewer settings and added themes live in the machine configuration. A leftover `.pi-crust/config/crust.observe.yaml` or `.pi-crust/data/pi-crust-home` is not read or deleted. Migrate by hand following [references/config.md](references/config.md). No code or shipped defaults are copied into a repository.
 
 ## Hard rules (enforced across everything the factory generates)
 

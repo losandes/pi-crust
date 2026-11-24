@@ -9,6 +9,7 @@
  */
 
 export type TFilterKey =
+  | 'repository'
   | 'workspace'
   | 'lifecycle'
   | 'status'
@@ -17,6 +18,7 @@ export type TFilterKey =
 
 /** Pill order, left to right. */
 export const FILTER_KEYS: readonly TFilterKey[] = [
+  'repository',
   'workspace',
   'lifecycle',
   'status',
@@ -25,6 +27,7 @@ export const FILTER_KEYS: readonly TFilterKey[] = [
 ]
 
 export const FILTER_LABELS: Readonly<Record<TFilterKey, string>> = {
+  repository: 'repository',
   workspace: 'tree',
   lifecycle: 'lifecycle',
   status: 'status',
@@ -36,6 +39,7 @@ export const FILTER_LABELS: Readonly<Record<TFilterKey, string>> = {
 export type TFilters = Readonly<Record<TFilterKey, readonly string[]>>
 
 export const DEFAULT_FILTERS: TFilters = {
+  repository: [],
   workspace: [],
   lifecycle: [],
   status: [],

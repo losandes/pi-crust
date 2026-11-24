@@ -41,7 +41,7 @@ const fixtureWith = (activities: readonly Record<string, unknown>[] = []) => {
     dir,
     crustConfigSchema.parse({
       defaults: { data_dir: join(dir, 'data') },
-      observability: { db: join(dir, 'crust.db') },
+      observability: {},
       activities: entries,
       agents: entries,
     }),

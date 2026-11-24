@@ -13,8 +13,6 @@ import { integrationTestsEnabled } from '../src/lib/testing'
 import {
   dedupe,
   discover,
-  readRegistry,
-  registryStamp,
   resolveWorkspaces,
   slugify,
   workspaceRootOf,
@@ -60,12 +58,7 @@ const tree = (name: string): string => {
  * every unsealed test would start watching it and fail for a reason nothing
  * in the test says.
  */
-const sealed = (): Readonly<Record<string, string | undefined>> => ({
-  CRUST_REGISTRY: join(
-    mkdtempSync(join(tmpdir(), 'crust-no-registry-')),
-    'none.jsonl',
-  ),
-})
+const sealed = (): Readonly<Record<string, string | undefined>> => ({})
 
 const dbIn = (root: string): string =>
   join(root, '.pi-crust', 'data', 'crust.db')
@@ -312,41 +305,6 @@ test(
 test(
   [
     'given server/workspaces::resolveWorkspaces',
-    'when trees have registered themselves on this machine',
-    'it should watch all of them by default, local tree first',
-  ].join(', '),
-  () => {
-    // given — a developer with five agents running wants one page, not five
-    // flags. The registry only holds trees the factory has actually run in,
-    // so watching all of them cannot sprawl into unrelated checkouts.
-    const here = tree('here')
-    const elsewhere = tree('elsewhere')
-    const file = join(
-      mkdtempSync(join(tmpdir(), 'crust-reg-')),
-      'workspaces.jsonl',
-    )
-    writeFileSync(
-      file,
-      `${JSON.stringify({ root: elsewhere, db: dbIn(elsewhere) })}\n`,
-    )
-
-    // when
-    const actual = resolveWorkspaces(['bun', 'server'], {
-      CRUST_DB: dbIn(here),
-      CRUST_REGISTRY: file,
-    })
-
-    // then — the tree you are standing in is never the one missing
-    expect(actual).toEqual([
-      { label: 'here', dbPath: dbIn(here), root: here },
-      { label: 'elsewhere', dbPath: dbIn(elsewhere), root: elsewhere },
-    ])
-  },
-)
-
-test(
-  [
-    'given server/workspaces::resolveWorkspaces',
     'when a workspace is named explicitly',
     'it should watch only that, ignoring the registry',
   ].join(', '),
@@ -365,185 +323,15 @@ test(
     )
 
     // when
-    const actual = resolveWorkspaces(['bun', 'server', '--workspace', named], {
-      CRUST_REGISTRY: file,
-    })
+    const actual = resolveWorkspaces(
+      ['bun', 'server', '--workspace', named],
+      {},
+    )
 
     // then
     expect(actual).toEqual([
       { label: 'named', dbPath: dbIn(named), root: named },
     ])
-  },
-)
-
-test(
-  [
-    'given server/workspaces::readRegistry',
-    'when the file holds a repeat, a torn line and a bad record',
-    'it should return each database once and skip what it cannot read',
-  ].join(', '),
-  () => {
-    // given — the factory appends, so repeats are expected, and a reader can
-    // catch a writer mid-line
-    const file = join(
-      mkdtempSync(join(tmpdir(), 'crust-reg-')),
-      'workspaces.jsonl',
-    )
-    writeFileSync(
-      file,
-      [
-        JSON.stringify({
-          root: '/trees/a',
-          db: '/trees/a/.pi-crust/data/crust.db',
-        }),
-        JSON.stringify({
-          root: '/trees/a',
-          db: '/trees/a/.pi-crust/data/crust.db',
-        }),
-        JSON.stringify({ root: '/trees/b' }),
-        '{"root":"/trees/c","db":"/trees/c/.pi',
-      ].join('\n'),
-    )
-
-    // when
-    const actual = readRegistry(file)
-
-    // then
-    expect(actual).toEqual([
-      {
-        label: 'a',
-        dbPath: '/trees/a/.pi-crust/data/crust.db',
-        root: '/trees/a',
-      },
-    ])
-  },
-)
-
-test(
-  [
-    'given server/workspaces::readRegistry',
-    'when a record omits root entirely',
-    'it should fall back to the two-levels-up arithmetic, not drop the record',
-  ].join(', '),
-  () => {
-    // given — an older writer that has not been updated to record `root`
-    // yet; the record is still usable, just not able to name a pooled tree
-    const file = join(
-      mkdtempSync(join(tmpdir(), 'crust-reg-')),
-      'workspaces.jsonl',
-    )
-    writeFileSync(
-      file,
-      `${JSON.stringify({ db: '/trees/d/.pi-crust/data/crust.db' })}\n`,
-    )
-
-    // when
-    const actual = readRegistry(file)
-
-    // then
-    expect(actual).toEqual([
-      {
-        label: 'd',
-        dbPath: '/trees/d/.pi-crust/data/crust.db',
-        root: workspaceRootOf('/trees/d/.pi-crust/data/crust.db'),
-      },
-    ])
-  },
-)
-
-test(
-  [
-    'given server/workspaces::registryStamp',
-    'when the registry does not exist and when it changes',
-    'it should report a stamp that moves, so a reader knows to look again',
-  ].join(', '),
-  () => {
-    // given — this is the gate that lets a tree added mid-session appear
-    // without restarting the server
-    const file = join(
-      mkdtempSync(join(tmpdir(), 'crust-reg-')),
-      'workspaces.jsonl',
-    )
-    const absent = registryStamp(file)
-
-    // when
-    writeFileSync(file, `${JSON.stringify({ root: '/t', db: '/t/x.db' })}\n`)
-    const present = registryStamp(file)
-
-    // then
-    expect(absent).toEqual(0)
-    expect(present).toBeGreaterThan(0)
-  },
-)
-
-test(
-  [
-    'given server/workspaces::readRegistry',
-    'when a record carries a root that is not two levels above its db',
-    'it should use the recorded root and label the tree, not the pooled directory',
-  ].join(', '),
-  () => {
-    // given \u2014 a pooled store: the db sits under
-    // `<clone>/.pi-crust/data/issues/41/crust.db`, which two-levels-up
-    // arithmetic would resolve to `<clone>/.pi-crust/data`
-    const file = join(
-      mkdtempSync(join(tmpdir(), 'crust-reg-')),
-      'workspaces.jsonl',
-    )
-    writeFileSync(
-      file,
-      `${JSON.stringify({
-        root: '/clone',
-        db: '/clone/.pi-crust/data/issues/41/crust.db',
-      })}\n`,
-    )
-
-    // when
-    const actual = readRegistry(file)
-
-    // then
-    expect(actual).toEqual([
-      {
-        label: 'clone',
-        dbPath: '/clone/.pi-crust/data/issues/41/crust.db',
-        root: '/clone',
-      },
-    ])
-  },
-)
-
-test(
-  [
-    'given server/workspaces::resolveWorkspaces',
-    'when CRUST_WORKSPACE_ROOT is set',
-    "it should carry that root for the here workspace, not the pooled store's two-levels-up directory",
-  ].join(', '),
-  () => {
-    // given \u2014 a pooled `data_dir`, the shape `workspaceRootOf` gets wrong
-    const clone = mkdtempSync(join(tmpdir(), 'crust-workspace-root-'))
-    const pooledDb = join(
-      clone,
-      '.pi-crust',
-      'data',
-      'issues',
-      '41',
-      'crust.db',
-    )
-    mkdirSync(join(clone, '.pi-crust', 'data', 'issues', '41'), {
-      recursive: true,
-    })
-    writeFileSync(pooledDb, '')
-
-    // when
-    const actual = resolveWorkspaces(['bun', 'server'], {
-      ...sealed(),
-      CRUST_DB: pooledDb,
-      CRUST_WORKSPACE_ROOT: clone,
-    })
-
-    // then
-    expect(actual[0]?.root).toEqual(clone)
-    expect(actual[0]?.root).not.toEqual(join(clone, '.pi-crust', 'data'))
   },
 )
 
@@ -688,5 +476,32 @@ test.skipIf(!integrationTestsEnabled)(
 
     // then
     expect(actual).toEqual([])
+  },
+)
+
+test(
+  [
+    'given old machine registration and launch-directory hints',
+    'when resolving default stores',
+    'it should ignore both and show exactly the selected shared store',
+  ].join(', '),
+  () => {
+    // given
+    const home = tree('machine')
+    const elsewhere = tree('other')
+    writeFileSync(
+      join(home, '.pi-crust/workspaces.jsonl'),
+      JSON.stringify({ root: elsewhere, db: dbIn(elsewhere) }),
+    )
+    // when
+    const actual = resolveWorkspaces([], {
+      HOME: home,
+      CRUST_DB: dbIn(home),
+      CRUST_WORKSPACE_ROOT: elsewhere,
+    })
+    // then
+    expect(actual).toEqual([
+      { label: 'machine', root: home, dbPath: dbIn(home) },
+    ])
   },
 )

@@ -1,5 +1,4 @@
 import { afterAll, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
@@ -15,14 +14,8 @@ import {
 const registeredTheme = {
   name: 'high-contrast',
   label: 'High contrast',
-  builtin: false,
-  css: readFileSync(
-    new URL(
-      '../../../../../../../templates/stamp/config/high-contrast.css',
-      import.meta.url,
-    ),
-    'utf8',
-  ),
+  builtin: true,
+  css: '',
 }
 const markdown = [
   '# Handoff document',

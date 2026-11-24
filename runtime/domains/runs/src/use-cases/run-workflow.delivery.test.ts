@@ -181,13 +181,11 @@ test.skipIf(SKIP_INTEGRATION)(
       },
       observability: {
         ...environment.run.cfg.observability,
-        db: run.tracer.dbPath,
       },
     })
     // biome-ignore lint/plugin/no-object-mutation: this disposable environment owns the DB and registry overrides and restores both on disposal
     Object.assign(process.env, {
       CRUST_DB: run.tracer.dbPath,
-      CRUST_REGISTRY: join(dir, 'workspaces.jsonl'),
     })
     const { ports, requests } = portsFor(() => work())
     const signals = {

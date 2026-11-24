@@ -1,5 +1,4 @@
 import { afterAll, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import type { Page } from 'playwright'
 import {
   browserTestsEnabled,
@@ -27,13 +26,6 @@ const HARNESS_HTML = `<!doctype html>
 <script type="module" src="/src/domains/activity-runs/src/_components/__fixtures__/activity-run-detail-harness.tsx"></script>
 </body></html>`
 
-const highContrastCss = readFileSync(
-  new URL(
-    '../../../../../../../templates/stamp/config/high-contrast.css',
-    import.meta.url,
-  ),
-  'utf8',
-)
 const THEMES = [{ theme: 'Dark', scheme: 'dark' }] as const
 const TABS = ['chat', 'highlights', 'context', 'events'] as const
 const DETAIL = '#root main > section'
@@ -73,8 +65,8 @@ const withDetail = (
                 {
                   name: 'high-contrast',
                   label: 'High contrast',
-                  builtin: false,
-                  css: highContrastCss,
+                  builtin: true,
+                  css: '',
                 },
               ],
             }
@@ -97,11 +89,6 @@ const withDetail = (
       )
       await page.goto(`${base}/__diag__/index.html${query}`)
       await page.getByRole('tab', { name: 'events' }).waitFor()
-      await page.waitForFunction(() =>
-        document
-          .getElementById('crust-custom-themes')
-          ?.textContent?.includes('high-contrast'),
-      )
       await page.evaluate(() => document.fonts.ready)
       await check(page)
     },

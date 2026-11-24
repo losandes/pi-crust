@@ -3,13 +3,14 @@ import { safeParseSettlement } from '../lib/typedefs'
 export const FRESH_INSTALL_FILES: readonly string[] = [
   '.env.pi-crust.example',
   '.gitignore',
-  '.pi-crust/data/pi-crust-home',
   'justfile',
   'pi-crust.toml',
 ]
 export type TFreshInstall = Readonly<{
   files: readonly string[]
   installed: string
+  record: string
+  home: string
   template: string
 }>
 
@@ -18,9 +19,14 @@ export const installFaults = ({
   files,
   installed,
   template,
+  record,
+  home,
 }: TFreshInstall): readonly string[] => {
   const parsed = safeParseSettlement(() => Bun.TOML.parse(installed))
   return [
+    ...(record.trim() === home
+      ? []
+      : [`machine record names '${record.trim()}'; expected '${home}'`]),
     ...(JSON.stringify(files.toSorted()) === JSON.stringify(FRESH_INSTALL_FILES)
       ? []
       : [

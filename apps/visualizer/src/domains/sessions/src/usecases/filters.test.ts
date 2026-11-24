@@ -7,6 +7,7 @@ import {
 import {
   ARCHIVED_OPTIONS,
   DEFAULT_FILTERS,
+  FILTER_KEYS,
   STATUS_ORDER,
 } from '../typedefs/filters'
 import type { SessionSummary } from '../typedefs/session'
@@ -49,11 +50,13 @@ test(
     'it should leave every category empty except archived, which is active-only',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = DEFAULT_FILTERS
 
     // then
     expect(actual).toEqual({
+      repository: [],
       workspace: [],
       lifecycle: [],
       status: [],
@@ -267,7 +270,8 @@ test(
     'it should be false',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = needsArchived(DEFAULT_FILTERS)
 
     // then
@@ -423,7 +427,8 @@ test(
     'it should be the documented storage key',
   ].join(', '),
   () => {
-    // given, when
+    // given
+    // when
     const actual = FILTER_STORAGE_KEY
 
     // then
@@ -464,5 +469,33 @@ test(
 
     // then
     expect(actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given sessions from two repositories and an unknown origin',
+    'when a repository is selected',
+    'it should filter by full path without attributing unknown sessions',
+  ].join(', '),
+  () => {
+    // given
+    const sessions = [
+      session({ repository_root: '/a/repo' }),
+      session({ repository_root: '/b/repo' }),
+      session({}),
+    ]
+    // when
+    const options = optionsFor(sessions, 'repository')
+    const selected = sessions.filter((row) =>
+      matchesFilters(row, { ...DEFAULT_FILTERS, repository: ['/a/repo'] }),
+    )
+    // then
+    expect(FILTER_KEYS[0]).toBe('repository')
+    expect(options).toEqual(['/a/repo', '/b/repo'])
+    expect(selected).toEqual([sessions[0]])
+    expect(matchesFilters(sessions[2] ?? session({}), DEFAULT_FILTERS)).toBe(
+      true,
+    )
   },
 )

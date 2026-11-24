@@ -34,7 +34,7 @@ const fixture = (dir: string, options: TFixtureOptions = {}) => {
     configPath,
     configText({
       defaults: { data_dir: dir },
-      observability: { db: dbPath },
+      observability: {},
       agents: [],
     }),
   )

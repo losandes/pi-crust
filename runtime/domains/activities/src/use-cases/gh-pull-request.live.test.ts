@@ -157,7 +157,7 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
           purpose: 'Push the run and open or update a pull request',
         }),
       ],
-      observability: { db: join(contextHandoffDir, 'no-such.db') },
+      observability: {},
       defaults: {
         data_dir: join(contextHandoffDir, 'runtime'),
         protected_files: [],

@@ -2,7 +2,6 @@ import { DEFAULT_CONFIG_PATH } from '../../../../lib/contracts'
 import {
   configPathFromEnv,
   dataDirFromEnv,
-  dbPathFromEnv,
   type TEnv,
 } from '../../../../lib/system'
 import { backendPort, frontendPort } from '../../../trace'
@@ -72,11 +71,6 @@ export const configProvenance = (
         ? withEnvironment(one, 'CRUST_DATA_DIR', dataDirFromEnv(env))
         : one
     }),
-    withEnvironment(
-      entry('db', config.observability.db),
-      'CRUST_DB',
-      dbPathFromEnv(env),
-    ),
     entry('poll_ms', config.observability.poll_ms),
     ...(['backend', 'frontend'] as const).map((key) => {
       const variable = key === 'backend' ? 'CRUST_BE_PORT' : 'CRUST_FE_PORT'

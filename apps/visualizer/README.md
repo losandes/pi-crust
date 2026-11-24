@@ -1,6 +1,6 @@
 # The pi-crust visualizer
 
-A web app for watching a run happen, and for reading one after it has. It ships with the pi-crust package rather than with the stamp, and `just crust observe` boots it against the trace database of whichever working tree you are standing in.
+A web app for watching a run happen, and for reading one after it has. It ships with the pi-crust package rather than with the stamp, and `just crust observe` boots it against the shared machine trace at `~/.pi-crust/data/crust.db`, irrespective of the working tree you are standing in.
 
 ```sh
 just crust observe              # configured TOML ports (4601, api on 4600 by default)
@@ -8,6 +8,8 @@ just crust observe --host       # listen on every interface, so a phone can watc
 ```
 
 Ports and `poll_ms` are read from the package's `runtime/config/crust.config.toml`, then `~/.pi-crust/config/crust.config.toml`, then the repository's single `pi-crust.toml`. Valid `CRUST_BE_PORT` and `CRUST_FE_PORT` overrides still win. The launcher forwards the polling interval to the API, and `GET /api/health` supplies it to the browser before its first render. A package or machine setting changes the next launch without re-stamping.
+
+The installer writes the machine record `~/.pi-crust/pi-crust-home` and nothing under the repository's `.pi-crust/`. Added themes live only in the machine configuration, alongside viewer settings: `[themes.<name>]` adds a label and a stylesheet relative to that directory to the five built-ins. Leftover `.pi-crust/config/crust.observe.yaml` and `.pi-crust/data/pi-crust-home` files are not read or deleted.
 
 ## Styling
 
@@ -19,7 +21,7 @@ Style components with Tailwind utility classes only, following the portable [CSS
 
 Browser tests import `viewportWidths` from `@/lib/testing` and refer to widths by tier: `base`, `sm`, `md`, `lg`, `xl` and `2xl`. The helper reads Tailwind's default `--breakpoint-*` values and takes the base width from the `phoneViewport` constant, checked against Playwright's small-phone device descriptor by an integration test; do not repeat viewport dimensions in tests.
 
-Whole-page browser checks exercise the dashboard and populated trace inside the app shell at every tier, with the activity detail closed and with each detail tab open. They cover Dark, Light, Auto under both system preferences, and a runtime-registered High contrast theme with thicker borders, measuring document scroll width against the viewport with a 1 CSS pixel tolerance.
+Whole-page browser checks exercise the dashboard and populated trace inside the app shell at every tier, with the activity detail closed and with each detail tab open. They cover Dark, Light, Auto under both system preferences, and the built-in High contrast theme with thicker borders, measuring document scroll width against the viewport with a 1 CSS pixel tolerance.
 
 Integration tests run only under `RUN_INTEGRATION_TESTS=true`. The root `test:agent` and `test:raw` mise tasks set it; `test`, `test:be` and `test:fe` do not. These integrations are the browser-driven tests, the git-repository tests in `server/workspaces.test.ts`, and the Playwright viewport-descriptor check. From the repository root, run `CLAUDECODE=1 bun test apps/visualizer` for the fast suite or `RUN_INTEGRATION_TESTS=true CLAUDECODE=1 bun test <path>` for a scoped integration run. Browser tests also require Chromium: run `bunx playwright install chromium` from `apps/visualizer` if it is unavailable.
 
@@ -29,7 +31,7 @@ Reads come straight from the trace: sessions, Activity Runs, events, envelopes a
 
 Writes are different, and they live behind one unconditional token. `CRUST_TOKEN` must be set on the server and sent as `x-crust-token`; with no token set, every write is refused rather than allowed. Steering a live agent, answering a gate and starting a run all spend money or change a working tree, and "the request came from localhost" is not an identity.
 
-Everything the server starts — `steer`, `ask`, `amend`, a new run — is resolved through `CRUST_HOME`, or through the `.pi-crust/data/pi-crust-home` the installer wrote. The runtime is not in the stamp, so a path relative to the repository would resolve to nothing.
+Everything the server starts — `steer`, `ask`, `amend`, a new run — is resolved through `CRUST_HOME`, or through the `~/.pi-crust/pi-crust-home` machine record the installer wrote. The runtime is not in the stamp, so a path relative to the repository would resolve to nothing.
 
 ## Activities, not Stages
 

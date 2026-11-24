@@ -1,5 +1,13 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -9,6 +17,7 @@ import {
 import { parseCli } from './parse-cli'
 import {
   INVOCATION_FILENAME,
+  installedEntry,
   recordedInvocation,
   resumeArgv,
   resumeRecordedRun,
@@ -293,3 +302,57 @@ test(
     }
   },
 )
+
+for (const present of [true, false]) {
+  test(
+    [
+      'given a recorded installation A and selected installation B with entry ' +
+        present,
+      'when a CLI resume starts',
+      'it should run only B or refuse the missing entry',
+    ].join(', '),
+    async () => {
+      // given
+      const root = realpathSync(
+        mkdtempSync(join(tmpdir(), 'crust-cli-installation-')),
+      )
+      const runtime = join(root, 'B/runtime')
+      const script = join(root, 'A/runtime/commands/run.ts')
+      const entry = join(runtime, 'commands/run.ts')
+      const receipt = join(root, 'receipt')
+      mkdirSync(join(runtime, 'commands'), { recursive: true })
+      if (present)
+        writeFileSync(
+          entry,
+          `await Bun.write(${JSON.stringify(receipt)}, process.argv[1] ?? '')`,
+        )
+      writeFileSync(
+        join(root, 'invocation.json'),
+        JSON.stringify({ argv: ['bun', script, 'request'], cwd: root }),
+      )
+      silenceTerminal()
+      try {
+        // when
+        const result = resumeRecordedRun(root, 'attached', runtime)
+        if (result.finished) expect(await result.finished).toBe(0)
+        // then
+        expect(result.started).toBe(present)
+        expect(installedEntry('/external/script.ts', runtime)).toBe(
+          '/external/script.ts',
+        )
+        if (present) {
+          expect(readFileSync(receipt, 'utf8')).toBe(entry)
+          expect(result.command).toContain(entry)
+        } else {
+          expect(result.reason).toBe(
+            `${script} is not an entry point of the pi-crust at ${join(root, 'B')}`,
+          )
+          expect(existsSync(receipt)).toBe(false)
+        }
+      } finally {
+        restoreTerminal()
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}

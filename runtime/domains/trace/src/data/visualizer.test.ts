@@ -5,6 +5,7 @@ import {
   DEFAULT_BE_PORT,
   DEFAULT_FE_PORT,
   frontendPort,
+  observeDbPath,
   observeEnv,
   runLink,
   visualizerIsUp,
@@ -233,5 +234,28 @@ test(
 
     // then
     expect(actual).toBe('http://localhost:5601/#/run_1')
+  },
+)
+
+test(
+  [
+    'given database launch inputs',
+    'when observe selects its store',
+    'it should prefer a reader override then configuration then the shared home default',
+  ].join(', '),
+  () => {
+    // given
+    // when
+    const values = [
+      observeDbPath({ CRUST_DB: '/override.db' }, '/configured.db'),
+      observeDbPath({ CRUST_DB: ' ' }, '/configured.db'),
+      observeDbPath({ HOME: '/scratch/user' }, undefined),
+    ]
+    // then
+    expect(values).toEqual([
+      '/override.db',
+      '/configured.db',
+      '/scratch/user/.pi-crust/data/crust.db',
+    ])
   },
 )

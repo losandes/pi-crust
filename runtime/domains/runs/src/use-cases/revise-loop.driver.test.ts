@@ -54,7 +54,7 @@ const aRun = (cfg: TPiCrustConfig, resume?: ReadonlySet<string>): TRun => {
     crustConfigSchema.parse({
       ...cfg,
       defaults: { data_dir: join(dir, 'runtime') },
-      observability: { db: join(dir, 'crust.db') },
+      observability: {},
     }),
     resume,
   )

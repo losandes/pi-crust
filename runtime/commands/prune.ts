@@ -73,6 +73,7 @@ export const main = (argv: readonly string[]): number => {
   const treeFilter = flag(argv, '--tree')
 
   const db = new Database(dbPath)
+  db.run('PRAGMA busy_timeout=5000')
   // The sessions directory is a sibling of the database (1.8.3): a pooled
   // store relocated with the config's data_dir is followed with no change
   // here, because this derives it from the db path rather than assuming

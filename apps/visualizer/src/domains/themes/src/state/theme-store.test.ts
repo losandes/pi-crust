@@ -84,10 +84,10 @@ test(
   [
     'given theme::storedTheme',
     'when storage holds a theme this app did not ship',
-    'it should honour it, because a repository may have registered it',
+    'it should honour it, because the developer may have registered it',
   ].join(', '),
   () => {
-    // given — a theme the observed repository defines in crust.observe.yaml.
+    // given — a theme the developer registers in ~/.pi-crust/config/crust.config.toml.
     // The set of themes is open, so this module cannot tell a team's theme
     // from a typo, and refusing both would make a registered theme
     // unselectable after a reload.

@@ -4,7 +4,6 @@ import '@fontsource/play/700.css'
 import '@/style.css'
 import DefaultLayout from '@/layouts/default-layout'
 import { useRoute } from '@/lib/router'
-import highContrastCss from '../../../../../../../../templates/stamp/config/high-contrast.css?raw'
 import { SessionTrace } from '../SessionTrace'
 
 const now = Date.now()
@@ -224,9 +223,8 @@ const themes = [
   {
     name: 'high-contrast',
     label: 'High contrast',
-    builtin: false,
-    css: `${highContrastCss}
-[data-theme='high-contrast'] { --edge-alpha: 0.73; --fill-soft: 0.27; }`,
+    builtin: true,
+    css: '',
   },
 ]
 

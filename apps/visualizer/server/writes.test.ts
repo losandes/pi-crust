@@ -16,11 +16,14 @@ import {
   crustRuntime,
   isInboxKind,
   isSafeSegment,
+  NO_ENTRY,
   NO_RUNTIME,
   postMessage,
   recordDecision,
   refuseUnlessAuthorised,
+  resumeEntry,
   resumeRun,
+  runWorkingTree,
   sessionDir,
   startConsult,
   startRun,
@@ -98,7 +101,7 @@ const stampedTree = (home?: string): string => {
   const root = mkdtempSync(join(tmpdir(), 'crust-writes-'))
   mkdirSync(join(root, '.pi-crust', 'data'), { recursive: true })
   if (home !== undefined) {
-    writeFileSync(join(root, '.pi-crust', 'data', 'pi-crust-home'), home)
+    writeFileSync(join(root, '.pi-crust', 'pi-crust-home'), home)
   }
   return root
 }
@@ -174,7 +177,9 @@ const track = (path: string): string => {
 const withHome = (
   home?: string,
 ): Readonly<Record<string, string | undefined>> =>
-  home === undefined ? {} : { CRUST_HOME: home }
+  home === undefined
+    ? { HOME: '/nonexistent/crust-home' }
+    : { HOME: '/nonexistent/crust-home', CRUST_HOME: home }
 
 afterEach(() => {
   for (const path of created) {
@@ -195,7 +200,7 @@ test(
     const root = track(stampedTree(home))
 
     // when
-    const actual = crustRuntime(dbOf(root), withHome())
+    const actual = crustRuntime({ ...withHome(), HOME: root })
 
     // then
     expect(actual).toBe(join(home, 'runtime'))
@@ -214,7 +219,7 @@ test(
     const root = track(stampedTree('/gone/stale/path'))
 
     // when
-    const actual = crustRuntime(dbOf(root), withHome(home))
+    const actual = crustRuntime({ ...withHome(home), HOME: root })
 
     // then
     expect(actual).toBe(join(home, 'runtime'))
@@ -232,7 +237,7 @@ test(
     const root = track(stampedTree())
 
     // when
-    const actual = crustRuntime(dbOf(root), withHome())
+    const actual = crustRuntime({ ...withHome(), HOME: root })
 
     // then
     expect(actual).toBeUndefined()
@@ -250,7 +255,16 @@ test(
     const root = track(stampedTree())
 
     // when
-    const actual = startSteer(dbOf(root), 'a1b2c3d4', 'plan', 'overwrite', 'x')
+    const actual = startSteer(
+      dbOf(root),
+      root,
+      'a1b2c3d4',
+      'plan',
+      'overwrite',
+      'x',
+      undefined,
+      withHome(),
+    )
 
     // then
     expect(actual.started).toBe(false)
@@ -270,7 +284,14 @@ test(
     const root = track(stampedTree())
 
     // when
-    const actual = startRun(dbOf(root), 'sdlc', 'add a /health endpoint', [])
+    const actual = startRun(
+      dbOf(root),
+      root,
+      'sdlc',
+      'add a /health endpoint',
+      [],
+      withHome(),
+    )
 
     // then
     expect(actual.run_id).toBe('')
@@ -292,6 +313,7 @@ test(
     // when
     const actual = startSteer(
       dbOf(root),
+      root,
       'a1b2c3d4',
       'plan',
       'branch',
@@ -317,6 +339,7 @@ test(
     // when
     const actual = startSteer(
       dbOf(root),
+      root,
       'a1b2c3d4',
       'plan',
       'overwrite',
@@ -513,6 +536,7 @@ test(
     // when
     const actual = startSteer(
       dbOf(root),
+      root,
       'a1b2c3d4',
       'plan',
       'overwrite',
@@ -562,6 +586,7 @@ test(
     // when
     const actual = startSteer(
       dbOf(root),
+      root,
       'a1b2c3d4',
       'plan',
       'branch',
@@ -604,6 +629,7 @@ test(
     // when
     const actual = startConsult(
       dbOf(root),
+      root,
       'a1b2c3d4',
       'plan',
       'ask',
@@ -652,7 +678,8 @@ test(
     )
     const spy = spawnSpy()
     const { spawnChild } = spy
-    const env = { ...withHome(), CRUST_DB: dbOf(root) }
+    const home = track(packageTree())
+    const env = { ...withHome(home), CRUST_DB: dbOf(root) }
 
     // when
     const actual = resumeRun(
@@ -668,7 +695,7 @@ test(
     expect(actual.resumed).toBe(true)
     expect(spy.calls[0]?.command).toBe('bun')
     expect(spy.calls[0]?.args).toEqual([
-      'runtime/cli.ts',
+      join(home, 'runtime/cli.ts'),
       '--lifecycle',
       'sdlc',
       '--run-id',
@@ -707,6 +734,7 @@ test(
     // when
     const actual = startRun(
       dbOf(root),
+      root,
       'sdlc',
       'add a /health endpoint',
       ['--name', 'health'],
@@ -746,7 +774,8 @@ test(
     'it should accept it as a path segment',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = isSafeSegment('a1b2_c3-d4')
 
     // then
@@ -761,7 +790,8 @@ test(
     'it should refuse it',
   ].join(', '),
   () => {
-    // given / when
+    // given
+    // when
     const actual = isSafeSegment('../etc/passwd')
 
     // then
@@ -956,7 +986,8 @@ test(
     'it should accept it',
   ].join(', '),
   () => {
-    // given / when / then
+    // given
+    // when / then
     expect(isInboxKind('steer')).toBe(true)
     expect(isInboxKind('follow_up')).toBe(true)
     expect(isInboxKind('abort')).toBe(true)
@@ -970,7 +1001,8 @@ test(
     'it should refuse it',
   ].join(', '),
   () => {
-    // given / when / then
+    // given
+    // when / then
     expect(isInboxKind('nonsense')).toBe(false)
     expect(isInboxKind(42)).toBe(false)
   },
@@ -1055,7 +1087,15 @@ test(
     const root = track(stampedTree())
 
     // when
-    const actual = startConsult(dbOf(root), 'a1b2c3d4', 'plan', 'ask', 'why?')
+    const actual = startConsult(
+      dbOf(root),
+      root,
+      'a1b2c3d4',
+      'plan',
+      'ask',
+      'why?',
+      withHome(),
+    )
 
     // then
     expect(actual.started).toBe(false)
@@ -1108,3 +1148,107 @@ test(
     expect(actual.reason).toBe('recorded argv is unusable')
   },
 )
+
+for (const mode of ['recorded', 'fallback', 'gone', 'invalid'] as const) {
+  test(
+    [
+      `given a working tree lookup with ${mode}`,
+      'when a viewer action is requested',
+      'it should use only an existing recorded or invocation working directory',
+    ].join(', '),
+    () => {
+      // given
+      const root = track(stampedTree())
+      const missing = join(root, 'missing')
+      writeFileSync(
+        join(root, 'invocation.json'),
+        mode === 'invalid'
+          ? 'broken'
+          : JSON.stringify({ cwd: mode === 'gone' ? missing : root }),
+      )
+      // when
+      const actual = runWorkingTree(mode === 'recorded' ? root : missing, root)
+      // then
+      expect(actual).toBe(
+        mode === 'recorded' || mode === 'fallback' ? root : undefined,
+      )
+    },
+  )
+}
+for (const mode of [
+  'override',
+  'record',
+  'missing',
+  'no-entry',
+  'no-cwd',
+  'script',
+] as const) {
+  test(
+    [
+      `given a recorded run with ${mode}`,
+      'when the viewer resumes it',
+      'it should select the installation before spawning and carry the trace directory',
+    ].join(', '),
+    () => {
+      // given
+      const root = track(stampedTree())
+      const home = track(packageTree())
+      const session = sessionDir(dbOf(root), 'resume196')
+      mkdirSync(session, { recursive: true })
+      mkdirSync(join(home, 'runtime/commands'))
+      if (mode !== 'no-entry')
+        writeFileSync(join(home, 'runtime/commands/run.ts'), '')
+      const script =
+        mode === 'script'
+          ? '/external/script.ts'
+          : '/old/runtime/commands/run.ts'
+      writeFileSync(
+        join(session, 'invocation.json'),
+        JSON.stringify({
+          argv: ['bun', script, 'request'],
+          ...(mode === 'no-cwd' ? {} : { cwd: root }),
+        }),
+      )
+      if (mode === 'record')
+        writeFileSync(join(root, '.pi-crust/pi-crust-home'), home)
+      const env = {
+        HOME: root,
+        ...(mode === 'record' || mode === 'missing'
+          ? {}
+          : { CRUST_HOME: home }),
+      }
+      const spy = spawnSpy()
+      // when
+      const result = resumeRun(
+        dbOf(root),
+        'resume196',
+        '',
+        'tester',
+        env,
+        spy.spawnChild,
+      )
+      // then
+      const starts = !['missing', 'no-entry', 'no-cwd'].includes(mode)
+      expect(result.resumed).toBe(starts)
+      expect(spy.calls.length).toBe(starts ? 1 : 0)
+      if (starts) {
+        expect(spy.calls[0]?.args[0]).toBe(
+          mode === 'script' ? script : join(home, 'runtime/commands/run.ts'),
+        )
+        expect(spy.calls[0]?.options.cwd).toBe(root)
+        expect(envOf(spy.calls[0]).CRUST_DATA_DIR).toBe(
+          join(root, '.pi-crust/data'),
+        )
+        expect(envOf(spy.calls[0]).CRUST_DB).toBe(dbOf(root))
+      }
+      if (mode === 'missing') expect(result.reason).toBe(NO_RUNTIME)
+      if (mode === 'no-entry')
+        expect(result.reason).toBe(
+          NO_ENTRY('resume196', script, join(home, 'runtime')),
+        )
+      expect(resumeEntry('/external/script.ts', join(home, 'runtime'))).toBe(
+        '/external/script.ts',
+      )
+    },
+  )
+}

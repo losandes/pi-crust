@@ -1,7 +1,11 @@
-/** Git, worktrees, roots, and the machine-local workspace registry */
+/** Git, worktrees, roots, and data paths */
 
 export { ABSENT, snapshotContent } from './src/data/content-snapshot'
-export { resolveDataPaths, resolveLookupPaths } from './src/data/data-paths'
+export {
+  primaryWorktree,
+  resolveDataPaths,
+  resolveLookupPaths,
+} from './src/data/data-paths'
 export { engineerName } from './src/data/engineer'
 export {
   changedFiles,
@@ -29,12 +33,6 @@ export type { TRoots } from './src/data/roots'
 export { resolveClaim } from './src/data/roots'
 export type { TTreeSnapshot } from './src/data/working-tree'
 export { historyPaths, snapshotTree } from './src/data/working-tree'
-export {
-  forgetWorkspaces,
-  readRegistry,
-  registerWorkspace,
-  registryPath,
-} from './src/data/workspace-registry'
 export {
   captureChanges,
   changesAsEnvelope,

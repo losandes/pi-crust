@@ -11,6 +11,8 @@ const valid = (): TFreshInstall => ({
   files: FRESH_INSTALL_FILES.toReversed(),
   installed: TEMPLATE,
   template: TEMPLATE,
+  record: '/package\n',
+  home: '/package',
 })
 
 for (const [name, transform, message] of [
@@ -107,6 +109,28 @@ for (const installed of [
       const actual = installFaults(install)
       // then
       expect(actual).toEqual([])
+    },
+  )
+}
+
+for (const record of ['', '/elsewhere', '/package\n']) {
+  test(
+    [
+      `given machine record ${record}`.trim(),
+      'when fresh-install invariants are checked',
+      'it should require the installer package root',
+    ].join(', '),
+    () => {
+      // given
+      const fixture = { ...valid(), record }
+      // when
+      const actual = installFaults(fixture)
+      // then
+      expect(actual.length).toBe(record.trim() === '/package' ? 0 : 1)
+      if (actual.length)
+        expect(actual[0]).toBe(
+          `machine record names '${record.trim()}'; expected '/package'`,
+        )
     },
   )
 }

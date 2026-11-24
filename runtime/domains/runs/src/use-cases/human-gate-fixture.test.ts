@@ -82,7 +82,6 @@ export const gateFixture = (
     CRUST_DATA_DIR: '',
     CRUST_DB: join(dir, 'crust.db'),
     CRUST_MACHINE_CONFIG: join(dir, 'absent-machine-config'),
-    CRUST_REGISTRY: join(dir, 'workspaces.jsonl'),
   }
   const original = Object.keys(environment).map((key) => ({
     key,
@@ -105,12 +104,15 @@ export const gateFixture = (
     writes: [],
   }))
   const cfg = crustConfigSchema.parse({
-    defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-    observability: { db: environment.CRUST_DB },
+    defaults: { data_dir: dir, protected_files: [] },
+    observability: {},
     agents: entries,
     activities: entries,
   })
-  const tracer = createTracer(cfg.observability.db, join(dir, 'events.jsonl'))
+  const tracer = createTracer(
+    join(cfg.defaults.data_dir, 'crust.db'),
+    join(dir, 'events.jsonl'),
+  )
   const run = createRun({
     cfg,
     runId: 'wait0117',

@@ -166,3 +166,19 @@ test(
     })
   },
 )
+
+test(
+  [
+    'given the configuration schema',
+    'when observability defaults are parsed',
+    'it should expose polling and ports without a database-location setting',
+  ].join(', '),
+  () => {
+    // given
+    const document = {}
+    // when
+    const actual = crustConfigSchema.parse(document).observability
+    // then
+    expect(Object.keys(actual).toSorted()).toEqual(['poll_ms', 'ports'])
+  },
+)

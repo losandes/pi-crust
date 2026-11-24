@@ -11,6 +11,7 @@ import { hrefFor } from '@/lib/router'
 import { archiveSession } from '../io/send-archive-session'
 import type { SessionSummary } from '../typedefs/session'
 import { resolveBranchLabel } from '../usecases/resolve-branch-label'
+import { resolveRepositoryLabel } from '../usecases/resolve-repository-label'
 
 /**
  * The timeline shows at most MAX_VISIBLE_ROWS slots. An overflowing roster
@@ -251,6 +252,13 @@ export const SessionCard = ({
       </button>
       <span className="flex-none truncate font-mono text-lg leading-normal font-bold text-purple">
         {session.run_id}
+      </span>
+      <span
+        data-testid="session-repository"
+        title={session.repository_root || 'repository not recorded'}
+        className="truncate text-dim"
+      >
+        {resolveRepositoryLabel(session)}
       </span>
       {/*
         The branch this run started on, in its tree's colour; the tree's name

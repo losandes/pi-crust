@@ -12,16 +12,17 @@
 
 import { safeParseSettlement, settledOr } from '@typedefs'
 
-/**
- * The themes that ship. A repository may register others, and may remove
- * these — so this is what the app knows, never what it offers. The offered
- * list comes from the `themes` in `crust.observe.yaml`, through
- * `/api/themes`.
- */
-export const THEMES = ['auto', 'light', 'dark'] as const
+/** The five built-in themes; machine registrations may add others. */
+export const THEMES = [
+  'auto',
+  'light',
+  'dark',
+  'dracula',
+  'high-contrast',
+] as const
 
 /**
- * A theme name, which is any string a repository registered.
+ * A theme name, which is any string a machine registered.
  *
  * It was a union of the four that shipped. It cannot be: the set is open
  * now, and a union would make a team's own theme a type error at the only
@@ -50,10 +51,9 @@ export const isTheme = (value: unknown): value is TTheme =>
  * who has turned on increased contrast is telling you something about
  * legibility, where a light/dark preference is mostly about taste.
  *
- * `high-contrast` is a theme a repository registers rather than one the app
- * ships — the stamp ships it as `config/high-contrast.css`. A repository that
- * deleted it resolves to a name with no rules, which falls through to the
- * base palette, the same as any other removed theme.
+ * `high-contrast` is built into `tokens.css`, so a system contrast preference
+ * always selects a shipped palette. Machine `[themes.<name>]` entries only
+ * add themes; they cannot remove or replace the built-ins.
  */
 export const systemTheme = (
   matchMedia: (query: string) => { matches: boolean },
@@ -78,7 +78,9 @@ export const resolveTheme = (
  * preference we can no longer honour, and following the system is the right
  * answer to that.
  */
-export const storedTheme = (storage: Pick<Storage, 'getItem'>): TTheme =>
+export const storedTheme = (
+  storage: Readonly<Pick<Storage, 'getItem'>>,
+): TTheme =>
   settledOr<TTheme>(
     safeParseSettlement(() => {
       const raw = storage.getItem(THEME_STORAGE_KEY)
@@ -96,7 +98,7 @@ export const storedTheme = (storage: Pick<Storage, 'getItem'>): TTheme =>
  * can show "Auto" as selected while rendering dark.
  */
 export const applyTheme = (
-  root: Pick<HTMLElement, 'setAttribute'>,
+  root: Readonly<Pick<HTMLElement, 'setAttribute'>>,
   theme: TTheme,
   matchMedia: (query: string) => { matches: boolean },
 ): TResolvedTheme => {
@@ -107,7 +109,7 @@ export const applyTheme = (
 }
 
 export const saveTheme = (
-  storage: Pick<Storage, 'setItem'>,
+  storage: Readonly<Pick<Storage, 'setItem'>>,
   theme: TTheme,
 ): void => {
   // A private window with storage denied still gets a working theme for the
@@ -123,5 +125,6 @@ export const THEME_LABELS: Readonly<Record<TTheme, string>> = {
   auto: 'Auto',
   light: 'Light',
   dark: 'Dark',
+  dracula: 'Dracula',
   'high-contrast': 'High contrast',
 }

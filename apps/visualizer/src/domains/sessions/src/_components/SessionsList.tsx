@@ -18,6 +18,7 @@ import {
   needsArchived,
   optionsFor,
 } from '../usecases/filters'
+import { lastPathSegment } from '../usecases/resolve-repository-label'
 import { FilterDropdown } from './FilterDropdown'
 import { SessionCard } from './SessionCard'
 
@@ -181,6 +182,7 @@ export const SessionsList = () => {
                   <FilterDropdown
                     key={key}
                     label={FILTER_LABELS[key]}
+                    labelOf={key === 'repository' ? lastPathSegment : undefined}
                     options={options}
                     selected={filters[key]}
                     open={openKey === key}

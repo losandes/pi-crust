@@ -3,7 +3,6 @@ import '@fontsource/play/400.css'
 import '@fontsource/play/700.css'
 import '@/style.css'
 import DefaultLayout from '@/layouts/default-layout'
-import highContrastCss from '../../../../../../../../templates/stamp/config/high-contrast.css?raw'
 import { SessionsList } from '../SessionsList'
 
 const query = new URLSearchParams(window.location.search)
@@ -101,8 +100,8 @@ const themes = [
   {
     name: 'high-contrast',
     label: 'High contrast',
-    builtin: false,
-    css: highContrastCss,
+    builtin: true,
+    css: '',
   },
 ]
 

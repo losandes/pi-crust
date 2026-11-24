@@ -52,7 +52,7 @@ for (const one of [
         )
         const cfg = crustConfigSchema.parse({
           defaults: { data_dir: '{primary_worktree}/.pi-crust/data' },
-          observability: { db: '{primary_worktree}/.pi-crust/data/crust.db' },
+          observability: {},
           agents: [],
         })
         const env = one.override ? { CRUST_DB: dbPath } : {}

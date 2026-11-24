@@ -30,7 +30,7 @@ const aRun = (): TRun => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-activities-driver-'))
   const cfg = crustConfigSchema.parse({
     defaults: { data_dir: join(dir, 'runtime') },
-    observability: { db: join(dir, 'crust.db') },
+    observability: {},
     agents: [],
   })
 

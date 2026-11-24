@@ -34,7 +34,6 @@ const fixture = () => {
   const environment = {
     machine: process.env.CRUST_MACHINE_CONFIG ?? '',
     data: process.env.CRUST_DATA_DIR ?? '',
-    registry: process.env.CRUST_REGISTRY ?? '',
   }
   const registry = shippedConfig().activities.filter(
     (activity) => activity.name !== 'build',
@@ -64,8 +63,6 @@ const fixture = () => {
   process.env.CRUST_MACHINE_CONFIG = join(dir, 'absent-machine')
   // biome-ignore lint/plugin/no-object-mutation: the fixture owns the process environment consumed by the config boundary
   process.env.CRUST_DATA_DIR = ''
-  // biome-ignore lint/plugin/no-object-mutation: the fixture owns the registry destination
-  process.env.CRUST_REGISTRY = join(dir, 'registry.jsonl')
   const data = join(dir, 'data')
   const config = join(dir, 'pi-crust.toml')
   const system = join(dir, 'system.md')
@@ -76,7 +73,7 @@ const fixture = () => {
     config,
     configText({
       defaults: { data_dir: data },
-      observability: { db: join(data, 'crust.db') },
+      observability: {},
       agents: [
         {
           name: 'build',
@@ -173,8 +170,6 @@ const fixture = () => {
       process.env.CRUST_MACHINE_CONFIG = environment.machine
       // biome-ignore lint/plugin/no-object-mutation: restore environment owned by this fixture
       process.env.CRUST_DATA_DIR = environment.data
-      // biome-ignore lint/plugin/no-object-mutation: restore environment owned by this fixture
-      process.env.CRUST_REGISTRY = environment.registry
       rmSync(dir, { recursive: true, force: true })
     },
   }

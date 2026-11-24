@@ -6,7 +6,9 @@ The event schema, the seven SQLite tables, and the polling contract — the one 
 
 **Files are the raw record** (`raw_output.jsonl` streams, `envelope.json`, `agent_map.json`); **SQLite (`crust.db`) is the queryable mirror** the UI reads. `trace-db.ts` writes both. Losing the db loses nothing that can't be rebuilt from files.
 
-Location comes from top-level `db` in the merged TOML layers: `<pi-crust>/runtime/config/crust.config.toml`, then `~/.pi-crust/config/crust.config.toml`, then the repository's single `pi-crust.toml`. The package preserves the shared-worktree default `"{primary_worktree}/.pi-crust/data/crust.db"`; environment and supported command flags still override it. No install step copies or freezes the defaults.
+One trace per machine lives at `~/.pi-crust/data/crust.db`, alongside `sessions/`. `defaults.data_dir` in the merged TOML layers moves both together; `CRUST_DATA_DIR` overrides it. `CRUST_DB` and supported `--db` flags select a store for one reading command, not where runs write. No install step copies or freezes the defaults.
+
+`sessions.repository_root` records the repository's primary working tree, shared by linked worktrees; `workspace_root` records the particular working tree. An existing database gains the nullable `repository_root` column the first time a run writes to it; earlier rows and events are left unchanged. Read-only commands do not alter a database. Earlier per-repository traces stay untouched under the defaults.
 
 ## Event schema
 
@@ -54,7 +56,9 @@ sessions (
   status        TEXT,              -- running | success | fail
   engineer      TEXT,
   started_at    TEXT, ended_at TEXT,
-  total_tokens  INTEGER, total_cost REAL
+  total_tokens  INTEGER, total_cost REAL,
+  repository_root TEXT,           -- repository primary working tree
+  workspace_root TEXT             -- working tree used by this run
 );
 
 activity runs (
@@ -160,7 +164,7 @@ Keep the highest `rowid` returned as the next cursor. History is **the same quer
 bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] [--config <path>]
 ```
 
-No `run-id` means the most recent session. `--db` wins over `CRUST_DB` and the merged top-level TOML `db`, exposed to runtime readers as `cfg.observability.db`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
+No `run-id` means the most recent session in the whole shared trace. `--db` wins over `CRUST_DB`, then the database derived from `defaults.data_dir`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
 
 Exit codes, because an agent will branch on them:
 
@@ -246,42 +250,33 @@ Every narration event and every tool call carries the turn that produced it. Tha
 
 The database keeps a bounded tail per activity run. `raw_output.jsonl` keeps the complete text, so a long activity run can lose its earliest thinking from the UI while remaining whole on disk.
 
-## Watching several working trees
+## Watching every repository
 
-One page, however many trees you have agents running in. Each tree keeps its own trace database beside its own work; the observer merges them for display and writes back to whichever tree a run actually belongs to.
-
-A tree registers itself the first time a lifecycle runs in it, and the observer watches every registered tree by default. Nothing has to be named on the command line, and a tree added while the UI is running appears within a poll rather than needing a restart — which matters because the moment you add a worktree is the moment you are least willing to restart the thing you are watching.
-
-Registration is a file the run writes, not a call to the observer. The first run in a new tree is both the one most worth watching and the one that happens before anybody opens the UI, so registration has to work when nothing is listening: an API call would need the server already up, on a known port, with a token, and would lose exactly that run.
+One viewer lists the newest 200 sessions in the shared trace, wherever it was launched. Each session displays its recorded repository, or `unknown` when no origin was recorded. The repository filter uses the full repository path, so repositories sharing a directory name stay distinct. Filtering narrows only those loaded sessions. The branch label uses the recorded branch, then the working-tree directory name, then `unknown`; it never borrows the viewer's launch directory.
 
 ```bash
-just crust trees                      # the trees this machine has run in
-just crust forget-tree /path/to/tree  # stop watching one
-```
-
-Forgetting is always explicit. A tree whose database cannot be opened right now looks exactly like one on an unmounted volume or one that has simply moved, so an unreachable tree stays listed and says so rather than disappearing on its own.
-
-To watch a specific set instead of everything registered, name them — the flag wins over the registry, and both forms accept a tree or a database path:
-
-```bash
-just crust observe                                    # every registered tree
+just crust observe
+# Explicitly open an earlier per-repository trace:
+CRUST_DATA_DIR=<repo>/.pi-crust/data just crust observe
+# Start outside a repository:
+bun "$(cat ~/.pi-crust/pi-crust-home)/runtime/cli.ts" observe
+# Explicit additional stores remain supported:
 CRUST_WORKSPACES=/trees/a,api=/trees/b just crust observe
 ```
 
-The registry only ever contains trees where the factory has actually run, so watching all of them cannot sprawl into unrelated checkouts. A tree that has never run pi-crust is invisible, deliberately: `--all-worktrees` sweeps sibling git worktrees for databases as a one-off repair for a machine whose registry was deleted, and is not the normal path.
+`--all-worktrees` remains an explicit sweep for sibling worktrees holding databases, not the default. A link can name its store with `#/<workspace>:<run_id>`; unqualified links search every watched store. Viewer actions take their working directory from the run's recorded origin or invocation, never from the shared database's directory. They locate the package through `CRUST_HOME` or `~/.pi-crust/pi-crust-home` and report a failure when it is unavailable.
 
-In the UI, every run's card carries a chip naming the branch the run started on — the tree's name when no branch was recorded — in its tree's colour, whether one tree is being watched or several, and the run's own page shows the same text between its status and its start date. The tree filter above the list appears only when more than one tree is being watched. A link carries the tree when it is known — `#/<workspace>:<run_id>` — and an unqualified link still works: the server finds the run across every tree it watches.
+`report` without a run id, `sessions`, `please` and `prune` act on the whole shared trace, not just the current repository. Prune remains dry by default.
 
 ## Ports
 
 `[ports]` in the merged TOML configuration sets `backend` and `frontend`: package defaults first, machine settings under `~/.pi-crust/config/` next, the repository's `pi-crust.toml` last. `observe` and run links use the merged ports. Valid port variables below win over the configuration; malformed port variables leave its value in force.
 
-| Variable           | Default                        | What it moves                                            |
-| ------------------ | ------------------------------ | -------------------------------------------------------- |
-| `CRUST_BE_PORT`    | `ports.backend` (4600)         | the API the UI and every run talk to                     |
-| `CRUST_FE_PORT`    | `ports.frontend` (4601)        | the web app                                              |
-| `CRUST_WORKSPACES` | —                              | trees to watch, comma-separated, instead of the registry |
-| `CRUST_REGISTRY`   | `~/.pi-crust/workspaces.jsonl` | where registration is recorded                           |
+| Variable           | Default                 | What it moves                             |
+| ------------------ | ----------------------- | ----------------------------------------- |
+| `CRUST_BE_PORT`    | `ports.backend` (4600)  | the API the UI and every run talk to      |
+| `CRUST_FE_PORT`    | `ports.frontend` (4601) | the web app                               |
+| `CRUST_WORKSPACES` | —                       | explicit stores to watch, comma-separated |
 
 ```bash
 CRUST_BE_PORT=5600 CRUST_FE_PORT=5601 just crust observe
@@ -322,7 +317,7 @@ Five of them are research disciplines — `technical-research`, `ux-research`, `
 
 `ux-design` is not research: it decides. It produces an interface specification precise enough that an implementer invents no UX of their own, including every meaningful state, the keyboard and accessibility behaviour, and an explicit list of what was deliberately left open.
 
-`operator` chooses the chain and performs none of it. It is handed a catalogue of the Activities that exist — generated from the registry and the roster, never written into its prompt — and returns the smallest chain that can produce the outcome, with what it excluded and why. Its plan then becomes the rest of that same run, so the reasoning and the work it caused live in one trace.
+`operator` chooses the chain and performs none of it. It is handed a catalogue of the Activities that exist — generated from the Activity catalogue, never written into its prompt — and returns the smallest chain that can produce the outcome, with what it excluded and why. Its plan then becomes the rest of that same run, so the reasoning and the work it caused live in one trace.
 
 Two things govern it. `steps_valid` rejects a plan naming an Activity that does not exist, or naming another operator, and hands the mistake back to the same session to fix. The trust dial decides whether the chain may run unseen: below 50 the run stops and shows you the chain it proposes before spending anything on them, and at 50 or above it runs them and reports the choice with everything else the run decided for itself. There is no `--execute` flag, because that question is already answered by the dial, and two controls for one intention is a mistake this factory has made before.
 

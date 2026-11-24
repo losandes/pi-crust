@@ -168,7 +168,6 @@ export type TObservabilityPorts = Readonly<
 
 /** Top-level TOML db, poll_ms and ports, assembled under the existing reader API. */
 export const observabilityConfigSchema = z.object({
-  db: z.string().default(DEFAULT_DB),
   poll_ms: z.number().int().positive().default(DEFAULT_POLL_MS),
   ports: observabilityPortsSchema.prefault({}),
 })

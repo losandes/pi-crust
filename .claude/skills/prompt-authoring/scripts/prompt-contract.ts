@@ -256,31 +256,21 @@ const structuralFindings = (
     },
   )
 
-  /*
-   * Section rules apply to the prompts the harness ships and to a repository's
-   * own overrides, not to `templates/stamp/prompts/`, which holds a
-   * scaffold with angle-bracket blanks rather than a working prompt.
-   */
-  const isScaffold =
-    file.includes('/templates/stamp/') || file.includes('/prompts/example/')
+  // Section rules apply to every prompt checked; the source-path rule below applies only to prompts pi-crust ships.
   const basename = file.slice(file.lastIndexOf('/') + 1)
   const required = REQUIRED_SECTIONS[basename] ?? []
-  const sectionFindings: readonly Finding[] = isScaffold
-    ? []
-    : required
-        .filter((section) => !text.includes(`\n${section}`))
-        .map((section) => ({
-          file: relativePath,
-          line: 1,
-          rule: 'missing-section',
-          message: `every ${basename} carries a '${section}' section; this one does not`,
-        }))
+  const sectionFindings: readonly Finding[] = required
+    .filter((section) => !text.includes(`\n${section}`))
+    .map((section) => ({
+      file: relativePath,
+      line: 1,
+      rule: 'missing-section',
+      message: `every ${basename} carries a '${section}' section; this one does not`,
+    }))
 
   const reportIndex = text.indexOf('\n## Report')
   const reportFindings: readonly Finding[] =
-    isScaffold ||
-    (basename !== 'user.md' && basename !== 'revise.md') ||
-    reportIndex === -1
+    (basename !== 'user.md' && basename !== 'revise.md') || reportIndex === -1
       ? []
       : text.slice(reportIndex).includes('```json')
         ? []
@@ -295,17 +285,18 @@ const structuralFindings = (
             },
           ]
 
-  const sourcePathFindings: readonly Finding[] =
-    isScaffold || !relativePath.startsWith('runtime/prompts/')
-      ? []
-      : jsonSourcePaths(text).map((token) => ({
-          file: relativePath,
-          line: token.line,
-          rule: 'source-path-in-json',
-          message:
-            'shipped JSON examples must use angle-bracket path placeholders, ' +
-            'not source-file paths with a language extension',
-        }))
+  const sourcePathFindings: readonly Finding[] = relativePath.startsWith(
+    'runtime/prompts/',
+  )
+    ? jsonSourcePaths(text).map((token) => ({
+        file: relativePath,
+        line: token.line,
+        rule: 'source-path-in-json',
+        message:
+          'shipped JSON examples must use angle-bracket path placeholders, ' +
+          'not source-file paths with a language extension',
+      }))
+    : []
 
   return [
     ...variableFindings,

@@ -110,7 +110,7 @@ const aRun = (overrides: Readonly<Partial<TRun>> = {}): TRun => {
     contextHandoffDir,
     resume: new Set<string>(),
     cfg: {
-      observability: { db: join(contextHandoffDir, 'no-such.db') },
+      observability: {},
       tasks: {},
     },
     console: { note: () => undefined, gateResult: () => undefined },
@@ -190,7 +190,7 @@ for (const mode of [
         dir,
         crustConfigSchema.parse({
           defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-          observability: { db: join(dir, 'crust.db') },
+          observability: {},
           agents: [terminal],
           terminal: [terminal],
         }),
@@ -996,7 +996,7 @@ test(
       ...base,
       cfg: crustConfigSchema.parse({
         defaults: { protected_files: [] },
-        observability: { db: join(base.sessionDir, 'no-database.db') },
+        observability: {},
         agents: [terminal],
         terminal: [terminal],
       }),

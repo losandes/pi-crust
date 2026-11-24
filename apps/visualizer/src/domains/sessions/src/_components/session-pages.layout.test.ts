@@ -79,11 +79,6 @@ const withSessionPage = (
           .getByRole('heading', { name: 'unexplained changes' })
           .waitFor()
       }
-      await page.waitForFunction(() =>
-        document
-          .getElementById('crust-custom-themes')
-          ?.textContent?.includes('high-contrast'),
-      )
       await page.getByRole('button', { name: /^Theme:/ }).click()
       await page.getByRole('option', { name: theme.label, exact: true }).click()
       await page.evaluate(() => document.fonts.ready)

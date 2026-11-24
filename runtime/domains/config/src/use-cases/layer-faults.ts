@@ -10,7 +10,7 @@ export const layerFaults = (
           (key) =>
             !(
               file.allowedKeys.includes(key) ||
-              ['routing', 'override'].includes(key)
+              ['routing', 'override', 'db'].includes(key)
             ),
         )
         .map((key) => {

@@ -87,7 +87,7 @@ test(
     const actual = assembleConfig([
       aLayer('repository', {
         lifecycles: { bad: { stages: [{}] } },
-        db: 'history.db',
+
         ports: { backend: 4700 },
       }),
     ])
@@ -95,7 +95,6 @@ test(
     expect(actual.faults.length).toBeGreaterThan(0)
     expect(actual.document.lifecycles).toEqual([])
     expect(actual.document.observability).toEqual({
-      db: 'history.db',
       ports: { backend: 4700 },
     })
   },

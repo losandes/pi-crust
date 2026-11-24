@@ -7,7 +7,7 @@ export const legacyConfigNotices = (
   ...(found.repositoryFiles.length === 0
     ? []
     : [
-        `${found.repositoryDirectory}: ${found.repositoryFiles.join(', ')} not read; migrate by hand to pi-crust.toml.${found.repositoryFiles.includes('crust.observe.yaml') ? ' The trace UI still reads themes and default_theme from crust.observe.yaml.' : ''}`,
+        `${found.repositoryDirectory}: ${found.repositoryFiles.join(', ')} not read; migrate by hand to pi-crust.toml.${found.repositoryFiles.includes('crust.observe.yaml') ? ' Themes are registered in ~/.pi-crust/config/crust.config.toml; a leftover crust.observe.yaml is not read.' : ''}`,
       ]),
   ...(found.machineFile === ''
     ? []

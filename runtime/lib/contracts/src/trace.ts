@@ -74,6 +74,7 @@ export type TTracer = Readonly<{
     workspaceRoot: string,
     branch: string,
     vcsRoot?: string,
+    repositoryRoot?: string,
   ) => void
   sessionRequest: (runId: string, request: string) => void
   sessionWaiting: (runId: string) => void

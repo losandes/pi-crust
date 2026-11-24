@@ -69,7 +69,7 @@ export const parseReportArgs = (argv: readonly string[]): TReportArgs => {
   }
 }
 
-/** `--db` or `CRUST_DB` wins; else the config's observability.db; else the default. */
+/** `--db` or `CRUST_DB` wins; else the crust.db inside defaults.data_dir; else the default. */
 export const resolveDbPath = (args: TReportArgs): string => {
   if (args.db !== undefined) {
     return args.db

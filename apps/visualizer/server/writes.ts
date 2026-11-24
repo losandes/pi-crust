@@ -27,9 +27,13 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { safeParseSettlement } from '@typedefs'
+import { z } from 'zod'
 import type { ApiError } from '../shared/types.ts'
 import { handoffDirFor } from './handoff.ts'
 
@@ -84,16 +88,6 @@ export const refuseUnlessAuthorised = (
     : json({ error: 'unauthorised' } satisfies ApiError, 401)
 }
 
-/**
- * The workspace this server is reporting on.
- *
- * Derived from the database it was pointed at — `<workspace>/.pi-crust/data/
- * crust.db` — rather than from its own cwd, which is the visualizer's
- * directory inside the skill and not the repository being worked on.
- */
-export const workspaceRoot = (dbPath: string): string =>
-  resolve(dirname(dbPath), '..', '..')
-
 export const sessionDir = (dbPath: string, runId: string): string =>
   join(dirname(dbPath), 'sessions', runId)
 
@@ -104,19 +98,18 @@ export const sessionDir = (dbPath: string, runId: string): string =>
  * `.pi-crust/` holds `config/`, `data/` and `prompts/`, and an
  * install removes anything else it finds there. So every entry point this
  * server starts has to be resolved the way the recipes resolve it —
- * `CRUST_HOME`, else the path the installer wrote into the stamp.
+ * `CRUST_HOME`, else the machine-level record at `~/.pi-crust/pi-crust-home`.
  *
  * This is the defect that made every write action in the UI do nothing:
  * spawning `.pi-crust/steer.ts` succeeds in getting a pid, the child dies on
  * a missing module, and the response says the instruction went through.
  */
 export const crustRuntime = (
-  dbPath: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string | undefined => {
   const configured = (env.CRUST_HOME ?? '').trim()
   const home =
-    configured === '' ? readHomeFile(workspaceRoot(dbPath)) : configured
+    configured === '' ? readHomeFile(env.HOME ?? homedir()) : configured
   if (home === undefined) return undefined
   const runtime = join(home, 'runtime')
 
@@ -124,7 +117,7 @@ export const crustRuntime = (
 }
 
 const readHomeFile = (root: string): string | undefined => {
-  const path = join(root, '.pi-crust', 'data', 'pi-crust-home')
+  const path = join(root, '.pi-crust', 'pi-crust-home')
   if (!existsSync(path)) return undefined
   const recorded = readFileSync(path, 'utf8').trim()
 
@@ -139,9 +132,51 @@ const readHomeFile = (root: string): string | undefined => {
  * as three different problems.
  */
 export const NO_RUNTIME =
-  'cannot find pi-crust: no CRUST_HOME, and no .pi-crust/data/pi-crust-home ' +
-  'in this tree. Re-run its installer from the repository, or set CRUST_HOME ' +
-  'to the package.'
+  'cannot find pi-crust: CRUST_HOME is not set, and ~/.pi-crust/pi-crust-home is missing or names a ' +
+  'directory without runtime/cli.ts. Run `bun <pi-crust>/scripts/install.ts` in a repository, or set ' +
+  'CRUST_HOME to the pi-crust directory.'
+export const NO_WORKING_TREE = (runId: string): string =>
+  `cannot act on ${runId}: its working tree is not recorded or no longer exists`
+export const NO_ENTRY = (
+  runId: string,
+  recorded: string,
+  runtime: string,
+): string =>
+  `cannot resume ${runId}: ${recorded} is not an entry point of the pi-crust at ${dirname(runtime)}`
+
+const existingDirectory = (path: unknown): path is string =>
+  typeof path === 'string' && existsSync(path) && statSync(path).isDirectory()
+
+export const runWorkingTree = (
+  workspaceRoot: string | undefined,
+  sessionDirectory: string,
+): string | undefined => {
+  if (existingDirectory(workspaceRoot)) return workspaceRoot
+  const invocation = safeParseSettlement(() => {
+    const parsed = z
+      .object({ cwd: z.string() })
+      .safeParse(
+        JSON.parse(
+          readFileSync(join(sessionDirectory, 'invocation.json'), 'utf8'),
+        ),
+      )
+    return parsed.success && existingDirectory(parsed.data.cwd)
+      ? parsed.data.cwd
+      : undefined
+  })
+  return invocation.status === 'ok' ? invocation.data : undefined
+}
+
+export const resumeEntry = (
+  recorded: string,
+  runtime: string,
+): string | undefined => {
+  const parts = recorded.split('/')
+  const index = parts.lastIndexOf('runtime')
+  if (index < 0) return recorded
+  const path = join(runtime, ...parts.slice(index + 1))
+  return existsSync(path) && statSync(path).isFile() ? path : undefined
+}
 
 /**
  * Why a run that was started has no session row.
@@ -259,6 +294,7 @@ export const recordDecision = (
  */
 export const startSteer = (
   dbPath: string,
+  cwd: string,
   runId: string,
   activity: string,
   target: 'overwrite' | 'branch',
@@ -273,7 +309,7 @@ export const startSteer = (
   reason?: string
   branch_run_id: string
 }> => {
-  const runtime = crustRuntime(dbPath, env)
+  const runtime = crustRuntime(env)
   if (runtime === undefined) {
     return {
       started: false,
@@ -307,10 +343,10 @@ export const startSteer = (
           note,
         ]
   const child = spawnChild('bun', args, {
-    cwd: workspaceRoot(dbPath),
+    cwd,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...env, CRUST_DB: dbPath },
+    env: { ...env, CRUST_DB: dbPath, CRUST_DATA_DIR: dirname(dbPath) },
   })
   child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
   child.stderr?.on('data', (chunk) => appendFileSync(log, chunk))
@@ -338,6 +374,7 @@ export const startSteer = (
  */
 export const startConsult = (
   dbPath: string,
+  cwd: string,
   runId: string,
   activity: string,
   mode: 'ask' | 'amend',
@@ -350,7 +387,7 @@ export const startConsult = (
   log: string
   reason?: string
 }> => {
-  const runtime = crustRuntime(dbPath, env)
+  const runtime = crustRuntime(env)
   if (runtime === undefined) {
     return { started: false, pid: undefined, log: '', reason: NO_RUNTIME }
   }
@@ -361,12 +398,12 @@ export const startConsult = (
     'bun',
     [join(runtime, 'commands', `${mode}.ts`), runId, activity, question],
     {
-      cwd: workspaceRoot(dbPath),
+      cwd,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       // The consult must read the SAME trace this server is serving, which
       // is not necessarily the one its cwd would resolve to.
-      env: { ...env, CRUST_DB: dbPath },
+      env: { ...env, CRUST_DB: dbPath, CRUST_DATA_DIR: dirname(dbPath) },
     },
   )
   child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
@@ -388,8 +425,7 @@ const developerNoteEntry = (note: string, at: string): string =>
 
 /**
  * Append a developer's note to the run's own `steering.md`, through the
- * handoff directory the run actually recorded — never `CRUST_HOME`, which a
- * stamped tree resuming today does not depend on and must not start to.
+ * handoff directory the run actually recorded, independently of package discovery.
  */
 const recordResumeNote = (
   dbPath: string,
@@ -495,8 +531,30 @@ export const resumeRun = (
         all[index - 1] !== '--run-id' &&
         arg !== '--resume',
     )
-  const cwd =
-    typeof parsed.cwd === 'string' ? parsed.cwd : workspaceRoot(dbPath)
+  if (typeof parsed.cwd !== 'string')
+    return {
+      resumed: false,
+      pid: undefined,
+      reason: `invocation.json for ${runId} records no working directory`,
+      note_recorded: noteRecorded,
+    }
+  const runtime = crustRuntime(env)
+  if (runtime === undefined)
+    return {
+      resumed: false,
+      pid: undefined,
+      reason: NO_RUNTIME,
+      note_recorded: noteRecorded,
+    }
+  const entry = resumeEntry(script, runtime)
+  if (entry === undefined)
+    return {
+      resumed: false,
+      pid: undefined,
+      reason: NO_ENTRY(runId, script, runtime),
+      note_recorded: noteRecorded,
+    }
+  const cwd = parsed.cwd
   // Detached, and it must stay that way. The terminal path attaches, because
   // somebody typed `approve` and is waiting; an HTTP handler has to answer in
   // milliseconds and has no terminal to attach to, so the run outlives the
@@ -504,8 +562,13 @@ export const resumeRun = (
   const log = join(sessionDir(dbPath, runId), 'spawn.log')
   const child = spawnChild(
     'bun',
-    [script, ...carried, '--run-id', runId, '--resume'],
-    { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...env } },
+    [entry, ...carried, '--run-id', runId, '--resume'],
+    {
+      cwd,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...env, CRUST_DB: dbPath, CRUST_DATA_DIR: dirname(dbPath) },
+    },
   )
   child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))
   child.stderr?.on('data', (chunk) => appendFileSync(log, chunk))
@@ -534,6 +597,7 @@ export const resumeRun = (
  */
 export const startRun = (
   dbPath: string,
+  cwd: string,
   lifecycle: string,
   prompt: string,
   extraArgs: readonly string[],
@@ -545,11 +609,10 @@ export const startRun = (
   log: string
   reason?: string
 }> => {
-  const runtime = crustRuntime(dbPath, env)
+  const runtime = crustRuntime(env)
   if (runtime === undefined) {
     return { run_id: '', pid: undefined, log: '', reason: NO_RUNTIME }
   }
-  const root = workspaceRoot(dbPath)
   const runId = Math.random().toString(16).slice(2, 10)
   const logDir = join(dirname(dbPath), 'sessions', runId)
   mkdirSync(logDir, { recursive: true })
@@ -567,10 +630,10 @@ export const startRun = (
       ...extraArgs,
     ],
     {
-      cwd: root,
+      cwd,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...env },
+      env: { ...env, CRUST_DB: dbPath, CRUST_DATA_DIR: dirname(dbPath) },
     },
   )
   child.stdout?.on('data', (chunk) => appendFileSync(log, chunk))

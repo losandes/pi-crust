@@ -12,17 +12,16 @@ bun <pi-crust>/scripts/install.ts
 
 A fresh install creates exactly these files:
 
-| File                           | Ownership                                                                                |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| `pi-crust.toml`                | Repository configuration, written only when absent; every example task is commented out. |
-| `.env.pi-crust.example`        | Template-owned credential example; the installer does not create `.env`.                 |
-| `.gitignore`                   | Gains `.pi-crust/data/`. Existing contents are retained.                                 |
-| `justfile`                     | Gains the `crust` passthrough recipe and positional-argument setting when needed.        |
-| `.pi-crust/data/pi-crust-home` | Machine-local pointer to the package.                                                    |
+| File                    | Ownership                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `pi-crust.toml`         | Repository configuration, written only when absent; every example task is commented out. |
+| `.env.pi-crust.example` | Template-owned credential example; the installer does not create `.env`.                 |
+| `.gitignore`            | Gains `.pi-crust/data/`. Existing contents are retained.                                 |
+| `justfile`              | Gains the `crust` passthrough recipe and positional-argument setting when needed.        |
 
 The repository's only pi-crust configuration file is `pi-crust.toml`. Defaults, Activities and lifecycles are read live from `<pi-crust>/runtime/config/`, then `~/.pi-crust/config/`, then that repository file. A package update reaches the next command without re-stamping. See the [configuration reference](../references/config.md).
 
-The installer creates no configuration or prompt directory. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and are no longer read for runtime configuration or prompt overrides; the trace UI still reads themes from an existing `crust.observe.yaml`. The report points to the reference's hand-migration instructions. Never delete execution history under `.pi-crust/data/` as part of configuration migration.
+The installer writes the machine record `~/.pi-crust/pi-crust-home` and nothing under the repository's `.pi-crust/`. It creates no configuration or prompt directory. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and are no longer read for runtime configuration or prompt overrides; viewer settings and added themes live in the machine configuration. A leftover `.pi-crust/config/crust.observe.yaml` or `.pi-crust/data/pi-crust-home` is not read or deleted. The report points to the reference's hand-migration instructions. Never delete execution history under `.pi-crust/data/` as part of configuration migration.
 
 ## Reinstall or refresh
 
@@ -33,7 +32,7 @@ bun <pi-crust>/scripts/install.ts --refresh
 
 An existing `pi-crust.toml` is never overwritten, even with `--refresh` or `--force`. Refresh applies only to template-owned files such as the credential example. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0.
 
-The package-home pointer and justfile repairs keep their existing behavior. The explicit cleanup of obsolete stamped runtime paths is unchanged; legacy configuration and prompt directories are not cleanup candidates. The trace database and sessions are never migrated by installation.
+Upgrade an earlier stamp by running `bun <pi-crust>/scripts/install.ts --refresh` directly from its repository root. Do this once on the machine to write `~/.pi-crust/pi-crust-home`, and once in each earlier-stamped repository to repair its root recipe. `CRUST_HOME=<pi-crust> just crust update` is an alternative only when that root recipe already reads `CRUST_HOME` (the legacy chain or the new machine-record recipe). The single-path recipe `@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"` ignores the override and requires the direct installer command. Old pointer files are left byte-identical. The explicit cleanup of obsolete stamped runtime paths is unchanged; legacy configuration and prompt directories are not cleanup candidates. The trace database and sessions are never migrated by installation.
 
 To generate the repository file separately, use `make-config.ts`. Unlike the installer, that command's explicit `--force` replaces the one TOML file; review and preserve existing contents first.
 

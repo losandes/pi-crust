@@ -30,7 +30,7 @@ const lookupCases = [
     token: true,
     env: { CRUST_DATA_DIR: 'other-data' },
     data: 'other-data',
-    db: '.pi-crust/data/crust.db',
+    db: 'other-data/crust.db',
   },
   {
     name: 'absolute store override',
@@ -75,7 +75,6 @@ for (const one of lookupCases) {
       const prefix = one.token ? '{primary_worktree}/' : ''
       const cfg = {
         defaults: { data_dir: `${prefix}.pi-crust/data` },
-        observability: { db: `${prefix}.pi-crust/data/crust.db` },
       }
       const store = join(root, 'override.db')
       const env =
@@ -282,7 +281,7 @@ test(
     // given
     const cfg = {
       defaults: { data_dir: '.pi-crust/data' },
-      observability: { db: '.pi-crust/data/crust.db' },
+      observability: {},
     }
     const env = { CRUST_DATA_DIR: '/override/data' }
 
@@ -292,7 +291,7 @@ test(
     // then
     expect(actual).toEqual({
       dataDir: '/override/data',
-      db: '/some/repo/.pi-crust/data/crust.db',
+      db: '/override/data/crust.db',
     })
   },
 )
@@ -307,7 +306,7 @@ test(
     // given
     const cfg = {
       defaults: { data_dir: '.pi-crust/data' },
-      observability: { db: '.pi-crust/data/crust.db' },
+      observability: {},
     }
     const env = { CRUST_DATA_DIR: '   ' }
 
@@ -316,5 +315,42 @@ test(
 
     // then
     expect(actual.dataDir).toEqual('/some/repo/.pi-crust/data')
+  },
+)
+
+test(
+  [
+    'given the home-relative shared data default',
+    'when resolved from unrelated repositories',
+    'it should keep the database and sessions together in the supplied home',
+  ].join(', '),
+  () => {
+    // given
+    const cfg = { defaults: { data_dir: '~/.pi-crust/data' } }
+    const env = { HOME: '/scratch/user' }
+    // when
+    const paths = ['/repos/a', '/repos/b'].map((root) =>
+      resolveDataPaths(cfg, root, env),
+    )
+    // then
+    expect(paths).toEqual([
+      {
+        dataDir: '/scratch/user/.pi-crust/data',
+        db: '/scratch/user/.pi-crust/data/crust.db',
+      },
+      {
+        dataDir: '/scratch/user/.pi-crust/data',
+        db: '/scratch/user/.pi-crust/data/crust.db',
+      },
+    ])
+    expect(resolveConfiguredPath('~', '/elsewhere', env)).toBe('/scratch/user')
+    expect(
+      resolveDataPaths(cfg, '/elsewhere', {
+        CRUST_DATA_DIR: '/repo/.pi-crust/data',
+      }),
+    ).toEqual({
+      dataDir: '/repo/.pi-crust/data',
+      db: '/repo/.pi-crust/data/crust.db',
+    })
   },
 )

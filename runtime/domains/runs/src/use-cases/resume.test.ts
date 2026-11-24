@@ -26,7 +26,7 @@ const runWith = (completed: readonly string[]): TRun => {
   return createRun({
     cfg: crustConfigSchema.parse({
       defaults: { data_dir: join(dir, 'runtime') },
-      observability: { db: join(dir, 'crust.db') },
+      observability: {},
       agents: [],
     }),
     runId: 'aaaa1111',

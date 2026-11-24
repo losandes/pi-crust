@@ -71,7 +71,7 @@ const seededRun = () => {
   const eventsPath = join(data, 'sessions', RUN_ID, 'events.jsonl')
   const cfg = crustConfigSchema.parse({
     defaults: { data_dir: data },
-    observability: { db: dbPath },
+    observability: {},
     agents: [],
   })
   {

@@ -114,7 +114,7 @@ test.skipIf(!browserTestsEnabled)(
   [
     'given a single-tree card at the base tier',
     'when its branch renders',
-    'it should show main directly below the run identifier',
+    'it should show main below the run identifier and repository',
   ].join(', '),
   async () => {
     // given
@@ -122,9 +122,17 @@ test.skipIf(!browserTestsEnabled)(
       const card = page.locator('#single a')
 
       // when
+      const origin = card.getByTestId('session-repository')
+      expect(await origin.textContent()).toBe('alpha')
+      expect(
+        await origin.evaluate((element) =>
+          element.nextElementSibling?.getAttribute('data-testid'),
+        ),
+      ).toBe('session-branch')
       const branch = card.getByTestId('session-branch')
       const position = await branch.evaluate((element) => {
-        const identifier = element.previousElementSibling
+        const identifier =
+          element.previousElementSibling?.previousElementSibling
         if (!identifier) throw new Error('Missing run identifier')
         return {
           identifier: identifier.textContent?.trim(),
@@ -160,7 +168,15 @@ test.skipIf(!browserTestsEnabled)(
 
       // then
       expect(await branch.count()).toBe(1)
-      expect(await branch.textContent()).toBe('pi-crust')
+      expect(await branch.textContent()).toBe('a')
+      const origin = card.getByTestId('session-repository')
+      expect(await origin.textContent()).toBe('unknown')
+      expect(await origin.getAttribute('title')).toBe('repository not recorded')
+      expect(
+        await origin.evaluate((element) =>
+          element.nextElementSibling?.getAttribute('data-testid'),
+        ),
+      ).toBe('session-branch')
       expect(bounds?.width).toBeGreaterThan(0)
     })
   },

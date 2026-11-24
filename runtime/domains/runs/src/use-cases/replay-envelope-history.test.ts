@@ -56,8 +56,8 @@ const fixtureWith = (activities: readonly Record<string, unknown>[]) => {
     ...entry,
   }))
   const cfg = crustConfigSchema.parse({
-    defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-    observability: { db: join(dir, 'crust.db') },
+    defaults: { data_dir: dir, protected_files: [] },
+    observability: {},
     activities: entries,
     agents: entries,
   })
@@ -456,15 +456,12 @@ test.skipIf(SKIP_INTEGRATION)(
     const environment = {
       machine: process.env.CRUST_MACHINE_CONFIG ?? '',
       data: process.env.CRUST_DATA_DIR ?? '',
-      registry: process.env.CRUST_REGISTRY ?? '',
     }
     process.chdir(dir)
     // biome-ignore lint/plugin/no-object-mutation: process.env is the configuration boundary this isolated fixture owns
     process.env.CRUST_MACHINE_CONFIG = join(dir, 'no-machine-config')
     // biome-ignore lint/plugin/no-object-mutation: process.env is the configuration boundary this isolated fixture owns
     process.env.CRUST_DATA_DIR = ''
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the configuration boundary this isolated fixture owns
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     try {
       // when
       const actual = await runWorkflow(
@@ -507,8 +504,6 @@ test.skipIf(SKIP_INTEGRATION)(
       process.env.CRUST_MACHINE_CONFIG = environment.machine
       // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
       process.env.CRUST_DATA_DIR = environment.data
-      // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
-      process.env.CRUST_REGISTRY = environment.registry
     }
   },
 )

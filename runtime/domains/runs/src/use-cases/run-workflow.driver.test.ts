@@ -103,13 +103,12 @@ const workflowEnvironment = () => {
   const environment = {
     machine: process.env.CRUST_MACHINE_CONFIG ?? '',
     data: process.env.CRUST_DATA_DIR ?? '',
-    registry: process.env.CRUST_REGISTRY ?? '',
   }
   silenceTerminal()
   /*
    * This machine may carry its own `~/.pi-crust/config/crust.config.toml`,
    * whose `override:` section beats a repository's own config (1.2.3 of
-   * issue #24) — observed here forcing `observability.db` to
+   * issue #24) — observed here resolving the database inside `defaults.data_dir` at
    * `{primary_worktree}/.pi-crust/data/crust.db` regardless of what a test's
    * own config says. Pointed at a path that does not exist, so these tests
    * see only the config they wrote.
@@ -135,8 +134,6 @@ const workflowEnvironment = () => {
       process.env.CRUST_MACHINE_CONFIG = environment.machine
       // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
       process.env.CRUST_DATA_DIR = environment.data
-      // biome-ignore lint/plugin/no-object-mutation: restore the process environment owned by this fixture
-      process.env.CRUST_REGISTRY = environment.registry
     },
   }
 }
@@ -191,7 +188,7 @@ test.skipIf(SKIP_INTEGRATION)(
       })
       const cfg = crustConfigSchema.parse({
         defaults: { data_dir: '{primary_worktree}/.pi-crust/data' },
-        observability: { db: '{primary_worktree}/.pi-crust/data/crust.db' },
+        observability: {},
         agents: [],
       })
 
@@ -251,7 +248,7 @@ test(
     })
     tracer.close()
     const cfg = crustConfigSchema.parse({
-      observability: { db: dbPath },
+      defaults: { data_dir: join(dbPath, '..') },
       agents: [],
     })
 
@@ -294,7 +291,7 @@ test(
     })
     tracer.close()
     const cfg = crustConfigSchema.parse({
-      observability: { db: dbPath },
+      defaults: { data_dir: join(dbPath, '..') },
       agents: [],
     })
 
@@ -371,7 +368,7 @@ const configFor = (
     configPath,
     configText({
       defaults: { data_dir: dataDir },
-      observability: { db: join(dataDir, 'crust.db') },
+      observability: {},
       agents: [...entries, ...terminalEntries],
       activities: entries,
       terminal: terminalEntries,
@@ -410,8 +407,6 @@ const argsFor = (
 const overrideFixture = () => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-models-'))
   const environment = workflowEnvironment()
-  // biome-ignore lint/plugin/no-object-mutation: process.env is the registry boundary owned by this disposable fixture
-  process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
 
   return {
     dir,
@@ -1053,7 +1048,7 @@ test(
       configPath,
       configText({
         defaults: { data_dir: join(dir, 'data') },
-        observability: { db: join(dir, 'data', 'crust.db') },
+        observability: {},
         agents: [],
         activities: [
           {
@@ -1092,8 +1087,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-e2e-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -1171,8 +1164,6 @@ test(
      * otherwise have to invent the answer \u2014 and the gate fires.
      */
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-gate-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -1301,8 +1292,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-planned-gate-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'review',
@@ -1394,8 +1383,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-self-answered-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -1492,8 +1479,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-local-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -1571,8 +1556,6 @@ test(
     // are invisible in a trace unless the run says so at the start
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-machine-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -1662,8 +1645,6 @@ test(
      * run with a failure in it must not open a pull request for itself.
      */
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-terminal-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(
       dir,
       [
@@ -1772,8 +1753,6 @@ test(
     // have the visualizer open must not decide what a run prints
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-watch-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -1850,8 +1829,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-workflow-issue-gate-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the registry boundary owned by this disposable fixture
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'open-issue',
@@ -1900,8 +1877,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-workflow-concurrent-issue-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the registry boundary owned by this disposable fixture
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const runId = 'abcd1872'
     const configPath = configFor(dir, [
       {
@@ -1999,8 +1974,6 @@ test(
     // so replay throws from inside the fold, after `startSession` has already
     // marked this session running
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-throws-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -2063,8 +2036,6 @@ test(
     // disk, so the chain replays with no agent spawned
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-planned-ok-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',
@@ -2150,8 +2121,6 @@ test(
     // given
     using _environment = workflowEnvironment()
     const dir = mkdtempSync(join(tmpdir(), 'crust-run-workflow-planned-'))
-    // biome-ignore lint/plugin/no-object-mutation: process.env is the external API startSession reads, and this fixture is the adapter that owns the assignment
-    process.env.CRUST_REGISTRY = join(dir, 'workspaces.jsonl')
     const configPath = configFor(dir, [
       {
         name: 'build',

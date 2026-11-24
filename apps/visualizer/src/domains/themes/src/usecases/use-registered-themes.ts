@@ -5,31 +5,14 @@ import {
   type TRegisteredTheme,
 } from '../typedefs/registered-theme'
 
-/**
- * The themes the observed repository registers.
- *
- * Fetched rather than compiled in, because the list belongs to the repository
- * being watched and this app is pointed at a different one on every run. A
- * theme a team removed must leave the picker, which a built-in list cannot
- * express.
- *
- * The builtins are the starting value, not a fallback applied on failure:
- * the picker renders before the request settles, and showing nothing for a
- * frame is worse than showing what almost every repository registers anyway.
- *
- * Scoped to the workspace currently routed to, so the picker reflects the
- * trace on screen rather than whichever workspace the server happens to
- * watch first.
- */
-export const useRegisteredThemes = (
-  workspace?: string,
-): readonly TRegisteredTheme[] => {
+/** Load machine registrations once per mount; browser storage alone chooses the theme. */
+export const useRegisteredThemes = (): readonly TRegisteredTheme[] => {
   const [themes, setThemes] =
     useState<readonly TRegisteredTheme[]>(BUILTIN_THEMES)
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch(themesUrl(workspace), { signal: controller.signal })
+    fetch(themesUrl(), { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : undefined))
       .then((body) => {
         const parsed = body as
@@ -49,7 +32,7 @@ export const useRegisteredThemes = (
       .catch(() => undefined)
 
     return () => controller.abort()
-  }, [workspace])
+  }, [])
 
   return themes
 }

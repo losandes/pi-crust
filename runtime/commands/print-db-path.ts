@@ -6,7 +6,7 @@
  * `crust.just`'s `db` variable calls this (1.6.5) instead of assuming
  * `.pi-crust/data/crust.db`: the recipes that read it — `sessions`,
  * `activity-runs`, `tail`, `procs` and `observe` — must agree with every
- * other reader of `observability.db` about where a relocated or pooled store
+ * other reader of `defaults.data_dir` about where a relocated or pooled store
  * actually is.
  *
  * Usage: bun print-db-path.ts [--config <path>]

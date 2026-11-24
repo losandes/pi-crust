@@ -18,7 +18,7 @@ Runtime code, default configuration and shipped prompts stay in the package. Thi
 │   ├── cli.ts                    Recipe dispatch
 │   ├── commands/                 Entry points and crust.just
 │   ├── config/
-│   │   ├── crust.config.toml     Defaults, database, polling and ports
+│   │   ├── crust.config.toml     Defaults, polling, ports and added themes
 │   │   ├── crust.activities.toml Activity, Planner and terminal tables
 │   │   └── crust.lifecycles.toml Ordered lifecycle stages
 │   ├── domains/                  Capability-owned logic
@@ -36,30 +36,13 @@ Each domain exposes `index.ts` over `src/{data,typedefs,use-cases}`. Cross-domai
 
 ## Repository layout
 
-A fresh install writes five files. The data shown below the pointer is created by runs, not by installation:
-
-```text
-<repository>/
-├── pi-crust.toml                 Only repository configuration file
-├── .env.pi-crust.example         Credential example, not active configuration
-├── .gitignore                    Gains the runtime-data ignore entry
-├── justfile                      Gains the crust passthrough recipe
-└── .pi-crust/data/               Gitignored execution history
-    ├── pi-crust-home             Package-home pointer written by installation
-    ├── crust.db                  Created by runs, not installation
-    ├── sessions/                 Created by runs, not installation
-    │   └── <run_id>/
-    │       ├── agent_map.json
-    │       ├── context_handoff/
-    │       └── <agent>/          Saved prompts, stream and envelope
-    └── checks/                   Repository command logs
-```
+A fresh install writes four repository files: `pi-crust.toml`, `.env.pi-crust.example`, `.gitignore` and `justfile`. It writes `~/.pi-crust/pi-crust-home` as the machine record of the package, and nothing under the repository's `.pi-crust/`. Runs create `crust.db`, `sessions/<run_id>/` and command logs under `~/.pi-crust/data/` by default, shared across repositories.
 
 Configuration is read on every command in three layers: package `runtime/config/`, machine `~/.pi-crust/config/`, repository `pi-crust.toml`. The two directories each hold the same three TOML filenames. Tables merge recursively; arrays, including lifecycle stages, replace whole. The repository wins for fields it states. Lists group entries by first-declaring layer and sort names inside each group.
 
 Machine-only Activity prompts normally live under `~/.pi-crust/prompts/<name>/`. An entry names one directory; relative paths resolve against the first-declaring layer's root. Both required prompt files are validated when a run uses them. Shipped prompt changes belong in a package fork, not repository override lookup.
 
-The installer never replaces an existing `pi-crust.toml`, even with `--refresh` or its deprecated `--force` alias. It creates no configuration or prompt directory; legacy directories are left untouched and no longer read for runtime configuration or prompt overrides. The trace UI still reads themes from an existing `crust.observe.yaml`. Package updates and machine edits need no re-stamp. See [Install](install.md) and the [configuration reference](../references/config.md).
+The installer never replaces an existing `pi-crust.toml`, even with `--refresh` or its deprecated `--force` alias. It creates no configuration or prompt directory; legacy directories are left untouched and no longer read for runtime configuration or prompt overrides. Viewer settings and added themes live in the machine configuration. A leftover `.pi-crust/config/crust.observe.yaml` or `.pi-crust/data/pi-crust-home` is not read or deleted. Package updates and machine edits need no re-stamp. See [Install](install.md) and the [configuration reference](../references/config.md).
 
 `data/` is execution history and is not migrated or deleted by a configuration update. Keep it intact.
 

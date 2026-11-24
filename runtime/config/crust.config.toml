@@ -1,6 +1,4 @@
 # Package defaults. Machine settings override these; pi-crust.toml wins over both.
-# Shared history across worktrees; relative paths resolve from the repository root.
-db = "{primary_worktree}/.pi-crust/data/crust.db"
 poll_ms = 500
 
 # CRUST_BE_PORT and CRUST_FE_PORT override the configured ports.
@@ -15,7 +13,8 @@ coding_agent = "pi"
 # A default must work with the ordinary Anthropic credential.
 model = "anthropic/claude-haiku-5-5"
 thinking = "max"
-data_dir = "{primary_worktree}/.pi-crust/data"
+# One trace for every repository on this machine: crust.db and sessions/ live here.
+data_dir = "~/.pi-crust/data"
 # Entries may replace this tool allowlist.
 tools = ["bash", "edit", "read", "write"]
 # An Activity cannot rewrite the tasks that judge it or read credentials.

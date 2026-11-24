@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { activityRunParams } from '../../../../lib/contracts'
-import { createTracer, MIGRATIONS } from './trace-db'
+import { createTracer, MIGRATIONS, SCHEMA } from './trace-db'
 
 const scratch = (): string =>
   mkdtempSync(join(tmpdir(), 'crust-trace-db-test-'))
@@ -648,5 +648,89 @@ test(
       .get()
     db.close()
     expect(count?.total).toEqual(1)
+  },
+)
+
+for (const repository of ['/repos/primary', undefined]) {
+  test(
+    [
+      `given a new session with repository ${repository}`,
+      'when its workspace is recorded',
+      'it should store the repository or an empty unknown value',
+    ].join(', '),
+    () => {
+      // given
+      const dir = scratch()
+      const path = join(dir, 'crust.db')
+      const tracer = createTracer(path, join(dir, 'events.jsonl'))
+      tracer.sessionStart('origin', 'tester', 'test')
+      // when
+      tracer.sessionWorkspace(
+        'origin',
+        '/repos/worktree',
+        'feature',
+        '',
+        repository,
+      )
+      tracer.close()
+      // then
+      const db = new Database(path, { readonly: true })
+      expect(db.query('SELECT repository_root FROM sessions').get()).toEqual({
+        repository_root: repository ?? '',
+      })
+      db.close()
+    },
+  )
+}
+
+test(
+  [
+    'given an existing trace missing only repository_root',
+    'when opened read-only then by a tracer',
+    'it should add only that nullable column without rewriting earlier rows or events',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const path = join(dir, 'crust.db')
+    const db = new Database(path, { create: true })
+    db.run(SCHEMA.replace(/^ {2}repository_root.*\n/m, ''))
+    db.run('ALTER TABLE sessions ADD COLUMN vcs_root TEXT')
+    db.run(
+      "INSERT INTO sessions(run_id, request) VALUES ('a', 'first'), ('b', 'second')",
+    )
+    db.run(
+      "INSERT INTO events(event_id, run_id, type) VALUES ('a-1', 'a', 'log'), ('b-1', 'b', 'log')",
+    )
+    const columns = db.query('PRAGMA table_info(sessions)').all()
+    const rows = db
+      .query<Record<string, unknown>, []>(
+        'SELECT * FROM sessions ORDER BY run_id',
+      )
+      .all()
+    const events = db.query('SELECT * FROM events ORDER BY event_id').all()
+    db.close()
+    const reader = new Database(path, { readonly: true })
+    expect(reader.query('PRAGMA table_info(sessions)').all()).toEqual(columns)
+    reader.close()
+    // when
+    createTracer(path, join(dir, 'events.jsonl')).close()
+    createTracer(path, join(dir, 'events.jsonl')).close()
+    // then
+    const after = new Database(path, { readonly: true })
+    expect(
+      after.query('PRAGMA table_info(sessions)').all().slice(0, -1),
+    ).toEqual(columns)
+    const actual = after
+      .query<Record<string, unknown>, []>(
+        'SELECT * FROM sessions ORDER BY run_id',
+      )
+      .all()
+    expect(actual.map(({ repository_root, ...row }) => row)).toEqual(rows)
+    for (const row of actual) expect(row.repository_root).toBeNull()
+    expect(after.query('SELECT * FROM events ORDER BY event_id').all()).toEqual(
+      events,
+    )
+    after.close()
   },
 )

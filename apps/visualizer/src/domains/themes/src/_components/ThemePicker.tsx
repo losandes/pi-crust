@@ -9,7 +9,7 @@ import { useRegisteredThemes } from '../usecases/use-registered-themes'
 import { useTheme } from '../usecases/use-theme'
 
 /**
- * Icons for the themes that ship. A theme a repository defines gets the
+ * Icons for the themes that ship. A theme a machine defines gets the
  * generic one: this app cannot know what a team's theme looks like, and
  * guessing from the name would be wrong exactly when the name is
  * interesting.
@@ -33,13 +33,11 @@ const ICONS: Readonly<Record<string, ComponentType<{ size?: number }>>> = {
  * several clicks from "light", the wrong cost for the person most likely to
  * need it.
  *
- * The list comes from the observed repository, so a team that removed a
- * default has no row for it and one that added a theme has one.
+ * The list contains every built-in followed by the machine registrations.
  */
-export const ThemePicker = (props: Readonly<{ workspace?: string }> = {}) => {
-  const { workspace } = props
+export const ThemePicker = () => {
   const [theme, choose] = useTheme()
-  const registered = useRegisteredThemes(workspace)
+  const registered = useRegisteredThemes()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const listId = useId()

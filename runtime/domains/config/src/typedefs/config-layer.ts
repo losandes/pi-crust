@@ -8,7 +8,7 @@ export const ENTRY_SECTIONS = [
 ] as const
 export type TEntrySection = (typeof ENTRY_SECTIONS)[number]
 export const LAYER_FILE_KEYS: Readonly<Record<string, readonly string[]>> = {
-  'crust.config.toml': ['defaults', 'db', 'poll_ms', 'ports'],
+  'crust.config.toml': ['defaults', 'poll_ms', 'ports', 'themes'],
   'crust.activities.toml': ['activities', 'planners', 'terminal'],
   'crust.lifecycles.toml': ['lifecycles'],
 }

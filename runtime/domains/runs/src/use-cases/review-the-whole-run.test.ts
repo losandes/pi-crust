@@ -331,7 +331,7 @@ for (const scenario of scenarios) {
         }))
         const cfg = crustConfigSchema.parse({
           defaults: { data_dir: join(dir, 'data'), protected_files: [] },
-          observability: { db: join(dir, 'crust.db') },
+          observability: {},
           activities: entries,
           agents: entries,
         })

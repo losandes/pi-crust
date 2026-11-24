@@ -686,3 +686,74 @@ test(
     expect(() => db.close()).not.toThrow()
   },
 )
+
+test(
+  [
+    'given a supplied HOME and no database override',
+    'when the viewer resolves its store',
+    'it should use the machine trace',
+  ].join(', '),
+  () => {
+    // given
+    // when
+    const actual = resolveDbPath([], { HOME: '/scratch/user' })
+    // then
+    expect(actual).toBe('/scratch/user/.pi-crust/data/crust.db')
+  },
+)
+for (const recorded of ['absent', 'empty', 'recorded', 'null'] as const) {
+  test(
+    [
+      `given a database with ${recorded} repository origin`,
+      'when sessions are read',
+      'it should return only recorded origin and never alter the schema',
+    ].join(', '),
+    () => {
+      // given
+      const root = mkdtempSync(join(tmpdir(), 'crust-db-origin-'))
+      const path = join(root, 'crust.db')
+      const db = new Database(path, { create: true })
+      db.run(
+        `CREATE TABLE sessions (run_id TEXT, request TEXT, status TEXT, engineer TEXT, started_at TEXT, ended_at TEXT, total_tokens INTEGER, total_cost REAL${recorded === 'absent' ? '' : ', repository_root TEXT'})`,
+      )
+      db.run(
+        'CREATE TABLE activity_runs (activity_run_id TEXT, run_id TEXT, seq INTEGER, name TEXT, kind TEXT, owner TEXT, description TEXT, status TEXT, error TEXT, started_at TEXT, ended_at TEXT)',
+      )
+      db.run(
+        'CREATE TABLE agent_sessions (run_id TEXT, agent TEXT, coding_agent TEXT, model TEXT, session_id TEXT, created_at TEXT, last_used_at TEXT)',
+      )
+      db.run(
+        'CREATE TABLE events (run_id TEXT, activity_run_id TEXT, type TEXT, payload_json TEXT, started_at TEXT)',
+      )
+      db.run("INSERT INTO sessions(run_id) VALUES ('old')")
+      if (recorded === 'recorded' || recorded === 'empty')
+        db.run('UPDATE sessions SET repository_root=?', [
+          recorded === 'recorded' ? '/repos/alpha' : '',
+        ])
+      const before = db.query('PRAGMA table_info(sessions)').all()
+      db.close()
+      const reader = new PiCrustDb(path)
+      try {
+        // when
+        const rows = [reader.sessions()[0], reader.session('old')]
+        // then
+        for (const row of rows) {
+          expect(row?.repository).toBe(
+            recorded === 'recorded' ? 'alpha' : undefined,
+          )
+          expect(row?.repository_root).toBe(
+            recorded === 'recorded' ? '/repos/alpha' : undefined,
+          )
+          if (recorded !== 'recorded')
+            expect(Object.hasOwn(row ?? {}, 'repository_root')).toBe(false)
+        }
+        const check = new Database(path, { readonly: true })
+        expect(check.query('PRAGMA table_info(sessions)').all()).toEqual(before)
+        check.close()
+      } finally {
+        reader.close()
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}

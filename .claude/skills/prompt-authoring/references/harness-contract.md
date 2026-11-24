@@ -65,5 +65,3 @@ Run `RUN_INTEGRATION_TESTS=false CLAUDECODE=1 bunx bunt runtime/prompts --parall
 Every shipped `system.md` carries `## Purpose`; all but one also carry `## Instructions`. Every shipped `user.md` carries `## Variables`, `## Intake`, `## Task` and `## Report`, in that order. `check-prompt.sh` enforces those sections, because a missing one is usually a rewrite that merged two sections and lost the boundary between what the agent is given and what it must return.
 
 Every shipped `revise.md` carries the same four sections as `user.md` — `## Variables`, `## Intake`, `## Task` and `## Report`, in that order — and no `{{prompt}}` placeholder. Its task answers review findings rather than repeating the original request.
-
-`templates/stamp/prompts/example/system.md` is a scaffold with angle-bracket blanks rather than a working prompt, and is exempt from the section rules.

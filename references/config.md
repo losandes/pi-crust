@@ -18,7 +18,7 @@ Effective precedence, highest first, is a command-line flag, an existing environ
 
 | File                    | Accepted top-level keys                          |
 | ----------------------- | ------------------------------------------------ |
-| `crust.config.toml`     | `defaults`, `db`, `poll_ms`, `ports`             |
+| `crust.config.toml`     | `defaults`, `poll_ms`, `ports`, `themes`         |
 | `crust.activities.toml` | `activities`, `planners`, `terminal`             |
 | `crust.lifecycles.toml` | `lifecycles`                                     |
 | `pi-crust.toml`         | All of the above, plus `tasks` and `task_config` |
@@ -103,20 +103,26 @@ After merging, entries inherit `coding_agent`, `model`, `thinking`, `color`, `to
 | `protected_files` | Paths governed before a tool call. The package ships `["pi-crust.toml", ".env*", "**/.env*"]`. Arrays replace whole, so a replacement must retain every protection you need. |
 | `protected`       | `{ read = "block", write = "block" }` by default. Verbs are `"block"`, `"stop"`, `"warn"`, `"allow"`.                                                                        |
 | `ignored`         | The same verbs for Git-ignored paths, excluding session data; default `{ read = "warn", write = "block" }`.                                                                  |
-| `data_dir`        | Session runtime home. The package ships `"{primary_worktree}/.pi-crust/data"`.                                                                                               |
+| `data_dir`        | Trace and session runtime home. The package ships `"~/.pi-crust/data"`; it holds `crust.db` and `sessions/`.                                                                 |
 
 ### Database, polling and ports
 
-`db` and `poll_ms` are top-level keys, and ports are a `[ports]` table. Set them in any layer: the package or machine `crust.config.toml`, or the repository's `pi-crust.toml`. Loaded callers continue to read `cfg.observability`.
+`poll_ms` is a top-level key, and ports are a `[ports]` table. The database is always `crust.db` inside `defaults.data_dir`; a top-level `db` key is refused with a removal message. Set them in any layer: the package or machine `crust.config.toml`, or the repository's `pi-crust.toml`. Loaded callers continue to read `cfg.observability`.
 
 | Key              | Meaning                                                                                                                                                                 |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `db`             | Trace database. The package ships `"{primary_worktree}/.pi-crust/data/crust.db"`.                                                                                       |
 | `poll_ms`        | Positive integer polling interval in milliseconds, default `500`. The launcher forwards it to the API, and the browser reads it from `GET /api/health` before mounting. |
 | `ports.backend`  | API port, default `4600`; a valid `CRUST_BE_PORT` wins.                                                                                                                 |
 | `ports.frontend` | Web UI port, default `4601`; a valid `CRUST_FE_PORT` wins.                                                                                                              |
 
-The trace UI still reads theme registrations from an existing `.pi-crust/config/crust.observe.yaml`: only `themes` and `default_theme` are read there. Fresh installs use built-in themes. Theme registration is not part of the TOML loader.
+The viewer offers five built-in themes: match the system, light, dark, Dracula and high contrast. Only the machine file `~/.pi-crust/config/crust.config.toml` (or the directory selected by `CRUST_MACHINE_CONFIG`) may add themes. `[themes.<name>]` takes `label` and `stylesheet`, with the stylesheet relative to the machine configuration directory. Additions cannot replace or remove built-ins. A `themes` table in a package or repository file is ignored with a warning. The browser remembers its chosen theme; no configuration setting chooses the initial theme. A leftover `.pi-crust/config/crust.observe.yaml` is not read or deleted.
+
+```toml
+# ~/.pi-crust/config/crust.config.toml
+[themes.solarized]
+label = "Solarized"
+stylesheet = "themes/solarized.css"
+```
 
 ### Activities, Planners and terminal entries
 
@@ -207,27 +213,28 @@ This lookup does not contact a remote or repair refs. A run's recorded starting 
 
 ## Environment variables and provenance
 
-| Variable                         | Meaning                                                                                                                                            |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CRUST_CONFIG`                   | Repository TOML file; `--config` wins. Default `pi-crust.toml`.                                                                                    |
-| `CRUST_PACKAGE_CONFIG`           | Directory containing the package layer's three files; normally `runtime/config/`, derived from the loader's location.                              |
-| `CRUST_MACHINE_CONFIG`           | Directory containing the machine layer's three files; normally `~/.pi-crust/config/`. It no longer names one file.                                 |
-| `CRUST_DATA_DIR`                 | Overrides `defaults.data_dir`.                                                                                                                     |
-| `CRUST_DB`                       | Overrides the database path; a supported `--db` flag wins. Does not move session directories.                                                      |
-| `CRUST_BE_PORT`, `CRUST_FE_PORT` | Valid positive port numbers override configured ports. Invalid values leave the configured value in force.                                         |
-| `CRUST_POLL_MS`                  | Launcher-to-server channel, not a user override. The launcher replaces any existing value with the loaded polling interval.                        |
-| `CRUST_HOME`                     | Package-home override; otherwise recipes use the recorded `.pi-crust/data/pi-crust-home`, including the main clone's pointer for linked worktrees. |
-| `CRUST_REGISTRY`                 | Machine-local workspace registry location; see [Observability](observability.md).                                                                  |
+| Variable                         | Meaning                                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `CRUST_CONFIG`                   | Repository TOML file; `--config` wins. Default `pi-crust.toml`.                                                             |
+| `CRUST_PACKAGE_CONFIG`           | Directory containing the package layer's three files; normally `runtime/config/`, derived from the loader's location.       |
+| `CRUST_MACHINE_CONFIG`           | Directory containing the machine layer's three files; normally `~/.pi-crust/config/`. It no longer names one file.          |
+| `CRUST_DATA_DIR`                 | Overrides `defaults.data_dir`.                                                                                              |
+| `CRUST_DB`                       | Per-command reader override; a supported `--db` flag wins. Never moves where a run writes or its session directories.       |
+| `CRUST_BE_PORT`, `CRUST_FE_PORT` | Valid positive port numbers override configured ports. Invalid values leave the configured value in force.                  |
+| `CRUST_POLL_MS`                  | Launcher-to-server channel, not a user override. The launcher replaces any existing value with the loaded polling interval. |
+| `CRUST_HOME`                     | Package-home override; otherwise recipes use `~/.pi-crust/pi-crust-home`.                                                   |
 
 Blank directory and path overrides read as unset. The machine home is `HOME` when present, otherwise the operating-system home directory.
 
-`just crust config` reports defaults, database, polling, ports, entry models/thinking/prompt directories, terminal delivery fields and lifecycle stage names. Each value names its repository, machine or shipped-default file, or its environment override. Inherited model and thinking fields identify the corresponding default as their source. Unset values display `(not set)`.
+`just crust config` reports defaults, polling, ports, entry models/thinking/prompt directories, terminal delivery fields and lifecycle stage names. Each value names its repository, machine or shipped-default file, or its environment override. Inherited model and thinking fields identify the corresponding default as their source. Unset values display `(not set)`.
 
 ### The `{primary_worktree}` token
 
-The package preserves history locations: `defaults.data_dir = "{primary_worktree}/.pi-crust/data"` and `db = "{primary_worktree}/.pi-crust/data/crust.db"`. The token resolves per repository to its main clone, including from linked worktrees. Without Git it falls back to the repository root; a bare repository is refused rather than writing beside it. Leading `~` expands to the user's home; absolute paths remain absolute and relative paths resolve from the repository root.
+The token remains available for keeping one repository's data in its main clone: set `[defaults] data_dir = "{primary_worktree}/.pi-crust/data"`. It resolves per repository to its main clone, including from linked worktrees. Without Git it falls back to the repository root; a bare repository is refused rather than writing beside it. Leading `~` expands to the user's home; absolute paths remain absolute and relative paths resolve from the repository root.
 
-`CRUST_DB` changes only the store. To locate another repository's session files as well, also set `CRUST_DATA_DIR`. Session and handoff paths, workspace registration and the package-home pointer otherwise keep their behavior. See [Centralize a Worktree's Data](../cookbooks/centralize_worktree_data.md).
+`CRUST_DATA_DIR` moves the database and session directories together. `CRUST_DB` selects only the store a reading command opens. See [Choose Where Run Data Lives](../cookbooks/centralize_worktree_data.md).
+
+Upgrade an earlier stamp by running `bun <pi-crust>/scripts/install.ts --refresh` directly from its repository root. Do this once on the machine to write `~/.pi-crust/pi-crust-home`, and once in each earlier-stamped repository to repair its root recipe. `CRUST_HOME=<pi-crust> just crust update` is an alternative only when that root recipe already reads `CRUST_HOME` (the legacy chain or the new machine-record recipe). The single-path recipe `@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"` ignores the override and requires the direct installer command. Old pointer files are left byte-identical.
 
 ## Thinking levels
 
@@ -403,14 +410,14 @@ The default is medium, set by `TRUST_DEFAULT`; use the flag or `CRUST_TRUST_LEVE
 
 ## Configuration that is no longer read
 
-There is no dual-format support and no conversion command. Migrate by hand; installing again leaves the old configuration and prompt directories untouched. Preserve `.pi-crust/data/`, which contains execution history and the package-home pointer.
+There is no dual-format support and no conversion command. Migrate by hand; installing again leaves the old configuration and prompt directories untouched. Preserve `.pi-crust/data/`, which contains earlier execution history. The current package-home record is `~/.pi-crust/pi-crust-home`; a leftover per-repository pointer is not read.
 
 | Old location or shape                                 | Status and hand migration                                                                                                                                                                                     |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.pi-crust/config/crust.config.yaml` or `.yml`        | Not read. Move defaults into `[defaults]` and tasks into `[tasks.<name>]` in `pi-crust.toml`.                                                                                                                 |
 | `.pi-crust/config/crust.activities.yaml`              | Not read. Convert each list entry into `[activities.<name>]`, `[planners.<name>]` or `[terminal.<name>]` in the appropriate TOML layer. Usually keep only repository-specific differences in `pi-crust.toml`. |
 | `.pi-crust/config/crust.lifecycles.yaml`              | Not read. Convert entries into `[lifecycles.<name>]`, using `serial` or `concurrent` on each stage.                                                                                                           |
-| `.pi-crust/config/crust.observe.yaml`                 | The TOML loader does not read it. The trace UI still reads `themes` and `default_theme` there; move `db`, `poll_ms` and `[ports]` into a supported TOML layer.                                                |
+| `.pi-crust/config/crust.observe.yaml`                 | Not read. Move `poll_ms` and `[ports]` to TOML; add themes only in the machine `crust.config.toml`. Remove `db`; use `defaults.data_dir` to locate data.                                                      |
 | Any `.local.yaml`, `.local.yml` or `.local.toml` file | Not read. Put personal preferences in the corresponding file under `~/.pi-crust/config/`. There is no private repository layer.                                                                               |
 | `~/.pi-crust/config/crust.config.yaml` or `.yml`      | Not read. Split its settings among the three TOML files under `~/.pi-crust/config/`.                                                                                                                          |
 | `CRUST_MACHINE_CONFIG` naming one file                | Not read; a notice names the variable and file. Set it to the directory holding the three TOML files.                                                                                                         |
