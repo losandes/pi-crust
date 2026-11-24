@@ -6,7 +6,9 @@ Context: Runtime layout
 
 ## Status
 
-accepted
+superseded
+
+Replaced by [Define each command once and dispatch from CLI](define-each-command-once-and-dispatch-from-cli.md).
 
 ## Decision
 

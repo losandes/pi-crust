@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Run a structured SDLC of autonomous, specialist AI agents in your repo",
   "type": "module",
+  "bin": { "crust": "runtime/cli.ts" },
   "scripts": {
     "build": "mise run build",
     "check": "mise run check",

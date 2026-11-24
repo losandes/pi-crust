@@ -1,22 +1,4 @@
-/**
- * Every `just crust` recipe, its flags, its environment variables, and a
- * worked example where one exists — transcribed, not generated.
- *
- * `runtime/commands/crust.just` carries the authoritative prose, but `just` only
- * attaches a contiguous comment block to the recipe directly beneath it, and
- * this file's own comments deliberately break that rule in places (the
- * `--handoff`/`--name` prose sits between `run` and `verify`; the `observe`
- * explanation is split either side of `update`). A parser reading `crust.just`
- * at run time would attribute those by guesswork, and half of `run`'s flags
- * — `--scope`, `--approve-after`, `--commit`, `--trust-level`, `--stream` —
- * are never named there at all; only `parse-cli.ts` knows about them. So this
- * is a hand-written table instead, and `recipe-docs.test.ts` is what keeps it
- * from going stale the way the per-Activity recipes it replaced did: it fails
- * when a recipe exists here that `crust.just` no longer declares, or the
- * other way round.
- *
- * Data and types only — no IO, nothing that reads `crust.just` itself.
- */
+/** Each command is defined once here; runtime/cli.ts dispatches from this table. */
 
 export type TDocLine = Readonly<{ name: string; detail: string }>
 
@@ -27,7 +9,18 @@ export type TRecipeGroup =
   | 'reading the trace'
   | 'housekeeping'
 
+export type TCommandRun = Readonly<{
+  script: string
+  config: boolean
+  fixed: readonly string[]
+  required: readonly string[]
+  repeat: boolean
+  rest: boolean
+  repository: boolean
+}>
+
 export type TRecipeDoc = Readonly<{
+  run: TCommandRun
   name: string
   group: TRecipeGroup
   /** one line, as `just --list` shows */
@@ -77,7 +70,7 @@ export const GLOBAL_ENV: readonly TDocLine[] = [
   {
     name: 'CRUST_HOME',
     detail:
-      'where pi-crust itself is installed, for repos that stamped it; resolved from this before the stamp pointer, then the pointer beside the shared git directory',
+      'a pi-crust checkout that carries out the whole command instead of the one crust was started from; unset, crust runs its own runtime',
   },
   {
     name: 'CRUST_BE_PORT',
@@ -94,10 +87,24 @@ export const GLOBAL_ENV: readonly TDocLine[] = [
 export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   {
     name: 'help',
+    run: {
+      script: 'runtime/commands/help.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: false,
+    },
     group: 'getting started',
     summary: 'every recipe, every flag, and what this repo can run',
     usage: 'just crust help [<recipe>]',
     flags: [
+      {
+        name: '--commands',
+        detail:
+          "only each command's name and summary, which is what a bare crust prints",
+      },
       {
         name: '<recipe>',
         detail: 'narrow the output to one recipe\u2019s entry',
@@ -108,6 +115,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'default',
+    run: {
+      script: 'runtime/commands/help.ts',
+      config: false,
+      fixed: ['--commands'],
+      required: [],
+      repeat: false,
+      rest: false,
+      repository: false,
+    },
     group: 'getting started',
     summary: 'list every crust recipe',
     usage: 'just crust default  (same as the bare `just crust`)',
@@ -116,7 +132,39 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     examples: ['just crust'],
   },
   {
+    name: 'init',
+    run: {
+      script: 'scripts/install.ts',
+      config: false,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: false,
+    },
+    group: 'getting started',
+    summary: 'set pi-crust up in this repository',
+    usage: 'crust init [--refresh]',
+    flags: [
+      {
+        name: '--refresh',
+        detail: 'replace template-owned files; never pi-crust.toml or run data',
+      },
+    ],
+    env: [],
+    examples: ['crust init', 'crust init --refresh'],
+  },
+  {
     name: 'demo',
+    run: {
+      script: 'runtime/commands/demo.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'getting started',
     summary: 'start here: two cheap read-only runs, end to end',
     usage: 'just crust demo',
@@ -126,6 +174,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'list',
+    run: {
+      script: 'runtime/commands/list.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: false,
+    },
     group: 'getting started',
     summary:
       'what this repository offers, read from its own configuration (the catalogue alone; help adds the recipes)',
@@ -136,6 +193,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'config',
+    run: {
+      script: 'runtime/commands/config.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: false,
+    },
     group: 'getting started',
     summary:
       'effective TOML settings, entry models and prompt directories, with their layer and file sources',
@@ -146,6 +212,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'please',
+    run: {
+      script: 'runtime/commands/please.ts',
+      config: false,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'getting started',
     summary: 'build the command by answering questions',
     usage: 'just crust please',
@@ -155,6 +230,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'run',
+    run: {
+      script: 'runtime/commands/run.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: true,
+    },
     group: 'running work',
     summary: 'run a Lifecycle, or any chain of Activities',
     usage:
@@ -233,6 +317,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'operator',
+    run: {
+      script: 'runtime/commands/operator.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: true,
+    },
     group: 'running work',
     summary: 'let it choose the chain and run it',
     usage:
@@ -250,6 +343,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'triage',
+    run: {
+      script: 'runtime/commands/triage.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: true,
+    },
     group: 'running work',
     summary: 'recommend a lifecycle instead of running it',
     usage:
@@ -263,6 +365,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'verify',
+    run: {
+      script: 'runtime/commands/verify.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: true,
+    },
     group: 'running work',
     summary: 'run the change tasks over what you changed',
     usage:
@@ -279,6 +390,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'approve',
+    run: {
+      script: 'runtime/commands/approve.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id'],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'steering a run',
     summary: 'continue a run that is waiting for you',
     usage: 'just crust approve <run-id>',
@@ -288,6 +408,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'reject',
+    run: {
+      script: 'runtime/commands/reject.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'steering a run',
     summary: 'send it back with a correction',
     usage: 'just crust reject <run-id> [--note "..."]',
@@ -299,6 +428,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'answer',
+    run: {
+      script: 'runtime/commands/answer.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'steering a run',
     summary: 'answer the questions it could not',
     usage: 'just crust answer <run-id> [--file <path>]',
@@ -313,6 +451,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'resume',
+    run: {
+      script: 'runtime/commands/resume.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'steering a run',
     summary:
       'pick a stopped run back up, optionally with a note every activity from here reads',
@@ -335,6 +482,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'steer',
+    run: {
+      script: 'runtime/commands/steer.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id', 'activity'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'steering a run',
     summary: 'send a run back to an activity with new instructions',
     usage:
@@ -369,6 +525,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'ask',
+    run: {
+      script: 'runtime/commands/ask.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id', 'activity'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'steering a run',
     summary:
       'ask a finished activity a question \u2014 it still remembers the conversation',
@@ -381,6 +546,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'amend',
+    run: {
+      script: 'runtime/commands/amend.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id', 'activity'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'steering a run',
     summary: 'have a finished activity revise its own document',
     usage: 'just crust amend <run-id> <activity> "what to change"',
@@ -390,6 +564,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'join',
+    run: {
+      script: 'runtime/commands/join.ts',
+      config: false,
+      fixed: [],
+      required: ['run-id', 'activity'],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'steering a run',
     summary: "step into a stopped run's conversation",
     usage: 'just crust join <run-id> <activity>',
@@ -399,6 +582,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'report',
+    run: {
+      script: 'runtime/commands/report.ts',
+      config: true,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: true,
+    },
     group: 'reading the trace',
     summary: 'where a run got to, and what to run to finish it',
     usage:
@@ -414,6 +606,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'report-json',
+    run: {
+      script: 'runtime/commands/report.ts',
+      config: true,
+      fixed: ['--json'],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: true,
+    },
     group: 'reading the trace',
     summary: 'the same, as JSON for an agent to parse',
     usage: 'just crust report-json [<run-id>] [--db <path>] [--config <path>]',
@@ -423,6 +624,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'sessions',
+    run: {
+      script: 'runtime/commands/trace.ts',
+      config: true,
+      fixed: ['sessions'],
+      required: [],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'reading the trace',
     summary: 'the last 10 runs',
     usage: 'just crust sessions',
@@ -432,6 +642,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'activity-runs',
+    run: {
+      script: 'runtime/commands/trace.ts',
+      config: true,
+      fixed: ['activity-runs'],
+      required: ['run-id'],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'reading the trace',
     summary: 'activity run status in sequence',
     usage: 'just crust activity-runs <run-id>',
@@ -441,6 +660,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'tail',
+    run: {
+      script: 'runtime/commands/trace.ts',
+      config: true,
+      fixed: ['tail'],
+      required: ['run-id'],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'reading the trace',
     summary: 'the live event tail',
     usage: 'just crust tail <run-id>',
@@ -450,6 +678,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'procs',
+    run: {
+      script: 'runtime/commands/trace.ts',
+      config: true,
+      fixed: ['procs'],
+      required: ['run-id'],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'reading the trace',
     summary: 'what a run has alive right now, with pids',
     usage: 'just crust procs <run-id>',
@@ -459,6 +696,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'observe',
+    run: {
+      script: 'scripts/observe.ts',
+      config: false,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: true,
+      repository: false,
+    },
     group: 'reading the trace',
     summary:
       'boot the trace UI with merged TOML ports and polling interval (4601, api on 4600 by default)',
@@ -487,6 +733,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'prune',
+    run: {
+      script: 'runtime/commands/prune.ts',
+      config: false,
+      fixed: ['--older-than'],
+      required: ['age'],
+      repeat: true,
+      rest: true,
+      repository: true,
+    },
     group: 'housekeeping',
     summary: 'forget runs older than N days, on disk and in the trace together',
     usage: 'just crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]',
@@ -503,6 +758,15 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   },
   {
     name: 'update',
+    run: {
+      script: 'scripts/install.ts',
+      config: false,
+      fixed: ['--refresh'],
+      required: [],
+      repeat: false,
+      rest: false,
+      repository: true,
+    },
     group: 'housekeeping',
     summary: 'bring this tree up to date with the pi-crust it was stamped from',
     usage: 'just crust update',

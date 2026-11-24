@@ -28,11 +28,9 @@ The skill carries cookbooks for each of those and will load only the one your re
 
 ```text
 runtime/
-├── cli.ts
-├── commands/
-│   ├── crust.just
-│   ├── <recipe>.ts
-│   ├── print-db-path.ts
+├── cli.ts             crust command; dispatches from the CLI definitions
+├── commands/          Command programs and their tests
+│   ├── <command>.ts
 │   └── <name>.test.ts
 ├── config/            Package TOML defaults
 ├── domains/
@@ -59,20 +57,20 @@ runtime/
 └── tsconfig.json
 ```
 
-| Entry           | Holds                                                                      |
-| --------------- | -------------------------------------------------------------------------- |
-| `cli.ts`        | The front door stamped repositories invoke                                 |
-| `commands/`     | Recipe-named entry points, the recipes file and their tests                |
-| `config/`       | The package's three default TOML files                                     |
-| `domains/`      | Capability-owned logic exposed through domain indexes                      |
-| `lib/`          | Packages used across domains                                               |
-| `testing/`      | Shared fixtures and capture helpers                                        |
-| `prompts/`      | Shipped Activity prompts and tests of their content                        |
-| `extensions/`   | Host-loaded adapters; every agent loads the package path policy            |
-| `README.md`     | Runtime usage and layout documentation                                     |
-| `tsconfig.json` | The runtime compiler project; extensions are checked against pi separately |
+| Entry           | Holds                                                                               |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `cli.ts`        | The crust command; reads definitions and starts each program as its own bun process |
+| `commands/`     | Command programs and their tests                                                    |
+| `config/`       | The package's three default TOML files                                              |
+| `domains/`      | Capability-owned logic exposed through domain indexes                               |
+| `lib/`          | Packages used across domains                                                        |
+| `testing/`      | Shared fixtures and capture helpers                                                 |
+| `prompts/`      | Shipped Activity prompts and tests of their content                                 |
+| `extensions/`   | Host-loaded adapters; every agent loads the package path policy                     |
+| `README.md`     | Runtime usage and layout documentation                                              |
+| `tsconfig.json` | The runtime compiler project; extensions are checked against pi separately          |
 
-The [runtime layout record](../adr/runtime-layout/name-runtime-directories-for-what-they-hold.md) defines where new files belong and separates command composition from shared CLI behavior.
+The [runtime layout record](../adr/runtime-layout/define-each-command-once-and-dispatch-from-cli.md) defines where new files belong and separates command composition from shared CLI behavior.
 
 ## Running something
 

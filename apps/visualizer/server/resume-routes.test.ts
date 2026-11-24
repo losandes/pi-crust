@@ -69,13 +69,6 @@ for (const located of [true, false]) {
       }
       tracer.close()
       mkdirSync(home)
-      if (located) {
-        mkdirSync(join(home, '.pi-crust'))
-        writeFileSync(
-          join(home, '.pi-crust/pi-crust-home'),
-          installations[0] ?? '',
-        )
-      }
       const { CRUST_HOME: _override, ...baseEnv } = process.env
       const child = Bun.spawn(['bun', join(import.meta.dir, 'index.ts')], {
         cwd: root,
@@ -86,7 +79,7 @@ for (const located of [true, false]) {
           CRUST_WORKSPACES: '',
           CRUST_BE_PORT: '0',
           CRUST_TOKEN: 'fixture-token',
-          ...(located ? { CRUST_HOME: installations[1] } : {}),
+          CRUST_HOME: located ? installations[1] : home,
         },
         stdout: 'pipe',
         stderr: 'pipe',

@@ -197,6 +197,7 @@ test.skipIf(SKIP_INTEGRATION || !Bun.which('just'))(
   () => {
     // given
     const root = mkdtempSync(join(tmpdir(), 'crust-chain-update-'))
+    expect(spawnSync('git', ['init', '-q'], { cwd: root }).status).toBe(0)
     writeFileSync(join(root, 'justfile'), body(LEGACY_CHAIN))
     mkdirSync(join(root, '.pi-crust/data'), { recursive: true })
     writeFileSync(join(root, '.pi-crust/data/pi-crust-home'), '/gone\n')
@@ -218,4 +219,68 @@ test.skipIf(SKIP_INTEGRATION || !Bun.which('just'))(
       rmSync(root, { recursive: true, force: true })
     }
   },
+)
+
+test.skipIf(SKIP_INTEGRATION || !Bun.which('just'))(
+  [
+    'given an upgraded repository and a linked worktree without a stamp',
+    'when the real root recipe runs in both trees',
+    'it should locate the same package through only the scratch machine record',
+  ].join(', '),
+  () => {
+    // given
+    const scratch = mkdtempSync(join(tmpdir(), 'crust-linked-machine-'))
+    const primary = join(scratch, 'primary')
+    const linked = join(scratch, 'linked')
+    const home = join(scratch, 'user')
+    mkdirSync(primary)
+    const { CRUST_HOME: _override, ...baseEnv } = process.env
+    const env = { ...baseEnv, HOME: home }
+    const packageRoot = PACKAGE
+    const git = (...args: string[]) => {
+      const result = spawnSync('git', args, { cwd: primary, env })
+      expect(result.status).toBe(0)
+    }
+    try {
+      // when
+      expect(
+        spawnSync(
+          'bun',
+          [join(packageRoot, 'scripts/install.ts'), '--refresh'],
+          { cwd: primary, env },
+        ).status,
+      ).toBe(0)
+      git('init', '-q', '-b', 'main')
+      git('add', 'justfile')
+      git(
+        '-c',
+        'user.name=tester',
+        '-c',
+        'user.email=tester@example.com',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-qm',
+        'fixture',
+      )
+      git('worktree', 'add', '-qb', 'linked', linked)
+      // then
+      for (const cwd of [primary, linked]) {
+        const result = spawnSync('just', ['crust', 'default'], {
+          cwd,
+          env,
+          encoding: 'utf8',
+        })
+        if (result.status !== 0)
+          throw new Error(
+            `just exited ${result.status}: ${result.stderr} ${result.stdout}`,
+          )
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain('help')
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true })
+    }
+  },
+  20_000,
 )

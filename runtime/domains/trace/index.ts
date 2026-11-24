@@ -11,6 +11,10 @@ export {
   type TConsultTarget,
 } from './src/data/resolve-consult-target'
 export {
+  resolveTraceListing,
+  type TTraceListing,
+} from './src/data/resolve-trace-listing'
+export {
   resolveWaitingRuns,
   type TWaitingRun,
 } from './src/data/resolve-waiting-runs'

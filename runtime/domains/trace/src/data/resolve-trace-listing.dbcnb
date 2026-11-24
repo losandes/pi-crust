@@ -1,0 +1,69 @@
+{
+  "cells": [
+    {
+      "kind": 1,
+      "languageId": "markdown",
+      "value": "Trace listings. resolve-trace-listing.ts ships these statements. Run these only against a database you are authorised to query."
+    },
+    {
+      "kind": 1,
+      "languageId": "markdown",
+      "value": "sessions: orders by started_at without an index on that column, so scans sessions and sorts before taking ten rows."
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "select\n  cast(s.run_id as text),\n  cast(s.status as text),\n  cast(substr(s.request, 1, 50) as text),\n  cast(s.total_tokens as text),\n  cast(round(s.total_cost, 4) as text)\nfrom sessions s\norder by s.started_at desc\nlimit 10"
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "explain query plan\nselect\n  cast(s.run_id as text),\n  cast(s.status as text),\n  cast(substr(s.request, 1, 50) as text),\n  cast(s.total_tokens as text),\n  cast(round(s.total_cost, 4) as text)\nfrom sessions s\norder by s.started_at desc\nlimit 10"
+    },
+    {
+      "kind": 1,
+      "languageId": "markdown",
+      "value": "activity_runs: filters run_id and orders seq; no supporting index exists, so scans and sorts."
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "select\n  cast(a.seq as text),\n  cast(a.name as text),\n  cast(a.kind as text),\n  cast(a.owner as text),\n  cast(a.status as text)\nfrom activity_runs a\nwhere a.run_id = 'sample-run'\norder by a.seq"
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "explain query plan\nselect\n  cast(a.seq as text),\n  cast(a.name as text),\n  cast(a.kind as text),\n  cast(a.owner as text),\n  cast(a.status as text)\nfrom activity_runs a\nwhere a.run_id = 'sample-run'\norder by a.seq"
+    },
+    {
+      "kind": 1,
+      "languageId": "markdown",
+      "value": "events: filters run_id using the prefix of idx_events_run_id_type; orders rowid descending, which can require a temporary sort."
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "select\n  cast(e.rowid as text),\n  cast(e.type as text),\n  cast(e.name as text),\n  cast(e.started_at as text)\nfrom events e\nwhere e.run_id = 'sample-run'\norder by e.rowid desc\nlimit 25"
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "explain query plan\nselect\n  cast(e.rowid as text),\n  cast(e.type as text),\n  cast(e.name as text),\n  cast(e.started_at as text)\nfrom events e\nwhere e.run_id = 'sample-run'\norder by e.rowid desc\nlimit 25"
+    },
+    {
+      "kind": 1,
+      "languageId": "markdown",
+      "value": "processes: filters run_id and ended_at and orders id; scans the integer primary-key table in id order."
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "select\n  cast(p.kind as text),\n  cast(p.name as text),\n  cast(p.pid as text),\n  cast(p.command as text),\n  cast(p.started_at as text)\nfrom processes p\nwhere p.run_id = 'sample-run'\n  and p.ended_at is null\norder by p.id"
+    },
+    {
+      "kind": 2,
+      "languageId": "sql",
+      "value": "explain query plan\nselect\n  cast(p.kind as text),\n  cast(p.name as text),\n  cast(p.pid as text),\n  cast(p.command as text),\n  cast(p.started_at as text)\nfrom processes p\nwhere p.run_id = 'sample-run'\n  and p.ended_at is null\norder by p.id"
+    }
+  ]
+}
