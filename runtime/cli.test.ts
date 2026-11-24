@@ -21,6 +21,9 @@ import { SKIP_INTEGRATION } from './testing/integration'
 const PACKAGE = resolve(import.meta.dir, '..')
 const CLI = join(PACKAGE, 'runtime/cli.ts')
 
+// Allow subprocess startup and task retries under parallel suite load.
+const INTEGRATION_TIMEOUT_MS = 20_000
+
 for (const mode of ['own', 'other', 'invalid', 'refusal'] as const) {
   test(
     [
@@ -180,6 +183,7 @@ for (const argv of [
       }
       expect(readdirSync(f.root)).toEqual([])
     },
+    INTEGRATION_TIMEOUT_MS,
   )
 }
 
@@ -219,6 +223,7 @@ test.skipIf(SKIP_INTEGRATION)(
     expect(external.stdout).toContain('machine_probe')
     expect(external.stdout).not.toContain('stray_probe')
   },
+  INTEGRATION_TIMEOUT_MS,
 )
 
 for (const repository of [true, false]) {
@@ -250,6 +255,7 @@ for (const repository of [true, false]) {
       expect(result.stdout).toContain('.env.pi-crust.example')
       if (repository) expect(readdirSync(cwd)).toEqual([])
     },
+    INTEGRATION_TIMEOUT_MS,
   )
 }
 
@@ -299,6 +305,7 @@ for (const local of [true, false]) {
           readFileSync(join(data, 'sessions', id, 'notes.md'), 'utf8'),
         ).toBe(`valuable ${id}`)
     },
+    INTEGRATION_TIMEOUT_MS,
   )
 }
 
@@ -330,6 +337,7 @@ for (const mode of ['env', 'local', 'shell'] as const) {
       )
       expect(result.stdout).toContain('env')
     },
+    INTEGRATION_TIMEOUT_MS,
   )
 }
 
@@ -365,6 +373,7 @@ test.skipIf(SKIP_INTEGRATION)(
     expect(invalid.stderr).toContain(f.scratch)
     expect(invalid.stdout).toBe('')
   },
+  INTEGRATION_TIMEOUT_MS,
 )
 
 test.skipIf(SKIP_INTEGRATION)(
@@ -392,6 +401,7 @@ test.skipIf(SKIP_INTEGRATION)(
     expect(result.status).toBe(3)
     expect(result.stdout).toContain('waiting')
   },
+  INTEGRATION_TIMEOUT_MS,
 )
 
 test.skipIf(SKIP_INTEGRATION)(
@@ -434,4 +444,5 @@ test.skipIf(SKIP_INTEGRATION)(
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('set pi-crust up in this repository')
   },
+  INTEGRATION_TIMEOUT_MS,
 )

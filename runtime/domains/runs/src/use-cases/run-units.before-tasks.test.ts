@@ -14,6 +14,9 @@ import {
   writer,
 } from './run-units.moments-fixture.test'
 
+// Allow subprocess startup and task retries under parallel suite load.
+const INTEGRATION_TIMEOUT_MS = 20_000
+
 test.skipIf(SKIP_INTEGRATION)(
   [
     'given @SC8 a failing before task ahead of concurrent reviewers',
@@ -67,6 +70,7 @@ test.skipIf(SKIP_INTEGRATION)(
         .map((event) => event.passed),
     ).toEqual([false, true])
   },
+  INTEGRATION_TIMEOUT_MS,
 )
 
 for (const repeated of [false, true]) {
@@ -153,6 +157,7 @@ for (const repeated of [false, true]) {
       expect(actual.outcomes.at(-1)?.accepted).toBe(false)
       expect(counts.get(firstName)).toBe(2)
     },
+    INTEGRATION_TIMEOUT_MS,
   )
 }
 
@@ -180,4 +185,5 @@ test.skipIf(SKIP_INTEGRATION)(
     // then
     expect(f.run.tracer.eventsNamed(f.run.runId, 'task:verify')).toEqual([])
   },
+  INTEGRATION_TIMEOUT_MS,
 )
