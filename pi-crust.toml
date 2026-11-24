@@ -31,7 +31,8 @@ when = [{ on = "change", skip = ["diagnose", "test-tdd"] }]
 match = ["**/*.ts", "**/*.tsx"]
 run = [
   "echo testing:{{base_ref}}",
-  "CLAUDECODE=1 bunx bunt --changed={{base_ref}} --paired | bunx buntap --agent --no-color"
+  "CLAUDECODE=1 bunx bunt --changed={{base_ref}} --timeout=15000 | bunx buntap --agent --no-color"
+  # "CLAUDECODE=1 bunx bunt --changed={{base_ref}} --paired | bunx buntap --agent --no-color"
 ]
 timeout_seconds = 600
 
