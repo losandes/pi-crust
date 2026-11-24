@@ -547,7 +547,7 @@ test(
   () => {
     // given
     const home = track(packageTree())
-    const root = track(stampedTree(home))
+    const root = track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
 
@@ -597,7 +597,7 @@ test(
   () => {
     // given
     const home = track(packageTree())
-    const root = track(stampedTree(home))
+    const root = track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
 
@@ -640,7 +640,7 @@ test(
   () => {
     // given
     const home = track(packageTree())
-    const root = track(stampedTree(home))
+    const root = track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
 
@@ -744,7 +744,7 @@ test(
   () => {
     // given
     const home = track(packageTree())
-    const root = track(stampedTree(home))
+    const root = track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
     const env = { ...withHome(home), CRUST_DB: dbOf(root) }
