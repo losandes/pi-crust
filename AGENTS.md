@@ -4,7 +4,7 @@ This file governs how work is done in this repository. Machine-specific facts �
 
 ## Engineering stance
 
-Code is organized by **Screaming Architecture (DDD)**: directory and file names say what the code is about, not which technical layer it belongs to. `runtime/domains/` groups code by business capability, each one split into `data/`, `use-cases/` and `typedefs/`, with `runtime/lib/` for the handful of packages used across domains; `apps/visualizer/src/` splits into `domains/`, `pages/` and `lib/`. The frontend additionally uses **Atomic Design**.
+Code is organized by **Screaming Architecture (DDD)**: directory and file names say what the code is about, not which technical layer it belongs to. `runtime/domains/` groups code by business capability, each domain's `src/` holding whichever of `data/`, `use-cases/` and `typedefs/` it needs, with `runtime/lib/` for the handful of packages used across domains; `apps/visualizer/src/` splits into `domains/`, `pages/`, `layouts/` and `lib/`. The frontend additionally uses **Atomic Design**.
 
 TypeScript here is functional: purity, immutability, composition, settlements rather than thrown errors, and dependency-first currying. SOLID still applies — Single Responsibility and Open/Closed most of all.
 
@@ -89,16 +89,16 @@ Before the first edit of a task, confirm where you are with `git rev-parse --sho
 
 ## Editing while runs are in flight
 
-A run executes from the **stamp** — the `.pi-crust/` directory inside the target repository — but the stamp holds no runtime code. `templates/pi-crust.toml` supplies the repository's single configuration file, package defaults live in `runtime/config/`, and `runtime/` (including its `domains/`, `lib/` and `extensions/`), `cookbooks/` and `SKILL.md` all live in this clone, and `~/.pi-crust/pi-crust-home` (or `CRUST_HOME`) is a pointer at it, not a copy. An edit to any of them is live for every process a stamped repository starts after the write — including the agent spawned for the next Activity of a run already going, and including the prompts under `runtime/prompts/`.
+A run executes from this clone. Installing pi-crust into a repository — stamping it — writes `pi-crust.toml` from `templates/pi-crust.toml`, `.env.pi-crust.example`, a `.gitignore` entry and a `crust` recipe in the root `justfile`, and none of those hold runtime code. Package defaults live in `runtime/config/`, and `runtime/` (including its `domains/`, `lib/` and `extensions/`), `cookbooks/` and `SKILL.md` all live in this clone. The root recipe finds it through `CRUST_HOME`, or failing that through `~/.pi-crust/pi-crust-home`, which is a pointer at this clone, not a copy. An edit to any of them is live for every process a stamped repository starts after the write — including the agent spawned for the next Activity of a run already going, and including the prompts under `runtime/prompts/`.
 
 The corollary is the trap this file used to walk a reader into: a process already running keeps the modules it imported at startup. A fix a run writes to `runtime/` does not govern the run that wrote it — it has to be re-run before it is exercised. A run that dies against the bug it is fixing in the same breath is not a sign the fix is wrong.
 
 Two more things reach back here while a run is live, beyond the runtime code every Activity already resolves out of this clone:
 
 - `apps/visualizer/` — the `observe` recipe runs the web app out of this repository, so an edit restarts the dev server and the API underneath a UI somebody is watching.
-- Re-stamping — `install.ts --force`, and the `update` recipe that wraps it, replace the factory a run is executing from.
+- The installer — `scripts/install.ts`, and the `update` recipe that runs it with `--refresh` — rewrites `~/.pi-crust/pi-crust-home` to name the clone it was run from. Every `just crust` command started afterwards, in every stamped repository on the machine, resolves the runtime from that clone, so running a worktree's installer repoints them all at the worktree.
 
-So the question is never "is this change big". It is "am I editing the visualizer while a run is being watched, or about to re-stamp a repository that has a run in it". Both are checkable; neither needs a forecast.
+So the question is never "is this change big". It is "am I editing the visualizer while a run is being watched, or about to run the installer while a run is in flight". Both are checkable; neither needs a forecast.
 
 When the answer is yes and the work cannot wait, take a worktree rather than a second clone, and point `CRUST_HOME` at it so the live checkout stays frozen:
 
@@ -112,17 +112,17 @@ This is about working on pi-crust's own source, in THIS clone — `CRUST_HOME` i
 
 ## Never destroy a user's data
 
-`~/.pi-crust/data/` holds the trace database and every session directory by default; `.pi-crust/data/` in repositories stamped earlier holds their existing history. Neither location may be deleted by installation or update. It is worth more than any config file, because it cannot be regenerated.
+`~/.pi-crust/data/` holds the trace database and every session directory by default. A repository's own `.pi-crust/data/` holds the history of runs from before that default, and is still where runs write when `data_dir` is set to `{primary_worktree}/.pi-crust/data`; the installer keeps it in `.gitignore` for both reasons. Neither location may be deleted by installation or update. Run data is worth more than any config file, because it cannot be regenerated.
 
-`install.ts` contains no deletion of any kind — only copies and appends — and `data/` has no counterpart in the template, so there is nothing for an update to overwrite. Keep it that way:
+`install.ts` deletes only the paths named in its `ORPHANED` list — runtime files earlier versions stamped into `.pi-crust/`, which no code reads any more. Everything else it does is a copy, an append, a rewrite of the machine record, or an exact-match repair of an old root `justfile` recipe. `data` is not on that list and has no counterpart in `templates/`, so there is nothing for an update to remove or overwrite. Keep it that way:
 
-- An update may replace anything the template owns. It may not remove anything.
-- `pi-crust.toml` belongs to the repository, not the template. The installer never replaces an existing one, even with `--refresh` or `--force`; legacy configuration and prompt directories are left untouched.
-- Schema migration is a separate, explicitly invoked verb. It reads the old database and writes a new one, keeping the old. It is never a step inside something people run routinely.
+- An update may replace anything the template owns. It may not remove anything outside `ORPHANED`, and a path that can hold run data never belongs on that list.
+- `pi-crust.toml` belongs to the repository, not the template. The installer never replaces an existing one, even with `--refresh` or its deprecated alias `--force`; legacy configuration and prompt directories are left untouched.
+- The trace database is migrated in place only additively. Opening it applies `MIGRATIONS` in `runtime/domains/trace/src/data/trace-db.ts`, which adds missing columns, and drops a superseded index; neither removes a row. A migration that would drop or rewrite data is a separate, explicitly invoked verb that reads the old database and writes a new one, keeping the old. It is never a step inside something people run routinely.
 
 ## Verification
 
-An agent proves its own change with scoped commands and nothing wider. The full gate — lint over every root, typecheck, coverage across the whole repository, the visualizer build and the stamp check — runs after the agent, so running it yourself spends minutes to learn what the gate will report anyway. That holds in both places an agent works here:
+An agent proves its own change with scoped commands and nothing wider. The full gate — lint over every root, typecheck, coverage across the whole repository, the visualizer build and the install check — runs after the agent, so running it yourself spends minutes to learn what the gate will report anyway. That holds in both places an agent works here:
 
 - **Inside a pi-crust run.** After an Activity changes files, the run executes the `change` tasks under `[tasks.*]` in `pi-crust.toml` whose `match` selects those files, and reports a task failure back to the Activity that changed them. At delivery it runs the `deliver` tasks, which take the repository-wide pass
 - **In an interactive session.** CI runs `mise run check` on every push to `main` and every pull request against it (`.github/workflows/check.yml`), and `pr-check` runs its own repository-wide pass before a pull request is opened
@@ -160,7 +160,7 @@ The exit code says what went red: `1` is a failing test, `3` is a paired source 
 
 A test that drives the CLI reporter — directly through `createConsole`, or through `createRun`/`startSession`, which wire it — keeps printing for real and captures the bytes with `runtime/testing/terminal-capture.ts`. Stubbing the reporter instead would stop proving that a printed line and its traced twin cannot drift, which is the whole claim `report-to-console.ts` makes about itself.
 
-A file in `bunfig.toml`'s `coveragePathIgnorePatterns` is not a gap in the test suite; it is a claim about what the module IS, not about the state of its tests. Each entry names a module that performs process-boundary I/O — a spawn, a raw-mode TTY, a real network call — and holds no decision logic of its own, with a comment on the line above stating what no `bun test` process can execute, and a matching comment at the top of the excluded file naming what was moved out of it so the remainder could be covered. A module is never excluded merely because covering it is difficult, slow, or unfinished — difficulty is a reason to write the test, not to exclude the file — and the threshold itself never moves to make a gate pass, because that would trade nine named problems for one invisible one.
+A file in `bunfig.toml`'s `coveragePathIgnorePatterns` is not a gap in the test suite; it is a claim about what the file IS, not about the state of its tests. The list holds two kinds of entry. A source module is listed only when it performs process-boundary I/O — a spawn, a raw-mode TTY, a real network call — and holds no decision logic of its own, with a comment on the line above stating what no `bun test` process can execute, and a matching comment at the top of the excluded file naming what was moved out of it so the remainder could be covered. A browser-driven test file is listed because its assertions cannot run when Chromium is unavailable. A module is never excluded merely because covering it is difficult, slow, or unfinished — difficulty is a reason to write the test, not to exclude the file — and the threshold itself never moves to make a gate pass, because that would trade a list of named exclusions for one invisible gap.
 
 ### Checks the gate does not run
 
@@ -190,13 +190,13 @@ That gap is accepted rather than hidden. Installing pi on a runner is not worth 
 
 `mise run typecheck` is three checks in sequence: `typecheck:runtime`, `typecheck:harness`, and `typecheck:visualizer`. `runtime/tsconfig.json` excludes `extensions/`, so the first does not check it. The second does, against the pi installed on this machine — those extensions import `@earendil-works/*` and `typebox` from the host rather than from this repository, and pinning a copy would check them against a version no agent here runs. With no pi installed it says so and exits 0, which is a skipped check, not a passed one — and under `CRUST_STRICT` it exits 1 instead, for anywhere that would rather fail than carry the gap.
 
-`check:install` installs into a throwaway directory and verifies the exact fresh-install file set, byte identity with `templates/pi-crust.toml`, an empty parsed TOML document, commented task examples with triggers and skip lists, and a successful catalogue listing over the real package defaults. It needs no Git or network and removes its scratch directory. It does not inspect or rewrite an existing repository's configuration. `mise run check:install` runs that check without the rest of the gate.
+`check:install` installs into a throwaway directory and verifies the exact fresh-install file set, byte identity with `templates/pi-crust.toml`, an empty parsed TOML document, commented task examples with triggers and skip lists, a machine record that names this clone, and a successful catalogue listing over the real package defaults. It runs the installer with `HOME` set to a scratch directory, so it never rewrites the real `~/.pi-crust/pi-crust-home`. It needs no Git or network and removes its scratch directories. It does not inspect or rewrite an existing repository's configuration. `mise run check:install` runs that check without the rest of the gate.
 
 A runner also needs `bunx playwright install --with-deps chromium`, run from `apps/visualizer`, or the browser-driven visualizer tests skip and the suite is green having not run them. Run from the root, `bunx` resolves the latest playwright rather than the version `apps/visualizer` pins, downloads a Chromium revision the pinned version never looks for, and every browser test still skips.
 
-`apps/visualizer`'s suite includes a browser-driven layout test (`SessionCard.layout.test.ts`) that spins up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it that test prints a warning and skips rather than failing the suite — a skipped check, not a passed one. Running `bunx playwright install chromium` from `apps/visualizer` makes it run for real.
+`apps/visualizer`'s suite includes browser-driven tests — the `*.layout.test.ts` files and `ThemePicker.interaction.test.ts` — that spin up real Chromium through Playwright to measure actual rendered geometry, because `happy-dom` has no layout engine and cannot see overflow clipping. Chromium is a ~99MB download and is not vendored, so on a machine without it those tests print a warning and skip rather than failing the suite — a skipped check, not a passed one. Running `bunx playwright install chromium` from `apps/visualizer` makes them run for real.
 
-The test tasks run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both are devDependencies, called through `bunx` by every task.
+The test tasks run [`bunt`](https://github.com/losandes/buntap) — a bun-test runner that speaks a reporting protocol — and pipe it through `buntap`, which renders that protocol and applies the coverage gate. Both ship in the `buntap` devDependency and are called through `bunx` by every task.
 
 **Unpaired coverage is only meaningful over the whole repository.** `--coverage` without `--paired` measures every file a run loads, including files imported from outside the scope whose own tests were not in it — so a scoped run reports those as uncovered and is lying. `bun test runtime --coverage` reports `lib/typedefs/src/settlement.ts` at 71.43% functions, which looks like a gap and is not: that module is imported by `runtime` and tested by `lib/typedefs/src/settlement.test.ts`, which a `runtime` scope never ran. Measured whole, the same file is at 100%.
 
@@ -212,7 +212,7 @@ COVERAGE FAIL 2 files below the minimum (functions 90.00%, lines 90.00%)
 
 Because coverage is judged per file, a package whose total is 96% still fails on one 40% file.
 
-Lint is `biome.json` at the root, with the convention plugins in `.biome/`. `mise run lint` is `biome check` over `apps`, `lib`, `runtime`, `scripts` and `templates` — every root that holds source. It is the same list the test tasks name, and for the same reason: a root nobody names is a root nobody checks. mise appends anything after `--` to the command, so `mise run lint -- --max-diagnostics=500` raises the cap when it truncates the report, and `mise run lint -- --fix` applies Biome's fixes.
+Lint is `biome.json` at the root, with the convention plugins in `.biome/`. `mise run lint` is `biome check` over `apps`, `lib`, `runtime`, `scripts` and `templates`. The first four are the roots the test tasks name, for the same reason: a root nobody names is a root nobody checks. `templates` now holds only `pi-crust.toml` and `env.example`, neither of which Biome processes. mise appends anything after `--` to the command, so `mise run lint -- --max-diagnostics=500` raises the cap when it truncates the report, and `mise run lint -- --fix` applies Biome's fixes.
 
 It is green, and it stays green: a change that reports a diagnostic is not finished. The backlog Biome found when the configuration first landed was repaid in five stages, so there is no longer a standing exception anyone can point at, and a new report is a regression rather than an inheritance.
 
