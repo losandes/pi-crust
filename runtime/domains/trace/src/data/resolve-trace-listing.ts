@@ -43,7 +43,8 @@ limit 25`,
   cast(p.command as text),
   cast(p.started_at as text)
 from processes p
-where p.run_id = ? and p.ended_at is null
+where p.run_id = ?
+  and p.ended_at is null
 order by p.id`,
 }
 

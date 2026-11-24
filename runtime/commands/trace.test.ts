@@ -1,15 +1,18 @@
 import { Database } from 'bun:sqlite'
-import { expect, spyOn, test } from 'bun:test'
+import { expect, test } from 'bun:test'
+import { spawnSync } from 'node:child_process'
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { withShippedPackage } from '../testing/shipped-layer'
+import { dirname, join } from 'node:path'
+import { loadConfig } from '../domains/config'
+import { SKIP_INTEGRATION } from '../testing/integration'
 import {
   restoreTerminal,
   silenceTerminal,
@@ -17,7 +20,7 @@ import {
 } from '../testing/terminal-capture'
 import { main } from './trace'
 
-for (const mode of [
+const MODES = [
   'rows',
   'empty',
   'missing',
@@ -25,107 +28,155 @@ for (const mode of [
   'no-table',
   'usage',
   'no-id',
-  'fallback',
-] as const) {
+] as const
+
+type TMode = (typeof MODES)[number] | 'fallback'
+
+const fixture = (mode: TMode) => {
+  const root = mkdtempSync(join(tmpdir(), 'crust-trace-command-'))
+  const config = join(root, 'config.toml')
+  if (mode !== 'fallback')
+    writeFileSync(
+      config,
+      `[defaults]\ndata_dir = ${JSON.stringify(root)}\n` +
+        '[planners.operator]\nwrites = []\n' +
+        '[planners.triage]\nwrites = []\n' +
+        '[terminal.gh-pull-request]\nwrites = []\n',
+    )
+  const target =
+    mode === 'fallback'
+      ? join(root, '.pi-crust/data/crust.db')
+      : join(root, 'crust.db')
+  if (mode === 'invalid') writeFileSync(target, 'not a database')
+  if (['rows', 'empty', 'no-table', 'fallback'].includes(mode)) {
+    mkdirSync(dirname(target), { recursive: true })
+    const db = new Database(target)
+    if (mode === 'no-table') {
+      db.exec('create table other(id integer)')
+    } else {
+      db.exec(
+        'create table sessions(run_id text, status text, request text, total_tokens integer, total_cost real, started_at text); create table events(run_id text, type text, name text, started_at text)',
+      )
+      db.run(
+        "insert into sessions values ('one', 'ok', 'request', 4, 0, 'now')",
+      )
+    }
+    db.close()
+  }
+  const before = existsSync(target) ? readFileSync(target) : undefined
+  const args =
+    mode === 'usage'
+      ? ['unknown']
+      : mode === 'no-id'
+        ? ['tail']
+        : mode === 'empty'
+          ? ['tail', 'unknown']
+          : ['sessions']
+  return {
+    root,
+    config,
+    target,
+    before,
+    argv: ['--config', config, ...args],
+    status: ['rows', 'empty', 'fallback'].includes(mode)
+      ? 0
+      : ['usage', 'no-id'].includes(mode)
+        ? 2
+        : 1,
+    output: ['rows', 'fallback'].includes(mode) ? 'one|ok|request|4|0.0\n' : '',
+    [Symbol.dispose]: () => rmSync(root, { recursive: true, force: true }),
+  }
+}
+
+for (const mode of MODES) {
   test(
     [
-      `given trace ${mode}`,
-      `when invoked`,
-      `it should print the listing or its diagnostic without writes`,
+      `given trace ${mode} with an explicit data directory`,
+      'when invoked in process',
+      'it should return the status and output without changing the database',
     ].join(', '),
     () => {
       // given
-      const root = mkdtempSync(join(tmpdir(), 'crust-trace-command-'))
-      const path = join(root, 'trace.db')
-      const config = join(root, 'config.toml')
-      writeFileSync(config, `[defaults]\ndata_dir = ${JSON.stringify(root)}\n`)
-      const target = join(root, 'crust.db')
-      if (mode === 'invalid') writeFileSync(target, 'not a database')
-      if (['rows', 'empty', 'no-table'].includes(mode)) {
-        const db = new Database(target)
-        if (mode === 'no-table') {
-          db.exec('create table other(id integer)')
-        } else {
-          db.exec(
-            'create table sessions(run_id text, status text, request text, total_tokens integer, total_cost real, started_at text); create table events(run_id text, type text, name text, started_at text)',
-          )
-          db.run(
-            "insert into sessions values ('one', 'ok', 'request', 4, 0, 'now')",
-          )
-        }
-        db.close()
-      }
-      const before = existsSync(target) ? readFileSync(target) : undefined
-      const cwd = process.cwd()
-      const oldDb = process.env.CRUST_DB
-      const oldData = process.env.CRUST_DATA_DIR
-      process.chdir(root)
-      // biome-ignore lint/plugin/no-object-mutation: scope and restore the process inputs consumed by the command
-      process.env.CRUST_DB = path
-      // biome-ignore lint/plugin/no-object-mutation: scope and restore the process inputs consumed by the command
-      process.env.CRUST_DATA_DIR = root
+      using given = fixture(mode)
+      expect(process.env.CRUST_DATA_DIR?.trim() ?? '').toBe('')
+      expect(loadConfig(given.config).defaults.data_dir).toBe(given.root)
       silenceTerminal()
-      let stderr: string[] = []
-      const spy = spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-        stderr = [...stderr, String(chunk)]
-        return true
-      })
       try {
         // when
-        const args =
-          mode === 'usage'
-            ? ['unknown']
-            : mode === 'no-id'
-              ? ['tail']
-              : mode === 'empty'
-                ? ['tail', 'unknown']
-                : ['sessions']
-        const status = withShippedPackage(() =>
-          main([
-            '--config',
-            mode === 'fallback' ? '/absent/config.toml' : config,
-            ...args,
-          ]),
-        )
+        const status = main(given.argv)
         // then
-        expect(status).toBe(
-          ['rows', 'empty'].includes(mode)
-            ? 0
-            : ['usage', 'no-id'].includes(mode)
-              ? 2
-              : 1,
-        )
-        expect(terminalOutput()).toBe(
-          mode === 'rows' ? 'one|ok|request|4|0.0\n' : '',
-        )
-        if (['invalid', 'no-table'].includes(mode))
-          expect(stderr.join('')).toStartWith(`trace: cannot read ${target}: `)
-        if (mode === 'missing')
-          expect(stderr.join('')).toBe(
-            `trace: no trace database at ${target}\n`,
-          )
-        if (['usage', 'no-id'].includes(mode))
-          expect(stderr.join('')).toBe(
-            'usage: bun runtime/commands/trace.ts [--config <path>] <sessions|activity-runs|tail|procs> [<run-id>]\n',
-          )
-        if (before) expect(readFileSync(target)).toEqual(before)
-        else expect(existsSync(target)).toBe(false)
+        expect(status).toBe(given.status)
+        expect(terminalOutput()).toBe(given.output)
+        if (given.before)
+          expect(readFileSync(given.target)).toEqual(given.before)
+        else expect(existsSync(given.target)).toBe(false)
       } finally {
-        spy.mockRestore()
         restoreTerminal()
-        process.chdir(cwd)
-        if (oldDb === undefined) delete process.env.CRUST_DB
-        else {
-          // biome-ignore lint/plugin/no-object-mutation: scope and restore the process inputs consumed by the command
-          process.env.CRUST_DB = oldDb
-        }
-        if (oldData === undefined) delete process.env.CRUST_DATA_DIR
-        else {
-          // biome-ignore lint/plugin/no-object-mutation: scope and restore the process inputs consumed by the command
-          process.env.CRUST_DATA_DIR = oldData
-        }
-        rmSync(root, { recursive: true, force: true })
       }
+    },
+  )
+}
+
+for (const mode of [...MODES, 'fallback'] as const) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given trace ${mode} in an isolated process environment`,
+      'when the command starts from a scratch directory',
+      'it should preserve diagnostics bytes and exit status while ignoring CRUST_DB',
+    ].join(', '),
+    () => {
+      // given
+      using given = fixture(mode)
+      const home = join(given.root, 'home')
+      const machine = join(given.root, 'machine')
+      mkdirSync(home)
+      mkdirSync(machine)
+      const alternate = join(given.root, 'alternate.db')
+      const db = new Database(alternate)
+      db.exec(
+        'create table sessions(run_id text, status text, request text, total_tokens integer, total_cost real, started_at text)',
+      )
+      db.run(
+        "insert into sessions values ('wrong', 'ok', 'wrong database', 0, 0, 'now')",
+      )
+      db.close()
+      // when
+      const result = spawnSync(
+        'bun',
+        [join(import.meta.dir, 'trace.ts'), ...given.argv],
+        {
+          cwd: given.root,
+          env: {
+            PATH: process.env.PATH,
+            HOME: home,
+            CRUST_MACHINE_CONFIG: machine,
+            PI_PATH: join(given.root, 'no-pi'),
+            CRUST_DB: alternate,
+          },
+          encoding: 'utf8',
+        },
+      )
+      // then
+      expect(result.status).toBe(given.status)
+      expect(result.stdout).toBe(given.output)
+      if (['invalid', 'no-table'].includes(mode)) {
+        expect(result.stderr).toStartWith(
+          `trace: cannot read ${given.target}: `,
+        )
+        expect(result.stderr.trim().split('\n')).toHaveLength(1)
+      } else if (mode === 'missing') {
+        expect(result.stderr).toBe(
+          `trace: no trace database at ${given.target}\n`,
+        )
+      } else if (['usage', 'no-id'].includes(mode)) {
+        expect(result.stderr).toBe(
+          'usage: bun runtime/commands/trace.ts [--config <path>] <sessions|activity-runs|tail|procs> [<run-id>]\n',
+        )
+      } else {
+        expect(result.stderr).toBe('')
+      }
+      if (given.before) expect(readFileSync(given.target)).toEqual(given.before)
+      else expect(existsSync(given.target)).toBe(false)
     },
   )
 }

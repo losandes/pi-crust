@@ -58,12 +58,12 @@
     {
       "kind": 2,
       "languageId": "sql",
-      "value": "select\n  cast(p.kind as text),\n  cast(p.name as text),\n  cast(p.pid as text),\n  cast(p.command as text),\n  cast(p.started_at as text)\nfrom processes p\nwhere p.run_id = 'sample-run' and p.ended_at is null\norder by p.id"
+      "value": "select\n  cast(p.kind as text),\n  cast(p.name as text),\n  cast(p.pid as text),\n  cast(p.command as text),\n  cast(p.started_at as text)\nfrom processes p\nwhere p.run_id = 'sample-run'\n  and p.ended_at is null\norder by p.id"
     },
     {
       "kind": 2,
       "languageId": "sql",
-      "value": "explain query plan\nselect\n  cast(p.kind as text),\n  cast(p.name as text),\n  cast(p.pid as text),\n  cast(p.command as text),\n  cast(p.started_at as text)\nfrom processes p\nwhere p.run_id = 'sample-run' and p.ended_at is null\norder by p.id"
+      "value": "explain query plan\nselect\n  cast(p.kind as text),\n  cast(p.name as text),\n  cast(p.pid as text),\n  cast(p.command as text),\n  cast(p.started_at as text)\nfrom processes p\nwhere p.run_id = 'sample-run'\n  and p.ended_at is null\norder by p.id"
     }
   ]
 }
