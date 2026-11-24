@@ -10,7 +10,7 @@ accepted
 
 ## Decision
 
-A Lifecycle opts into importing earlier work by naming the engine step `import` first in its first, serial Stage. The engine removes it before resolving the Activity fold and runs it after recording the request, before any agent starts. Configuration cannot define an Activity or alias with that name. The shipped delivering Lifecycle `ship-to-plan` opts in; Lifecycles that identify, diagnose or plan for themselves do not. Existing installations adopt the change by hand rather than through an update that replaces their configuration.
+A Lifecycle opts into importing earlier work by naming the engine step `import` first in its first, serial Stage. The engine removes it before resolving the Activity fold and runs it after recording the request, before any agent starts. Configuration cannot define an Activity or alias with that name. The shipped delivering Lifecycle `ship-plan` opts in; Lifecycles that identify, diagnose or plan for themselves do not. Existing installations adopt the change by hand rather than through an update that replaces their configuration.
 
 Every recognised GitHub issue reference or markdown path in the request counts as naming the work. Duplicate references to the same source are collapsed; distinct sources stop the run rather than being chosen between. The prompt resolver carries the original file argument forward as `promptPath`, so a markdown prompt file is imported without scanning its contents for further references. Relative inline paths resolve against the repository root; the original prompt path resolves against the invoking working directory.
 
@@ -38,7 +38,7 @@ Choosing the intended reference using language heuristics was rejected because a
 
 Temporary-name writes and renames were rejected because they still require cleanup and introduce extra names into the directory Activity Runs snapshot. Leaving partial writes was rejected because the next import would treat an incomplete file as existing work and never finish it. Undo can remove only paths created by this invocation because planning never schedules existing paths.
 
-A separate `--import` flag was rejected because the request already names the source. Enabling import by default for `ship-to-outcome` was also rejected: it starts by producing its own plan, although the chain-Activity exclusion makes opting in by hand safe.
+A separate `--import` flag was rejected because the request already names the source. Enabling import by default for `ship-outcome` was also rejected: it starts by producing its own plan, although the chain-Activity exclusion makes opting in by hand safe.
 
 ## Consequences
 

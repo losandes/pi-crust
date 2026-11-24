@@ -219,7 +219,7 @@ Every issue comment is read and recorded with its author, author association, ad
 
 Import stops before any agent runs when the request names multiple distinct sources, the repository or issue cannot be read, an issue belongs to another repository, the reference is a pull request, a document is missing, unreadable, not a file or protected by `protected_files`, or a source carries no usable text and there is no earlier work. The message names the references and reason. Reword an ambiguous request so exactly one source remains, or run a chain without `import`. A failed write stops the import and removes the files it created; if removal also fails, the message lists the paths left behind for the operator to remove before retrying. Neither path alters earlier files.
 
-The package's `ship-to-plan` already enables import. Package defaults in `runtime/config/` are read on every command, then machine settings in `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`. A custom lifecycle whose `stages` replaces the package array must enable import in that complete array:
+The package's `ship-plan` already enables import. Package defaults in `runtime/config/` are read on every command, then machine settings in `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`. A custom lifecycle whose `stages` replaces the package array must enable import in that complete array:
 
 1. Edit `[lifecycles.<name>]` in `~/.pi-crust/config/crust.lifecycles.toml` for this machine, or in `pi-crust.toml` for the repository. The repository wins on a field both set.
 2. Make the first stage serial and put `import` first, for example `{ name = "deliver", serial = ["import", "build"] }`.

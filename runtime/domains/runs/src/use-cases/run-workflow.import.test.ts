@@ -365,7 +365,7 @@ test.skipIf(SKIP_INTEGRATION)(
       tomlText({
         ...repository,
         lifecycles: {
-          'ship-to-plan': {
+          'ship-plan': {
             stages: [{ name: 'deliver', serial: ['import', 'build'] }],
           },
         },

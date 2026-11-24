@@ -46,7 +46,7 @@ stages = [
   { name = "push", serial = ["gh-pull-request"] },
 ]
 
-[lifecycles.ship-to-outcome]
+[lifecycles.ship-outcome]
 description = "An e2e engineering lifecycle to launch after you already identified the outcome: plan, build, and review."
 stages = [
   { name = "discover", serial = ["plan"] },
@@ -56,7 +56,7 @@ stages = [
   { name = "push", serial = ["gh-pull-request"] },
 ]
 
-[lifecycles.ship-to-plan]
+[lifecycles.ship-plan]
 description = "An e2e engineering lifecycle to launch after you already identified the plan: import the work the request references, build, and review."
 stages = [
   { name = "deliver", serial = ["import","build"] },

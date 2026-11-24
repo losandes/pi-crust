@@ -174,7 +174,7 @@ test(
   },
 )
 
-for (const name of ['ship', 'bugfix', 'ship-to-outcome']) {
+for (const name of ['ship', 'bugfix', 'ship-outcome']) {
   test(
     [
       `given shipped lifecycle ${name}`,
