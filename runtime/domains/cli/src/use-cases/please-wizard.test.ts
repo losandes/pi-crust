@@ -111,7 +111,7 @@ for (const situation of [
         if (
           ['success', 'operator', 'reorder', 'order-cancel'].includes(situation)
         ) {
-          expect(actual?.[0]).toBe('just')
+          expect(actual?.[0]).toBe('crust')
           expect(actual).toContain('the request')
           if (situation === 'reorder') expect(actual).toContain('build,scout')
         } else expect(actual).toBeUndefined()

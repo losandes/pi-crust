@@ -130,8 +130,8 @@ Reusable gates live in `domains/gates/src/use-cases/` and are re-exported from `
 - `data/` and `use-cases/` return settlements rather than throwing. The two sanctioned exceptions are `run-activity-run.ts`, which IS the error boundary, and `safeParseSettlement`, which wraps a throwing call once at the edge.
 - Build new values; do not mutate the ones you were handed. The run's counters live in a closure in `create-run.ts` precisely so no other layer has to.
 
-Runtime and package-default changes need no re-stamp. Configuration is read from `runtime/config/`, then `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`; tables merge recursively and arrays replace whole. If a template-owned file also changed, `install.ts --refresh` or `just crust update` refreshes it, never an existing repository TOML file or execution history. No configuration directory or prompt files are installed. See [install.md](install.md) for ownership and the deprecated installer `--force` alias.
+Runtime and package-default changes need no re-stamp. Configuration is read from `runtime/config/`, then `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`; tables merge recursively and arrays replace whole. If a template-owned file also changed, `crust update`, or `crust init --refresh`, refreshes it, never an existing repository TOML file or execution history. No configuration directory or prompt files are installed. See [install.md](install.md) for ownership and the deprecated installer `--force` alias.
 
 ## Before you finish
 
-Run the smoke chain — `just crust prompt "ping"` — since every module change rides the same path a real run does. `bun test` in `.pi-crust/` covers the modules the skill ships with tests for.
+Run the smoke chain — `crust prompt "ping"` — since every module change rides the same path a real run does. `bun test` in `.pi-crust/` covers the modules the skill ships with tests for.

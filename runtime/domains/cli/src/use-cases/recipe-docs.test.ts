@@ -50,18 +50,18 @@ test(
   [
     'given recipe-docs::RECIPE_DOCS',
     'when every entry is read',
-    'it should begin each usage line with "just crust <name>"',
+    'it should begin each usage and example with "crust <name>"',
   ].join(', '),
   () => {
     for (const doc of RECIPE_DOCS) {
       // given
       // when
-      const actual =
-        doc.usage.startsWith(`just crust ${doc.name}`) ||
-        doc.usage.startsWith(`crust ${doc.name}`)
+      const prefix = `crust ${doc.name}`
 
       // then
-      expect(actual).toBe(true)
+      expect(doc.usage.startsWith(prefix)).toBe(true)
+      for (const example of doc.examples)
+        expect(example.startsWith(prefix)).toBe(true)
     }
   },
 )
@@ -119,7 +119,7 @@ test(
 
     // then
     expect(actual?.examples).toContain(
-      'just crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
+      'crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
     )
   },
 )

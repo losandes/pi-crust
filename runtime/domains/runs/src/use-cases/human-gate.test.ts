@@ -324,12 +324,12 @@ test(
     const actual = renderDecisionRequest(
       reason,
       'a1b2c3d4',
-      'just crust run spec.md --approve-after plan --run-id a1b2c3d4 --resume',
+      'crust run spec.md --approve-after plan --run-id a1b2c3d4 --resume',
     )
 
     // then
     expect(actual).toContain('how long is data retained?')
-    expect(actual).toContain('just crust approve a1b2c3d4')
+    expect(actual).toContain('crust approve a1b2c3d4')
     expect(actual).toContain('Nothing is running')
     // and the way back in, with the flags this run was launched with
     expect(actual).toContain('--approve-after plan --run-id a1b2c3d4 --resume')
@@ -476,7 +476,7 @@ test(
 
     // then
     expect(actual).toBe(
-      'just crust run specs/stats.md --approve-after plan ' +
+      'crust run specs/stats.md --approve-after plan ' +
         '--run-id 9afffac5 --resume',
     )
   },
@@ -503,9 +503,7 @@ test(
     const actual = resumeInvocation(argv, '9afffac5')
 
     // then
-    expect(actual).toBe(
-      'just crust run specs/stats.md --run-id 9afffac5 --resume',
-    )
+    expect(actual).toBe('crust run specs/stats.md --run-id 9afffac5 --resume')
   },
 )
 
@@ -529,7 +527,7 @@ test(
 
     // then
     expect(actual).toBe(
-      'just crust triage "name the top-level directories. change ' +
+      'crust triage "name the top-level directories. change ' +
         'nothing." --run-id ac3127d9 --resume',
     )
   },
@@ -919,15 +917,15 @@ test(
   () => {
     // given
     const runId = 'a1b2c3d4'
-    const resume = 'just crust run spec.md --run-id a1b2c3d4 --resume'
+    const resume = 'crust run spec.md --run-id a1b2c3d4 --resume'
 
     // when
     const actual = decisionOptions(runId, resume)
 
     // then
-    expect(actual.join('\n')).toContain(`just crust answer  ${runId}`)
-    expect(actual.join('\n')).toContain(`just crust reject  ${runId}`)
-    expect(actual.join('\n')).toContain(`just crust approve ${runId}`)
+    expect(actual.join('\n')).toContain(`crust answer  ${runId}`)
+    expect(actual.join('\n')).toContain(`crust reject  ${runId}`)
+    expect(actual.join('\n')).toContain(`crust approve ${runId}`)
     expect(actual.join('\n')).toContain(resume)
   },
 )
@@ -1003,14 +1001,14 @@ for (const cause of ['uncommitted', 'forge'] as const) {
         expect(actual).toContain(reason.refusal)
         expect(actual).toContain('Nothing reached the forge')
       }
-      expect(actual).not.toContain('just crust answer')
-      expect(actual).not.toContain('just crust approve')
-      expect(actual).not.toContain('just crust reject')
+      expect(actual).not.toContain('crust answer')
+      expect(actual).not.toContain('crust approve')
+      expect(actual).not.toContain('crust reject')
       expect(output).toContain(request)
       expect(output).toContain(resume)
-      expect(output).not.toContain('just crust answer')
-      expect(output).not.toContain('just crust approve')
-      expect(output).not.toContain('just crust reject')
+      expect(output).not.toContain('crust answer')
+      expect(output).not.toContain('crust approve')
+      expect(output).not.toContain('crust reject')
     },
   )
 }

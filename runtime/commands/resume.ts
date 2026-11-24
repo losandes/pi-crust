@@ -3,7 +3,7 @@
 /**
  * Pick a stopped run back up, exactly as it was launched.
  *
- *   just crust resume <run-id> [--note "what you changed"] [--detach]
+ *   crust resume <run-id> [--note "what you changed"] [--detach]
  *
  * `--note` is a standing instruction, not a message to a live agent: it is
  * appended to the run's `steering.md` through the handoff directory the run
@@ -36,7 +36,7 @@ const say = (line: string): void => {
 }
 
 const USAGE = [
-  'usage: just crust resume <run-id> [--note "what you changed"] [--detach]',
+  'usage: crust resume <run-id> [--note "what you changed"] [--detach]',
   '',
   '  --note     a standing instruction every activity from here reads, through',
   "             the run's own steering.md — not a message to a live agent",

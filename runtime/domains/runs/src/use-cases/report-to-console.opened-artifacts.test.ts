@@ -233,7 +233,7 @@ for (const scenario of cases) {
         expect(lines.join('\n')).toContain(`$${scenario.cost.toFixed(4)}`)
         expect(lines.join('\n')).toContain(runId)
         expect(lines.join('\n')).toContain(dbPath)
-        expect(lines.join('\n')).toContain(`just crust activityRuns ${runId}`)
+        expect(lines.join('\n')).toContain(`crust activity-runs ${runId}`)
         if (scenario.imported)
           expect(lines.join('\n')).not.toContain('https://')
         if (scenario.name.startsWith('C4'))

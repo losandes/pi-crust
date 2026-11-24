@@ -224,21 +224,21 @@ export const decisionOptions = (
 ): readonly string[] =>
   kind === 'acceptance'
     ? [
-        `just crust approve ${runId}`,
+        `crust approve ${runId}`,
         '    accept the run over unresolved findings and open the pull request',
-        `just crust answer  ${runId} --file answers.md`,
+        `crust answer  ${runId} --file answers.md`,
         '    accept the run with your answer and open the pull request',
-        `just crust reject  ${runId} --note "..."`,
+        `crust reject  ${runId} --note "..."`,
         '    cancel the pull request and end the run as not accepted',
         '',
         `    ${resume}`,
       ]
     : [
-        `just crust answer  ${runId} --file answers.md`,
+        `crust answer  ${runId} --file answers.md`,
         '    your text enters the next stage as a FACT attributed to you',
-        `just crust reject  ${runId} --note "..."`,
+        `crust reject  ${runId} --note "..."`,
         '    send the stage back to redo its work with a correction',
-        `just crust approve ${runId}`,
+        `crust approve ${runId}`,
         '    continue WITHOUT answering — the questions stay open in the record',
         '',
         'then pick it up where it stopped (nothing already green is re-run):',
@@ -316,9 +316,9 @@ export const renderDecisionRequest = (
   return (
     `${head}${body}\n## What happens next\n\n` +
     '```bash\n' +
-    `just crust answer  ${runId} --file answers.md   # your text enters the next stage as a FACT attributed to you\n` +
-    `just crust reject  ${runId} --note "..."        # send the stage back to redo its work with a correction\n` +
-    `just crust approve ${runId}                     # continue WITHOUT answering — the questions stay open\n` +
+    `crust answer  ${runId} --file answers.md   # your text enters the next stage as a FACT attributed to you\n` +
+    `crust reject  ${runId} --note "..."        # send the stage back to redo its work with a correction\n` +
+    `crust approve ${runId}                     # continue WITHOUT answering — the questions stay open\n` +
     '```\n\n' +
     'Then pick it up where it stopped:\n\n' +
     `\`\`\`bash\n${resume}\n\`\`\`\n\n` +

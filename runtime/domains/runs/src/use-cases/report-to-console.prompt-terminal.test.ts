@@ -23,7 +23,7 @@ afterEach(restoreTerminal)
  * untruncated prompt (its "60 identical lines" and "embedded quote" tests
  * both assert against the tracer's recorded messages). None of its
  * assertions touch `writeLine` / `process.stdout.write` — the actual
- * terminal destination a person reads at `just crust run` time. The issue's
+ * terminal destination a person reads at `crust run` time. The issue's
  * success criteria are about what is printed to the TERMINAL ("the person
  * sees the mangled text ... which is checkable without reading source"),
  * and `report-to-console.ts`'s own doc comment draws a line between the two

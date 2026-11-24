@@ -36,7 +36,7 @@ Each domain exposes `index.ts` over `src/{data,typedefs,use-cases}`. Cross-domai
 
 ## Repository layout
 
-A fresh install writes four repository files: `pi-crust.toml`, `.env.pi-crust.example`, `.gitignore` and `justfile`. It writes `~/.pi-crust/pi-crust-home` as the machine record of the package, and nothing under the repository's `.pi-crust/`. Runs create `crust.db`, `sessions/<run_id>/` and command logs under `~/.pi-crust/data/` by default, shared across repositories.
+Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. Runs create `crust.db`, `sessions/<run_id>/` and command logs under `~/.pi-crust/data/` by default, shared across repositories.
 
 Configuration is read on every command in three layers: package `runtime/config/`, machine `~/.pi-crust/config/`, repository `pi-crust.toml`. The two directories each hold the same three TOML filenames. Tables merge recursively; arrays, including lifecycle stages, replace whole. The repository wins for fields it states. Lists group entries by first-declaring layer and sort names inside each group.
 
@@ -89,9 +89,9 @@ Agents have exactly two output channels: reference files written into `context_h
 ## Running a workflow
 
 ```bash
-just crust run "add a /health endpoint" --activities plan
-just crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
-just crust run "the /health work" --activities review+code-review
+crust run "add a /health endpoint" --activities plan
+crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
+crust run "the /health work" --activities review+code-review
 ```
 
 The prompt is inline text or a file path. `--run-id` is optional on every workflow: given one, the run joins that session (same dirs, same `context_handoff/`, agents resume their existing context windows); omitted, a fresh id is minted and printed.
@@ -99,15 +99,15 @@ The prompt is inline text or a file path. `--run-id` is optional on every workfl
 A run that stopped is picked up, not restarted:
 
 ```bash
-bun .pi-crust/report.ts                      # where did the last run stop?
-bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+crust report                      # where did the last run stop?
+crust run "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
-`--resume` skips every activity run already recorded successful for that session and starts at the first that is not. It works on every workflow, and `report.ts` prints the exact command for the run it describes.
+`--resume` skips every activity run already recorded successful for that session and starts at the first that is not. It works on every workflow, and `crust report` prints the exact command for the run it describes.
 
 ## When you have finished reading this
 
-You are done with startup. List the available Activities and Lifecycles with `just crust list`, and **wait for the engineer's request.**
+You are done with startup. List the available Activities and Lifecycles with `crust list`, and **wait for the engineer's request.**
 
 Do not survey anything else — not the trace db, not the config, not past runs, not the repo tree. You do not yet know what the request is, so anything you gather now is a guess about what will matter, spent from the context the real work needs. Every cookbook and reference below is lazy-loaded, one per request, and that is the whole design.
 

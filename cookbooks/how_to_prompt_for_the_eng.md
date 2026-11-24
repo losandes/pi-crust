@@ -61,9 +61,9 @@ Same idea, same scope. What changed is that "popularity" became a sort order, th
 **If they did not, read what this repo actually has and choose from that.**
 
 ```bash
-just crust list                    # merged lifecycles and Activities
-just crust config                  # effective values and their sources
-just crust please                  # the same catalogue, interactively
+crust list                    # merged lifecycles and Activities
+crust config                  # effective values and their sources
+crust please                  # the same catalogue, interactively
 ```
 
 The catalogue is read from package defaults in `runtime/config/`, machine preferences in `~/.pi-crust/config/`, then the repository's single `pi-crust.toml`. Tables merge field by field, with arrays replaced whole; the repository wins for fields it sets. Changes take effect on the next command without re-stamping. Chains are the engineer's to add, rename and rewire, so **read the merged catalogue every time**. Never launch from memory or from a name you saw in a doc; read the docstrings, then match by shape:
@@ -105,6 +105,6 @@ After launching, show the engineer three things so a bad translation dies in sec
 
 1. **The prompt you actually sent** — verbatim.
 2. **The workflow you chose**, and the one-line reason — or that you used the one they named. If they named a roster (a config, a model tier), say which one you ran on; if they did not, you ran the default, and switching that is their call, not yours (`run_lifecycle.md`).
-3. **The `run_id`**, so they can watch it (`just crust activity runs <run_id>`).
+3. **The `run_id`**, so they can watch it (`crust activity-runs <run_id>`).
 
 Then observe and report per `run_lifecycle.md`. You run the system; you do not do the work inside it.

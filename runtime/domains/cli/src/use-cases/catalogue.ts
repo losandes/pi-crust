@@ -1,7 +1,7 @@
 /**
  * pi-crust List — what this repository offers, read from its configuration.
  *
- * `just crust default` used to answer this, because there was a recipe per
+ * `crust default` used to answer this, because there was a recipe per
  * Activity and per Lifecycle. That list was a second copy of the registry,
  * written by hand in a file configuration cannot reach, and it drifted in the
  * direction nobody notices: four Lifecycles were added and the recipes went
@@ -63,17 +63,17 @@ export const renderCatalogue = (catalogue: TCatalogue): string => {
   return [
     ...section(
       'lifecycles',
-      `just crust ${RUN_RECIPE} "<prompt>" --lifecycle <name>`,
+      `crust ${RUN_RECIPE} "<prompt>" --lifecycle <name>`,
       catalogue.lifecycles,
     ),
     ...section(
       'planners',
-      'just crust <name> "<prompt>"  — they choose the chain',
+      'crust <name> "<prompt>"  — they choose the chain',
       catalogue.planners,
     ),
     ...section(
       'activities',
-      `just crust ${RUN_RECIPE} "<prompt>" --activities a,b,c   (a+b runs at once)`,
+      `crust ${RUN_RECIPE} "<prompt>" --activities a,b,c   (a+b runs at once)`,
       catalogue.activities,
     ),
     ...section(

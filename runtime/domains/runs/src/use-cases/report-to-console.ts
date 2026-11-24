@@ -156,7 +156,7 @@ export const createConsole = (tracer: TTracer, runId: string): TConsole => {
         `${paint('cost', 'dim')}     $${cost.toFixed(4)}`,
         `${paint('run_id', 'dim')}   ${runId}`,
         `${paint('db', 'dim')}       ${dbPath}`,
-        `${paint('next', 'dim')}     ${paint(`just crust activityRuns ${runId}`, 'bold')}`,
+        `${paint('next', 'dim')}     ${paint(`crust activity-runs ${runId}`, 'bold')}`,
       ]
       const plainLine =
         `session ${runId} ${ok ? 'success' : 'fail'} · ` +

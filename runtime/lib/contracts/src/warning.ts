@@ -14,7 +14,7 @@
  * a second mechanism.
  *
  * One event name, one shape, four readers: the terminal at the end of a run,
- * `just crust report`, the visualizer's session screen, and the visualizer's
+ * `crust report`, the visualizer's session screen, and the visualizer's
  * Activity screen. Recomputing this in four places is how four surfaces come
  * to disagree about what happened.
  */

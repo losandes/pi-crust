@@ -50,6 +50,6 @@ Put machine-wide preferences in the corresponding machine file instead of repeat
 
 Each entry names one optional directory with `prompts = "prompts/<name>"`, defaulting to its own name. `system.md` and `user.md` are required when that Activity runs; `revise.md` is optional. Relative directories resolve against the first-declaring layer's root, not the later file that merely tunes an entry. A machine-only Activity normally keeps its prompt pair under `~/.pi-crust/prompts/<name>/`. Change shipped prompt behavior in a package fork, not a repository override.
 
-Use `just crust list` to inspect the catalogue and `just crust config` for effective values and their sources. Listing permits an unused Activity with missing prompts; run startup checks the prompt files of the Activities actually selected.
+Use `crust list` to inspect the catalogue and `crust config` for effective values and their sources. Listing permits an unused Activity with missing prompts; run startup checks the prompt files of the Activities actually selected.
 
 Full field definitions, file-to-key routing, precedence and hand migration are in the [configuration reference](../references/config.md). To add an Activity, follow [Update Config](update_config.md).

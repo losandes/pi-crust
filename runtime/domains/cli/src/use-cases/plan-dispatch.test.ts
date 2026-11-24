@@ -116,15 +116,15 @@ for (const [argv, message] of [
   ],
   [
     ['approve'],
-    'crust approve: missing <run-id>.\nusage: just crust approve <run-id>',
+    'crust approve: missing <run-id>.\nusage: crust approve <run-id>',
   ],
   [
     ['join', 'id'],
-    'crust join: missing <activity>.\nusage: just crust join <run-id> <activity>',
+    'crust join: missing <activity>.\nusage: crust join <run-id> <activity>',
   ],
   [
     ['default', 'two words'],
-    'crust default: unexpected argument "two words".\nusage: just crust default  (same as the bare `just crust`)',
+    'crust default: unexpected argument "two words".\nusage: crust default  (same as the bare `crust`)',
   ],
   [
     ['run'],

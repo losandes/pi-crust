@@ -1,6 +1,47 @@
 import { expect, test } from 'bun:test'
 import { TRUST_DEFAULT } from '../../../../lib/contracts'
 import { OPERATORS, resumeArgvFor, runArgv } from './compose-request'
+import { dispatchArgv } from './recipe-line'
+
+for (const planner of ['', 'operator']) {
+  test(
+    [
+      `given a ${planner || 'lifecycle'} request with default options`,
+      'when prepared for dispatch',
+      'it should keep the prompt as one argument and select the command',
+    ].join(', '),
+    () => {
+      // given
+      const argv = request({ prompt: 'fix the login bug', operator: planner })
+      // when
+      const actual = dispatchArgv(argv)
+      // then
+      expect(actual).toEqual(
+        planner
+          ? [planner, 'fix the login bug']
+          : ['run', 'fix the login bug', '--lifecycle', 'sdlc'],
+      )
+    },
+  )
+}
+
+for (const verb of ['approve', 'answer', 'reject'] as const) {
+  test(
+    [
+      `given a waiting run and ${verb}`,
+      'when prepared for dispatch',
+      'it should pass the verb and run id first',
+    ].join(', '),
+    () => {
+      // given
+      const request = { verb, runId: 'a1b2c3d4', note: '' }
+      // when
+      const actual = dispatchArgv(resumeArgvFor(request))
+      // then
+      expect(actual).toEqual([verb, 'a1b2c3d4'])
+    },
+  )
+}
 
 const SDLC_ACTIVITIES = ['plan', 'test', 'build', 'review']
 
@@ -35,7 +76,6 @@ test(
 
     // then
     expect(argv).toEqual([
-      'just',
       'crust',
       'run',
       'add a /health endpoint',
@@ -59,7 +99,7 @@ test(
     const argv = request({ activities, lifecycle: '' })
 
     // then
-    expect(argv.slice(0, 3)).toEqual(['just', 'crust', 'run'])
+    expect(argv.slice(0, 2)).toEqual(['crust', 'run'])
     expect(argv[argv.indexOf('--activities') + 1]).toBe('build,plan,test')
   },
 )
@@ -122,7 +162,7 @@ test(
     const argv = resumeArgvFor(answer)
 
     // then
-    expect(argv).toEqual(['just', 'crust', 'approve', 'a1b2c3d4'])
+    expect(argv).toEqual(['crust', 'approve', 'a1b2c3d4'])
   },
 )
 
@@ -162,12 +202,7 @@ test(
     const argv = request(answers)
 
     // then
-    expect(argv).toEqual([
-      'just',
-      'crust',
-      'operator',
-      'add a /health endpoint',
-    ])
+    expect(argv).toEqual(['crust', 'operator', 'add a /health endpoint'])
     expect(argv).not.toContain('--activities')
   },
 )

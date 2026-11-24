@@ -126,8 +126,8 @@ const nameFaults = (
       ? [
           `${planners.join(', ')} cannot be named in a chain — ` +
             `${PLANNER_NAMES.join(' and ')} CHOOSE a chain rather than being ` +
-            'part of one. Run `just crust operator "…"` or ' +
-            '`just crust triage "…"` instead.',
+            'part of one. Run `crust operator "…"` or ' +
+            '`crust triage "…"` instead.',
         ]
       : []),
     ...(unknown.length > 0

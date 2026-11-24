@@ -14,7 +14,7 @@ export type TReportArgs = Readonly<{
 }>
 
 export const REPORT_USAGE =
-  'usage: just crust report [<run-id>] [--json] [--db <path>] ' +
+  'usage: crust report [<run-id>] [--json] [--db <path>] ' +
   '[--config <path>]\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 

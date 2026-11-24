@@ -118,7 +118,7 @@ export const resumeVerdict = (
     return {
       ok: false,
       reason:
-        `'${runId}' is still running — run \`just crust procs ${runId}\` to see ` +
+        `'${runId}' is still running — run \`crust procs ${runId}\` to see ` +
         'what is live, or wait for it to finish.',
     }
   }
@@ -128,7 +128,7 @@ export const resumeVerdict = (
 /**
  * Which activityRuns this run must not do again.
  *
- * Read through `readRunState` — the reporter's function — so `just crust
+ * Read through `readRunState` — the reporter's function — so `crust
  * report` and `--resume` cannot disagree. Resuming needs an run_id, because
  * resuming an unnamed session is resuming nothing.
  */
@@ -139,7 +139,7 @@ const completedActivityRuns = (
   if (runId === undefined || runId === '') {
     throw new Error(
       '--resume needs --run-id: name the session to pick up. ' +
-        'Run `just crust report` to see the most recent one.',
+        'Run `crust report` to see the most recent one.',
     )
   }
   const state = readRunState(dbPath, runId)

@@ -24,7 +24,7 @@ thinking = "low"
 [activities.outcome-review]
 color = "cyan"
 
-# Hidden from the `just crust please` menu, not disabled.
+# Hidden from the `crust please` menu, not disabled.
 [activities.security-research]
 hidden = true
 

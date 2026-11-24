@@ -194,7 +194,7 @@ test(
       activity: 'gh-pull-request',
       detail: 'Deadlocked — see handoff/disputes.md',
     }
-    const resume = 'just crust run --run-id wait0117 --resume'
+    const resume = 'crust run --run-id wait0117 --resume'
     const request = writeDecisionRequest(
       run.contextHandoffDir,
       reason,
@@ -223,9 +223,9 @@ test(
     expect(rendered).toContain('does not revise the work')
     expect(rendered).toContain(resume)
     const output = terminalOutput()
-    expect(output).toContain('just crust approve')
-    expect(output).toContain('just crust answer')
-    expect(output).toContain('just crust reject')
+    expect(output).toContain('crust approve')
+    expect(output).toContain('crust answer')
+    expect(output).toContain('crust reject')
     expect(output).toContain('cancel the pull request')
     expect(output).not.toContain('send the stage back')
   },

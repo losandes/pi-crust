@@ -13,7 +13,7 @@
  */
 
 import { TRUST_DEFAULT } from '../../../../lib/contracts'
-import { RUN_RECIPE } from './recipe-line'
+import { crustArgv, RUN_RECIPE } from './recipe-line'
 
 /**
  * An agent that chooses the chain instead of being given one.
@@ -151,10 +151,7 @@ export const runArgv = (request: TRunRequest): readonly string[] => {
    */
   const recipe = chosen ? request.operator : RUN_RECIPE
 
-  return [
-    'just',
-    'crust',
-    recipe,
+  return crustArgv(recipe, [
     request.prompt,
     ...(chosen
       ? []
@@ -169,7 +166,7 @@ export const runArgv = (request: TRunRequest): readonly string[] => {
       ? []
       : ['--approve-after', request.approveAfter]),
     ...(request.stream ? ['--stream'] : []),
-  ]
+  ])
 }
 
 /**
@@ -178,10 +175,8 @@ export const runArgv = (request: TRunRequest): readonly string[] => {
  * Approve, reject and answer are three recipes, one per verb, each taking the
  * run id first, so the verb IS the recipe name.
  */
-export const resumeArgvFor = (request: TResumeRequest): readonly string[] => [
-  'just',
-  'crust',
-  request.verb,
-  request.runId,
-  ...(request.note === '' ? [] : ['--note', request.note]),
-]
+export const resumeArgvFor = (request: TResumeRequest): readonly string[] =>
+  crustArgv(request.verb, [
+    request.runId,
+    ...(request.note === '' ? [] : ['--note', request.note]),
+  ])

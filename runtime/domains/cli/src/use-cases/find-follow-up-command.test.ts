@@ -68,7 +68,7 @@ for (const one of [
         expect(actual).toEqual(
           one.missing
             ? undefined
-            : 'just crust run "fix the paths" --activities plan,build',
+            : 'crust run "fix the paths" --activities plan,build',
         )
       } finally {
         tracer.close()

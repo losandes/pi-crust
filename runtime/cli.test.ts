@@ -248,12 +248,82 @@ for (const repository of [true, false]) {
       expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toContain(
         '.pi-crust/data/',
       )
-      expect(
-        readFileSync(join(f.home, '.pi-crust/pi-crust-home'), 'utf8').trim(),
-      ).toBe(PACKAGE)
+      if (!repository)
+        expect(readdirSync(f.root).toSorted()).toEqual([
+          '.env.pi-crust.example',
+          '.gitignore',
+          'pi-crust.toml',
+        ])
+      expect(result.stdout).toContain('crust demo')
+      expect(result.stdout).toContain('crust sessions')
+      expect(result.stdout).toContain('crust observe')
       expect(result.stdout).toContain('pi-crust.toml')
       expect(result.stdout).toContain('.env.pi-crust.example')
       if (repository) expect(readdirSync(cwd)).toEqual([])
+    },
+    INTEGRATION_TIMEOUT_MS,
+  )
+}
+
+for (const argv of [['init'], ['init', '--refresh'], ['update']]) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      'given an unconfigured Git repository',
+      `when crust ${argv.join(' ')}`,
+      'it should create the three setup files',
+    ].join(', '),
+    () => {
+      // given
+      using f = fixture()
+      f.git()
+      // when
+      const result = f.invoke(argv)
+      // then
+      expect(result.status).toBe(0)
+      expect(
+        readdirSync(f.root)
+          .filter((name) => name !== '.git')
+          .toSorted(),
+      ).toEqual(['.env.pi-crust.example', '.gitignore', 'pi-crust.toml'])
+    },
+    INTEGRATION_TIMEOUT_MS,
+  )
+}
+
+for (const [kind, argv] of [
+  ['team', ['init']],
+  ['team', ['init', '--refresh']],
+  ['earlier', ['init']],
+  ['earlier', ['update']],
+] as const) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given ${kind} recipes and existing package records`,
+      `when crust ${argv.join(' ')}`,
+      'it should preserve their bytes',
+    ].join(', '),
+    () => {
+      // given
+      using f = fixture()
+      f.git()
+      const recipes =
+        kind === 'team'
+          ? 'test:\n    echo team-owned\r\n'
+          : 'set positional-arguments\n\ncrust *ARGS:\n    @bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" {{ARGS}}\n'
+      const files = [
+        [join(f.root, 'justfile'), recipes],
+        [join(f.home, '.pi-crust/pi-crust-home'), '/previous/package\n'],
+        [join(f.root, '.pi-crust/data/pi-crust-home'), '/gone/stale/package\n'],
+      ] as const
+      mkdirSync(join(f.home, '.pi-crust'), { recursive: true })
+      mkdirSync(join(f.root, '.pi-crust/data'), { recursive: true })
+      for (const [path, bytes] of files) writeFileSync(path, bytes)
+      // when
+      const result = f.invoke(argv)
+      // then
+      expect(result.status).toBe(0)
+      for (const [path, bytes] of files)
+        expect(readFileSync(path, 'utf8')).toBe(bytes)
     },
     INTEGRATION_TIMEOUT_MS,
   )

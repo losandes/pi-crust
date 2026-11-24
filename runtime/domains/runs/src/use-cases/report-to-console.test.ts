@@ -405,14 +405,10 @@ test(
     const console_ = createConsole(tracer, 'aaaa1111')
 
     // when
-    console_.instructions([
-      'just crust report aaaa1111',
-      '',
-      'to see what happened',
-    ])
+    console_.instructions(['crust report aaaa1111', '', 'to see what happened'])
 
     // then
-    expect(messages).toContain('  just crust report aaaa1111')
+    expect(messages).toContain('  crust report aaaa1111')
     expect(messages).toContain('  to see what happened')
   },
 )

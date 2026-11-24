@@ -1,5 +1,72 @@
 import { expect, test } from 'bun:test'
-import { RUN_RECIPE, recipeArgv, recipeOf, shellLine } from './recipe-line'
+import { planDispatch } from './plan-dispatch'
+import { RECIPE_DOCS } from './recipe-docs'
+import {
+  crustArgv,
+  dispatchArgv,
+  RUN_RECIPE,
+  recipeArgv,
+  recipeOf,
+  shellLine,
+} from './recipe-line'
+import { resumeArgv } from './resume-run'
+
+test(
+  [
+    'given a command and arguments with spaces',
+    'when composed and prepared for dispatch',
+    'it should preserve every argument boundary',
+  ].join(', '),
+  () => {
+    // given
+    const args = ['a b', '--stream']
+    // when
+    const argv = crustArgv('run', args)
+    // then
+    expect(argv).toEqual(['crust', 'run', 'a b', '--stream'])
+    expect(dispatchArgv(argv)).toEqual(['run', 'a b', '--stream'])
+  },
+)
+
+for (const name of ['run', 'operator', 'triage']) {
+  test(
+    [
+      `given a recorded ${name} invocation`,
+      'when resumed through the printed command',
+      'it should dispatch the same program and prompt under the same run id',
+    ].join(', '),
+    () => {
+      // given
+      const invocation = [
+        'bun',
+        `/pkg/runtime/commands/${name}.ts`,
+        'fix the login bug',
+      ]
+      // when
+      const argv =
+        recipeArgv(['bun', ...resumeArgv(invocation, 'a1b2c3d4')]) ?? []
+      const actual = planDispatch(RECIPE_DOCS)({
+        argv: dispatchArgv(argv),
+        packageRoot: '/pkg',
+        cwd: '/repo',
+        repositoryRoot: '/repo',
+        env: {},
+      })
+      // then
+      expect(argv.slice(0, 2)).toEqual(['crust', name])
+      expect(actual.status).toBe('ok')
+      if (actual.status === 'ok') {
+        expect(actual.data.script).toBe(`/pkg/runtime/commands/${name}.ts`)
+        expect(actual.data.args).toContain('fix the login bug')
+        expect(actual.data.args.slice(-3)).toEqual([
+          '--run-id',
+          'a1b2c3d4',
+          '--resume',
+        ])
+      }
+    },
+  )
+}
 
 test(
   [
@@ -42,7 +109,6 @@ test(
 
     // then
     expect(actual).toEqual([
-      'just',
       'crust',
       'run',
       'add a /health endpoint',
@@ -72,12 +138,7 @@ test(
     const actual = recipeArgv(argv)
 
     // then
-    expect(actual).toEqual([
-      'just',
-      'crust',
-      'operator',
-      'the webhook drops retries',
-    ])
+    expect(actual).toEqual(['crust', 'operator', 'the webhook drops retries'])
   },
 )
 
@@ -107,13 +168,13 @@ test(
   ].join(', '),
   () => {
     // given
-    const argv = ['just', 'crust', 'run', 'add a /health endpoint']
+    const argv = ['crust', 'run', 'add a /health endpoint']
 
     // when
     const actual = shellLine(argv)
 
     // then
-    expect(actual).toBe('just crust run "add a /health endpoint"')
+    expect(actual).toBe('crust run "add a /health endpoint"')
   },
 )
 
@@ -125,14 +186,7 @@ test(
   ].join(', '),
   () => {
     // given
-    const argv = [
-      'just',
-      'crust',
-      'run',
-      'x',
-      '--activities',
-      'review+code-review',
-    ]
+    const argv = ['crust', 'run', 'x', '--activities', 'review+code-review']
 
     // when
     const actual = shellLine(argv)

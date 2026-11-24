@@ -35,7 +35,7 @@ for (const recipe of ['operator', 'triage']) {
         expect(actual.exitCode).toBe(EXIT.USAGE)
         expect(actual.stdout.toString()).toBe('')
         expect(actual.stderr.toString()).toBe(
-          `--model applies to \`just crust run\` only — the ${recipe} chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n`,
+          `--model applies to \`crust run\` only — the ${recipe} chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n`,
         )
       },
     )

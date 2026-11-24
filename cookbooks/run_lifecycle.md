@@ -12,13 +12,13 @@ The workflow is the worker. Your job is to launch it, watch the trace, and tell 
 
 ## Launch
 
-Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read the merged catalogue with `just crust list`; package definitions, machine preferences under `~/.pi-crust/config/`, and the repository's single `pi-crust.toml` together decide what is offered. The names below illustrate command shape, not a fixed menu.
+Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read the merged catalogue with `crust list`; package definitions, machine preferences under `~/.pi-crust/config/`, and the repository's single `pi-crust.toml` together decide what is offered. The names below illustrate command shape, not a fixed menu.
 
 ```bash
-bun <pi-crust>/runtime/commands/run.ts "add a /health endpoint" --lifecycle sdlc
-bun <pi-crust>/runtime/commands/run.ts requests/health.md
-just crust run "implement the plan" --activities build --run-id a1b2c3d4
-just crust run "where is auth handled" --activities scout --config path/to/pi-crust.toml
+crust run "add a /health endpoint" --lifecycle sdlc
+crust run requests/health.md
+crust run "implement the plan" --activities build --run-id a1b2c3d4
+crust run "where is auth handled" --activities scout --config path/to/pi-crust.toml
 ```
 
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `run_id` is printed on startup — capture it, everything else keys off it.
@@ -28,8 +28,8 @@ The prompt is inline text or a file path. Launch in the background so you can po
 The chain says *what runs*; the config says *who runs it*. **If the engineer references a roster, a config, or a model tier, pass it — do not fall through to the default.**
 
 ```bash
-just crust config                 # effective settings and their layer/file sources
-just crust list                   # merged Activities and lifecycles
+crust config                 # effective settings and their layer/file sources
+crust list                   # merged Activities and lifecycles
 ```
 
 Configuration is read live from `<pi-crust>/runtime/config/`, then `~/.pi-crust/config/`, then `pi-crust.toml`. Each directory has `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge field by field; arrays replace whole. There are no automatically discovered filename variants.
@@ -37,24 +37,24 @@ Configuration is read live from `<pi-crust>/runtime/config/`, then `~/.pi-crust/
 Pass an engineer-supplied repository-file path with `--config`; `CRUST_CONFIG` supplies it when the flag is absent. This selects the strongest file, not a replacement for the package and machine layers. If a model tier is ambiguous, resolve what the engineer means rather than editing configuration or silently changing cost. A one-run model choice can use the existing `--model <activity>=<provider/model>@<thinking>` override.
 
 ```bash
-bun <pi-crust>/runtime/commands/run.ts "<prompt>" --lifecycle <name> --config path/to/pi-crust.toml
-CRUST_CONFIG=path/to/pi-crust.toml just crust run "<prompt>" --lifecycle <name>
+crust run "<prompt>" --lifecycle <name> --config path/to/pi-crust.toml
+CRUST_CONFIG=path/to/pi-crust.toml crust run "<prompt>" --lifecycle <name>
 ```
 
 Tasks come only from the selected repository file. Its inactive template examples run nothing until real commands are supplied. Machine and package edits affect the next command without re-stamping; an installer refresh never replaces an existing `pi-crust.toml`.
 
-`--scope` says what the judging Activities judge: `review`, `code-review` and `document` all read it, and so does `just crust verify`.
+`--scope` says what the judging Activities judge: `review`, `code-review` and `document` all read it, and so does `crust verify`.
 
 ```bash
-just crust run "the stats refactor" --activities code-review --scope HEAD~3..HEAD   # a range
-just crust verify --scope main                                       # since a ref
-just crust run "the gateway" --activities code-review --scope apps/gateway         # a directory
-just crust verify --scope 'lib/**/*.ts'                              # a glob
+crust run "the stats refactor" --activities code-review --scope HEAD~3..HEAD   # a range
+crust verify --scope main                                       # since a ref
+crust run "the gateway" --activities code-review --scope apps/gateway         # a directory
+crust verify --scope 'lib/**/*.ts'                              # a glob
 ```
 
-Omit it and the judging Activities are given everything their run has changed since it started, committed or not; when the run has changed nothing they read the uncommitted working tree, as `just crust verify` always does. `--base` is the old name and still works; it became `--scope` when a directory stopped being the base of anything. A ref wins when a branch and a directory share a name.
+Omit it and the judging Activities are given everything their run has changed since it started, committed or not; when the run has changed nothing they read the uncommitted working tree, as `crust verify` always does. `--base` is the old name and still works; it became `--scope` when a directory stopped being the base of anything. A ref wins when a branch and a directory share a name.
 
-A path scope makes `just crust verify` consider the tracked files in that scope, not just changed files. The same `change` tasks apply, and the command reports files no task matched without failing on that count.
+A path scope makes `crust verify` consider the tracked files in that scope, not just changed files. The same `change` tasks apply, and the command reports files no task matched without failing on that count.
 
 `--stream` prints each agent's thinking and prose in the terminal as it arrives. Off by default, because an unattended run that writes a model's reasoning to stdout buries the one line that said what went wrong. Everything it prints is recorded either way — the visualizer's reading pane shows the same narration after the fact, and `raw_output.jsonl` holds the full text.
 
@@ -63,7 +63,7 @@ Committing is a property of each Activity, not a mode of the run. An Activity th
 `--commit false` turns committing off for a whole run, whatever the registry says. A Lifecycle ending in a terminal Activity that requires commits rejects it at startup. There is no `--commit true`: a flag granting a permission the configuration withheld would make a run behave in a way nobody reading the registry could predict.
 
 ```bash
-just crust run "add a /health endpoint" --lifecycle sdlc --commit false   # leave it in the working tree
+crust run "add a /health endpoint" --lifecycle sdlc --commit false   # leave it in the working tree
 ```
 
 An Activity that was not committing and moved `HEAD` anyway is reported as a permission breach, like any other overstep. No prompt asks an agent to commit, but a prompt is advice.
@@ -78,21 +78,21 @@ Two things that bite:
 `--handoff <path>` moves where THIS run's `context_handoff/` documents land, without moving `sessions/{run_id}/` itself — `events.jsonl`, `invocation.json` and the rest stay exactly where they are. `{session_id}` (or `{run_id}`, an exact synonym) expands to the run id in the value:
 
 ```bash
-just crust run "the payments rewrite" --lifecycle sdlc --handoff specs/{session_id}
+crust run "the payments rewrite" --lifecycle sdlc --handoff specs/{session_id}
 ```
 
 Omit it and the directory is exactly what it has always been: `<data_dir>/sessions/{run_id}/context_handoff`. A relative value resolves against the repository root, not the directory you ran the command from. A resumed run keeps the directory it started with; passing a DIFFERENT `--handoff` on resume is refused rather than splitting one run's documents across two places.
 
-`--name "<label>"` gives the run a label shown instead of the lifecycle name on `just crust report`, the `please` picker, and the visualizer's session card — useful when `--activities plan,build` would otherwise read as the script that ran it. The lifecycle is still recorded and still shown, one line further down on the report.
+`--name "<label>"` gives the run a label shown instead of the lifecycle name on `crust report`, the `please` picker, and the visualizer's session card — useful when `--activities plan,build` would otherwise read as the script that ran it. The lifecycle is still recorded and still shown, one line further down on the report.
 
 ## Run one Activity, or any subset
 
 Every Activity also runs on its own, which is what an engineer usually wants when the ask is narrow:
 
 ```bash
-just crust run "the /health work" --activities code-review   # just the conventions review
-just crust verify                                # just the declared change tasks, no run
-bun <pi-crust>/runtime/commands/run.ts "<prompt>" --activities test,build,outcome-review
+crust run "the /health work" --activities code-review   # just the conventions review
+crust verify                                # just the declared change tasks, no run
+crust run "<prompt>" --activities test,build,outcome-review
 ```
 
 `compose` takes any ordered subset of whatever the merged TOML registry defines, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
@@ -106,16 +106,16 @@ Still prefer a composed chain when the work is real: a lone `build` has nothing 
 This is the normal recovery path. Do not re-run a chain from the top because one activity run failed: the earlier activity runs cost money, and their envelopes are on disk.
 
 ```bash
-just crust report                      # the most recent run
-just crust report a1b2c3d4             # one run by id
-just crust report-json a1b2c3d4        # TRunState, for you to parse
+crust report                      # the most recent run
+crust report a1b2c3d4             # one run by id
+crust report-json a1b2c3d4        # TRunState, for you to parse
 ```
 
 The report names every activity run and its status, the gate that failed with its violations, the cost, the first activity run not yet successful, and the exact command that resumes it:
 
 ```text
 resume from: build
-  bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+  crust run "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
 Exit codes: `0` the run succeeded, `1` it failed or is incomplete, `2` no such session.
@@ -167,12 +167,12 @@ Files are the raw record if you need more than the db shows: `.pi-crust/data/ses
 A hung coding agent produces no events at all, so the trace goes quiet rather than red. Read it in this order:
 
 ```bash
-just crust activity runs <run_id>     # which activity run is still `running`
-just crust procs <run_id>      # what that activity run is actually running, with pids
-just crust kill <run_id>       # stop it — children first, then the workflow
+crust activity-runs <run_id>     # which activity run is still `running`
+crust procs <run_id>      # what that activity run is actually running, with pids
+crust kill <run_id>       # stop it — children first, then the workflow
 ```
 
-`processes` rows with `ended_at IS NULL` are the live ones. If `procs` shows a pi child but the activity run has produced no `tool_call` events and its `raw_output.jsonl` is empty, the agent never got started properly — check the model resolves and that nothing is blocking the subprocess, rather than waiting it out. `just crust kill` verifies each pid still matches the command that was recorded before signalling, because pids get recycled.
+`processes` rows with `ended_at IS NULL` are the live ones. If `procs` shows a pi child but the activity run has produced no `tool_call` events and its `raw_output.jsonl` is empty, the agent never got started properly — check the model resolves and that nothing is blocking the subprocess, rather than waiting it out. `crust kill` verifies each pid still matches the command that was recorded before signalling, because pids get recycled.
 
 A killed run marks itself `fail` and closes its process rows, so the trace never claims work is in flight that is already dead.
 
@@ -180,4 +180,4 @@ A killed run marks itself `fail` and closes its process rows, so the trace never
 
 Tell the engineer, in order: which chain and which roster you launched (name the config whenever it was not the default), which activity run is running now (or which failed), activity run statuses in sequence, and for a failure the gate violations or the error verbatim. Remember **every activity run defaults to `fail`** — a activity run showing `fail` may simply never have completed; `queued` means it never started. Don't dress up a partial run as a success.
 
-For a visual live view, the visualizer app in the skill (`just crust observe`, or tmux sessions viz-api :4600 + viz-ui :4601) polls this same db — sessions as cards, runs as swim lanes, activity runs and tool calls drill-in. The sqlite queries above remain the headless equivalent.
+For a visual live view, the visualizer app in the skill (`crust observe`, or tmux sessions viz-api :4600 + viz-ui :4601) polls this same db — sessions as cards, runs as swim lanes, activity runs and tool calls drill-in. The sqlite queries above remain the headless equivalent.

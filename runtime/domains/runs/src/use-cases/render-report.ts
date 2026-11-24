@@ -6,6 +6,7 @@ import {
 } from '../../../../lib/contracts'
 import { box, paint } from '../../../../lib/terminal'
 import {
+  crustArgv,
   displayLabel,
   RUN_RECIPE,
   recipeArgv,
@@ -50,15 +51,9 @@ export const resumeCommand = (
   }
   const request = state.request.split('\n')[0] ?? ''
 
-  return shellLine([
-    'just',
-    'crust',
-    RUN_RECIPE,
-    request,
-    '--run-id',
-    state.run_id,
-    '--resume',
-  ])
+  return shellLine(
+    crustArgv(RUN_RECIPE, [request, '--run-id', state.run_id, '--resume']),
+  )
 }
 
 export const renderReport = (

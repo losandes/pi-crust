@@ -68,7 +68,7 @@ for (const args of MODES) {
     [
       `given @SC1 @SC2 a fresh repository and installer flags ${args.join(' ')}`,
       'when installed',
-      'it should create exactly four files with one empty TOML configuration and no prompt or configuration directory',
+      'it should create exactly three files with one empty TOML configuration and no prompt or configuration directory',
     ].join(', '),
     () => {
       // given
@@ -83,11 +83,6 @@ for (const args of MODES) {
       expect(
         installFaults({
           files,
-          home: f.home,
-          record: readFileSync(
-            join(f.userHome, '.pi-crust/pi-crust-home'),
-            'utf8',
-          ),
           installed,
           template: readFileSync(
             join(f.home, 'templates/pi-crust.toml'),

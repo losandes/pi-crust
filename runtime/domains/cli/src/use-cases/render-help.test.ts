@@ -30,6 +30,9 @@ test(
 
     // then
     expect(actual).toContain(renderCatalogue(FABRICATED_CATALOGUE))
+    expect(actual).toContain('crust run "<prompt>" --lifecycle <name>')
+    expect(actual).toContain('crust run "<prompt>" --activities a,b,c')
+    expect(actual).toContain('crust <name> "<prompt>"')
   },
 )
 
@@ -53,9 +56,7 @@ test(
     // then
     expect(actual).toContain('run')
     expect(actual).toContain('observe')
-    expect(actual).toContain(
-      'just crust help <recipe> narrows this to one recipe.',
-    )
+    expect(actual).toContain('crust help <recipe> narrows this to one recipe.')
   },
 )
 
@@ -77,7 +78,7 @@ test(
     expect(actual).toContain('--lifecycle')
     expect(actual).not.toContain('--overwrite')
     expect(actual).not.toContain(
-      'just crust help <recipe> narrows this to one recipe.',
+      'crust help <recipe> narrows this to one recipe.',
     )
   },
 )

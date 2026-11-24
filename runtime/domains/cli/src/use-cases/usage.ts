@@ -2,17 +2,17 @@ import { errorMessage } from '../../../../../lib/typedefs'
 import { EXIT } from '../../../../lib/contracts'
 
 export const LIST_USAGE =
-  `usage: just crust list [--config <path>]\n` +
+  `usage: crust list [--config <path>]\n` +
   'env: CRUST_CONFIG overrides the config path; the flag still wins.'
 
 export const PRUNE_USAGE =
-  'usage: just crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]\n' +
+  'usage: crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]\n' +
   'env: CRUST_DB overrides the db path; --db still wins.\n' +
   '--tree restricts pruning to runs whose workspace_root matches exactly; ' +
   'omitted, the whole store is pruned (1.8.2, 1.8.3).'
 
 export const JOIN_USAGE = [
-  'usage: just crust join <run-id> <activity>',
+  'usage: crust join <run-id> <activity>',
   'env: CRUST_DB and CRUST_CONFIG override the paths; PI_PATH names the pi binary.',
 ].join('\n')
 

@@ -1,5 +1,5 @@
 /**
- * Renders `just crust help`'s output: pure, no IO, no process.
+ * Renders `crust help`'s output: pure, no IO, no process.
  *
  * The catalogue half is `renderCatalogue(catalogue)` verbatim, so `help` is a
  * strict superset of `list` rather than a second implementation of it.
@@ -80,7 +80,7 @@ export const renderHelp = (view: THelpView): string => {
     ...renderGlobalSection(),
     ...groups,
     '',
-    'just crust help <recipe> narrows this to one recipe.',
+    'crust help <recipe> narrows this to one recipe.',
     '',
   ].join('\n')
 }

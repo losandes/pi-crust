@@ -3,7 +3,7 @@
  * pi-crust Triage — choose the chain, and hand it back.
  *
  * Usage:
- *     just crust triage "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
+ *     crust triage "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]
  *
  * Activity Runs: engineer(request) -> triage. Nothing follows, by construction.
  *
@@ -64,7 +64,7 @@ if (import.meta.main) {
   await runCli('triage', (args) => {
     if (args.models !== undefined) {
       process.stderr.write(
-        '--model applies to `just crust run` only — the triage chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n',
+        '--model applies to `crust run` only — the triage chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n',
       )
       return Promise.resolve(EXIT.USAGE)
     }

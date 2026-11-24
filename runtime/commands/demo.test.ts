@@ -54,7 +54,7 @@ for (const [statuses, expected, writes] of [
       expect(output[0]).toBe('1/2  scout: read-only recon\n')
       if (expected === 0)
         expect(output[2]).toBe(
-          '\nboth done. now run:  just crust sessions    (or: just crust observe)\n',
+          '\nboth done. now run:  crust sessions    (or: crust observe)\n',
         )
     },
   )

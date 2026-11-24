@@ -77,6 +77,7 @@ test(
       },
     })
     expect(container.textContent).toContain('That token was not accepted.')
+    expect(container.textContent).toContain('CRUST_TOKEN=… crust observe')
 
     // when
     const input = container.querySelector('input')

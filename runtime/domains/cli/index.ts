@@ -61,7 +61,13 @@ export {
   type TCommandRun,
   type TRecipeDoc,
 } from './src/use-cases/recipe-docs'
-export { RUN_RECIPE, recipeArgv, shellLine } from './src/use-cases/recipe-line'
+export {
+  crustArgv,
+  dispatchArgv,
+  RUN_RECIPE,
+  recipeArgv,
+  shellLine,
+} from './src/use-cases/recipe-line'
 export { renderCommandList } from './src/use-cases/render-command-list'
 export { renderHelp } from './src/use-cases/render-help'
 export {

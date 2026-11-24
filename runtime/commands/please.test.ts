@@ -99,6 +99,67 @@ test(
   },
 )
 
+test(
+  [
+    'given the shipped lifecycles and a new run request',
+    'when the builder is told to run',
+    'it should dispatch the displayed prompt and lifecycle and return the process status',
+  ].join(', '),
+  async () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), 'crust-please-dispatch-'))
+    const path = join(root, 'config.toml')
+    writeFileSync(path, `[defaults]\ndata_dir = ${JSON.stringify(root)}\n`)
+    const previous = process.env.CRUST_PACKAGE_CONFIG
+    // biome-ignore lint/plugin/no-object-mutation: scope the configuration boundary for the asynchronous wizard
+    process.env.CRUST_PACKAGE_CONFIG = SHIPPED_CONFIG_DIR
+    let answers = ['50', 'yes', '', 'no', 'run']
+    let calls: unknown[] = []
+    const deps: Parameters<typeof main>[0] = {
+      env: { CRUST_CONFIG: path },
+      cwd: root,
+      cli: '/pkg/runtime/cli.ts',
+      askOne: () => {
+        const answer = answers.at(0)
+        answers = answers.slice(1)
+        return Promise.resolve(answer)
+      },
+      askText: async () => 'fix the login bug',
+      askOrder: async () => undefined,
+      askMenuChoice: async () => ({ values: ['@bugfix'], reorder: false }),
+      copy: async () => ({ copied: false, how: 'fixture' }),
+      run: (run) => {
+        calls = [...calls, run]
+        return 7
+      },
+    }
+    silenceTerminal()
+    try {
+      // when
+      const actual = await main(deps)()
+      // then
+      expect(terminalOutput()).toContain(
+        'crust run "fix the login bug" --lifecycle bugfix',
+      )
+      expect(calls).toEqual([
+        {
+          script: deps.cli,
+          args: ['run', 'fix the login bug', '--lifecycle', 'bugfix'],
+          cwd: deps.cwd,
+          env: deps.env,
+        },
+      ])
+      expect(actual).toBe(7)
+    } finally {
+      if (previous === undefined) delete process.env.CRUST_PACKAGE_CONFIG
+      // biome-ignore lint/plugin/no-object-mutation: restore the scoped configuration environment
+      else process.env.CRUST_PACKAGE_CONFIG = previous
+      restoreTerminal()
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
 for (const mode of [
   'cancel',
   'print',
@@ -170,8 +231,8 @@ for (const mode of [
             env: deps.env,
           })
         if (mode === 'print') {
-          expect(copied).toEqual(['just crust approve waiting'])
-          expect(terminalOutput()).toContain('just crust approve waiting')
+          expect(copied).toEqual(['crust approve waiting'])
+          expect(terminalOutput()).toContain('crust approve waiting')
         }
       } finally {
         restoreTerminal()

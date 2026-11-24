@@ -4,7 +4,7 @@ This directory holds the package code for pi-crust's repeatable **agents plus co
 
 ## The package and the stamp
 
-The runtime ships with pi-crust; it is not copied into a target repository. The installer writes one comment-only `pi-crust.toml`, the credential example, the justfile passthrough and the machine record at `~/.pi-crust/pi-crust-home`, and nothing under the repository's `.pi-crust/`. It creates no configuration directory or prompt files.
+The runtime ships with pi-crust; it is not copied into a target repository. Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup, nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, leaving an existing `justfile` untouched. It creates no configuration directory or prompt files.
 
 Configuration is read on every command from `runtime/config/`, then `~/.pi-crust/config/`, then the repository file. Both directories hold `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge recursively; arrays replace whole. Package updates need no re-stamp. The installer never replaces an existing `pi-crust.toml`, even with `--refresh` or its deprecated `--force` alias. See [the install cookbook](../cookbooks/install.md).
 
@@ -75,17 +75,17 @@ The [runtime layout record](../adr/runtime-layout/define-each-command-once-and-d
 ## Running something
 
 ```bash
-just crust demo                                  # two cheap read-only runs, end to end
-just crust run "add a /health endpoint" --activities plan      # one Activity
-just crust run "add a /health endpoint" --lifecycle sdlc      # identify → … → code-review
-just crust report                                # where the last run got to
-just crust sessions                              # what just happened
+crust demo                                  # two cheap read-only runs, end to end
+crust run "add a /health endpoint" --activities plan      # one Activity
+crust run "add a /health endpoint" --lifecycle sdlc      # identify → … → code-review
+crust report                                # where the last run got to
+crust sessions                              # what just happened
 ```
 
 Every Activity the merged TOML registry defines can run on its own, and `run` executes any ordered subset of them:
 
 ```bash
-bun <pi-crust>/runtime/commands/run.ts "<prompt>" --activities test,build,code-review
+crust run "<prompt>" --activities test,build,code-review
 ```
 
 There is no separate code registry: a new keyed table registers an Activity. Listings group entries by first-declaring layer and sort names within each group. A name nothing registers is refused before anything spawns, with the available names.
@@ -95,22 +95,22 @@ A chain that ends in reviewing Activities — any whose registry entry declares 
 `review` and `code-review` take `--scope <ref|range>`, so committed work can be judged, and the repository's own checks run on their own with no Lifecycle at all:
 
 ```bash
-just crust run "the /health work" --activities code-review --scope main...HEAD
-just crust verify                                # change tasks, for what you changed
+crust run "the /health work" --activities code-review --scope main...HEAD
+crust verify                                # change tasks, for what you changed
 ```
 
-The raw form, which every recipe wraps:
+With a prompt file and a run id:
 
 ```bash
-bun <pi-crust>/runtime/commands/run.ts requests/health.md --lifecycle sdlc --run-id a1b2c3d4
+crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
 ```
 
 The prompt is inline text or a path to a file. `--run-id` is optional on every workflow: given one, the run joins that session and each agent resumes its existing context window; omitted, a fresh id is minted and printed.
 
-A run that stopped is picked up rather than restarted. `just crust report` names the activity run it stopped at and prints the command that continues it:
+A run that stopped is picked up rather than restarted. `crust report` names the activity run it stopped at and prints the command that continues it:
 
 ```bash
-bun <pi-crust>/runtime/commands/run.ts "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+crust run "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
 ```
 
 `--resume` works on every workflow and skips the activity runs already recorded successful for that session.
@@ -141,4 +141,4 @@ Execution history lives at `~/.pi-crust/data/` by default, with earlier traces l
 
 ## Where to read more
 
-pi-crust itself carries the rest — `cookbooks/` for how to do a thing, `references/` for the config schema, the envelope contract, and the trace tables. `cat ~/.pi-crust/pi-crust-home` says where to find them.
+pi-crust itself carries the rest — `cookbooks/` for how to do a thing, `references/` for the config schema, the envelope contract, and the trace tables. They sit beside this directory in the pi-crust package.

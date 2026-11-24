@@ -3,7 +3,7 @@ import { configPathFromEnv, dbPathFromEnv } from '../../../../lib/system'
 import { DECIDE_CLI, positionalArgs } from '../..'
 
 export const DECIDE_USAGE =
-  'usage: just crust <approve|reject|answer> <run-id> ' +
+  'usage: crust <approve|reject|answer> <run-id> ' +
   '[--note "..."] [--file <path>]\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 

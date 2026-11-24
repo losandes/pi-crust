@@ -1,7 +1,7 @@
 /**
  * The command a developer types, composed in one place.
  *
- * Everything pi-crust prints for a person to run is a `just crust` recipe.
+ * Everything pi-crust prints for a person to run is a `crust` recipe.
  * The alternative — the `bun <path>` line that actually executes — names an
  * install directory, and since the runtime left the stamp there is no install
  * directory a relative path can reach: `.pi-crust/` holds `config/`, `data/`
@@ -35,6 +35,16 @@ const RECIPE_OF: Readonly<Record<string, string>> = {
 export const recipeOf = (script: string): string | undefined =>
   RECIPE_OF[basename(script).replace(/\.ts$/, '')]
 
+/** A command and its arguments as the argv a person types: `crust <command> ...args`. */
+export const crustArgv = (
+  command: string,
+  args: readonly string[],
+): readonly string[] => ['crust', command, ...args]
+
+/** What `runtime/cli.ts` receives for a typed argv: everything after the leading `crust`. */
+export const dispatchArgv = (argv: readonly string[]): readonly string[] =>
+  argv.slice(1)
+
 /**
  * A recorded `[bun, <entry>, ...args]` as the recipe that reproduces it.
  *
@@ -49,9 +59,7 @@ export const recipeArgv = (
   if (script === undefined) return undefined
   const recipe = recipeOf(script)
 
-  return recipe === undefined
-    ? undefined
-    : ['just', 'crust', recipe, ...argv.slice(2)]
+  return recipe === undefined ? undefined : crustArgv(recipe, argv.slice(2))
 }
 
 /**

@@ -35,6 +35,8 @@ Commands run from the Git repository's root. `help`, the bare listing, `init`, `
 
 `CRUST_HOME` hands the entire invocation to another checkout's `runtime/cli.ts`, preserving arguments and the starting directory. An invalid override refuses rather than falling back; an override naming this package's real path runs this package without recursion. The package locates its own files from its own location, not a machine record. Contributors put `crust` on their PATH with `bun link`, through the package's `bin` entry.
 
+`crust` is the command people type, and every command pi-crust prints or documents is written `crust <command>`. Setting a repository up, through `crust init` or `crust update`, writes `pi-crust.toml` when absent, the credentials example and the data ignore entry. It writes no `justfile` recipe and no machine record of where the package lives, and it leaves an existing `justfile` or record untouched. `CRUST_HOME` is how another checkout's runtime is run.
+
 Logic a test or a second command needs to import belongs in the capability domain and is exposed through that domain's index. Shared argument parsing, help and menus belong in `domains/cli/`; composing capabilities into a process entry point does not. Commands read process inputs, compose domain calls, print and return an exit code.
 
 `prompts/` holds Markdown input to agents rather than an imported runtime API. `extensions/` runs inside pi's process and is checked against its host separately from the runtime project. `testing/` holds test-only fixtures rather than production capabilities or production packages.
@@ -61,7 +63,7 @@ Required arguments are deliberately repeated for definitions whose former recipe
 
 ## Consequences
 
-An installed repository's `just crust` still works through the root recipe the installer writes. The installer also still writes the machine record for that recipe; neither the dispatcher nor the visualizer reads it. Series 2/6 decides whether the recipe and machine record stay, and replaces printed `just crust` text. This change does not decide publication or a prebuilt visualizer.
+Setup used to write a `crust` recipe into the repository's root `justfile`, so people typed `just crust <command>`, and a machine record that only that recipe read. Both are gone, together with this repository's own root `justfile` and its pin of the `just` tool. A repository set up earlier keeps the recipe and the record it already has: setup neither repairs nor removes them, and nothing migrates them. This change does not decide publication or a prebuilt visualizer.
 
 Existing command paths remain runnable so recorded invocations can resume without rewriting history. The package path policy remains the only extension loaded by a run. Prompts are read from the package, or from beside the machine or repository file that first declares an entry; configuration provides no extension override. New host adapters require an explicit loading decision.
 

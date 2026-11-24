@@ -45,9 +45,7 @@ export const main =
       'identify',
     )
     if (second !== 0) return second
-    deps.write(
-      '\nboth done. now run:  just crust sessions    (or: just crust observe)\n',
-    )
+    deps.write('\nboth done. now run:  crust sessions    (or: crust observe)\n')
     return 0
   }
 
