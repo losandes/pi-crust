@@ -54,7 +54,7 @@ for (const mode of [
         expect(actual).toEqual(
           ['other', 'relative'].includes(mode)
             ? { kind: 'other', cli: join(other, 'runtime/cli.ts') }
-            : ['invalid', 'absent'].includes(mode)
+            : mode === 'invalid' || mode === 'absent'
               ? { kind: 'invalid', home: values[mode] }
               : { kind: 'own' },
         )
