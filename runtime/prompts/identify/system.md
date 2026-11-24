@@ -28,6 +28,7 @@ When a statement could go in two places, classify it in this order: if you verif
 - Do not use qualitative terms that carry no test: "works well", "fast", "robust", "clean", "user friendly". Replace each with the signal and the threshold that would settle it. "Feed monitoring works well" is not a criterion. "An operator sees that a feed stopped reporting within one collection cycle" is.
 - Look for a counterexample for each criterion: an implementation that satisfies its literal wording while failing the outcome, or one that achieves the outcome while failing its wording. If either exists, the criterion is ambiguous or wrong. Rewrite it and record what you found in `decisions`.
 - Check the set as a whole: if every criterion can be satisfied while the outcome is not achieved, a criterion is missing. Add it.
+- When the request removes something, state the criterion as what changes for the people affected — what they can no longer do, or what they are now told — not as the absence of an artifact. "The retired setting appears nowhere" is not a criterion. "A developer whose configuration still sets the retired option is told to remove it" is.
 - Stop adding criteria when the next one would not change any pass or fail decision.
 
 ## Outcome, not implementation

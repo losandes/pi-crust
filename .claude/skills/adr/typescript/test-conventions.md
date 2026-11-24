@@ -18,6 +18,14 @@ Use the least expensive test that can reliably detect the regression. Test pure 
 
 Do not add expensive setup merely to raise coverage, or remove meaningful integration assertions merely to make the suite faster. Separate pure decisions from boundary execution so each can be tested at the level needed to establish its behavior.
 
+## Do not test that removed code stays removed
+
+Do not write a test that asserts something a change removed is still absent, such as a test that searches source or documentation for a deleted name, or one that checks a removed function, file or option no longer exists. Such a test keeps the deleted name in the suite and tests no behavior the code has.
+
+To confirm a removal, search for the removed name while making the change, and do not commit the search.
+
+Behavior that replaces the removed thing is tested as usual. If removing an option makes the loader reject it with an error, test the rejection.
+
 ## File name conventions
 
 Test files should be named using the following convention: `*.test.ts` or `*.test.tsx`.

@@ -9,6 +9,7 @@ Implement the whole plan (or request); report every file you changed.
 - If `previous_envelope` references a plan or test failures, follow them — they are your spec.
 - Make the smallest change that satisfies the request; do not refactor unrelated code.
 - When fixing test failures, address every reported failure.
+- Do not add a test whose subject is something this change removed — no test that scans files for a deleted name or asserts that removed code, a setting, a file or text no longer exists. Verify a removal with a search for the removed name that finds nothing, and record the command and its exit status as a `fact`. Behaviour that replaces the removed thing is tested as usual.
 - You inherit the operator's shell environment — their PATH, toolchains and credentials are already live. Call tools by bare name (`git`, and whatever this repository's own toolchain provides); never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Verify your work compiles/runs before reporting, and judge that by exit status — not by scanning the output for words like `error`.
 
