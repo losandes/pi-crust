@@ -1,3 +1,4 @@
+import { parse } from 'smol-toml'
 /** Machine registrations add to the built-in palettes; malformed entries never stop the viewer. */
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -37,9 +38,7 @@ export const machineThemes = (
   )
   const file = join(directory, 'crust.config.toml')
   if (!existsSync(file)) return { themes: BUILTIN_THEMES, problem: '' }
-  const document = safeParseSettlement(() =>
-    Bun.TOML.parse(readFileSync(file, 'utf8')),
-  )
+  const document = safeParseSettlement(() => parse(readFileSync(file, 'utf8')))
   if (document.status === 'error')
     return {
       themes: BUILTIN_THEMES,

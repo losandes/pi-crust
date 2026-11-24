@@ -11,6 +11,7 @@
  * behaviour we had before.
  */
 
+import { spawn } from 'node:child_process'
 import { errorMessage } from '../../../../lib/typedefs'
 
 export type TCopied = Readonly<{ copied: boolean; how: string }>
@@ -43,14 +44,16 @@ const tryCopy = async (
   text: string,
 ): Promise<Readonly<{ ok: boolean; reason: string }>> => {
   try {
-    const child = Bun.spawn([...command], {
-      stdin: 'pipe',
-      stdout: 'ignore',
-      stderr: 'ignore',
+    const child = spawn(command[0] ?? '', command.slice(1), {
+      stdio: ['pipe', 'ignore', 'ignore'],
     })
-    child.stdin.write(text)
-    await child.stdin.end()
-    const code = await child.exited
+    const finished = new Promise<number>((resolve, reject) => {
+      child.once('error', reject)
+      child.stdin?.once('error', reject)
+      child.once('close', (code) => resolve(code ?? 1))
+    })
+    child.stdin?.end(text)
+    const code = await finished
     return code === 0
       ? { ok: true, reason: '' }
       : { ok: false, reason: `${command[0]} exited ${code}` }

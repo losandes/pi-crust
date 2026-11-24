@@ -10,12 +10,19 @@
  * so the only thing added here is `--run-id` and `--resume`.
  */
 
-import { statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileExists, readText } from '../../../../lib/system'
+import { spawn } from 'node:child_process'
+import { closeSync, openSync, statSync } from 'node:fs'
+import { constants } from 'node:os'
+import { dirname, join } from 'node:path'
+import {
+  fileExists,
+  PACKAGE_ROOT,
+  RUNTIME_NAME,
+  readText,
+} from '../../../../lib/system'
 import { longFlagArgv } from './parse-cli'
 
-export const OWN_RUNTIME = resolve(import.meta.dir, '..', '..', '..', '..')
+export const OWN_RUNTIME = join(PACKAGE_ROOT, 'runtime')
 export const installedEntry = (
   script: string,
   runtime: string,
@@ -132,7 +139,7 @@ export const resumeRecordedRun = (
       reason: `${script} is not an entry point of the pi-crust at ${dirname(runtime)}`,
     }
   const argv = [entry, ...resumeArgv(recorded.argv, runId).slice(1)]
-  const command = `bun ${argv.join(' ')}`
+  const command = `${RUNTIME_NAME} ${argv.join(' ')}`
 
   if (attachment === 'detached') {
     /*
@@ -141,14 +148,17 @@ export const resumeRecordedRun = (
      * request that asked for it.
      */
     const log = join(sessionDir, 'resume.log')
-    const child = Bun.spawn(['bun', ...argv], {
-      cwd: recorded.cwd,
-      stdin: 'ignore',
-      stdout: Bun.file(log),
-      stderr: Bun.file(log),
-      env: { ...process.env },
-    })
-    child.unref()
+    const fd = openSync(log, 'w')
+    try {
+      const child = spawn(process.execPath, argv, {
+        cwd: recorded.cwd,
+        stdio: ['ignore', fd, fd],
+        env: { ...process.env },
+      })
+      child.unref()
+    } finally {
+      closeSync(fd)
+    }
     return { started: true, command, reason: '' }
   }
 
@@ -158,14 +168,18 @@ export const resumeRecordedRun = (
    * it is drawing for, and `inherit` also means Ctrl-C reaches the run itself
    * rather than orphaning it behind a dead parent.
    */
-  const child = Bun.spawn(['bun', ...argv], {
+  const child = spawn(process.execPath, argv, {
     cwd: recorded.cwd,
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdio: 'inherit',
     env: { ...process.env },
   })
-  return { started: true, command, reason: '', finished: child.exited }
+  const finished = new Promise<number>((resolve, reject) => {
+    child.once('error', reject)
+    child.once('close', (code, signal) =>
+      resolve(code ?? (signal ? 128 + constants.signals[signal] : 1)),
+    )
+  })
+  return { started: true, command, reason: '', finished }
 }
 
 /** Where this run wrote down how it was started, from the trace it is in. */

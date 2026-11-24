@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,8 +9,6 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { piLauncher, piReleaseDir } from './pi-host'
-
-const PI_PATH = process.env.PI_PATH
 
 /**
  * `process.env` is the external API the module reads, and pointing it at a
@@ -26,9 +24,11 @@ const setPiPath = (value: string | undefined): void => {
   process.env.PI_PATH = value
 }
 
-afterEach(() => {
-  setPiPath(PI_PATH)
-})
+const piEnvironment = (value: string | undefined) => {
+  const original = process.env.PI_PATH
+  setPiPath(value)
+  return { [Symbol.dispose]: () => setPiPath(original) }
+}
 
 /**
  * A managed install, as the launcher describes one:
@@ -63,9 +63,15 @@ test(
     'it should answer undefined rather than hand back a path that is not there',
   ].join(', '),
   () => {
-    setPiPath(join(tmpdir(), 'crust-no-such-pi-launcher'))
+    // given
+    using _environment = piEnvironment(
+      join(tmpdir(), 'crust-no-such-pi-launcher'),
+    )
 
-    expect(piLauncher()).toBeUndefined()
+    // when
+    const actual = piLauncher()
+    // then
+    expect(actual).toBeUndefined()
   },
 )
 
@@ -76,10 +82,13 @@ test(
     'it should find the release the current-version file points at',
   ].join(', '),
   () => {
+    // given
     const install = managedInstall('9.9.9', true)
-    setPiPath(install.launcher)
+    using _environment = piEnvironment(install.launcher)
 
+    // when
     try {
+      // then
       expect(piReleaseDir()).toEqual(install.release)
     } finally {
       rmSync(install.agentDir, { recursive: true, force: true })
@@ -94,10 +103,13 @@ test(
     'it should answer undefined, because there is nothing there to resolve against',
   ].join(', '),
   () => {
+    // given
     const install = managedInstall('9.9.9', false)
-    setPiPath(install.launcher)
+    using _environment = piEnvironment(install.launcher)
 
+    // when
     try {
+      // then
       expect(piReleaseDir()).toBeUndefined()
     } finally {
       rmSync(install.agentDir, { recursive: true, force: true })
@@ -112,16 +124,23 @@ test(
     'it should answer undefined rather than guess',
   ].join(', '),
   () => {
-    setPiPath(undefined)
-    const originalWhich = Bun.which
-    // biome-ignore lint/plugin/no-object-mutation: Bun.which has no PATH-independent fixture; stubbing the global is the only way to simulate no pi anywhere
-    Bun.which = () => null
+    // given
+    using _environment = piEnvironment(undefined)
+    const originalPath = process.env.PATH
+    // biome-ignore lint/plugin/no-object-mutation: process environment is the discovery boundary controlled by this fixture
+    process.env.PATH = ''
 
+    // when
     try {
-      expect(piLauncher()).toBeUndefined()
+      const actual = piLauncher()
+      // then
+      expect(actual).toBeUndefined()
     } finally {
-      // biome-ignore lint/plugin/no-object-mutation: restoring the global stubbed above
-      Bun.which = originalWhich
+      if (originalPath === undefined) delete process.env.PATH
+      else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the process environment owned by this fixture
+        process.env.PATH = originalPath
+      }
     }
   },
 )
@@ -133,16 +152,22 @@ test(
     'it should answer undefined before touching the filesystem layout',
   ].join(', '),
   () => {
-    setPiPath(undefined)
-    const originalWhich = Bun.which
-    // biome-ignore lint/plugin/no-object-mutation: Bun.which has no PATH-independent fixture; stubbing the global is the only way to simulate no pi anywhere
-    Bun.which = () => null
+    // given
+    using _environment = piEnvironment(undefined)
+    const originalPath = process.env.PATH
+    // biome-ignore lint/plugin/no-object-mutation: process environment is the discovery boundary controlled by this fixture
+    process.env.PATH = ''
 
+    // when
     try {
+      // then
       expect(piReleaseDir()).toBeUndefined()
     } finally {
-      // biome-ignore lint/plugin/no-object-mutation: restoring the global stubbed above
-      Bun.which = originalWhich
+      if (originalPath === undefined) delete process.env.PATH
+      else {
+        // biome-ignore lint/plugin/no-object-mutation: restoring the process environment owned by this fixture
+        process.env.PATH = originalPath
+      }
     }
   },
 )
@@ -154,12 +179,15 @@ test(
     'it should answer undefined rather than guess at a layout',
   ].join(', '),
   () => {
+    // given
     const dir = mkdtempSync(join(tmpdir(), 'crust-plain-pi-'))
     const launcher = join(dir, 'pi')
     writeFileSync(launcher, '#!/bin/sh\n')
-    setPiPath(launcher)
+    using _environment = piEnvironment(launcher)
 
+    // when
     try {
+      // then
       expect(piReleaseDir()).toBeUndefined()
     } finally {
       rmSync(dir, { recursive: true, force: true })

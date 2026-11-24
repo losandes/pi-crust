@@ -1,3 +1,4 @@
+import { programName } from '../../../../lib/system'
 /**
  * Session lifecycle: pin-or-create an run_id, build the Run.
  *
@@ -6,7 +7,7 @@
  * minted and printed so the next workflow can pick it up.
  */
 
-import { basename, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TPiCrustConfig, TRun, TRunState } from '../../../../lib/contracts'
 import { TRUST_DEFAULT } from '../../../../lib/contracts'
@@ -49,8 +50,7 @@ const finalizeWhenKilled = (run: TRun): void => {
 }
 
 /** The script's own name — the fallback for `sessions.lifecycle`. */
-const workflowName = (): string =>
-  basename(process.argv[1] ?? 'crust').replace(/\.ts$/, '')
+const workflowName = (): string => programName(process.argv[1] ?? 'crust')
 
 /**
  * What `sessions.lifecycle` says, which is what every surface calls this run.

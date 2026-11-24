@@ -1,5 +1,5 @@
-import { Database } from 'bun:sqlite'
 import { z } from 'zod'
+import { openDatabase } from '../../../../../lib/sqlite'
 import { fileExists } from '../../../../lib/system'
 
 export type TAgentSessionRef = Readonly<{ sessionId: string }>
@@ -10,7 +10,7 @@ export const resolveAgentSessionByAgent =
   (dbPath: string) =>
   (runId: string, agent: string): TAgentSessionRef | undefined => {
     if (!fileExists(dbPath)) return undefined
-    const db = new Database(dbPath, { readonly: true })
+    const db = openDatabase(dbPath, { readonly: true })
     db.run('PRAGMA busy_timeout=5000;')
     const row = db
       .query<unknown, [string, string]>(

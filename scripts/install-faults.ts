@@ -1,3 +1,4 @@
+import { parse } from 'smol-toml'
 import { safeParseSettlement } from '../lib/typedefs'
 
 export const FRESH_INSTALL_FILES: readonly string[] = [
@@ -17,7 +18,7 @@ export const installFaults = ({
   installed,
   template,
 }: TFreshInstall): readonly string[] => {
-  const parsed = safeParseSettlement(() => Bun.TOML.parse(installed))
+  const parsed = safeParseSettlement(() => parse(installed))
   return [
     ...(JSON.stringify(files.toSorted()) === JSON.stringify(FRESH_INSTALL_FILES)
       ? []

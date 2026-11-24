@@ -1,3 +1,4 @@
+import { parse } from 'smol-toml'
 import { configText, tomlText } from '../../../../testing/config-document'
 /**
  * `run-workflow.ts` (COVERAGE-WORKFLOW-DRIVERS.md).
@@ -572,7 +573,7 @@ test(
       },
     ]
     for (const { path, text } of layers) writeFileSync(path, text)
-    const repository = Bun.TOML.parse(readFileSync(configPath, 'utf8'))
+    const repository = parse(readFileSync(configPath, 'utf8'))
     writeFileSync(
       configPath,
       tomlText({

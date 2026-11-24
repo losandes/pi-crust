@@ -4,10 +4,13 @@ import { loadConfig } from '../domains/config'
 import { resolveTraceListing } from '../domains/trace'
 import { repoRoot, resolveDataPaths } from '../domains/workspace'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from '../lib/contracts'
-import { configPathFromEnv } from '../lib/system'
+import {
+  configPathFromEnv,
+  PROGRAM_EXTENSION,
+  RUNTIME_NAME,
+} from '../lib/system'
 
-const USAGE =
-  'usage: bun runtime/commands/trace.ts [--config <path>] <sessions|activity-runs|tail|procs> [<run-id>]'
+const USAGE = `usage: ${RUNTIME_NAME} runtime/commands/trace${PROGRAM_EXTENSION} [--config <path>] <sessions|activity-runs|tail|procs> [<run-id>]`
 
 export const main = (argv: readonly string[]): number => {
   const at = argv.indexOf('--config')

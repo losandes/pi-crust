@@ -36,7 +36,8 @@
       // Not this app's code: the settlement module both trees import, kept
       // in one place so the runtime and the UI cannot disagree about what a
       // failure is. Mirrored in vite.config.ts, which resolves it at build.
-      "@typedefs": ["../../lib/typedefs/index.ts"]
+      "@typedefs": ["../../lib/typedefs/index.ts"],
+      "@sqlite": ["../../lib/sqlite/index.ts"]
     }
   },
   "include": [
@@ -45,6 +46,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "vite.config.ts",
-    "../../lib/typedefs/**/*.ts"
+    "../../lib/typedefs/**/*.ts",
+    "../../lib/sqlite/**/*.ts"
   ]
 }

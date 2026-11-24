@@ -1,10 +1,10 @@
-import { Database } from 'bun:sqlite'
+import { openDatabase, type TDatabase } from '../../../../../lib/sqlite'
 import type { TSettlement } from '../../../../../lib/typedefs'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 
 /** The latest activityRun of this run with that activity name, and who owned it. */
 const activityRunOf = (
-  db: Database,
+  db: TDatabase,
   runId: string,
   activity: string,
 ): Readonly<{ activity_run_id: string; owner: string }> | undefined =>
@@ -18,7 +18,7 @@ const activityRunOf = (
 
 /** The session that agent left behind, and the model it was speaking as. */
 const sessionOf = (
-  db: Database,
+  db: TDatabase,
   runId: string,
   agent: string,
 ): Readonly<{ session_id: string; model: string }> | undefined =>
@@ -35,7 +35,7 @@ const sessionOf = (
  * overwrite: a claim is the agent's word, and ownership has to rest on what
  * actually happened.
  */
-const ownedBy = (db: Database, activityRunId: string): readonly string[] =>
+const ownedBy = (db: TDatabase, activityRunId: string): readonly string[] =>
   db
     .query<{ payload_json: string | null }, [string]>(
       "SELECT payload_json FROM events WHERE activity_run_id = ? AND type = 'artifacts'",
@@ -64,7 +64,7 @@ export type TConsultTarget = Readonly<{
 export const resolveConsultTarget =
   (dbPath: string) =>
   (runId: string, activity: string): TSettlement<TConsultTarget> => {
-    const db = new Database(dbPath, { readonly: true })
+    const db = openDatabase(dbPath, { readonly: true })
     try {
       const activityRun = activityRunOf(db, runId, activity)
       if (activityRun === undefined)

@@ -13,6 +13,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { parse } from 'smol-toml'
 import { SKIP_INTEGRATION } from '../runtime/testing/integration'
 import { FRESH_INSTALL_FILES, installFaults } from './install-faults'
 
@@ -79,7 +80,7 @@ for (const args of MODES) {
       const files = filesUnder(f.root)
       // then
       expect(files).toEqual(FRESH_INSTALL_FILES)
-      expect(Bun.TOML.parse(installed)).toEqual({})
+      expect(parse(installed)).toEqual({})
       expect(
         installFaults({
           files,

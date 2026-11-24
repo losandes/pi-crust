@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite'
-import { afterEach, expect, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import type { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import {
@@ -164,26 +164,26 @@ const withEventsTable = (dbPath: string): string => {
  * A Set rather than an array being pushed into: what this holds is a set of
  * paths to delete, and emptying it is one operation rather than a splice.
  */
-const created = new Set<string>()
-const track = (path: string): string => {
-  created.add(path)
-  return path
-}
-
-/** The environment, passed rather than mutated — the whole point of the parameter. */
-const withHome = (
-  home?: string,
-): Readonly<Record<string, string | undefined>> =>
-  home === undefined
-    ? { HOME: '/nonexistent/crust-home', CRUST_HOME: track(stampedTree()) }
-    : { HOME: '/nonexistent/crust-home', CRUST_HOME: home }
-
-afterEach(() => {
-  for (const path of created) {
-    rmSync(path, { recursive: true, force: true })
+const treeFixture = () => {
+  const created = new Set<string>()
+  const track = (path: string): string => {
+    created.add(path)
+    return path
   }
-  created.clear()
-})
+  const withHome = (
+    home?: string,
+  ): Readonly<Record<string, string | undefined>> =>
+    home === undefined
+      ? { HOME: '/nonexistent/crust-home', CRUST_HOME: track(stampedTree()) }
+      : { HOME: '/nonexistent/crust-home', CRUST_HOME: home }
+  return {
+    track,
+    withHome,
+    [Symbol.dispose]: () => {
+      for (const path of created) rmSync(path, { recursive: true, force: true })
+    },
+  }
+}
 
 test(
   [
@@ -192,8 +192,9 @@ test(
     'it should resolve the injected package',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const home = track(packageTree())
+    const home = _fixture.track(packageTree())
     // when
     const actual = crustRuntime({}, join(home, 'runtime'))
     // then
@@ -208,6 +209,7 @@ test(
     'it should locate its own runtime',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
     // when
     const actual = crustRuntime({ CRUST_HOME: '  ' })
@@ -224,12 +226,13 @@ test(
     'it should win, because that is the repair when the package moves',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const home = track(packageTree())
-    const root = track(stampedTree())
+    const home = _fixture.track(packageTree())
+    const root = _fixture.track(stampedTree())
 
     // when
-    const actual = crustRuntime({ ...withHome(home), HOME: root })
+    const actual = crustRuntime({ ..._fixture.withHome(home), HOME: root })
 
     // then
     expect(actual).toBe(join(home, 'runtime'))
@@ -243,11 +246,12 @@ test(
     'it should be undefined rather than a path that cannot exist',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
-    const actual = crustRuntime({ ...withHome(), HOME: root })
+    const actual = crustRuntime({ ..._fixture.withHome(), HOME: root })
 
     // then
     expect(actual).toBeUndefined()
@@ -261,8 +265,9 @@ test(
     'it should refuse and say so, rather than report a steer that never ran',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given — a pid proves a process started, not that it found its module
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const actual = startSteer(
@@ -273,7 +278,7 @@ test(
       'overwrite',
       'x',
       undefined,
-      withHome(),
+      _fixture.withHome(),
     )
 
     // then
@@ -290,8 +295,9 @@ test(
     'it should hand back no run id, so nothing is told to watch for one',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const actual = startRun(
@@ -300,7 +306,7 @@ test(
       'sdlc',
       'add a /health endpoint',
       [],
-      withHome(),
+      _fixture.withHome(),
     )
 
     // then
@@ -316,9 +322,10 @@ test(
     'it should return that id in branch_run_id',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given — the server mints the id because a branch detaches, and the
     // response cannot wait to learn what the child decided
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const actual = startSteer(
@@ -329,7 +336,7 @@ test(
       'branch',
       'try again',
       'deadbeef',
-      withHome(),
+      _fixture.withHome(),
     )
 
     // then — the runtime is not found in this stamp, but the id is still echoed
@@ -344,8 +351,9 @@ test(
     'it should carry no branch_run_id at all',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const actual = startSteer(
@@ -356,7 +364,7 @@ test(
       'overwrite',
       'x',
       'deadbeef',
-      withHome(),
+      _fixture.withHome(),
     )
 
     // then
@@ -371,10 +379,11 @@ test(
     "it should be deliverable by the runtime's own inboxSince, the mechanism execute-agent.ts polls to steer a running agent",
   ].join(', '),
   () => {
-    // given: this is the one shared surface a web app and a running pi
+    using _fixture = treeFixture()
+    // given — this is the one shared surface a web app and a running pi
     // process both have: no socket, no import across the skill boundary,
     // just the file both sides append to and read in the same shape.
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     postMessage(
@@ -387,7 +396,7 @@ test(
     const path = join(sessionDir(dbOf(root), 'a1b2c3d4'), 'inbox.jsonl')
     const actual = readInboxLikeTheRuntimeDoes(path)
 
-    // then: a message typed into the dialog that the runtime cannot parse
+    // then — a message typed into the dialog that the runtime cannot parse
     // is a message that was never received, which is the exact regression
     // this proves does not recur
     expect(actual).toHaveLength(1)
@@ -406,8 +415,9 @@ test(
     'it should keep both, in the order they were sent',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     postMessage(
@@ -443,8 +453,9 @@ test(
     'it should append the note and leave what was there',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const handoffDir = join(
       root,
       '.pi-crust',
@@ -466,7 +477,7 @@ test(
       'a1b2c3d4',
       'I fixed the migration',
       'tester',
-      withHome(),
+      _fixture.withHome(),
     )
 
     // then
@@ -485,8 +496,9 @@ test(
     'it should write no steering.md at all',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const handoffDir = join(
       root,
       '.pi-crust',
@@ -497,7 +509,13 @@ test(
     )
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4', '', 'tester', withHome())
+    const actual = resumeRun(
+      dbOf(root),
+      'a1b2c3d4',
+      '',
+      'tester',
+      _fixture.withHome(),
+    )
 
     // then
     expect(existsSync(join(handoffDir, 'steering.md'))).toBe(false)
@@ -512,11 +530,12 @@ test(
     'must match runtime/domains/handoff/src/use-cases/steer.ts::developerNote exactly',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given — there is no import across this boundary: this server resolves
     // whatever workspace it is pointed at, and runtime/ ships with the
     // package rather than with the stamp, so both sides duplicate the
     // format and each pins it with a test. This is this side's pin.
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const handoffDir = join(
       root,
       '.pi-crust',
@@ -528,7 +547,13 @@ test(
     withEventsTable(dbOf(root))
 
     // when
-    resumeRun(dbOf(root), 'a1b2c3d4', 'smoke test note', 'tester', withHome())
+    resumeRun(
+      dbOf(root),
+      'a1b2c3d4',
+      'smoke test note',
+      'tester',
+      _fixture.withHome(),
+    )
 
     // then
     const text = readFileSync(join(handoffDir, 'steering.md'), 'utf8')
@@ -545,9 +570,10 @@ test(
     'it should spawn steer.ts with the overwrite argv, cwd, CRUST_DB and detached (1.3.3)',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const home = track(packageTree())
-    const root = track(stampedTree())
+    const home = _fixture.track(packageTree())
+    const root = _fixture.track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
 
@@ -560,14 +586,14 @@ test(
       'overwrite',
       'try again',
       undefined,
-      withHome(home),
+      _fixture.withHome(home),
       spawnChild,
     )
 
     // then
     expect(actual.started).toBe(true)
     expect(spy.calls).toHaveLength(1)
-    expect(spy.calls[0]?.command).toBe('bun')
+    expect(spy.calls[0]?.command).toBe(process.execPath)
     expect(spy.calls[0]?.args).toEqual([
       join(home, 'runtime', 'commands', 'steer.ts'),
       'a1b2c3d4',
@@ -595,9 +621,10 @@ test(
     'it should spawn with --branch, --seeding fork and the branch id (1.3.4)',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const home = track(packageTree())
-    const root = track(stampedTree())
+    const home = _fixture.track(packageTree())
+    const root = _fixture.track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
 
@@ -610,7 +637,7 @@ test(
       'branch',
       'try again',
       'deadbeef',
-      withHome(home),
+      _fixture.withHome(home),
       spawnChild,
     )
 
@@ -638,9 +665,10 @@ test(
     "it should spawn ask.ts with the run id, activity and question, in the run's tree (1.3.3)",
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const home = track(packageTree())
-    const root = track(stampedTree())
+    const home = _fixture.track(packageTree())
+    const root = _fixture.track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
 
@@ -652,7 +680,7 @@ test(
       'plan',
       'ask',
       'why did this fail?',
-      withHome(home),
+      _fixture.withHome(home),
       spawnChild,
     )
 
@@ -683,8 +711,9 @@ test(
     'it should re-spawn that script with the run id and --resume, carrying CRUST_DB (1.3.3)',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const dir = sessionDir(dbOf(root), 'a1b2c3d4')
     mkdirSync(dir, { recursive: true })
     writeFileSync(
@@ -696,8 +725,8 @@ test(
     )
     const spy = spawnSpy()
     const { spawnChild } = spy
-    const home = track(packageTree())
-    const env = { ...withHome(home), CRUST_DB: dbOf(root) }
+    const home = _fixture.track(packageTree())
+    const env = { ..._fixture.withHome(home), CRUST_DB: dbOf(root) }
 
     // when
     const actual = resumeRun(
@@ -711,7 +740,7 @@ test(
 
     // then
     expect(actual.resumed).toBe(true)
-    expect(spy.calls[0]?.command).toBe('bun')
+    expect(spy.calls[0]?.command).toBe(process.execPath)
     expect(spy.calls[0]?.args).toEqual([
       join(home, 'runtime/cli.ts'),
       '--lifecycle',
@@ -742,12 +771,13 @@ test(
     'it should spawn run.ts with the lifecycle, prompt, minted run id and extra args, carrying CRUST_DB (1.3.3)',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const home = track(packageTree())
-    const root = track(stampedTree())
+    const home = _fixture.track(packageTree())
+    const root = _fixture.track(stampedTree())
     const spy = spawnSpy()
     const { spawnChild } = spy
-    const env = { ...withHome(home), CRUST_DB: dbOf(root) }
+    const env = { ..._fixture.withHome(home), CRUST_DB: dbOf(root) }
 
     // when
     const actual = startRun(
@@ -762,7 +792,7 @@ test(
 
     // then
     expect(actual.run_id).not.toBe('')
-    expect(spy.calls[0]?.command).toBe('bun')
+    expect(spy.calls[0]?.command).toBe(process.execPath)
     expect(spy.calls[0]?.args).toEqual([
       join(home, 'runtime', 'commands', 'run.ts'),
       'add a /health endpoint',
@@ -792,6 +822,7 @@ test(
     'it should accept it as a path segment',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
     // when
     const actual = isSafeSegment('a1b2_c3-d4')
@@ -808,6 +839,7 @@ test(
     'it should refuse it',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
     // when
     const actual = isSafeSegment('../etc/passwd')
@@ -824,6 +856,7 @@ test(
     'it should refuse it',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
     const value = 'a'.repeat(65)
 
@@ -941,8 +974,9 @@ test(
     'it should read it back',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const dir = sessionDir(dbOf(root), 'a1b2c3d4')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'spawn.log'), 'refused: no such Activity\n')
@@ -962,8 +996,9 @@ test(
     'it should join them and keep only the last 12 lines',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const dir = sessionDir(dbOf(root), 'a1b2c3d4')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'spawn.log'), 'refused: no such Activity\n')
@@ -986,8 +1021,9 @@ test(
     'it should be undefined',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const actual = startupFailure(dbOf(root), 'a1b2c3d4')
@@ -1004,8 +1040,10 @@ test(
     'it should accept it',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    // when / then
+    // when
+    // then
     expect(isInboxKind('steer')).toBe(true)
     expect(isInboxKind('follow_up')).toBe(true)
     expect(isInboxKind('abort')).toBe(true)
@@ -1019,8 +1057,10 @@ test(
     'it should refuse it',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    // when / then
+    // when
+    // then
     expect(isInboxKind('nonsense')).toBe(false)
     expect(isInboxKind(42)).toBe(false)
   },
@@ -1033,8 +1073,9 @@ test(
     'it should write just the approval line',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const path = recordDecision(dbOf(root), 'a1b2c3d4', 'approve', '', 'alice')
@@ -1051,8 +1092,9 @@ test(
     'it should write the rejection and the reason',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const path = recordDecision(
@@ -1077,8 +1119,9 @@ test(
     'it should write the text verbatim',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const path = recordDecision(
@@ -1101,8 +1144,9 @@ test(
     'it should refuse and say so (1.3.5)',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
     const actual = startConsult(
@@ -1112,7 +1156,7 @@ test(
       'plan',
       'ask',
       'why?',
-      withHome(),
+      _fixture.withHome(),
     )
 
     // then
@@ -1128,11 +1172,18 @@ test(
     'it should refuse with a reason naming the run',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4', '', 'tester', withHome())
+    const actual = resumeRun(
+      dbOf(root),
+      'a1b2c3d4',
+      '',
+      'tester',
+      _fixture.withHome(),
+    )
 
     // then
     expect(actual.resumed).toBe(false)
@@ -1149,8 +1200,9 @@ test(
     'it should refuse as unusable',
   ].join(', '),
   () => {
+    using _fixture = treeFixture()
     // given
-    const root = track(stampedTree())
+    const root = _fixture.track(stampedTree())
     const dir = sessionDir(dbOf(root), 'a1b2c3d4')
     mkdirSync(dir, { recursive: true })
     writeFileSync(
@@ -1159,7 +1211,13 @@ test(
     )
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4', '', 'tester', withHome())
+    const actual = resumeRun(
+      dbOf(root),
+      'a1b2c3d4',
+      '',
+      'tester',
+      _fixture.withHome(),
+    )
 
     // then
     expect(actual.resumed).toBe(false)
@@ -1175,8 +1233,9 @@ for (const mode of ['recorded', 'fallback', 'gone', 'invalid'] as const) {
       'it should use only an existing recorded or invocation working directory',
     ].join(', '),
     () => {
+      using _fixture = treeFixture()
       // given
-      const root = track(stampedTree())
+      const root = _fixture.track(stampedTree())
       const missing = join(root, 'missing')
       writeFileSync(
         join(root, 'invocation.json'),
@@ -1207,9 +1266,10 @@ for (const mode of [
       'it should select the installation before spawning and carry the trace directory',
     ].join(', '),
     () => {
+      using _fixture = treeFixture()
       // given
-      const root = track(stampedTree())
-      const home = track(packageTree())
+      const root = _fixture.track(stampedTree())
+      const home = _fixture.track(packageTree())
       const session = sessionDir(dbOf(root), 'resume196')
       mkdirSync(session, { recursive: true })
       mkdirSync(join(home, 'runtime/commands'))

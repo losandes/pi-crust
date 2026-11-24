@@ -6,8 +6,8 @@
  * WAL mode so the UI can read while workflow processes write.
  */
 
-import { Database } from 'bun:sqlite'
 import { dirname } from 'node:path'
+import { openDatabase, type TDatabase } from '../../../../../lib/sqlite'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
   TActivityRun,
@@ -134,7 +134,7 @@ export const MIGRATIONS: ReadonlyArray<readonly [string, string, string]> = [
 ]
 
 /** Additive column migrations, so a db from an older pi-crust still opens. */
-const migrate = (db: Database): void => {
+const migrate = (db: TDatabase): void => {
   for (const [table, column, declaration] of MIGRATIONS) {
     const columns = db
       .query<{ name: string }, []>(`PRAGMA table_info(${table})`)
@@ -154,7 +154,7 @@ const migrate = (db: Database): void => {
 }
 
 /** SQLite's WAL transition can return BUSY without invoking its busy handler. */
-const enableWal = (db: Database, deadline = Date.now() + 5000): void => {
+const enableWal = (db: TDatabase, deadline = Date.now() + 5000): void => {
   const result = safeParseSettlement(() => db.run('PRAGMA journal_mode=WAL;'))
   if (result.status === 'ok') return
   if (
@@ -172,7 +172,7 @@ export const createTracer = (
 ): TTracer => {
   ensureDir(dirname(dbPath))
   ensureDir(dirname(eventsJsonlPath))
-  const db = new Database(dbPath, { create: true })
+  const db = openDatabase(dbPath)
   db.run('PRAGMA busy_timeout=5000;')
   enableWal(db)
   db.run('PRAGMA synchronous=NORMAL;')

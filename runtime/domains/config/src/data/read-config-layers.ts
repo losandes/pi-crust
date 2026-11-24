@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { parse } from 'smol-toml'
 import { z } from 'zod'
 import {
   safeParseSettlement,
@@ -9,6 +10,7 @@ import {
 import { DEFAULT_CONFIG_PATH } from '../../../../lib/contracts'
 import {
   machineConfigDirFromEnv,
+  PACKAGE_ROOT,
   packageConfigDirFromEnv,
   type TEnv,
 } from '../../../../lib/system'
@@ -30,9 +32,7 @@ const readFile = (
   allowedKeys: readonly string[],
 ): TLayerFile => {
   const parsed = safeParseSettlement(() =>
-    z
-      .record(z.string(), z.unknown())
-      .parse(Bun.TOML.parse(readFileSync(path, 'utf8'))),
+    z.record(z.string(), z.unknown()).parse(parse(readFileSync(path, 'utf8'))),
   )
   if (parsed.status === 'error')
     throw new Error(`${path}: ${parsed.error.message}`)
@@ -65,8 +65,7 @@ export const readConfigLayers = (
     if (!existsSync(path) && repositoryPath !== DEFAULT_CONFIG_PATH)
       throw new Error(`${path}: configuration file not found`)
     const packageDirectory = resolve(
-      packageConfigDirFromEnv(env) ??
-        join(import.meta.dir, '../../../../config'),
+      packageConfigDirFromEnv(env) ?? join(PACKAGE_ROOT, 'runtime/config'),
     )
     const machineDirectory = resolve(
       machineConfigDirFromEnv(env) ??

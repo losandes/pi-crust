@@ -24,6 +24,8 @@ import type { PiCrustDb } from './db.ts'
 import { handoffDirFor } from './handoff.ts'
 import { pollMsFromEnv } from './poll-interval.ts'
 import { WorkspaceRegistry } from './registry.ts'
+import { serveRoutes } from './serve-routes.ts'
+import { fileResponse } from './static-file.ts'
 import { machineThemes } from './themes.ts'
 import { resolveWorkspaces } from './workspaces.ts'
 import {
@@ -51,7 +53,7 @@ import {
  */
 const PORT = Number(process.env.CRUST_BE_PORT ?? 4600)
 const POLL_MS = pollMsFromEnv()
-const DIST_DIR = resolve(import.meta.dir, '..', 'dist')
+const DIST_DIR = resolve(import.meta.dirname, '..', 'dist')
 
 /**
  * Diagnostics go to the stream, not through `console`.
@@ -255,21 +257,21 @@ function serveStatic(req: Request): Response {
   const candidate = resolve(join(DIST_DIR, pathname))
   if (candidate === DIST_DIR || candidate.startsWith(`${DIST_DIR}/`)) {
     if (existsSync(candidate) && statSync(candidate).isFile()) {
-      return new Response(Bun.file(candidate))
+      return fileResponse(candidate)
     }
   }
 
   // SPA fallback: breadcrumb routes are client-side.
   const indexHtml = join(DIST_DIR, 'index.html')
   if (existsSync(indexHtml)) {
-    return new Response(Bun.file(indexHtml), {
-      headers: { 'content-type': 'text/html; charset=utf-8' },
+    return fileResponse(indexHtml, {
+      'content-type': 'text/html; charset=utf-8',
     })
   }
   return notFound('not found')
 }
 
-const server = Bun.serve({
+export const server = await serveRoutes({
   port: PORT,
   routes: {
     '/api/health': safely(() => {
@@ -733,7 +735,7 @@ const server = Bun.serve({
      * buttons to answer with and no sight of the question — which is asking
      * somebody to approve something they cannot read.
      */
-    '/api/sessions/:run_id/decision-request': safely(async (req) => {
+    '/api/sessions/:run_id/decision-request': safely((req) => {
       const runId = param(req, 'run_id')
       if (!isSafeSegment(runId)) {
         return json({ error: 'invalid run_id' } satisfies ApiError, 400)
@@ -743,18 +745,18 @@ const server = Bun.serve({
 
       const dir = resolve(handoffDirFor(db.sessionsDir, runId))
 
-      const file = Bun.file(join(dir, 'decision-request.md'))
+      const file = join(dir, 'decision-request.md')
       /*
        * Absent is a normal state, not an error: most runs are not at a gate.
        * It reads as `present: false` rather than a null body so the client
        * branches on a flag instead of on the shape of a value.
        */
-      if (!(await file.exists())) {
+      if (!existsSync(file)) {
         return json({ present: false } satisfies DecisionRequest)
       }
       return json({
         present: true,
-        markdown: await file.text(),
+        markdown: readFileSync(file, 'utf8'),
       } satisfies DecisionRequest)
     }),
 
@@ -780,7 +782,7 @@ const server = Bun.serve({
       return json(listHandoff(dir) satisfies HandoffFile[])
     }),
 
-    '/api/sessions/:run_id/handoff/*': safely(async (req) => {
+    '/api/sessions/:run_id/handoff/*': safely((req) => {
       const runId = param(req, 'run_id')
       const relative = decodeURIComponent(
         new URL(req.url).pathname.split('/handoff/')[1] ?? '',
@@ -800,11 +802,10 @@ const server = Bun.serve({
       if (!file.startsWith(dir + sep)) {
         return json({ error: 'invalid path' } satisfies ApiError, 400)
       }
-      const handle = Bun.file(file)
-      if (!(await handle.exists())) return notFound(`no file ${relative}`)
+      if (!existsSync(file)) return notFound(`no file ${relative}`)
       // Always text/plain: this serves model-written content, and a browser
       // asked to render it as html would execute whatever it contains.
-      return new Response(await handle.text(), {
+      return new Response(readFileSync(file, 'utf8'), {
         headers: {
           'content-type': 'text/plain; charset=utf-8',
           'cache-control': 'no-store',
@@ -814,7 +815,7 @@ const server = Bun.serve({
 
     // The exact prompts an agent was sent, read from the session dir. Files are
     // the raw record; the db has no copy of them.
-    '/api/sessions/:run_id/agents/:agent/prompts': safely(async (req) => {
+    '/api/sessions/:run_id/agents/:agent/prompts': safely((req) => {
       const runId = param(req, 'run_id')
       const agent = param(req, 'agent')
       if (!(isSafeSegment(runId) && isSafeSegment(agent))) {
@@ -834,18 +835,18 @@ const server = Bun.serve({
 
       // A prompt file is absent whenever the agent never ran in this session —
       // a normal state, so it reads as null rather than an error.
-      const read = async (name: string): Promise<string | null> => {
-        const file = Bun.file(join(dir, `${name}.md`))
-        return (await file.exists()) ? await file.text() : null
+      const read = (name: string): string | null => {
+        const file = join(dir, `${name}.md`)
+        return existsSync(file) ? readFileSync(file, 'utf8') : null
       }
       return json({
-        system: await read('system'),
-        user: await read('user'),
+        system: read('system'),
+        user: read('user'),
       } satisfies AgentPrompts)
     }),
   },
 
-  fetch(req) {
+  fallback(req) {
     const { pathname } = new URL(req.url)
     if (pathname.startsWith('/api/')) return notFound(`no route ${pathname}`)
     return serveStatic(req)

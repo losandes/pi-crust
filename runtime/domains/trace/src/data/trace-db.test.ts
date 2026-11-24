@@ -1,9 +1,9 @@
 import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { activityRunParams } from '../../../../lib/contracts'
+import { activityRunParams, agentConfigSchema } from '../../../../lib/contracts'
 import { createTracer, MIGRATIONS, SCHEMA } from './trace-db'
 
 const scratch = (): string =>
@@ -732,5 +732,160 @@ test(
       events,
     )
     after.close()
+  },
+)
+
+test(
+  [
+    'given the trace persistence API',
+    'when a run records its complete lifecycle and agent results',
+    'it should preserve events, usage, processes, gates and agent sessions for readers',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    const activity = {
+      activity_run_id: 'run_01_build',
+      run_id: 'run',
+      seq: 1,
+      params: activityRunParams({
+        name: 'build',
+        kind: 'agent',
+        owner: 'builder',
+        description: 'Build it',
+      }),
+      status: 'running' as const,
+      error: undefined,
+      started_at: undefined,
+      ended_at: undefined,
+    }
+    try {
+      // when
+      tracer.sessionStart('run', 'engineer', 'run', 'named')
+      tracer.sessionStart('run', 'engineer', 'run')
+      tracer.sessionWorkspace('run', dir, 'topic')
+      tracer.sessionRequest('run', 'request')
+      tracer.sessionAddUsage('run', 12, 0.25)
+      expect(tracer.maxActivityRunSeq('run')).toBe(0)
+      tracer.activityRunUpsert(activity)
+      expect(tracer.maxActivityRunSeq('run')).toBe(1)
+      expect(tracer.activityRunsFor('run')[0]?.params.description).toBe(
+        'Build it',
+      )
+      tracer.event({
+        run_id: 'run',
+        type: 'log',
+        name: 'payload',
+        payload: { value: 1 },
+      })
+      tracer.event({
+        run_id: 'run',
+        activity_run_id: activity.activity_run_id,
+        type: 'log',
+        name: 'detail',
+        parent_id: 'parent',
+        tokens: 3,
+        started_at: 'start',
+        ended_at: 'end',
+      })
+      expect(tracer.eventsNamed('run', 'payload')).toEqual([{ value: 1 }])
+      tracer.envelopeRow(
+        activity,
+        'builder',
+        'BuildOutput',
+        '{"status":"success"}',
+        true,
+      )
+      tracer.envelopeRow(activity, 'builder', 'BuildOutput', '{}', false)
+      tracer.gateRow(activity, 'review', {
+        checks: [{ item: 'works', ok: true, note: 'verified' }],
+      })
+      tracer.gateRow(activity, 'review', {
+        checks: [{ item: 'works', ok: false, note: 'not yet' }],
+      })
+      const agent = agentConfigSchema.parse({
+        name: 'builder',
+        prompts: '.',
+        model: 'test/model',
+        writes: [],
+      })
+      tracer.agentSessionRow('run', agent, 'session-one', 10, 100)
+      tracer.agentSessionRow('run', agent, 'session-two', 20, 100)
+      tracer.processStart('run', 'agent', 'builder', 123, 'fixture')
+      tracer.processEnd('run', 123)
+      tracer.processStart('run', 'run', '', 124, 'fixture')
+      tracer.sessionWaiting('run')
+      expect(tracer.activityRunsFor('run')[0]?.status).toBe('fail')
+      tracer.sessionStart('run', 'engineer', '')
+      tracer.sessionFinish('run', true)
+      tracer.sessionFinish('run', false)
+      tracer.close()
+      const db = new Database(dbPath)
+      try {
+        // then
+        expect(
+          db
+            .query(
+              'SELECT name, request, total_tokens, total_cost, status FROM sessions',
+            )
+            .get(),
+        ).toEqual({
+          name: 'named',
+          request: 'request',
+          total_tokens: 12,
+          total_cost: 0.25,
+          status: 'fail',
+        })
+        expect(
+          db
+            .query('SELECT session_id, context_tokens FROM agent_sessions')
+            .get(),
+        ).toEqual({ session_id: 'session-two', context_tokens: 20 })
+        expect(
+          db.query('SELECT passed FROM gate_results ORDER BY id').all(),
+        ).toEqual([{ passed: 1 }, { passed: 0 }])
+        expect(
+          db
+            .query('SELECT ended_at FROM processes WHERE ended_at IS NULL')
+            .all(),
+        ).toEqual([])
+      } finally {
+        db.close()
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  [
+    'given malformed historical named payloads',
+    'when events are read back',
+    'it should return only object JSON values',
+  ].join(', '),
+  () => {
+    // given
+    const dir = scratch()
+    const dbPath = join(dir, 'crust.db')
+    const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
+    const writer = new Database(dbPath)
+    try {
+      for (const payload of [null, 'bad json', '42', '{"kept":true}'])
+        writer.run(
+          'INSERT INTO events (run_id, name, payload_json) VALUES (?,?,?)',
+          ['run', 'history', payload],
+        )
+      // when
+      const actual = tracer.eventsNamed('run', 'history')
+      // then
+      expect(actual).toEqual([{ kept: true }])
+    } finally {
+      writer.close()
+      tracer.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
   },
 )

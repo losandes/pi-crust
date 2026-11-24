@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { parse } from 'smol-toml'
 import { configText, repositoryDocument, tomlText } from './config-document'
 
 test(
@@ -13,7 +14,7 @@ test(
     // when
     const actual = tomlText(document)
     // then
-    expect(Bun.TOML.parse(actual)).toEqual(document)
+    expect(parse(actual)).toEqual(document)
   },
 )
 
@@ -53,7 +54,7 @@ for (const keyed of [false, true]) {
         ],
       }
       // when
-      const actual = Bun.TOML.parse(configText(document))
+      const actual = parse(configText(document))
       // then
       expect(actual).toMatchObject({
         poll_ms: 250,
