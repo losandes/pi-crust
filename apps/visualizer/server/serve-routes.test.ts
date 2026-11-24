@@ -11,7 +11,11 @@ const routes: TRoutes = {
   '/files/*': handler,
   '/method': { POST: handler },
 }
-for (const one of [
+const cases: readonly Readonly<{
+  path: string
+  method: string
+  params: Readonly<Record<string, string>> | undefined
+}>[] = [
   { path: '/api/health?x=1', method: 'GET', params: {} },
   { path: '/api/health', method: 'DELETE', params: {} },
   { path: '/api/health/', method: 'GET', params: undefined },
@@ -25,7 +29,9 @@ for (const one of [
   { path: '/method', method: 'GET', params: undefined },
   { path: '/method', method: 'POST', params: {} },
   { path: '/unknown', method: 'GET', params: undefined },
-]) {
+]
+
+for (const one of cases) {
   test(
     [
       'given a route table',
