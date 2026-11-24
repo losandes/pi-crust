@@ -52,7 +52,7 @@ test(
 
     // then
     expect(actual).toEqual(
-      'just crust run "specs/stats.md" --activities scout,conceptualize,design',
+      'crust run "specs/stats.md" --activities scout,conceptualize,design',
     )
   },
 )
@@ -75,7 +75,7 @@ test(
     const actual = adviceCommand(chosen, 'x')
 
     // then
-    expect(actual).toEqual('just crust run "x" --activities scout,design')
+    expect(actual).toEqual('crust run "x" --activities scout,design')
   },
 )
 

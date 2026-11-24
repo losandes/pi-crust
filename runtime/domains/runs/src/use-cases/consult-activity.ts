@@ -15,7 +15,7 @@ import { createTracer, resolveConsultTarget } from '../../../trace'
 import { repoRoot, resolveLookupPaths } from '../../../workspace'
 
 export const USAGE =
-  'usage: just crust <ask|amend> <run-id> <activity> "question"\n' +
+  'usage: crust <ask|amend> <run-id> <activity> "question"\n' +
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.'
 
 export const consultActivity =

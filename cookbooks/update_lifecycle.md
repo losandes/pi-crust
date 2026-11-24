@@ -18,7 +18,7 @@ Its earlier description survives when not stated here. To change only the descri
 
 ## Add or move Activities
 
-Position inside a `serial` list is execution order. Stages run in array order, so moving a Stage changes the progression. A lifecycle names existing Activities, never a Planner. Inspect the merged catalogue with `just crust list` before selecting names.
+Position inside a `serial` list is execution order. Stages run in array order, so moving a Stage changes the progression. A lifecycle names existing Activities, never a Planner. Inspect the merged catalogue with `crust list` before selecting names.
 
 To make a Stage serial again, replace `concurrent = [...]` with `serial = [...]`. Do not delete the strategy key: exactly one is required. To split a Stage, replace its entry with two named entries at the same position:
 
@@ -48,4 +48,4 @@ Set a lifecycle table in `~/.pi-crust/config/crust.lifecycles.toml` to use it ac
 | `import` anywhere but first in a serial first Stage                               | Referenced work is imported before Activities run.                         |
 | A terminal Activity anywhere but last in the last Stage, or in a concurrent Stage | Delivery runs after the rest of the chain settles.                         |
 
-For `import`, follow [Importing referenced work](../references/handoff.md#importing-referenced-work). Check the merged result with `just crust list` and the effective stage names with `just crust config`; starting a run additionally validates the prompt files it uses.
+For `import`, follow [Importing referenced work](../references/handoff.md#importing-referenced-work). Check the merged result with `crust list` and the effective stage names with `crust config`; starting a run additionally validates the prompt files it uses.

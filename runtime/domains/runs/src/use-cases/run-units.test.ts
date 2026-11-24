@@ -695,7 +695,7 @@ test.skipIf(SKIP_INTEGRATION)(
       const activityRuns = run.activityRuns()
       expect(activityRuns.every((one) => one.status === 'success')).toBe(true)
 
-      // then — the developer's actual complaint: `just crust run` exits 0
+      // then — the developer's actual complaint: `crust run` exits 0
       expect(
         eventsOf(run).filter((event) => event.name === 'committed'),
       ).toHaveLength(0)

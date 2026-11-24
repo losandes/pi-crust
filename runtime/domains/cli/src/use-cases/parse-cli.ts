@@ -171,9 +171,9 @@ const LONG_OF: ReadonlyMap<string, string> = new Map(
 )
 
 const usage = (recipe: string): string =>
-  `usage: just crust ${recipe} "<prompt or path/to/prompt.md>" ` +
+  `usage: crust ${recipe} "<prompt or path/to/prompt.md>" ` +
   '<--lifecycle sdlc | --activities plan,build,review+code-review>\n' +
-  '  `just crust list` prints the Lifecycles and Activities this repo offers.\n' +
+  '  `crust list` prints the Lifecycles and Activities this repo offers.\n' +
   '  optional: [--config <path>] [--run-id <id>] [--commit false] ' +
   '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
   '[--model <activity>=<model>@<thinking>,...] ' +

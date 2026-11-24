@@ -4,7 +4,7 @@ A lifecycle is TOML configuration, not code. Define it in `~/.pi-crust/config/cr
 
 ## Choose Activities
 
-Use `just crust list` to inspect the merged catalogue. A lifecycle names Activities the registry defines; it does not define agents, models or prompts. Add a missing Activity first using [Update Config](update_config.md).
+Use `crust list` to inspect the merged catalogue. A lifecycle names Activities the registry defines; it does not define agents, models or prompts. Add a missing Activity first using [Update Config](update_config.md).
 
 ## Declare ordered stages
 
@@ -27,10 +27,10 @@ Concurrent Activities share one working tree. Their declared `writes` must be di
 
 ## Verify the declaration
 
-Run `just crust list` or open `just crust please`. The lifecycle is offered automatically. Entries are grouped by first-declaring layer, package then machine then repository, with names sorted inside each group; rearranging TOML tables does not reorder the menu.
+Run `crust list` or open `crust please`. The lifecycle is offered automatically. Entries are grouped by first-declaring layer, package then machine then repository, with names sorted inside each group; rearranging TOML tables does not reorder the menu.
 
 ```bash
-just crust run "the request" --lifecycle quick
+crust run "the request" --lifecycle quick
 ```
 
 Starting a run executes agents. Listing the declaration does not.

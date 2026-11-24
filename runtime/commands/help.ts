@@ -4,13 +4,13 @@ import { reportUsageError, topicOf } from '../domains/cli'
  * pi-crust Help — every recipe, every flag, and what this repo can run.
  *
  * Usage:
- *     just crust help [<recipe>] [--config <path>]
+ *     crust help [<recipe>] [--config <path>]
  *
- * `just crust list` already answers "what can this repository run" from its
- * own configuration. This answers the other half — every `just crust`
+ * `crust list` already answers "what can this repository run" from its
+ * own configuration. This answers the other half — every `crust`
  * recipe's signature, flags, environment variables and a worked example —
  * and contains `list`'s own output verbatim, so a developer never has to ask
- * an agent how to drive pi-crust. `just crust help <recipe>` narrows the
+ * an agent how to drive pi-crust. `crust help <recipe>` narrows the
  * reference to one recipe.
  *
  * Unlike every other entry point here, a configuration that fails to load is
@@ -36,7 +36,7 @@ import { configPathFromEnv } from '../lib/system'
 import { writeLine } from '../lib/terminal'
 
 const USAGE =
-  'usage: just crust help [<recipe>] [--config <path>]\n' +
+  'usage: crust help [<recipe>] [--config <path>]\n' +
   'env: CRUST_CONFIG overrides the config path; the flag still wins.'
 
 const unknownTopicMessage = (topic: string): string =>

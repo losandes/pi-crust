@@ -103,7 +103,7 @@ export const recordedInvocation = (
  * Start the run again and return what was run.
  *
  * This used to detach unconditionally, which made resuming feel unlike
- * starting: `just crust sdlc` stays attached and prints as it goes, while
+ * starting: `crust sdlc` stays attached and prints as it goes, while
  * `approve` printed one line and dropped you back at a prompt with an hour of
  * work happening invisibly. Attachment is not this function's decision — it
  * belongs to whoever called it, because only the caller knows whether it can

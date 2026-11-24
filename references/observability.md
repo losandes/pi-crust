@@ -128,7 +128,7 @@ agent_sessions (                   -- the queryable mirror of agent_map.json
 );
 ```
 
-**A hung agent emits nothing**, which is exactly when you need its pid: no events, no tokens, no output to read. `processes` is the only table that can answer "what is this run running, and how do I stop it" — `just crust procs <run_id>` lists what is live, `just crust kill <run_id>` stops children before the parent, and both verify the recorded `command` still matches the pid before signalling it. A killed run finalizes its own trace: SIGTERM and SIGINT are turned into `SystemExit` in `session.ensure`, so the session lands on `fail` with its process rows closed instead of reading `running` forever.
+**A hung agent emits nothing**, which is exactly when you need its pid: no events, no tokens, no output to read. `processes` is the only table that can answer "what is this run running, and how do I stop it" — `crust procs <run_id>` lists what is live, `crust kill <run_id>` stops children before the parent, and both verify the recorded `command` still matches the pid before signalling it. A killed run finalizes its own trace: SIGTERM and SIGINT are turned into `SystemExit` in `session.ensure`, so the session lands on `fail` with its process rows closed instead of reading `running` forever.
 
 **Derived, never stored:** activity run durations (`ended_at − started_at`), session activity run-progress (query `activity-runs` by `run_id`), lane layout (`kind` + `owner`).
 
@@ -161,7 +161,7 @@ Keep the highest `rowid` returned as the next cursor. History is **the same quer
 ## The run reporter
 
 ```text
-bun .pi-crust/report.ts [<run-id>] [--json] [--db <path>] [--config <path>]
+crust report [<run-id>] [--json] [--db <path>] [--config <path>]
 ```
 
 No `run-id` means the most recent session in the whole shared trace. `--db` wins over `CRUST_DB`, then the database derived from `defaults.data_dir`. The connection is opened **readonly** with a busy timeout, so asking where a run got to never blocks a run that is still writing.
@@ -255,16 +255,14 @@ The database keeps a bounded tail per activity run. `raw_output.jsonl` keeps the
 One viewer lists the newest 200 sessions in the shared trace, wherever it was launched. Each session displays its recorded repository, or `unknown` when no origin was recorded. The repository filter uses the full repository path, so repositories sharing a directory name stay distinct. Filtering narrows only those loaded sessions. The branch label uses the recorded branch, then the working-tree directory name, then `unknown`; it never borrows the viewer's launch directory.
 
 ```bash
-just crust observe
+crust observe
 # Explicitly open an earlier per-repository trace:
-CRUST_DATA_DIR=<repo>/.pi-crust/data just crust observe
-# Start outside a repository:
-bun "$(cat ~/.pi-crust/pi-crust-home)/runtime/cli.ts" observe
+CRUST_DATA_DIR=<repo>/.pi-crust/data crust observe
 # Explicit additional stores remain supported:
-CRUST_WORKSPACES=/trees/a,api=/trees/b just crust observe
+CRUST_WORKSPACES=/trees/a,api=/trees/b crust observe
 ```
 
-`--all-worktrees` remains an explicit sweep for sibling worktrees holding databases, not the default. A link can name its store with `#/<workspace>:<run_id>`; unqualified links search every watched store. Viewer actions take their working directory from the run's recorded origin or invocation, never from the shared database's directory. They locate the package through `CRUST_HOME` or `~/.pi-crust/pi-crust-home` and report a failure when it is unavailable.
+`--all-worktrees` remains an explicit sweep for sibling worktrees holding databases, not the default. A link can name its store with `#/<workspace>:<run_id>`; unqualified links search every watched store. Viewer actions take their working directory from the run's recorded origin or invocation, never from the shared database's directory. They use the server's own package runtime, or the runtime of the checkout `CRUST_HOME` names, and report a failure when that directory has no runtime.
 
 `report` without a run id, `sessions`, `please` and `prune` act on the whole shared trace, not just the current repository. Prune remains dry by default.
 
@@ -279,7 +277,7 @@ CRUST_WORKSPACES=/trees/a,api=/trees/b just crust observe
 | `CRUST_WORKSPACES` | —                       | explicit stores to watch, comma-separated |
 
 ```bash
-CRUST_BE_PORT=5600 CRUST_FE_PORT=5601 just crust observe
+CRUST_BE_PORT=5600 CRUST_FE_PORT=5601 crust observe
 ```
 
 Both are named rather than taking the conventional `PORT`, and there is no fallback to it. `PORT` is the variable most likely to already be set for something else in a repository full of servers, and when it is, the UI proxies to a port the API never bound — every request 404s with nothing explaining why.
@@ -291,8 +289,8 @@ A run prints `watch: http://localhost:<fe>/#/<run_id>` when the API answers a he
 A trace row is small; a session directory is not. Eight trivial scout runs produced twelve megabytes, and a full lifecycle writes every agent's entire stream to `raw_output.jsonl`.
 
 ```bash
-just crust prune 14d          # say what would go
-just crust prune 14d --yes    # delete it
+crust prune 14d          # say what would go
+crust prune 14d --yes    # delete it
 ```
 
 Rows and directories go together. Deleting one without the other leaves a trace that references transcripts that are gone, or gigabytes of transcripts no index can find — and the second is how a data directory ends up deleted wholesale, taking the run somebody needed with it.
@@ -301,7 +299,7 @@ Dry by default, because deleting a run cannot be undone, and an age is always re
 
 ## Building a command by answering questions
 
-`just crust please` asks for the run instead of the flags. It opens with the run id, because that question subsumes the rest: naming a run that is waiting means you are continuing it, and the only thing left to ask is whether you are approving, answering or rejecting. Say nothing and it offers a new run instead — which Lifecycle or Activities, in what order, how much it may decide for itself, how it hands the work over, and where to stop and show you.
+`crust please` asks for the run instead of the flags. It opens with the run id, because that question subsumes the rest: naming a run that is waiting means you are continuing it, and the only thing left to ask is whether you are approving, answering or rejecting. Say nothing and it offers a new run instead — which Lifecycle or Activities, in what order, how much it may decide for itself, how it hands the work over, and where to stop and show you.
 
 It ends by printing the command and offering to run it. The line is the point: `please` is a way to build a command, not a replacement for knowing them, and seeing the one you just described is how the flags stop needing the wizard. Choose "just give me the line" and nothing is started.
 
@@ -325,9 +323,9 @@ Two things govern it. `steps_valid` rejects a plan naming an Activity that does 
 
 ## Watching a run from another machine
 
-`just crust observe` takes arguments and hands them to vite, the process serving the web app: `just crust observe --host` listens on every interface so a phone or a second machine can watch a run, and `--host 127.0.0.1`, `--open` and `--strictPort` work the same way.
+`crust observe` takes arguments and hands them to vite, the process serving the web app: `crust observe --host` listens on every interface so a phone or a second machine can watch a run, and `--host 127.0.0.1`, `--open` and `--strictPort` work the same way.
 
-They go straight after the recipe with no `--` separator. `just crust observe -- --host` does not work — the flag never reaches vite, which reports "use --host to expose" — which is the opposite of the habit most tools teach, so it is worth remembering once.
+They go straight after the recipe with no `--` separator. `crust observe -- --host` does not work — the flag never reaches vite, which reports "use --host to expose" — which is the opposite of the habit most tools teach, so it is worth remembering once.
 
 The arguments reach the web app only. The ports are configured by `[ports]` in TOML, or by `CRUST_BE_PORT` and `CRUST_FE_PORT`, because it is the thing behind the thing: flags belong to the process you are actually looking at, and an argument list that silently split between two processes would be worse than either.
 
@@ -338,7 +336,7 @@ The X on a dashboard card archives the run out of the review list. It is a WRITE
 Start the server with the token and paste the same value when the dashboard asks:
 
 ```bash
-CRUST_TOKEN=$(openssl rand -hex 16) just crust observe
+CRUST_TOKEN=$(openssl rand -hex 16) crust observe
 ```
 
 The page cannot know the token — it is a secret held by whoever started the server — so it asks only after a write is refused, and keeps it in that browser. Asking up front, on a dashboard whose reads need nothing, would teach people to paste secrets into any box that asks for one.

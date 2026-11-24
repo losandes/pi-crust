@@ -1,8 +1,9 @@
 # Tool versions for this repository. `mise install` fetches them; shell
 # activation, `mise exec --`, and the shims put them on PATH.
 #
-# A version is named in exactly one place. node and just are named here
-# because nothing else in the repository pins them. bun is NOT named here —
+# A version is named in exactly one place.
+# node is named here because nothing else in the repository pins it.
+# bun is NOT named here —
 # see [settings] below.
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -17,7 +18,6 @@ config_roots = ["apps/*"]
 
 [tools]
 node = "26.13.0"
-just = "1.59.0"
 
 [settings]
 # bun's version is declared once, in package.json's `packageManager`, which
@@ -80,14 +80,15 @@ run = 'bunx bunt apps/visualizer lib runtime scripts {% if usage.coverage %}--co
 # Runs the tests with coverage for both backend and frontend
 # Enahances the coverage output via buntap, so the agent receives what it needs
 # to improve coverage without receiving all the noise from standard coverage reports
+# Bound integration workers: browser/Vite and subprocess fixtures share host resources.
 [tasks."test:agent"]
 env = { RUN_INTEGRATION_TESTS = "true", CLAUDECODE = "1" }
-run = "bunx bunt apps/visualizer lib runtime scripts --coverage --parallel | bunx buntap --agent --no-color"
+run = "bunx bunt apps/visualizer lib runtime scripts --coverage --parallel=4 | bunx buntap --agent --no-color"
 
 # CI tests use buntap instead of bunt/buntap
 [tasks."test:raw"]
 env = { RUN_INTEGRATION_TESTS = "true", CLAUDECODE = "1" }
-run = "bun test apps/visualizer lib runtime scripts --coverage --parallel"
+run = "bun test apps/visualizer lib runtime scripts --coverage --parallel=4"
 
 # --- BUILD --------------------------------------------------------------------
 

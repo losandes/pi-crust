@@ -76,20 +76,20 @@ Two more are **Planners** rather than Activities: `operator` chooses the chain a
 
 ### Running one
 
-From a target repository's root, `bun <pi-crust>/scripts/install.ts` writes a comment-only `pi-crust.toml`, the credential example, the `just crust` passthrough and the package-home pointer. It creates no configuration directory or prompt files and never overwrites an existing repository TOML file. Package and machine defaults are read on every command, without re-stamping.
+From the pi-crust clone's root, run `bun install`, then `bun link`, with bun's global bin directory on your PATH; see [Running your clone as `crust`](CONTRIBUTING.md#running-your-clone-as-crust) for details. From a target repository's root, run `crust init`; refresh with `crust update` or `crust init --refresh`. Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. It creates no configuration directory or prompt files and never overwrites an existing repository TOML file. Package and machine defaults are read on every command, without re-stamping.
 
 ```bash
-just crust please                          # answer questions, get the command
+crust please                          # answer questions, get the command
 # tune models once for all repositories in ~/.pi-crust/config/crust.activities.toml
-just crust help                            # every recipe and flag, plus the above
-just crust list                            # every Lifecycle and Activity this repo offers
-just crust run "<...>" --lifecycle sdlc    # the whole lifecycle, nine agent calls
-just crust run "<...>" --lifecycle bugfix  # a reported bug, from symptom to fix
-just crust run "<...>" --activities plan,test,build
-just crust run "<...>" --activities plan,build,review+code-review   # + runs at once
-just crust operator "<...>"                # it chooses the chain, then runs it
-just crust run "<...>" --activities code-review --scope apps/gateway
-just crust report <run-id>                 # where it got to, and what finishes it
+crust help                            # every recipe and flag, plus the above
+crust list                            # every Lifecycle and Activity this repo offers
+crust run "<...>" --lifecycle sdlc    # the whole lifecycle, nine agent calls
+crust run "<...>" --lifecycle bugfix  # a reported bug, from symptom to fix
+crust run "<...>" --activities plan,test,build
+crust run "<...>" --activities plan,build,review+code-review   # + runs at once
+crust operator "<...>"                # it chooses the chain, then runs it
+crust run "<...>" --activities code-review --scope apps/gateway
+crust report <run-id>                 # where it got to, and what finishes it
 ```
 
 Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the judging Activities judge), `--approve-after identify,design` (stop for you after those stages), `--commit false` (land nothing; committing is otherwise declared per Activity), `--resume` with `--run-id`, `--handoff specs/{session_id}` (move where this run's documents go), `--name "payments rewrite"` (a label shown instead of the lifecycle).
@@ -100,7 +100,7 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 
 **Gate the decisions that are expensive to get wrong.** `--approve-after` is opt-in and the run exits rather than blocking, so a gate costs you nothing until you answer it. Two escalations happen without being asked for: a consequential unresolved question, and a second regression to the same stage.
 
-**Read the plan before the build runs.** `just crust run "<...>" --activities plan` then `just crust run "<...>" --run-id <id> --activities build` is cheaper than discovering a bad plan at review.
+**Read the plan before the build runs.** `crust run "<...>" --activities plan` then `crust run "<...>" --run-id <id> --activities build` is cheaper than discovering a bad plan at review.
 
 **Declare your [tasks](references/config.md#tasks).** Put repository commands under `[tasks.<name>]` in `pi-crust.toml`. The installed examples are commented out and declare no tasks until you provide real commands. Matching `change` tasks verify changed files before the Activity's work is accepted and send failures back to the Activity that changed them.
 

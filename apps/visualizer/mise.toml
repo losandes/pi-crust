@@ -1,8 +1,9 @@
 # Tool versions for this repository. `mise install` fetches them; shell
 # activation, `mise exec --`, and the shims put them on PATH.
 #
-# A version is named in exactly one place. node and just are named here
-# because nothing else in the repository pins them. bun is NOT named here —
+# A version is named in exactly one place.
+# node is named here because nothing else in the repository pins it.
+# bun is NOT named here —
 # see [settings] below.
 
 [settings]

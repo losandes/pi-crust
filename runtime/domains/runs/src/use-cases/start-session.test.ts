@@ -410,7 +410,7 @@ test(
   [
     'given use-cases/start-session::resumeVerdict',
     "when the status is 'running' and a process is still alive",
-    'it should refuse, naming `just crust procs`',
+    'it should refuse, naming `crust procs`',
   ].join(', '),
   () => {
     // given
@@ -425,7 +425,7 @@ test(
 
     // then
     expect(actual.ok).toBe(false)
-    expect(actual.reason).toContain('just crust procs')
+    expect(actual.reason).toContain('crust procs')
   },
 )
 

@@ -230,7 +230,7 @@ export const createTracer = (
    * run killed mid-activityRun — Ctrl-C, a crash, a terminal closing — never reaches
    * that update, so the row stays `running` forever: the session reads `fail`
    * while the activityRun under it claims to still be working, with no process
-   * behind it. `just crust activityRuns` and the visualizer both repeat the claim,
+   * behind it. `crust activity-runs` and the visualizer both repeat the claim,
    * and a reader cannot tell an interrupted run from a live one.
    *
    * Whatever ends a run ends its activityRuns. `ended_at` is left alone when the

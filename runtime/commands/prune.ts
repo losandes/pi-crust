@@ -4,8 +4,8 @@ import { PRUNE_USAGE } from '../domains/cli'
  * pi-crust Prune — forget old runs, on disk and in the trace together.
  *
  * Usage:
- *     just crust prune 14d                 # say what WOULD go
- *     just crust prune 14d --yes           # actually delete it
+ *     crust prune 14d                 # say what WOULD go
+ *     crust prune 14d --yes           # actually delete it
  *
  * Dry by default. Deleting a run is unrecoverable, and a command whose first
  * use is destructive is one somebody will run before reading it.

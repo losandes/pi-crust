@@ -10,9 +10,9 @@ import {
  * pi-crust List — what this repository offers, read from its configuration.
  *
  * Usage:
- *     just crust list [--config <path>]
+ *     crust list [--config <path>]
  *
- * `just crust default` used to answer this, because there was a recipe per
+ * `crust default` used to answer this, because there was a recipe per
  * Activity and per Lifecycle. That list was a second copy of the registry,
  * written by hand in a file configuration cannot reach, and it drifted in the
  * direction nobody notices: four Lifecycles were added and the recipes went

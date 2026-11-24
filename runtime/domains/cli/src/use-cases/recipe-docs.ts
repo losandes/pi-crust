@@ -23,9 +23,9 @@ export type TRecipeDoc = Readonly<{
   run: TCommandRun
   name: string
   group: TRecipeGroup
-  /** one line, as `just --list` shows */
+  /** one line, as the bare `crust` listing shows */
   summary: string
-  /** begins `just crust <name>` */
+  /** begins `crust <name>` */
   usage: string
   /** [] when the recipe takes none beyond the global flags */
   flags: readonly TDocLine[]
@@ -48,7 +48,7 @@ export const GLOBAL_FLAGS: readonly TDocLine[] = [
   {
     name: '--config <path>',
     detail:
-      'pi-crust.toml to read; most recipes pass {{config}} through automatically',
+      'pi-crust.toml to read; crust passes the repository file to most commands automatically',
   },
   {
     name: '--db <path>',
@@ -98,7 +98,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'getting started',
     summary: 'every recipe, every flag, and what this repo can run',
-    usage: 'just crust help [<recipe>]',
+    usage: 'crust help [<recipe>]',
     flags: [
       {
         name: '--commands',
@@ -111,7 +111,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     env: [],
-    examples: ['just crust help', 'just crust help run'],
+    examples: ['crust help', 'crust help run'],
   },
   {
     name: 'default',
@@ -126,10 +126,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'getting started',
     summary: 'list every crust recipe',
-    usage: 'just crust default  (same as the bare `just crust`)',
+    usage: 'crust default  (same as the bare `crust`)',
     flags: [],
     env: [],
-    examples: ['just crust'],
+    examples: ['crust default'],
   },
   {
     name: 'init',
@@ -167,10 +167,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'getting started',
     summary: 'start here: two cheap read-only runs, end to end',
-    usage: 'just crust demo',
+    usage: 'crust demo',
     flags: [],
     env: [],
-    examples: ['just crust demo'],
+    examples: ['crust demo'],
   },
   {
     name: 'list',
@@ -186,10 +186,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'getting started',
     summary:
       'what this repository offers, read from its own configuration (the catalogue alone; help adds the recipes)',
-    usage: 'just crust list [--config <path>]',
+    usage: 'crust list [--config <path>]',
     flags: [],
     env: [],
-    examples: ['just crust list'],
+    examples: ['crust list'],
   },
   {
     name: 'config',
@@ -205,10 +205,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'getting started',
     summary:
       'effective TOML settings, entry models and prompt directories, with their layer and file sources',
-    usage: 'just crust config [--config <path>]',
+    usage: 'crust config [--config <path>]',
     flags: [],
     env: [],
-    examples: ['just crust config'],
+    examples: ['crust config'],
   },
   {
     name: 'please',
@@ -223,10 +223,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'getting started',
     summary: 'build the command by answering questions',
-    usage: 'just crust please',
+    usage: 'crust please',
     flags: [],
     env: [],
-    examples: ['just crust please'],
+    examples: ['crust please'],
   },
   {
     name: 'run',
@@ -242,7 +242,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'running work',
     summary: 'run a Lifecycle, or any chain of Activities',
     usage:
-      'just crust run "<prompt or path/to/prompt.md>" <--lifecycle <name> | --activities a,b,c>',
+      'crust run "<prompt or path/to/prompt.md>" <--lifecycle <name> | --activities a,b,c>',
     flags: [
       {
         name: '--lifecycle <name> (-l)',
@@ -308,11 +308,11 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     examples: [
-      'just crust run "add a /health endpoint" --lifecycle sdlc',
-      'just crust run "add a /health endpoint" --activities plan,build,review+code-review',
-      'just crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume',
-      'just crust run "..." --lifecycle sdlc --handoff specs/{session_id}',
-      'just crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
+      'crust run "add a /health endpoint" --lifecycle sdlc',
+      'crust run "add a /health endpoint" --activities plan,build,review+code-review',
+      'crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume',
+      'crust run "..." --lifecycle sdlc --handoff specs/{session_id}',
+      'crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
     ],
   },
   {
@@ -329,7 +329,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'running work',
     summary: 'let it choose the chain and run it',
     usage:
-      'just crust operator "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]',
+      'crust operator "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]',
     flags: [
       {
         name: '--trust-level 50',
@@ -339,7 +339,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       { name: '--resume', detail: 'continue that run where it stopped' },
     ],
     env: [],
-    examples: ['just crust operator "the webhook drops retries"'],
+    examples: ['crust operator "the webhook drops retries"'],
   },
   {
     name: 'triage',
@@ -355,13 +355,13 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'running work',
     summary: 'recommend a lifecycle instead of running it',
     usage:
-      'just crust triage "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]',
+      'crust triage "<prompt or path/to/prompt.md>" [--run-id a1b2c3d4] [--resume]',
     flags: [
       { name: '--run-id <id>', detail: 'an existing run to add to' },
       { name: '--resume', detail: 'continue that run where it stopped' },
     ],
     env: [],
-    examples: ['just crust triage "the webhook drops retries"'],
+    examples: ['crust triage "the webhook drops retries"'],
   },
   {
     name: 'verify',
@@ -376,8 +376,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'running work',
     summary: 'run the change tasks over what you changed',
-    usage:
-      'just crust verify [--scope <ref|range|path|glob>] [--config <path>]',
+    usage: 'crust verify [--scope <ref|range|path|glob>] [--config <path>]',
     flags: [
       {
         name: '--scope <ref|range|path|glob>',
@@ -386,7 +385,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     env: [],
-    examples: ['just crust verify', 'just crust verify --scope apps/gateway'],
+    examples: ['crust verify', 'crust verify --scope apps/gateway'],
   },
   {
     name: 'approve',
@@ -401,10 +400,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'steering a run',
     summary: 'continue a run that is waiting for you',
-    usage: 'just crust approve <run-id>',
+    usage: 'crust approve <run-id>',
     flags: [],
     env: [],
-    examples: ['just crust approve 9d67c31f'],
+    examples: ['crust approve 9d67c31f'],
   },
   {
     name: 'reject',
@@ -419,12 +418,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'steering a run',
     summary: 'send it back with a correction',
-    usage: 'just crust reject <run-id> [--note "..."]',
+    usage: 'crust reject <run-id> [--note "..."]',
     flags: [{ name: '--note "..."', detail: 'what to change' }],
     env: [],
-    examples: [
-      'just crust reject 9d67c31f --note "use the registry, not the map"',
-    ],
+    examples: ['crust reject 9d67c31f --note "use the registry, not the map"'],
   },
   {
     name: 'answer',
@@ -439,7 +436,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'steering a run',
     summary: 'answer the questions it could not',
-    usage: 'just crust answer <run-id> [--file <path>]',
+    usage: 'crust answer <run-id> [--file <path>]',
     flags: [
       {
         name: '--file <path>',
@@ -447,7 +444,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     env: [],
-    examples: ['just crust answer 9d67c31f --file a.md'],
+    examples: ['crust answer 9d67c31f --file a.md'],
   },
   {
     name: 'resume',
@@ -463,7 +460,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'steering a run',
     summary:
       'pick a stopped run back up, optionally with a note every activity from here reads',
-    usage: 'just crust resume <run-id> [--note "what you changed"] [--detach]',
+    usage: 'crust resume <run-id> [--note "what you changed"] [--detach]',
     flags: [
       {
         name: '--note "..."',
@@ -476,9 +473,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     env: [],
-    examples: [
-      'just crust resume 9d67c31f --note "I fixed the failing migration"',
-    ],
+    examples: ['crust resume 9d67c31f --note "I fixed the failing migration"'],
   },
   {
     name: 'steer',
@@ -494,7 +489,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'steering a run',
     summary: 'send a run back to an activity with new instructions',
     usage:
-      'just crust steer <run-id> <activity> <--overwrite|--branch> "instruction" [--seeding fork|fresh] [--branch-id <id>]',
+      'crust steer <run-id> <activity> <--overwrite|--branch> "instruction" [--seeding fork|fresh] [--branch-id <id>]',
     flags: [
       {
         name: '--overwrite',
@@ -519,8 +514,8 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     ],
     env: [],
     examples: [
-      'just crust steer 9d67c31f build --overwrite "use the registry, not the map"',
-      'just crust steer 9d67c31f build --branch --seeding fresh "start over"',
+      'crust steer 9d67c31f build --overwrite "use the registry, not the map"',
+      'crust steer 9d67c31f build --branch --seeding fresh "start over"',
     ],
   },
   {
@@ -537,11 +532,11 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'steering a run',
     summary:
       'ask a finished activity a question \u2014 it still remembers the conversation',
-    usage: 'just crust ask <run-id> <activity> "question"',
+    usage: 'crust ask <run-id> <activity> "question"',
     flags: [],
     env: [],
     examples: [
-      'just crust ask 9d67c31f design "why did you choose a registry table?"',
+      'crust ask 9d67c31f design "why did you choose a registry table?"',
     ],
   },
   {
@@ -557,10 +552,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'steering a run',
     summary: 'have a finished activity revise its own document',
-    usage: 'just crust amend <run-id> <activity> "what to change"',
+    usage: 'crust amend <run-id> <activity> "what to change"',
     flags: [],
     env: [],
-    examples: ['just crust amend 9d67c31f design "shorten section 3"'],
+    examples: ['crust amend 9d67c31f design "shorten section 3"'],
   },
   {
     name: 'join',
@@ -575,10 +570,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'steering a run',
     summary: "step into a stopped run's conversation",
-    usage: 'just crust join <run-id> <activity>',
+    usage: 'crust join <run-id> <activity>',
     flags: [],
     env: [],
-    examples: ['just crust join 9d67c31f build'],
+    examples: ['crust join 9d67c31f build'],
   },
   {
     name: 'report',
@@ -593,8 +588,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'reading the trace',
     summary: 'where a run got to, and what to run to finish it',
-    usage:
-      'just crust report [<run-id>] [--json] [--db <path>] [--config <path>]',
+    usage: 'crust report [<run-id>] [--json] [--db <path>] [--config <path>]',
     flags: [
       {
         name: '--json',
@@ -602,7 +596,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     env: [],
-    examples: ['just crust report', 'just crust report 9d67c31f'],
+    examples: ['crust report', 'crust report 9d67c31f'],
   },
   {
     name: 'report-json',
@@ -617,10 +611,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'reading the trace',
     summary: 'the same, as JSON for an agent to parse',
-    usage: 'just crust report-json [<run-id>] [--db <path>] [--config <path>]',
+    usage: 'crust report-json [<run-id>] [--db <path>] [--config <path>]',
     flags: [],
     env: [],
-    examples: ['just crust report-json 9d67c31f'],
+    examples: ['crust report-json 9d67c31f'],
   },
   {
     name: 'sessions',
@@ -635,10 +629,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'reading the trace',
     summary: 'the last 10 runs',
-    usage: 'just crust sessions',
+    usage: 'crust sessions',
     flags: [],
     env: [],
-    examples: ['just crust sessions'],
+    examples: ['crust sessions'],
   },
   {
     name: 'activity-runs',
@@ -653,10 +647,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'reading the trace',
     summary: 'activity run status in sequence',
-    usage: 'just crust activity-runs <run-id>',
+    usage: 'crust activity-runs <run-id>',
     flags: [],
     env: [],
-    examples: ['just crust activity-runs 9d67c31f'],
+    examples: ['crust activity-runs 9d67c31f'],
   },
   {
     name: 'tail',
@@ -671,10 +665,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'reading the trace',
     summary: 'the live event tail',
-    usage: 'just crust tail <run-id>',
+    usage: 'crust tail <run-id>',
     flags: [],
     env: [],
-    examples: ['just crust tail 9d67c31f'],
+    examples: ['crust tail 9d67c31f'],
   },
   {
     name: 'procs',
@@ -689,10 +683,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'reading the trace',
     summary: 'what a run has alive right now, with pids',
-    usage: 'just crust procs <run-id>',
+    usage: 'crust procs <run-id>',
     flags: [],
     env: [],
-    examples: ['just crust procs 9d67c31f'],
+    examples: ['crust procs 9d67c31f'],
   },
   {
     name: 'observe',
@@ -708,7 +702,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'reading the trace',
     summary:
       'boot the trace UI with merged TOML ports and polling interval (4601, api on 4600 by default)',
-    usage: 'just crust observe [--host] [--open] [--strictPort]',
+    usage: 'crust observe [--host] [--open] [--strictPort]',
     flags: [
       {
         name: '--host [<address>]',
@@ -726,9 +720,9 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     ],
     env: [],
     examples: [
-      'just crust observe',
-      'just crust observe --host',
-      'just crust observe --host 127.0.0.1 --strictPort',
+      'crust observe',
+      'crust observe --host',
+      'crust observe --host 127.0.0.1 --strictPort',
     ],
   },
   {
@@ -744,7 +738,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'housekeeping',
     summary: 'forget runs older than N days, on disk and in the trace together',
-    usage: 'just crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]',
+    usage: 'crust prune <14d|36h> [--yes] [--db <path>] [--tree <path>]',
     flags: [
       { name: '--yes', detail: 'actually delete; dry by default' },
       {
@@ -754,7 +748,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     env: [],
-    examples: ['just crust prune 14d', 'just crust prune 14d --yes'],
+    examples: ['crust prune 14d', 'crust prune 14d --yes'],
   },
   {
     name: 'update',
@@ -769,10 +763,10 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     },
     group: 'housekeeping',
     summary: 'bring this tree up to date with the pi-crust it was stamped from',
-    usage: 'just crust update',
+    usage: 'crust update',
     flags: [],
     env: [],
-    examples: ['just crust update'],
+    examples: ['crust update'],
   },
 ]
 

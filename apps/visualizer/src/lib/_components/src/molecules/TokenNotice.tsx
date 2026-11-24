@@ -63,8 +63,8 @@ export const TokenNotice = ({
       </form>
       <p className="m-0 mt-2 text-xs leading-normal [&_code]:font-mono [&_code]:text-[0.72rem]">
         It is the value the server was started with:{' '}
-        <code>CRUST_TOKEN=… just crust observe</code>. Kept in this browser
-        only, never sent anywhere but your own server.
+        <code>CRUST_TOKEN=… crust observe</code>. Kept in this browser only,
+        never sent anywhere but your own server.
       </p>
     </section>
   )

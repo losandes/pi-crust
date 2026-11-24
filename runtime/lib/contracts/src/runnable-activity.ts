@@ -6,7 +6,7 @@
  * chain validates its whole roster before anything spawns) and how it is
  * REPLAYED (so `--resume` can skip it without inventing its result).
  *
- * Every activity is runnable on its own (`just crust run "..." --activities <activity>`), and
+ * Every activity is runnable on its own (`crust run "..." --activities <activity>`), and
  * `compose.ts` runs any ordered subset of them.
  *
  * A activity's NAME is an Activity's name, and Activities are configuration:

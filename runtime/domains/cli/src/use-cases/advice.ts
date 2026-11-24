@@ -46,5 +46,5 @@ export const adviceCommand = (
 ): string | undefined => {
   const chain = chainOf(state)
   if (chain.length === 0) return undefined
-  return `just crust ${RUN_RECIPE} ${shellQuoted(prompt)} --activities ${chain.join(',')}`
+  return `crust ${RUN_RECIPE} ${shellQuoted(prompt)} --activities ${chain.join(',')}`
 }

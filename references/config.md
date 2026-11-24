@@ -14,7 +14,7 @@ From weakest to strongest:
 
 The package and machine directories each hold `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Missing files contribute nothing. The repository file is optional at the default path; an explicitly selected non-default path must exist. Invalid TOML fails with its filename.
 
-Effective precedence, highest first, is a command-line flag, an existing environment override, repository settings, machine settings, then package defaults. Schema fallbacks supply settings absent from every file. `--config` selects the repository file over `CRUST_CONFIG`; neither selects the package or machine layer. Commands run from the repository root, as the installed justfile does.
+Effective precedence, highest first, is a command-line flag, an existing environment override, repository settings, machine settings, then package defaults. Schema fallbacks supply settings absent from every file. `--config` selects the repository file over `CRUST_CONFIG`; neither selects the package or machine layer. Commands run from the repository root.
 
 | File                    | Accepted top-level keys                          |
 | ----------------------- | ------------------------------------------------ |
@@ -159,7 +159,7 @@ A `[lifecycles.<name>]` table has optional `description` and a `stages` array. E
 
 Stages execute in array order. A serial Stage executes its Activities in list order; a concurrent Stage starts them together. Concurrent writes must be disjoint, and judging Activities cannot share a Stage with writers. Duplicate stage names, repeated Activities in one Stage and misplaced engine steps are refused by lifecycle validation.
 
-Activities, Planners, terminal entries and lifecycles are listed by the first layer declaring each name: package first, then machine, then repository; names within each group sort by UTF-16 code-unit comparison. Parser table order and locale do not decide this order. A patch retains its entry's original group. `hidden = true` affects selection only; `just crust list` still names the entry. Aliases resolve before planning and traces retain canonical names. Use the interactive reorder screen for a different execution order on one run.
+Activities, Planners, terminal entries and lifecycles are listed by the first layer declaring each name: package first, then machine, then repository; names within each group sort by UTF-16 code-unit comparison. Parser table order and locale do not decide this order. A patch retains its entry's original group. `hidden = true` affects selection only; `crust list` still names the entry. Aliases resolve before planning and traces retain canonical names. Use the interactive reorder screen for a different execution order on one run.
 
 ### The engine step `import`
 
@@ -213,28 +213,26 @@ This lookup does not contact a remote or repair refs. A run's recorded starting 
 
 ## Environment variables and provenance
 
-| Variable                         | Meaning                                                                                                                     |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `CRUST_CONFIG`                   | Repository TOML file; `--config` wins. Default `pi-crust.toml`.                                                             |
-| `CRUST_PACKAGE_CONFIG`           | Directory containing the package layer's three files; normally `runtime/config/`, derived from the loader's location.       |
-| `CRUST_MACHINE_CONFIG`           | Directory containing the machine layer's three files; normally `~/.pi-crust/config/`. It no longer names one file.          |
-| `CRUST_DATA_DIR`                 | Overrides `defaults.data_dir`.                                                                                              |
-| `CRUST_DB`                       | Per-command reader override; a supported `--db` flag wins. Never moves where a run writes or its session directories.       |
-| `CRUST_BE_PORT`, `CRUST_FE_PORT` | Valid positive port numbers override configured ports. Invalid values leave the configured value in force.                  |
-| `CRUST_POLL_MS`                  | Launcher-to-server channel, not a user override. The launcher replaces any existing value with the loaded polling interval. |
-| `CRUST_HOME`                     | Package-home override; otherwise recipes use `~/.pi-crust/pi-crust-home`.                                                   |
+| Variable                         | Meaning                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CRUST_CONFIG`                   | Repository TOML file; `--config` wins. Default `pi-crust.toml`.                                                                            |
+| `CRUST_PACKAGE_CONFIG`           | Directory containing the package layer's three files; normally `runtime/config/`, derived from the loader's location.                      |
+| `CRUST_MACHINE_CONFIG`           | Directory containing the machine layer's three files; normally `~/.pi-crust/config/`. It no longer names one file.                         |
+| `CRUST_DATA_DIR`                 | Overrides `defaults.data_dir`.                                                                                                             |
+| `CRUST_DB`                       | Per-command reader override; a supported `--db` flag wins. Never moves where a run writes or its session directories.                      |
+| `CRUST_BE_PORT`, `CRUST_FE_PORT` | Valid positive port numbers override configured ports. Invalid values leave the configured value in force.                                 |
+| `CRUST_POLL_MS`                  | Launcher-to-server channel, not a user override. The launcher replaces any existing value with the loaded polling interval.                |
+| `CRUST_HOME`                     | Another pi-crust checkout whose runtime carries out the whole command instead of this package's; a directory without a runtime is refused. |
 
 Blank directory and path overrides read as unset. The machine home is `HOME` when present, otherwise the operating-system home directory.
 
-`just crust config` reports defaults, polling, ports, entry models/thinking/prompt directories, terminal delivery fields and lifecycle stage names. Each value names its repository, machine or shipped-default file, or its environment override. Inherited model and thinking fields identify the corresponding default as their source. Unset values display `(not set)`.
+`crust config` reports defaults, polling, ports, entry models/thinking/prompt directories, terminal delivery fields and lifecycle stage names. Each value names its repository, machine or shipped-default file, or its environment override. Inherited model and thinking fields identify the corresponding default as their source. Unset values display `(not set)`.
 
 ### The `{primary_worktree}` token
 
 The token remains available for keeping one repository's data in its main clone: set `[defaults] data_dir = "{primary_worktree}/.pi-crust/data"`. It resolves per repository to its main clone, including from linked worktrees. Without Git it falls back to the repository root; a bare repository is refused rather than writing beside it. Leading `~` expands to the user's home; absolute paths remain absolute and relative paths resolve from the repository root.
 
 `CRUST_DATA_DIR` moves the database and session directories together. `CRUST_DB` selects only the store a reading command opens. See [Choose Where Run Data Lives](../cookbooks/centralize_worktree_data.md).
-
-Upgrade an earlier stamp by running `bun <pi-crust>/scripts/install.ts --refresh` directly from its repository root. Do this once on the machine to write `~/.pi-crust/pi-crust-home`, and once in each earlier-stamped repository to repair its root recipe. `CRUST_HOME=<pi-crust> just crust update` is an alternative only when that root recipe already reads `CRUST_HOME` (the legacy chain or the new machine-record recipe). The single-path recipe `@bun "$(cat .pi-crust/data/pi-crust-home)/runtime/cli.ts" "$@"` ignores the override and requires the direct installer command. Old pointer files are left byte-identical.
 
 ## Thinking levels
 
@@ -300,7 +298,7 @@ writes = ["{handoff}/review.md"]
 `--approve-after` takes Activity names, and Stage names prefixed with `stage:`:
 
 ```bash
-just crust run "..." --lifecycle sdlc --approve-after plan,stage:accept
+crust run "..." --lifecycle sdlc --approve-after plan,stage:accept
 ```
 
 | Named          | Stage strategy | The run pauses                              |
@@ -319,7 +317,7 @@ Every agent loads only the path policy shipped in `runtime/extensions/path-polic
 
 ## Tasks
 
-Declare commands under `[tasks.<name>]` in the repository’s `pi-crust.toml`; tasks are accepted nowhere else. Tasks fire at four triggers: `on = "change"` after the current Unit's Activities finish and their output checks are judged, before acceptance or commit; `on = "deliver"` after the chain settles, before delivery or final success; `before = "<activity>"` before any Activity of the containing stage starts; and `after = "<activity>"` after every Activity in that stage settles. The same triggers apply to named Lifecycles and chains composed on the command line. Disabling commits does not disable tasks. `just crust verify` evaluates only `on = "change"` triggers over the working tree or an explicit `--scope`, without starting an agent or recording a run.
+Declare commands under `[tasks.<name>]` in the repository’s `pi-crust.toml`; tasks are accepted nowhere else. Tasks fire at four triggers: `on = "change"` after the current Unit's Activities finish and their output checks are judged, before acceptance or commit; `on = "deliver"` after the chain settles, before delivery or final success; `before = "<activity>"` before any Activity of the containing stage starts; and `after = "<activity>"` after every Activity in that stage settles. The same triggers apply to named Lifecycles and chains composed on the command line. Disabling commits does not disable tasks. `crust verify` evaluates only `on = "change"` triggers over the working tree or an explicit `--scope`, without starting an agent or recording a run.
 
 ```toml
 [task_config]
@@ -404,13 +402,13 @@ Each level is now rendered into every agent's prompt as `{{trust_stance}}`. Befo
 
 `--trust-level medium` and `CRUST_TRUST_LEVEL=high` are the way to say it. Numbers still work, because the trace, the flag and the config have recorded them from the start — but there are exactly three thresholds, so 60, 80 and 50 are the same run. A number between thresholds now says which band it landed in: `trust 80 behaves as medium (50)`. Accepting a precision the dial does not honour and then printing the number back is how somebody believes they tuned something.
 
-`just crust please` offers three: low, medium, high. `none` is a debugging setting rather than a way to work, and offering it in a menu invites somebody to pick it once and conclude the whole thing is unusable. It is still there on the flag.
+`crust please` offers three: low, medium, high. `none` is a debugging setting rather than a way to work, and offering it in a menu invites somebody to pick it once and conclude the whole thing is unusable. It is still there on the flag.
 
 The default is medium, set by `TRUST_DEFAULT`; use the flag or `CRUST_TRUST_LEVEL` for a different trust level.
 
 ## Configuration that is no longer read
 
-There is no dual-format support and no conversion command. Migrate by hand; installing again leaves the old configuration and prompt directories untouched. Preserve `.pi-crust/data/`, which contains earlier execution history. The current package-home record is `~/.pi-crust/pi-crust-home`; a leftover per-repository pointer is not read.
+There is no dual-format support and no conversion command. Migrate by hand; installing again leaves the old configuration and prompt directories untouched. Preserve `.pi-crust/data/`, which contains earlier execution history. A leftover per-repository `pi-crust-home` pointer is not read.
 
 | Old location or shape                                 | Status and hand migration                                                                                                                                                                                     |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -13,7 +13,7 @@ thinking = "high"
 color = "cyan"
 ```
 
-For one repository, put the same table in `pi-crust.toml`. Its value wins over the machine. `just crust config` shows the effective model, thinking level and source.
+For one repository, put the same table in `pi-crust.toml`. Its value wins over the machine. `crust config` shows the effective model, thinking level and source.
 
 Write models as `provider/model-id`, not ambiguous bare IDs. Validate the provider catalogue with `pi --list-models`. Changing a model in a joined run starts that agent with a fresh session; thinking or colour changes do not invalidate its model-bound session. Colour names are theme roles; the UI can fall back when no colour is configured.
 

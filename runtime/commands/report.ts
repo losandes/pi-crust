@@ -11,7 +11,7 @@ import { renderReport } from '../domains/runs'
  * pi-crust Report — where did a run get to, and what do I run to finish it?
  *
  * Usage:
- *     just crust report [<run-id>] [--json] [--db <path>] [--config <path>]
+ *     crust report [<run-id>] [--json] [--db <path>] [--config <path>]
  *
  * `CRUST_DB` and `CRUST_CONFIG` stand in for the two path flags when they are
  * not passed, so the runtime honours the same variables the visualizer does.
@@ -27,7 +27,7 @@ import { renderReport } from '../domains/runs'
  *     4  it is still running
  *
  * `3` and `4` exist because the old set conflated them with failure. A report
- * on a healthy in-flight run exited 1, so `just crust report` printed `recipe
+ * on a healthy in-flight run exited 1, so `crust report` printed `recipe
  * failed` over a run that was going fine, which is how people learn to ignore
  * a red line.
  *

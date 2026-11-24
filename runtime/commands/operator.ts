@@ -4,7 +4,7 @@
  * pi-crust Operator — choose the chain, then run it.
  *
  * Usage:
- *     just crust operator "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]
+ *     crust operator "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]
  *
  * Activity Runs: engineer(request) -> operator -> whatever the operator planned
  *
@@ -26,8 +26,8 @@ const ACTIVITIES = ['operator'] as const
 const CONFLICTING_ACTIVITIES =
   'operator and --activities are competing instructions: one asks the ' +
   'operator to choose the chain, the other names it. Pick one.\n' +
-  '  just crust operator "<what you want>"                 # it chooses\n' +
-  '  just crust run "<what you want>" --activities a,b     # you choose'
+  '  crust operator "<what you want>"                 # it chooses\n' +
+  '  crust run "<what you want>" --activities a,b     # you choose'
 
 export const main = (args: TWorkflowArgs): Promise<number> =>
   runWorkflow(args, asSingleStage(ACTIVITIES))
@@ -36,7 +36,7 @@ if (import.meta.main) {
   await runCli('operator', (args) => {
     if (args.models !== undefined) {
       process.stderr.write(
-        '--model applies to `just crust run` only — the operator chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n',
+        '--model applies to `crust run` only — the operator chooses its activities as it goes, so which ones an override reaches cannot be known when the run starts\n',
       )
       return Promise.resolve(EXIT.USAGE)
     }

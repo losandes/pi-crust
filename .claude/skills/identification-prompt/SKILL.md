@@ -83,7 +83,7 @@ It fails when a backticked path the prompt cites is missing, gitignored, untrack
 Return the prompt in a fenced block that the developer can copy, using four backticks when the prompt contains three. Do not launch the lifecycle or file an issue unless asked. When the developer asks for the command, give it with a quoted heredoc, because backticks inside a double-quoted shell argument run as commands:
 
 ```sh
-just crust run "$(cat <<'PROMPT'
+crust run "$(cat <<'PROMPT'
 <the prompt>
 PROMPT
 )" --lifecycle gh-issue

@@ -28,7 +28,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 Three steps. Then stop.
 
 1. Read [cookbooks/crust_overview.md](cookbooks/crust_overview.md) — the system map.
-2. Run `just crust help` — every recipe this factory offers, plus the Lifecycles and the Activities this repository actually offers (`just crust list` prints the narrower, Lifecycles-and-Activities-only view). They are configuration, so this file cannot tell you what they are, and there is no recipe named after any of them.
+2. Run `crust help` — every recipe this factory offers, plus the Lifecycles and the Activities this repository actually offers (`crust list` prints the narrower, Lifecycles-and-Activities-only view). They are configuration, so this file cannot tell you what they are, and there is no recipe named after any of them.
 3. Print what is available as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
 
 The two directories are not the same kind of thing, and the table should not pretend otherwise:
@@ -60,7 +60,7 @@ Every Activity runs on its own, and `run --activities a,b,c` runs any ordered su
 
 Everything else — the db schema, the roster, the handoff contract — is lazy-loaded through the routing table below, when a request actually calls for it. Reading it early defeats the mechanism.
 
-Two exceptions, both narrow: if the engineer's first message already contains a request, skip the waiting and route it; and if the factory recipes and package-home resolution are unavailable, say that in one line instead of the table.
+Two exceptions, both narrow: if the engineer's first message already contains a request, skip the waiting and route it; and if `crust` is not on the PATH, say that in one line instead of the table.
 
 ## Orchestrator rules
 
@@ -109,21 +109,21 @@ Stages may send the run BACKWARDS. Any stage can set `regress_to` when evidence 
 
 ## Package commands
 
-Each does one thing, and each is invoked by path. `<pi-crust>` below is this skill's own directory, whose absolute path is in the skill listing — pi-crust is a package and may be installed anywhere, so there is no fixed path to quote:
+Each does one thing. Public commands use `crust`; `make-config.ts` is invoked by path. `<pi-crust>` below is this skill's own directory, whose absolute path is in the skill listing — pi-crust is a package and may be installed anywhere, so there is no fixed path to quote:
 
-| Task                                                                       | Command                                                                |
-| -------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Stamp the factory into the current repo; `--refresh` template-owned files. | `bun <pi-crust>/scripts/install.ts`                                    |
-| Inspect effective settings and their source                                | `just crust config`                                                    |
-| Write just the roster, when the rest is already there                      | `bun <pi-crust>/scripts/make-config.ts`                                |
-| Add a Lifecycle or an Activity                                             | edit the appropriate table in `~/.pi-crust/config/` or `pi-crust.toml` |
-| Boot the trace UI against a stamped tree (what `just crust observe` runs)  | `bun <pi-crust>/scripts/observe.ts`                                    |
+| Task                                                                                | Command                                                                |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Set pi-crust up in the current repo; `crust update` refreshes template-owned files. | `crust init`                                                           |
+| Inspect effective settings and their source                                         | `crust config`                                                         |
+| Write just the roster, when the rest is already there                               | `bun <pi-crust>/scripts/make-config.ts`                                |
+| Add a Lifecycle or an Activity                                                      | edit the appropriate table in `~/.pi-crust/config/` or `pi-crust.toml` |
+| Boot the trace UI                                                                   | `crust observe`                                                        |
 
-`install.ts` writes `pi-crust.toml` only when absent. Its example tasks are all commented out, so a fresh repository runs with no tasks declared and no placeholder command executed. The installer also writes the credential example, appends `.pi-crust/data/` to gitignore, ensures the root justfile passthrough and records the package home at `~/.pi-crust/pi-crust-home`, writing nothing under the repository's `.pi-crust/`. It creates no configuration directory or prompt files.
+`crust init` writes `pi-crust.toml` only when absent. Its example tasks are all commented out, so a fresh repository runs with no tasks declared and no placeholder command executed. Setup also writes the credential example `.env.pi-crust.example` and appends `.pi-crust/data/` to `.gitignore`: exactly three files on a fresh setup, nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, leaving an existing `justfile` untouched. It creates no configuration directory or prompt files.
 
 The package's `runtime/config/` defaults are read live, then `~/.pi-crust/config/`, then the repository file. Each package or machine directory holds `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`. Tables merge recursively and arrays replace whole; the repository wins on the fields it states. Tasks are declared only in `pi-crust.toml`. Lists group entries by first declaration, package then machine then repository, sorting names within each group.
 
-`install.ts --refresh` updates template-owned files, never an existing `pi-crust.toml` or execution history. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and no longer read for runtime configuration or prompt overrides; viewer settings and added themes live in the machine configuration. A leftover `.pi-crust/config/crust.observe.yaml` or `.pi-crust/data/pi-crust-home` is not read or deleted. Migrate by hand following [references/config.md](references/config.md). No code or shipped defaults are copied into a repository.
+`crust update`, or `crust init --refresh`, updates template-owned files, never an existing `pi-crust.toml` or execution history. `--force` is a deprecated alias through 0.1.x, scheduled for removal in 0.2.0. Legacy `.pi-crust/config/` and `.pi-crust/prompts/` directories are left untouched and no longer read for runtime configuration or prompt overrides; viewer settings and added themes live in the machine configuration. A leftover `.pi-crust/config/crust.observe.yaml` or `.pi-crust/data/pi-crust-home` is not read or deleted. Migrate by hand following [references/config.md](references/config.md). No code or shipped defaults are copied into a repository.
 
 ## Hard rules (enforced across everything the factory generates)
 
@@ -141,11 +141,11 @@ The package's `runtime/config/` defaults are read live, then `~/.pi-crust/config
 12. **Unmatched paths are not verified** — the run reports the number of existing changed paths no task matched, without failing on that count.
 14. **The harness settles a dispute, neither agent** — a chain ending in Activities that declare `output: reviewOutput` feeds their blocking findings back to the Activity that wrote the work, as a `revise` Activity Run, bounded by that Activity's `attempts`. The builder may answer a finding with evidence instead of a fix, under three rules the harness applies: a finding a declared task decides may not be disputed at all; a dispute must carry a `path:line` or a command and its exit status, or `disputes_supported` rejects it as the refusal it is; and a finding raised twice with no new evidence on either side ends the loop and lands in `context_handoff/disputes.md` for the developer. The repeat count is the harness's, read from a persisted ledger — an agent that decides when the argument is over has decided its own case.
 
-13. **Resume is a flag, not a workflow** — `--resume` with `--run-id` skips the activity runs already recorded successful for that session. It reads the same `readRunState` the reporter reads, so `bun .pi-crust/report.ts` and the resumed run can never disagree about what is done.
+13. **Resume is a flag, not a workflow** — `--resume` with `--run-id` skips the activity runs already recorded successful for that session. It reads the same `readRunState` the reporter reads, so `crust report` and the resumed run can never disagree about what is done.
 
 ## Where a run stopped
 
-`bun .pi-crust/report.ts [<run-id>] [--json]` answers it: activity runs and their status, the gate that failed with its violations, the cost, the first activity run not yet successful, and the exact command that picks the run back up. `--json` emits `TRunState` for an agent to parse — the shape is specified in [references/observability.md](references/observability.md). Exit codes: `0` succeeded, `1` failed or incomplete, `2` no such session.
+`crust report [<run-id>] [--json]` answers it: activity runs and their status, the gate that failed with its violations, the cost, the first activity run not yet successful, and the exact command that picks the run back up. `--json` emits `TRunState` for an agent to parse — the shape is specified in [references/observability.md](references/observability.md). Exit codes: `0` succeeded, `1` failed or incomplete, `2` no such session.
 
 ## v1 scope
 

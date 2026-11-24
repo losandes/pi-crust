@@ -9,8 +9,8 @@ import { steerBranch, steerOverwrite } from '../domains/runs'
 /**
  * Send a run back to a activity with new instructions.
  *
- *   just crust steer <run-id> <activity> --overwrite "what to change"
- *   just crust steer <run-id> <activity> --branch    "what to change" \
+ *   crust steer <run-id> <activity> --overwrite "what to change"
+ *   crust steer <run-id> <activity> --branch    "what to change" \
  *       [--seeding fork|fresh] [--branch-id <id>]
  *
  * The target and every activity after it run again, in the order the run
@@ -47,7 +47,7 @@ const say = (line: string): void => {
 }
 
 const USAGE = [
-  'usage: just crust steer <run-id> <activity> <--overwrite|--branch> "instruction"',
+  'usage: crust steer <run-id> <activity> <--overwrite|--branch> "instruction"',
   '         [--seeding fork|fresh]   branch only; fork is the default',
   '         [--branch-id <id>]       branch only; minted when absent, printed either way',
   '',

@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path'
  * it to a dead port would trust the next hint less.
  *
  * The probe deliberately proves only that the API is up. In the normal case
- * the API and the UI start together (`just crust observe`, `pnpm crust:dev`), so the
+ * the API and the UI start together (`crust observe`, `pnpm crust:dev`), so the
  * inference holds; someone running the server alone gets a link to a vite that
  * is not there, which is a cost worth one HTTP call rather than two.
  */

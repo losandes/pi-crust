@@ -184,7 +184,7 @@ export const agentActivity = (
         throw new Error(
           `cannot resume activityRun '${instance}': ${settled.error.message}. ` +
             'Either drop --resume so it runs again, or run that activity on ' +
-            `its own: just crust compose --activities ${config.name} --run-id ` +
+            `its own: crust run --activities ${config.name} --run-id ` +
             `${ctx.run.runId} "<the original request>"`,
         )
       }

@@ -76,14 +76,14 @@ test(
   ].join(' '),
   () => {
     // given
-    const text = '```\njust crust sdlc\n```'
+    const text = '```\ncrust sdlc\n```'
 
     // when
     const segments = splitFences(text)
 
     // then
     expect(segments).toEqual([
-      { kind: 'code', text: 'just crust sdlc', language: '', open: false },
+      { kind: 'code', text: 'crust sdlc', language: '', open: false },
     ])
   },
 )

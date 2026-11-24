@@ -1,15 +1,15 @@
 # The pi-crust visualizer
 
-A web app for watching a run happen, and for reading one after it has. It ships with the pi-crust package rather than with the stamp, and `just crust observe` boots it against the shared machine trace at `~/.pi-crust/data/crust.db`, irrespective of the working tree you are standing in.
+A web app for watching a run happen, and for reading one after it has. It ships with the pi-crust package rather than with the stamp, and `crust observe` boots it against the shared machine trace at `~/.pi-crust/data/crust.db`, irrespective of the working tree you are standing in.
 
 ```sh
-just crust observe              # configured TOML ports (4601, api on 4600 by default)
-just crust observe --host       # listen on every interface, so a phone can watch
+crust observe              # configured TOML ports (4601, api on 4600 by default)
+crust observe --host       # listen on every interface, so a phone can watch
 ```
 
 Ports and `poll_ms` are read from the package's `runtime/config/crust.config.toml`, then `~/.pi-crust/config/crust.config.toml`, then the repository's single `pi-crust.toml`. Valid `CRUST_BE_PORT` and `CRUST_FE_PORT` overrides still win. The launcher forwards the polling interval to the API, and `GET /api/health` supplies it to the browser before its first render. A package or machine setting changes the next launch without re-stamping.
 
-The installer writes the machine record `~/.pi-crust/pi-crust-home` and nothing under the repository's `.pi-crust/`. Added themes live only in the machine configuration, alongside viewer settings: `[themes.<name>]` adds a label and a stylesheet relative to that directory to the five built-ins. Leftover `.pi-crust/config/crust.observe.yaml` and `.pi-crust/data/pi-crust-home` files are not read or deleted.
+Setup writes nothing under the repository's `.pi-crust/`. Added themes live only in the machine configuration, alongside viewer settings: `[themes.<name>]` adds a label and a stylesheet relative to that directory to the five built-ins. Leftover `.pi-crust/config/crust.observe.yaml` and `.pi-crust/data/pi-crust-home` files are not read or deleted.
 
 ## Styling
 
@@ -31,7 +31,7 @@ Reads come straight from the trace: sessions, Activity Runs, events, envelopes a
 
 Writes are different, and they live behind one unconditional token. `CRUST_TOKEN` must be set on the server and sent as `x-crust-token`; with no token set, every write is refused rather than allowed. Steering a live agent, answering a gate and starting a run all spend money or change a working tree, and "the request came from localhost" is not an identity.
 
-Everything the server starts — `steer`, `ask`, `amend`, a new run — is resolved through `CRUST_HOME`, or through the `~/.pi-crust/pi-crust-home` machine record the installer wrote. The runtime is not in the stamp, so a path relative to the repository would resolve to nothing.
+Everything the server starts — `steer`, `ask`, `amend`, a new run — uses its own package's runtime, or the runtime of the checkout `CRUST_HOME` names, and reports a failure when that directory has no runtime. The runtime is not in the stamp, so a path relative to the repository would resolve to nothing.
 
 ## Activities, not Stages
 

@@ -7,6 +7,7 @@ import {
   askOrder,
   askText,
   askWhichRun,
+  dispatchArgv,
   NEW_RUN,
   planNewRun,
   planResume,
@@ -17,7 +18,7 @@ import { loadConfig } from '../domains/config'
 import { resolveWaitingRuns } from '../domains/trace'
 
 /**
- * `just crust please` — the command builder.
+ * `crust please` — the command builder.
  *
  * Every flag this assembles can be typed by hand, and once you know them you
  * will. The problem is the cost of a half-remembered one: a lifecycle, a trust
@@ -32,7 +33,7 @@ import { resolveWaitingRuns } from '../domains/trace'
  * build a command, not a replacement for knowing them — seeing the line you
  * just described is how the flags become memorable.
  *
- *     just crust please
+ *     crust please
  */
 
 import { repoRoot, resolveLookupPaths } from '../domains/workspace'
@@ -147,7 +148,7 @@ export const main = (deps: TPleaseDeps) => async (): Promise<number> => {
 
     return deps.run({
       script: deps.cli,
-      args: argv.slice(2),
+      args: dispatchArgv(argv),
       cwd: deps.cwd,
       env: deps.env,
     })

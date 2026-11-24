@@ -103,7 +103,7 @@ test(
 
     // when, then
     expect(() => parseCli(argv, 'run')).toThrow(
-      /a prompt is required[\s\S]*usage: just crust run/,
+      /a prompt is required[\s\S]*usage: crust run/,
     )
   },
 )

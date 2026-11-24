@@ -39,8 +39,6 @@ const main = (): number => {
       )
     const faults = installFaults({
       files,
-      home: packageRoot,
-      record: readFileSync(join(home, '.pi-crust', 'pi-crust-home'), 'utf8'),
       installed: existsSync(path) ? readFileSync(path, 'utf8') : '',
       template: readFileSync(
         join(packageRoot, 'templates/pi-crust.toml'),

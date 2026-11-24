@@ -35,7 +35,7 @@ export const plannedActivities = (
     throw new Error(
       'name what to run: --lifecycle <name> for a configured Lifecycle, or ' +
         '--activities a,b,c for a chain of your own (a+b runs two at once). ' +
-        '`just crust list` prints both.',
+        '`crust list` prints both.',
     )
   }
   if (args.lifecycle === undefined) {

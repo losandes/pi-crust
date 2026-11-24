@@ -13,14 +13,14 @@ data_dir = "{primary_worktree}/.pi-crust/data"
 
 `{primary_worktree}` resolves to the main clone, including when invoked from a linked worktree. The database is always `crust.db` inside this directory, alongside `sessions/`. A repository setting wins over the machine and package layers. `CRUST_DATA_DIR` is a one-command override of the same location.
 
-A linked worktree needs no stamp: `just crust` finds the package through `CRUST_HOME` or `~/.pi-crust/pi-crust-home`. An earlier-stamped repository first needs the direct installer upgrade described in [Install](install.md).
+A linked worktree needs no setup of its own: `crust` is on the PATH and runs the same package from every working tree.
 
 ## Existing history
 
 Changing the data directory affects later runs only. Earlier databases and session directories are neither moved nor merged, and old per-repository pointers are not consulted or deleted. To view an earlier repository trace explicitly:
 
 ```bash
-CRUST_DATA_DIR=<repo>/.pi-crust/data just crust observe
+CRUST_DATA_DIR=<repo>/.pi-crust/data crust observe
 ```
 
-`just crust prune 14d` describes eligible runs across the selected store; add `--tree <working-tree>` to narrow it and `--yes` only after reviewing the dry run. Never delete a data directory as part of a configuration update.
+`crust prune 14d` describes eligible runs across the selected store; add `--tree <working-tree>` to narrow it and `--yes` only after reviewing the dry run. Never delete a data directory as part of a configuration update.

@@ -49,8 +49,8 @@ const write = (text: string): void => {
 
 export const NOT_A_TERMINAL =
   'please needs a terminal to ask questions in — it is a menu, not a flag. ' +
-  'Run it directly (`just crust please`), or use the command it would have ' +
-  'built: `just crust sdlc "\u2026"`.'
+  'Run it directly (`crust please`), or use the command it would have ' +
+  'built: `crust run "\u2026" --lifecycle <name>`.'
 
 /**
  * Decode a read into the keys it contains — plural, deliberately.

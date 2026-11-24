@@ -98,7 +98,7 @@ export type TRunState = Readonly<{
  * What a reporter or a workflow exits with. Something will branch on these.
  *
  * `WAITING` and `RUNNING` exist because the old vocabulary conflated them
- * with failure: a report on a healthy in-flight run exited 1, so `just crust
+ * with failure: a report on a healthy in-flight run exited 1, so `crust
  * report` printed `recipe failed` over a run that was going fine.
  */
 export const EXIT = {
