@@ -15,8 +15,8 @@ Runtime code, default configuration and shipped prompts stay in the package. Thi
 ```text
 <pi-crust>/
 ├── runtime/
-│   ├── cli.ts                    Recipe dispatch
-│   ├── commands/                 Entry points and crust.just
+│   ├── cli.ts                    crust: definitions dispatch to bun processes
+│   ├── commands/                 Command programs and their tests
 │   ├── config/
 │   │   ├── crust.config.toml     Defaults, polling, ports and added themes
 │   │   ├── crust.activities.toml Activity, Planner and terminal tables

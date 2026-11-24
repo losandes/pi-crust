@@ -27,7 +27,7 @@ Read the listed record **before** producing code, prose or a plan for the matchi
 | Backend layering — `data/`, `use-cases/`, `typedefs/`                                                                           | `.claude/skills/adr/project-organization/backend-domains-design-brief.md`  |
 | Frontend layering — components, pages, domain boundaries                                                                        | `.claude/skills/adr/project-organization/frontend-domains-design-brief.md` |
 | Deciding *where* code belongs, splitting a module, or naming a new domain                                                       | `.claude/skills/adr/project-organization/1-domains-and-atomic-design.md`   |
-| Adding a file or directory under `runtime/`, or deciding between `runtime/commands/` and `runtime/domains/cli/`                 | `adr/runtime-layout/name-runtime-directories-for-what-they-hold.md`        |
+| Adding a file or directory under `runtime/`, or deciding between `runtime/commands/` and `runtime/domains/cli/`                 | `adr/runtime-layout/define-each-command-once-and-dispatch-from-cli.md`     |
 | Repository-wide principles — KISS, single responsibility, avoiding redundancy                                                   | `.claude/skills/adr/conventions/conventions.md`                            |
 | Formatting a markdown document — wrapping, headings, lists, fences, tables                                                      | `.claude/skills/adr/conventions/format-markdown.md`                        |
 | Prose carrying a finding, decision or recommendation — records, PR and issue text, review replies, commit bodies, code comments | `.claude/skills/adr/conventions/write-from-evidence.md`                    |
@@ -96,7 +96,7 @@ The corollary is the trap this file used to walk a reader into: a process alread
 Two more things reach back here while a run is live, beyond the runtime code every Activity already resolves out of this clone:
 
 - `apps/visualizer/` — the `observe` recipe runs the web app out of this repository, so an edit restarts the dev server and the API underneath a UI somebody is watching.
-- The installer — `scripts/install.ts`, and the `update` recipe that runs it with `--refresh` — rewrites `~/.pi-crust/pi-crust-home` to name the clone it was run from. Every `just crust` command started afterwards, in every stamped repository on the machine, resolves the runtime from that clone, so running a worktree's installer repoints them all at the worktree.
+- The installer — `scripts/install.ts`, reached by `crust init` and `crust update`, and the `update` recipe that runs it with `--refresh` — rewrites `~/.pi-crust/pi-crust-home` to name the clone it was run from. Every `just crust` command started afterwards, in every stamped repository on the machine, resolves the runtime from that clone, so running a worktree's installer repoints them all at the worktree.
 
 So the question is never "is this change big". It is "am I editing the visualizer while a run is being watched, or about to run the installer while a run is in flight". Both are checkable; neither needs a forecast.
 

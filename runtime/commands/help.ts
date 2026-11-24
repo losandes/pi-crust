@@ -24,7 +24,13 @@ import { reportUsageError, topicOf } from '../domains/cli'
  */
 
 import { errorMessage, safeParseSettlement } from '../../lib/typedefs'
-import { catalogueOf, RECIPE_DOCS, recipeDoc, renderHelp } from '../domains/cli'
+import {
+  catalogueOf,
+  RECIPE_DOCS,
+  recipeDoc,
+  renderCommandList,
+  renderHelp,
+} from '../domains/cli'
 import { DEFAULT_CONFIG_PATH, EXIT } from '../lib/contracts'
 import { configPathFromEnv } from '../lib/system'
 import { writeLine } from '../lib/terminal'
@@ -38,6 +44,10 @@ const unknownTopicMessage = (topic: string): string =>
   `  documented recipes: ${RECIPE_DOCS.map((doc) => doc.name).join(', ')}\n`
 
 export const main = (argv: readonly string[]): number => {
+  if (argv.includes('--commands')) {
+    writeLine(renderCommandList(RECIPE_DOCS))
+    return EXIT.SUCCESS
+  }
   // biome-ignore lint/plugin/no-intermediate-try-catch: main is the process boundary that maps usage failures to an exit code
   try {
     const at = argv.indexOf('--config')

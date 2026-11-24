@@ -97,12 +97,9 @@ const spawnSpy = (): Readonly<{
  * point relative to the repository resolves it to nothing — which is what
  * every write action in this UI was doing.
  */
-const stampedTree = (home?: string): string => {
+const stampedTree = (): string => {
   const root = mkdtempSync(join(tmpdir(), 'crust-writes-'))
   mkdirSync(join(root, '.pi-crust', 'data'), { recursive: true })
-  if (home !== undefined) {
-    writeFileSync(join(root, '.pi-crust', 'pi-crust-home'), home)
-  }
   return root
 }
 
@@ -178,7 +175,7 @@ const withHome = (
   home?: string,
 ): Readonly<Record<string, string | undefined>> =>
   home === undefined
-    ? { HOME: '/nonexistent/crust-home' }
+    ? { HOME: '/nonexistent/crust-home', CRUST_HOME: track(stampedTree()) }
     : { HOME: '/nonexistent/crust-home', CRUST_HOME: home }
 
 afterEach(() => {
@@ -190,20 +187,33 @@ afterEach(() => {
 
 test(
   [
-    'given server/writes::crustRuntime',
-    'when the stamp recorded where pi-crust was installed from',
-    'it should resolve the runtime there rather than inside the repository',
+    'given an own runtime',
+    'when the override is unset',
+    'it should resolve the injected package',
   ].join(', '),
   () => {
     // given
     const home = track(packageTree())
-    const root = track(stampedTree(home))
-
     // when
-    const actual = crustRuntime({ ...withHome(), HOME: root })
-
+    const actual = crustRuntime({}, join(home, 'runtime'))
     // then
     expect(actual).toBe(join(home, 'runtime'))
+  },
+)
+
+test(
+  [
+    'given the server package',
+    'when the override is blank',
+    'it should locate its own runtime',
+  ].join(', '),
+  () => {
+    // given
+    // when
+    const actual = crustRuntime({ CRUST_HOME: '  ' })
+    // then
+    expect(actual?.endsWith('/runtime')).toBe(true)
+    expect(existsSync(join(actual ?? '', 'cli.ts'))).toBe(true)
   },
 )
 
@@ -216,7 +226,7 @@ test(
   () => {
     // given
     const home = track(packageTree())
-    const root = track(stampedTree('/gone/stale/path'))
+    const root = track(stampedTree())
 
     // when
     const actual = crustRuntime({ ...withHome(home), HOME: root })
@@ -319,6 +329,7 @@ test(
       'branch',
       'try again',
       'deadbeef',
+      withHome(),
     )
 
     // then — the runtime is not found in this stamp, but the id is still echoed
@@ -345,6 +356,7 @@ test(
       'overwrite',
       'x',
       'deadbeef',
+      withHome(),
     )
 
     // then
@@ -449,7 +461,13 @@ test(
     withEventsTable(dbOf(root))
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4', 'I fixed the migration')
+    const actual = resumeRun(
+      dbOf(root),
+      'a1b2c3d4',
+      'I fixed the migration',
+      'tester',
+      withHome(),
+    )
 
     // then
     const text = readFileSync(join(handoffDir, 'steering.md'), 'utf8')
@@ -479,7 +497,7 @@ test(
     )
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4')
+    const actual = resumeRun(dbOf(root), 'a1b2c3d4', '', 'tester', withHome())
 
     // then
     expect(existsSync(join(handoffDir, 'steering.md'))).toBe(false)
@@ -510,7 +528,7 @@ test(
     withEventsTable(dbOf(root))
 
     // when
-    resumeRun(dbOf(root), 'a1b2c3d4', 'smoke test note')
+    resumeRun(dbOf(root), 'a1b2c3d4', 'smoke test note', 'tester', withHome())
 
     // then
     const text = readFileSync(join(handoffDir, 'steering.md'), 'utf8')
@@ -1114,7 +1132,7 @@ test(
     const root = track(stampedTree())
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4')
+    const actual = resumeRun(dbOf(root), 'a1b2c3d4', '', 'tester', withHome())
 
     // then
     expect(actual.resumed).toBe(false)
@@ -1141,7 +1159,7 @@ test(
     )
 
     // when
-    const actual = resumeRun(dbOf(root), 'a1b2c3d4')
+    const actual = resumeRun(dbOf(root), 'a1b2c3d4', '', 'tester', withHome())
 
     // then
     expect(actual.resumed).toBe(false)
@@ -1177,7 +1195,6 @@ for (const mode of ['recorded', 'fallback', 'gone', 'invalid'] as const) {
 }
 for (const mode of [
   'override',
-  'record',
   'missing',
   'no-entry',
   'no-cwd',
@@ -1209,13 +1226,9 @@ for (const mode of [
           ...(mode === 'no-cwd' ? {} : { cwd: root }),
         }),
       )
-      if (mode === 'record')
-        writeFileSync(join(root, '.pi-crust/pi-crust-home'), home)
       const env = {
         HOME: root,
-        ...(mode === 'record' || mode === 'missing'
-          ? {}
-          : { CRUST_HOME: home }),
+        CRUST_HOME: mode === 'missing' ? root : home,
       }
       const spy = spawnSpy()
       // when

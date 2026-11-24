@@ -30,8 +30,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { safeParseSettlement } from '@typedefs'
 import { z } from 'zod'
 import type { ApiError } from '../shared/types.ts'
@@ -91,37 +90,16 @@ export const refuseUnlessAuthorised = (
 export const sessionDir = (dbPath: string, runId: string): string =>
   join(dirname(dbPath), 'sessions', runId)
 
-/**
- * Where the pi-crust runtime is, for the commands this server spawns.
- *
- * The runtime ships with the package and is NOT stamped into a repository:
- * `.pi-crust/` holds `config/`, `data/` and `prompts/`, and an
- * install removes anything else it finds there. So every entry point this
- * server starts has to be resolved the way the recipes resolve it —
- * `CRUST_HOME`, else the machine-level record at `~/.pi-crust/pi-crust-home`.
- *
- * This is the defect that made every write action in the UI do nothing:
- * spawning `.pi-crust/steer.ts` succeeds in getting a pid, the child dies on
- * a missing module, and the response says the instruction went through.
- */
+/** The server locates its own package unless an explicit override is given. */
+export const OWN_RUNTIME = resolve(import.meta.dir, '..', '..', '..', 'runtime')
+
 export const crustRuntime = (
   env: Readonly<Record<string, string | undefined>> = process.env,
+  own: string = OWN_RUNTIME,
 ): string | undefined => {
   const configured = (env.CRUST_HOME ?? '').trim()
-  const home =
-    configured === '' ? readHomeFile(env.HOME ?? homedir()) : configured
-  if (home === undefined) return undefined
-  const runtime = join(home, 'runtime')
-
+  const runtime = configured === '' ? own : join(configured, 'runtime')
   return existsSync(join(runtime, 'cli.ts')) ? runtime : undefined
-}
-
-const readHomeFile = (root: string): string | undefined => {
-  const path = join(root, '.pi-crust', 'pi-crust-home')
-  if (!existsSync(path)) return undefined
-  const recorded = readFileSync(path, 'utf8').trim()
-
-  return recorded === '' ? undefined : recorded
 }
 
 /**
@@ -132,9 +110,7 @@ const readHomeFile = (root: string): string | undefined => {
  * as three different problems.
  */
 export const NO_RUNTIME =
-  'cannot find pi-crust: CRUST_HOME is not set, and ~/.pi-crust/pi-crust-home is missing or names a ' +
-  'directory without runtime/cli.ts. Run `bun <pi-crust>/scripts/install.ts` in a repository, or set ' +
-  'CRUST_HOME to the pi-crust directory.'
+  'cannot find pi-crust: CRUST_HOME names a directory without runtime/cli.ts. Unset CRUST_HOME, or set it to a pi-crust checkout.'
 export const NO_WORKING_TREE = (runId: string): string =>
   `cannot act on ${runId}: its working tree is not recorded or no longer exists`
 export const NO_ENTRY = (

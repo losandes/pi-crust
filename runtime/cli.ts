@@ -1,36 +1,62 @@
 #!/usr/bin/env bun
-/**
- * The one entry point a stamped repository reaches.
- *
- * `just crust <recipe> [args]` lands here. The recipes themselves live in
- * `commands/crust.just` relative to this file, in the pi-crust package rather than in the
- * repository being worked on — so this runs `just` against that file with the
- * caller's directory as the working directory.
- *
- * It exists because `mod` cannot do the job. A justfile module resolves its
- * path when the file is PARSED, so a path that differs per machine either has
- * to be committed, which it must not be, or every recipe in the repository
- * fails when it is absent. Resolving at call time costs an unrelated recipe
- * nothing.
- */
+import { resolve } from 'node:path'
+import {
+  planDispatch,
+  RECIPE_DOCS,
+  resolveCrustHome,
+  resolveEnvFiles,
+  runBunScript,
+} from './domains/cli'
+import { resolveGitToplevel } from './domains/workspace'
+import type { TEnv } from './lib/system'
 
-import { spawnSync } from 'node:child_process'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+type TCliDeps = Readonly<{
+  env: TEnv
+  cwd: string
+  packageRoot: string
+  envFiles: typeof resolveEnvFiles
+  crustHome: typeof resolveCrustHome
+  toplevel: typeof resolveGitToplevel
+  run: typeof runBunScript
+  write: (text: string) => unknown
+}>
 
-const here = dirname(fileURLToPath(import.meta.url))
-const recipes = join(here, 'commands', 'crust.just')
+const LIVE_DEPS: TCliDeps = {
+  env: process.env,
+  cwd: process.cwd(),
+  packageRoot: resolve(import.meta.dir, '..'),
+  envFiles: resolveEnvFiles,
+  crustHome: resolveCrustHome,
+  toplevel: resolveGitToplevel,
+  run: runBunScript,
+  write: process.stderr.write.bind(process.stderr),
+}
 
-const result = spawnSync(
-  'just',
-  [
-    '--justfile',
-    recipes,
-    '--working-directory',
-    process.cwd(),
-    ...process.argv.slice(2),
-  ],
-  { stdio: 'inherit' },
-)
+export const main =
+  (deps: TCliDeps) =>
+  (argv: readonly string[]): number => {
+    const env = { ...deps.envFiles(deps.cwd), ...deps.env }
+    const home = deps.crustHome(env.CRUST_HOME, deps.cwd, deps.packageRoot)
+    if (home.kind === 'invalid') {
+      deps.write(
+        `crust: CRUST_HOME names ${home.home}, which holds no pi-crust runtime: ${home.home}/runtime/cli.ts does not exist.\n`,
+      )
+      return 2
+    }
+    if (home.kind === 'other')
+      return deps.run({ script: home.cli, args: argv, cwd: deps.cwd, env })
+    const plan = planDispatch(RECIPE_DOCS)({
+      argv,
+      env,
+      cwd: deps.cwd,
+      packageRoot: deps.packageRoot,
+      repositoryRoot: deps.toplevel(deps.cwd),
+    })
+    if (plan.status === 'error') {
+      deps.write(`${plan.error.message}\n`)
+      return 2
+    }
+    return deps.run({ ...plan.data, env })
+  }
 
-process.exit(result.status ?? 1)
+if (import.meta.main) process.exit(main(LIVE_DEPS)(process.argv.slice(2)))

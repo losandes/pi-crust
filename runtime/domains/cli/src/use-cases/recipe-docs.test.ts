@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { DECIDE_USAGE } from './decide-args'
 import { FLAG_TABLE } from './parse-cli'
@@ -13,22 +13,6 @@ import { LIST_USAGE as CATALOGUE_USAGE, PRUNE_USAGE } from './usage'
  * `import.meta.main` guard, so importing one runs it. Their flag text is
  * transcribed by hand in recipe-docs.ts instead (issue #35, 1.3.5).
  */
-
-/** Recipe names, which are the lines that start in column one and end in `:`. */
-const recipeNamesInCrustJust = (): readonly string[] =>
-  readFileSync(
-    join(import.meta.dir, '..', '..', '..', '..', 'commands', 'crust.just'),
-    'utf8',
-  )
-    .split('\n')
-    .flatMap((line) => {
-      const match = line.match(/^([a-z][\w-]*)(\s+[^:]*)?:\s*$/)
-
-      return match?.[1] === undefined ? [] : [match[1]]
-    })
-
-const documentedNames = (): readonly string[] =>
-  RECIPE_DOCS.map((doc) => doc.name)
 
 /** Every `--flag` token in a blob of transcribed prose. */
 const flagTokensIn = (text: string): readonly string[] =>
@@ -46,22 +30,19 @@ const haystackOf = (
 
 test(
   [
-    'given recipe-docs::RECIPE_DOCS',
-    'when compared against the recipes crust.just declares',
-    'it should document exactly the same set, in both directions',
+    'given command definitions',
+    'when resolved',
+    'it should name existing programs',
   ].join(', '),
   () => {
     // given
-    const declared = recipeNamesInCrustJust()
-
     // when
-    const documented = documentedNames()
-
-    // then
-    expect(declared.length).toBeGreaterThan(0)
-    expect(documented.toSorted()).toEqual(
-      [...new Set([...declared, 'help'])].toSorted(),
+    const missing = RECIPE_DOCS.filter(
+      (doc) =>
+        !existsSync(join(import.meta.dir, '../../../../../', doc.run.script)),
     )
+    // then
+    expect(missing).toEqual([])
   },
 )
 
@@ -75,7 +56,9 @@ test(
     for (const doc of RECIPE_DOCS) {
       // given
       // when
-      const actual = doc.usage.startsWith(`just crust ${doc.name}`)
+      const actual =
+        doc.usage.startsWith(`just crust ${doc.name}`) ||
+        doc.usage.startsWith(`crust ${doc.name}`)
 
       // then
       expect(actual).toBe(true)

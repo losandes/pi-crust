@@ -29,6 +29,7 @@ export {
   upstreamBase,
   vcsRoot,
 } from './src/data/git'
+export { resolveGitToplevel } from './src/data/resolve-git-toplevel'
 export type { TRoots } from './src/data/roots'
 export { resolveClaim } from './src/data/roots'
 export type { TTreeSnapshot } from './src/data/working-tree'

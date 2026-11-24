@@ -18,6 +18,28 @@ const SHIPPED_CONFIG = EMPTY_REPOSITORY_PATH
 
 test(
   [
+    'given commands mode and a missing config',
+    'when help runs',
+    'it should print every definition',
+  ].join(', '),
+  () => {
+    // given
+    silenceTerminal()
+    try {
+      // when
+      const result = main(['--commands', '--config', '/absent/config.toml'])
+      // then
+      expect(result).toBe(0)
+      expect(terminalOutput()).toContain('init')
+      expect(terminalOutput()).toContain('set pi-crust up in this repository')
+    } finally {
+      restoreTerminal()
+    }
+  },
+)
+
+test(
+  [
     'given help::main',
     'when run with no further arguments',
     'it should print the whole reference and exit success',

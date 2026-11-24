@@ -1,6 +1,12 @@
 /** The developer-facing command surface — argv, recipes, help, menus */
 
 export { askMenuChoice, askOne, askOrder, askText } from './src/data/ask'
+export {
+  resolveCrustHome,
+  type TCrustHome,
+} from './src/data/resolve-crust-home'
+export { resolveEnvFiles } from './src/data/resolve-env-files'
+export { runBunScript, type TScriptRun } from './src/data/run-bun-script'
 export { adviceCommand } from './src/use-cases/advice'
 export type { TCatalogue, TEntry } from './src/use-cases/catalogue'
 export { catalogueOf, renderCatalogue } from './src/use-cases/catalogue'
@@ -39,14 +45,24 @@ export { parseModelOverrides } from './src/use-cases/model-overrides'
 export type { TCliArgs, TWorkflowArgs } from './src/use-cases/parse-cli'
 export { runCli, workflowArgs } from './src/use-cases/parse-cli'
 export {
+  planDispatch,
+  type TDispatchInput,
+} from './src/use-cases/plan-dispatch'
+export {
   askWhichRun,
   NEW_RUN,
   planNewRun,
   planResume,
   type TAskPorts,
 } from './src/use-cases/please-wizard'
-export { RECIPE_DOCS, recipeDoc } from './src/use-cases/recipe-docs'
+export {
+  RECIPE_DOCS,
+  recipeDoc,
+  type TCommandRun,
+  type TRecipeDoc,
+} from './src/use-cases/recipe-docs'
 export { RUN_RECIPE, recipeArgv, shellLine } from './src/use-cases/recipe-line'
+export { renderCommandList } from './src/use-cases/render-command-list'
 export { renderHelp } from './src/use-cases/render-help'
 export {
   parseReportArgs,
