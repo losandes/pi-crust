@@ -6,7 +6,10 @@
  * (argv construction, model resolution, usage folding) stays covered there.
  */
 
+import { spawn } from 'node:child_process'
+import { constants } from 'node:os'
 import { dirname } from 'node:path'
+import { text } from 'node:stream/consumers'
 import { appendText, ensureDir, operatorEnv } from '../../../../lib/system'
 import type { TPiRequest, TPiResult } from '../typedefs/pi'
 import type { TStreamState } from './pi-agent'
@@ -78,20 +81,29 @@ export const run = async (
    * and the channel stays open so `steer`, `follow_up` and `abort` can reach a
    * run that is already working. Closing it is how a shutdown is requested.
    */
-  const child = Bun.spawn({
-    cmd,
+  const child = spawn(cmd[0] ?? '', cmd.slice(1), {
     cwd: request.cwd,
     // The operator's own environment, plus whatever this call adds to it:
     // an extension is loaded by path and takes no arguments, so a per-run
     // policy reaches it as a variable naming a file.
     env: { ...operatorEnv(), ...(request.env ?? {}) },
-    stdin: 'pipe',
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdio: 'pipe',
   })
-  hooks.onSpawn?.(child.pid)
+  const exited = new Promise<number>((resolve, reject) => {
+    child.once('error', reject)
+    child.once('close', (code, signal) =>
+      resolve(code ?? (signal ? 128 + constants.signals[signal] : 1)),
+    )
+  })
+  // Attach rejection handling immediately, while stdout is being drained.
+  void exited.catch(() => undefined)
+  const stderr = text(child.stderr)
+  if (child.pid !== undefined) hooks.onSpawn?.(child.pid)
 
   let open = true
+  child.stdin.on('error', () => {
+    open = false
+  })
   const send = (command: Readonly<Record<string, unknown>>): void => {
     if (!open) return
     /*
@@ -101,7 +113,6 @@ export const run = async (
     // biome-ignore lint/plugin: this layer owns the boundary
     try {
       child.stdin.write(`${JSON.stringify(command)}\n`)
-      child.stdin.flush()
     } catch (cause) {
       /*
        * The child went away between the check and the write. A steering
@@ -121,7 +132,7 @@ export const run = async (
     abort: () => send({ type: 'abort' }),
   })
 
-  const decoder = new TextDecoder()
+  child.stdout.setEncoding('utf8')
   const consume = (state: TStreamState, rawLine: string): TStreamState => {
     // Events land on disk as they happen, before parsing — a hung agent's
     // partial stream is still readable from raw_output.jsonl.
@@ -161,16 +172,16 @@ export const run = async (
 
   const initial: TStreamState = EMPTY_STREAM_STATE
 
-  const reader = child.stdout.getReader()
+  const reader = child.stdout[Symbol.asyncIterator]()
   const drain = async (
     state: TStreamState,
     buffered: string,
   ): Promise<TStreamState> => {
-    const { done, value } = await reader.read()
+    const { done, value } = await reader.next()
     if (done) {
       return buffered ? consume(state, buffered) : state
     }
-    const chunk = buffered + decoder.decode(value, { stream: true })
+    const chunk = buffered + String(value)
     const parts = chunk.split('\n')
     // The last piece is whatever follows the final newline — a partial line
     // that the next chunk completes, so it is carried rather than consumed.
@@ -180,12 +191,13 @@ export const run = async (
   }
   const drained = await drain(initial, '')
 
-  const stderr = await new Response(child.stderr).text()
-  const returncode = await child.exited
-  hooks.onExit?.(child.pid)
+  const returncode = await exited
+  if (child.pid !== undefined) hooks.onExit?.(child.pid)
 
   if (returncode !== 0 && !drained.text) {
-    throw new Error(`pi exited ${returncode}: ${stderr.trim().slice(-800)}`)
+    throw new Error(
+      `pi exited ${returncode}: ${(await stderr).trim().slice(-800)}`,
+    )
   }
 
   return {
