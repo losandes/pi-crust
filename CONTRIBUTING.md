@@ -18,6 +18,33 @@ This grant runs to the maintainer only. It does not give anyone else rights beyo
 
 If you cannot agree to this, please open an issue describing the change rather than submitting the code. A described idea carries no licence, and is welcome.
 
+## Running your clone as `crust`
+
+`package.json` names `runtime/cli.ts` as the `crust` command. Link your clone from its root so that `crust` runs your working copy:
+
+```sh
+bun link
+```
+
+`bun link` puts a `crust` symlink in bun's global bin directory, `~/.bun/bin` unless `BUN_INSTALL` moves it. The symlink resolves to your clone's files, so an edit takes effect the next time `crust` starts, with no relinking. If that directory is not on your `PATH`, which is the case when bun was installed by a version manager such as mise, add it in your shell's startup file:
+
+```sh
+export PATH="$HOME/.bun/bin:$PATH"
+```
+
+Then confirm it from a new shell:
+
+```sh
+which crust
+crust help
+```
+
+To try a worktree's runtime without disturbing the one live runs use, set `CRUST_HOME` to that worktree. `crust` then hands every invocation to the worktree's `runtime/cli.ts`, and refuses rather than falling back when the directory holds no runtime. Do not run `bun link` in the worktree: that repoints the global `crust` for every repository on the machine.
+
+```sh
+CRUST_HOME=../pi-crust-wip crust run "..." --lifecycle sdlc
+```
+
 ## Branching and pull requests
 
 `main` is always installable. Every change arrives through a short-lived branch and a pull request, including the maintainer's.
