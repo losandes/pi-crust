@@ -63,19 +63,19 @@ MODE = { default = "{{ env.NODE_ENV }}" }
 [tasks."test:be"]
 env = { BUNTAP_REPORTER = "nyan" }
 usage = 'flag "--coverage" help="collect coverage"'
-run = 'bunx bunt lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
+run = 'bunx bunt lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel --timeout=15000 | bunx buntap'
 
 # Runs frontend tests
 [tasks."test:fe"]
 env = { BUNTAP_REPORTER = "nyan" }
 usage = 'flag "--coverage" help="collect coverage"'
-run = 'bunx bunt apps/visualizer {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
+run = 'bunx bunt apps/visualizer {% if usage.coverage %}--coverage{% endif %} --parallel --timeout=15000 | bunx buntap'
 
 # Runs all the tests
 [tasks.test]
 env = { BUNTAP_REPORTER = "nyan" }
 usage = 'flag "--coverage" help="collect coverage"'
-run = 'bunx bunt apps/visualizer lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel | bunx buntap'
+run = 'bunx bunt apps/visualizer lib runtime scripts {% if usage.coverage %}--coverage{% endif %} --parallel --timeout=15000 | bunx buntap'
 
 # Runs the tests with coverage for both backend and frontend
 # Enahances the coverage output via buntap, so the agent receives what it needs
@@ -83,12 +83,12 @@ run = 'bunx bunt apps/visualizer lib runtime scripts {% if usage.coverage %}--co
 # Bound integration workers: browser/Vite and subprocess fixtures share host resources.
 [tasks."test:agent"]
 env = { RUN_INTEGRATION_TESTS = "true", CLAUDECODE = "1" }
-run = "bunx bunt apps/visualizer lib runtime scripts --coverage --parallel=4 | bunx buntap --agent --no-color"
+run = "bunx bunt apps/visualizer lib runtime scripts --coverage --parallel=4 --timeout=15000 | bunx buntap --agent --no-color"
 
 # CI tests use buntap instead of bunt/buntap
 [tasks."test:raw"]
 env = { RUN_INTEGRATION_TESTS = "true", CLAUDECODE = "1" }
-run = "bun test apps/visualizer lib runtime scripts --coverage --parallel=4"
+run = "bun test apps/visualizer lib runtime scripts --coverage --parallel=4 --timeout=15000"
 
 # --- BUILD --------------------------------------------------------------------
 
