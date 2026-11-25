@@ -1,0 +1,78 @@
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_TARGET: ${{ github.event.release.target_commitish }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.target_commitish }}
+
+      - uses: jdx/mise-action@v5
+
+      - name: Install dependencies
+        run: mise deps install --monorepo
+
+      - name: Plan the release
+        run: bun scripts/release-plan.ts >> "$GITHUB_ENV"
+
+      - name: Confirm the release targets a branch
+        run: git ls-remote --exit-code --heads origin "refs/heads/$RELEASE_BRANCH"
+
+      - name: Set the version from the release tag
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install Chromium for the browser-driven tests
+        working-directory: apps/visualizer
+        run: bunx playwright install --with-deps chromium
+
+      - name: Check the code
+        run: mise run check
+
+      - name: Build the package
+        run: mise run build:package
+
+      - name: Pack the archive
+        run: npm pack ./dist --pack-destination "$RUNNER_TEMP"
+
+      - name: Check the archive under the minimum Node without bun
+        run: |
+          mise install "node@$RELEASE_MIN_NODE"
+          bun scripts/check-package.ts \
+            --archive "$RUNNER_TEMP/$RELEASE_ARCHIVE" \
+            --node-bin "$(mise where "node@$RELEASE_MIN_NODE")/bin"
+
+      - name: Commit the distribution and the version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all --force -- dist
+          git add -- package.json
+          git commit -m "chore(release): $RELEASE_VERSION"
+          git push --dry-run origin "HEAD:refs/heads/$RELEASE_BRANCH"
+
+      - name: Publish to npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
+        run: |
+          printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$NPM_CONFIG_USERCONFIG"
+          npm publish "$RUNNER_TEMP/$RELEASE_ARCHIVE" --tag "$RELEASE_DIST_TAG"
+
+      - name: Push the release commit
+        run: git push origin "HEAD:refs/heads/$RELEASE_BRANCH"

@@ -61,6 +61,7 @@ test.skipIf(SKIP_INTEGRATION)(
     // given
     const server = await serveRoutes({
       port: 0,
+      hostname: '127.0.0.1',
       routes: {
         '/echo/:name': async (req) =>
           new Response(
@@ -86,7 +87,7 @@ test.skipIf(SKIP_INTEGRATION)(
         return new Response(`fallback:${req.method}`, { status: 404 })
       },
     })
-    const url = `http://localhost:${server.port}`
+    const url = `http://127.0.0.1:${server.port}`
     try {
       // when
       const echo = await fetch(`${url}/echo/a%20b?q=1`, {
@@ -118,6 +119,7 @@ test.skipIf(SKIP_INTEGRATION)(
       await expect(
         serveRoutes({
           port: server.port,
+          hostname: '127.0.0.1',
           routes: {},
           fallback: () => new Response(''),
         }),

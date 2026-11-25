@@ -28,6 +28,8 @@ pathIgnorePatterns = [
 # Exclude specific files or file patterns from coverage reports using glob
 # patterns. Can be a single string pattern or an array of patterns.
 coveragePathIgnorePatterns = [
+  # Installs an archive with npm from the registry and runs installed crust under a second Node, which no bun test process can execute.
+  "scripts/check-package.ts",
   "apps/visualizer/src/domains/sessions/src/_components/SessionCard.layout.test.ts",
   "apps/visualizer/src/domains/sessions/src/_components/SessionsList.layout.test.ts",
   # Browser-only assertions cannot run when Chromium is unavailable.

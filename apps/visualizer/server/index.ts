@@ -11,6 +11,7 @@
  *   CRUST_DB=/path/to/crust.db CRUST_BE_PORT=4600 bun run server/index.ts
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
 import type {
   AgentPrompts,
@@ -27,6 +28,7 @@ import { WorkspaceRegistry } from './registry.ts'
 import { serveRoutes } from './serve-routes.ts'
 import { fileResponse } from './static-file.ts'
 import { machineThemes } from './themes.ts'
+import { uiAddresses, uiListenerFromEnv } from './ui-listener.ts'
 import { resolveWorkspaces } from './workspaces.ts'
 import {
   isInboxKind,
@@ -271,8 +273,10 @@ function serveStatic(req: Request): Response {
   return notFound('not found')
 }
 
-export const server = await serveRoutes({
+const listener = uiListenerFromEnv(process.env)
+const options: Parameters<typeof serveRoutes>[0] = {
   port: PORT,
+  hostname: listener?.host,
   routes: {
     '/api/health': safely(() => {
       const states = registry.states()
@@ -845,15 +849,36 @@ export const server = await serveRoutes({
       } satisfies AgentPrompts)
     }),
   },
-
   fallback(req) {
     const { pathname } = new URL(req.url)
     if (pathname.startsWith('/api/')) return notFound(`no route ${pathname}`)
     return serveStatic(req)
   },
-})
+}
 
-say(`[crust] visualizer api  http://localhost:${server.port}`)
+export const server = await serveRoutes(options)
+export const uiServer =
+  listener === undefined
+    ? undefined
+    : await serveRoutes({
+        ...options,
+        port: listener.port,
+      }).catch(async (error: unknown) => {
+        await server.stop()
+        registry.close()
+        throw error
+      })
+
+say(
+  `[crust] visualizer api  ${listener === undefined ? `http://localhost:${server.port}` : uiAddresses(listener.host, server.port, networkInterfaces())[0]}`,
+)
+if (listener !== undefined && uiServer !== undefined) {
+  uiAddresses(listener.host, uiServer.port, networkInterfaces()).forEach(
+    (address) => {
+      say(`[crust] visualizer ui   ${address}`)
+    },
+  )
+}
 for (const state of registry.states()) {
   say(
     state.db

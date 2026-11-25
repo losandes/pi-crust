@@ -70,7 +70,7 @@ node_modules/
 .pnpm-store
 
 # Distribution directories & Compiled binary addons (http://nodejs.org/api/addons.html)
-[Dd]ist
+/apps/visualizer/dist/
 dist-ssr
 [Bb]uild/Release
 [Bb]ackup

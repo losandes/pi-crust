@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { expect, mock, test } from 'bun:test'
 import {
   existsSync,
   mkdirSync,
@@ -14,7 +14,7 @@ import { join, relative } from 'node:path'
 import { RECIPE_DOCS } from '../runtime/domains/cli'
 import { PACKAGE_ROOT } from '../runtime/lib/system'
 import { SKIP_INTEGRATION } from '../runtime/testing/integration'
-import { buildPackage, main } from './build-package'
+import { buildPackage, buildPackageWith, main } from './build-package'
 
 const filesUnder = (dir: string): readonly string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -63,6 +63,10 @@ test.skipIf(SKIP_INTEGRATION)(
           ...programs,
           ...assets,
           '.pi-crust-build',
+          '.npmignore',
+          'README.md',
+          'references/config.md',
+          ...actual.filter((path) => path.startsWith('apps/visualizer/dist/')),
           'package.json',
           'templates/pi-crust.toml',
           'templates/env.example',
@@ -72,14 +76,23 @@ test.skipIf(SKIP_INTEGRATION)(
       expect(
         JSON.parse(readFileSync(join(out, 'package.json'), 'utf8')),
       ).toEqual({
-        name: manifest.name,
+        name: '@polyn/pi-crust',
         version: manifest.version,
         description: manifest.description,
+        license: manifest.license,
         type: 'module',
         bin: { crust: 'runtime/cli.js' },
         engines: { node: manifest.engines.node },
         dependencies: manifest.dependencies,
+        publishConfig: { access: 'public' },
       })
+      expect(actual).toContain('apps/visualizer/dist/index.html')
+      expect(
+        actual.some((path) => path.startsWith('apps/visualizer/dist/assets/')),
+      ).toBe(true)
+      expect(readFileSync(join(out, '.npmignore'), 'utf8')).toBe(
+        '.pi-crust-build\n',
+      )
       expect(statSync(join(out, 'runtime/cli.js')).mode & 0o777).toBe(0o755)
       for (const path of programs.filter((path) =>
         readFileSync(
@@ -96,6 +109,8 @@ test.skipIf(SKIP_INTEGRATION)(
         'templates/pi-crust.toml',
         'templates/env.example',
         'LICENSE',
+        'README.md',
+        'references/config.md',
       ])
         expect(readFileSync(join(out, path))).toEqual(
           readFileSync(join(PACKAGE_ROOT, path)),
@@ -107,6 +122,47 @@ test.skipIf(SKIP_INTEGRATION)(
           .map((path) => relative(out, path))
           .toSorted(),
       ).toEqual(actual)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+  60000,
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given a scratch package build',
+    'when the UI build fails',
+    'it should target only the requested UI output and return failure',
+  ].join(', '),
+  async () => {
+    // given
+    const dir = mkdtempSync(join(tmpdir(), 'crust-package-ui-'))
+    const out = join(dir, 'pkg')
+    const runUi = mock(
+      (_command: string, _args: readonly string[], _options: unknown) => ({
+        status: 1,
+      }),
+    )
+    try {
+      // when
+      const status = await buildPackageWith(runUi)(out)
+      // then
+      expect(status).toBe(1)
+      expect(runUi.mock.calls).toEqual([
+        [
+          process.execPath,
+          [
+            'x',
+            'vite',
+            'build',
+            '--outDir',
+            join(out, 'apps/visualizer/dist'),
+            '--emptyOutDir',
+          ],
+          { cwd: join(PACKAGE_ROOT, 'apps/visualizer'), stdio: 'inherit' },
+        ],
+      ])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

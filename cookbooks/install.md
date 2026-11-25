@@ -1,6 +1,12 @@
 # Install
 
-Link a pi-crust clone from its root, with bun's global bin directory on your PATH (see [Running your clone as `crust`](../CONTRIBUTING.md#running-your-clone-as-crust)):
+Install with Node 22.19.0 or later; no bun or clone is needed:
+
+```sh
+npm install -g @polyn/pi-crust
+```
+
+Contributors instead clone pi-crust and run these commands from its root, with bun's global bin directory on their PATH (see [Running your clone as `crust`](../CONTRIBUTING.md#running-your-clone-as-crust)):
 
 ```bash
 bun install
