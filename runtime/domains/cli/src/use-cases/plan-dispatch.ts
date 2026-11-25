@@ -1,8 +1,8 @@
 import { devNull } from 'node:os'
 import { resolve } from 'node:path'
 import type { TSettlement } from '../../../../../lib/typedefs'
-import type { TEnv } from '../../../../lib/system'
-import type { TScriptRun } from '../data/run-bun-script'
+import { ownProgram, type TEnv } from '../../../../lib/system'
+import type { TScriptRun } from '../data/run-program'
 import type { TRecipeDoc } from './recipe-docs'
 
 export type TDispatchInput = Readonly<{
@@ -54,7 +54,7 @@ export const planDispatch =
     return {
       status: 'ok',
       data: {
-        script: resolve(input.packageRoot, run.script),
+        script: ownProgram(resolve(input.packageRoot, run.script)),
         args: [
           ...(run.config ? ['--config', config] : []),
           ...run.fixed,

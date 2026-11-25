@@ -11,10 +11,11 @@
  * the only write this process can make, it touches exactly one column, and it
  * never runs unless a human clicks the button.
  */
-import { Database } from 'bun:sqlite'
+
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { openDatabase, type TDatabase } from '@sqlite'
 import type {
   ActivityRun,
   AgentSession,
@@ -54,7 +55,7 @@ const expandHome = (value: string, home: string): string =>
  * Relative explicit overrides resolve against the caller's working directory.
  */
 export function resolveDbPath(
-  argv: readonly string[] = Bun.argv,
+  argv: readonly string[] = process.argv,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   const flagIndex = argv.indexOf('--db')
@@ -97,9 +98,9 @@ export class PiCrustDb {
    */
   readonly sessionsDir: string
   readonly journalMode: string
-  private readonly db: Database
+  private readonly db: TDatabase
   /** Opened on first archive and kept; null until then. */
-  private writer: Database | null = null
+  private writer: TDatabase | null = null
   /** Cache for optionalColumn(), keyed "table.column". Only ever false → true. */
   private readonly columnCache = new Map<string, boolean>()
 
@@ -113,7 +114,7 @@ export class PiCrustDb {
     this.path = path
     this.label = label
     this.sessionsDir = resolve(dirname(path), 'sessions')
-    this.db = new Database(path, { readonly: true })
+    this.db = openDatabase(path, { readonly: true })
 
     // WAL is set by the tracer when it creates the db; a readonly connection
     // cannot change it, so we assert rather than set, and always take the
@@ -183,7 +184,7 @@ export class PiCrustDb {
       )
     }
     if (!this.writer) {
-      this.writer = new Database(this.path)
+      this.writer = openDatabase(this.path)
       this.writer.exec('PRAGMA busy_timeout=5000;')
     }
     this.writer
@@ -274,7 +275,7 @@ export class PiCrustDb {
            FROM sessions WHERE run_id = ?`,
       )
       .get(runId)
-    return row === null || row === undefined
+    return row === undefined
       ? null
       : { ...withRepository(row), workspace: this.label }
   }

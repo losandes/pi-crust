@@ -20,7 +20,6 @@
  * failure this is here to prevent.
  */
 
-import { Database } from 'bun:sqlite'
 import { spawn } from 'node:child_process'
 import {
   appendFileSync,
@@ -30,7 +29,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, extname, join, resolve } from 'node:path'
+import { openDatabase } from '@sqlite'
 import { safeParseSettlement } from '@typedefs'
 import { z } from 'zod'
 import type { ApiError } from '../shared/types.ts'
@@ -91,7 +91,14 @@ export const sessionDir = (dbPath: string, runId: string): string =>
   join(dirname(dbPath), 'sessions', runId)
 
 /** The server locates its own package unless an explicit override is given. */
-export const OWN_RUNTIME = resolve(import.meta.dir, '..', '..', '..', 'runtime')
+export const OWN_RUNTIME = resolve(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  'runtime',
+)
+const PROGRAM_EXTENSION = extname(import.meta.filename)
 
 export const crustRuntime = (
   env: Readonly<Record<string, string | undefined>> = process.env,
@@ -99,7 +106,9 @@ export const crustRuntime = (
 ): string | undefined => {
   const configured = (env.CRUST_HOME ?? '').trim()
   const runtime = configured === '' ? own : join(configured, 'runtime')
-  return existsSync(join(runtime, 'cli.ts')) ? runtime : undefined
+  return existsSync(join(runtime, `cli${PROGRAM_EXTENSION}`))
+    ? runtime
+    : undefined
 }
 
 /**
@@ -109,8 +118,7 @@ export const crustRuntime = (
  * repair is the same one in every case, and three phrasings of it would read
  * as three different problems.
  */
-export const NO_RUNTIME =
-  'cannot find pi-crust: CRUST_HOME names a directory without runtime/cli.ts. Unset CRUST_HOME, or set it to a pi-crust checkout.'
+export const NO_RUNTIME = `cannot find pi-crust: CRUST_HOME names a directory without runtime/cli${PROGRAM_EXTENSION}. Unset CRUST_HOME, or set it to a pi-crust checkout.`
 export const NO_WORKING_TREE = (runId: string): string =>
   `cannot act on ${runId}: its working tree is not recorded or no longer exists`
 export const NO_ENTRY = (
@@ -301,7 +309,7 @@ export const startSteer = (
   const args =
     target === 'branch'
       ? [
-          join(runtime, 'commands', 'steer.ts'),
+          join(runtime, 'commands', `steer${PROGRAM_EXTENSION}`),
           runId,
           activity,
           '--branch',
@@ -312,13 +320,13 @@ export const startSteer = (
           note,
         ]
       : [
-          join(runtime, 'commands', 'steer.ts'),
+          join(runtime, 'commands', `steer${PROGRAM_EXTENSION}`),
           runId,
           activity,
           '--overwrite',
           note,
         ]
-  const child = spawnChild('bun', args, {
+  const child = spawnChild(process.execPath, args, {
     cwd,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -371,8 +379,13 @@ export const startConsult = (
   mkdirSync(dir, { recursive: true })
   const log = join(dir, 'consult.log')
   const child = spawnChild(
-    'bun',
-    [join(runtime, 'commands', `${mode}.ts`), runId, activity, question],
+    process.execPath,
+    [
+      join(runtime, 'commands', `${mode}${PROGRAM_EXTENSION}`),
+      runId,
+      activity,
+      question,
+    ],
     {
       cwd,
       detached: true,
@@ -415,7 +428,7 @@ const recordResumeNote = (
   const entry = developerNoteEntry(note, new Date().toISOString())
   appendFileSync(path, entry.endsWith('\n') ? entry : `${entry}\n`)
 
-  const db = new Database(dbPath)
+  const db = openDatabase(dbPath)
   db.run('PRAGMA busy_timeout=5000;')
   db.run(
     'INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)' +
@@ -537,7 +550,7 @@ export const resumeRun = (
   // request and its output goes to the session's own log.
   const log = join(sessionDir(dbPath, runId), 'spawn.log')
   const child = spawnChild(
-    'bun',
+    process.execPath,
     [entry, ...carried, '--run-id', runId, '--resume'],
     {
       cwd,
@@ -595,9 +608,9 @@ export const startRun = (
   const log = join(logDir, 'spawn.log')
   writeFileSync(log, '', 'utf8')
   const child = spawnChild(
-    'bun',
+    process.execPath,
     [
-      join(runtime, 'commands', 'run.ts'),
+      join(runtime, 'commands', `run${PROGRAM_EXTENSION}`),
       prompt,
       '--lifecycle',
       lifecycle,

@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite'
+import { openDatabase } from '../../../../../lib/sqlite'
 
 type TRecord = Readonly<{
   runId: string
@@ -11,7 +11,7 @@ export const recordOverwriteSteer =
   (dbPath: string) =>
   (record: TRecord & Readonly<{ superseding: readonly string[] }>): void => {
     const { runId, activity, note, replaying, superseding, now } = record
-    const db = new Database(dbPath)
+    const db = openDatabase(dbPath)
     db.run('PRAGMA busy_timeout=5000;')
     for (const activityRunId of superseding) {
       db.run(
@@ -53,7 +53,7 @@ export const recordBranchSteer =
   ): void => {
     const { runId, activity, note, replaying, branchId, seeding, carried, at } =
       record
-    const db = new Database(dbPath)
+    const db = openDatabase(dbPath)
     db.run('PRAGMA busy_timeout=5000;')
     db.run(
       'INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)' +

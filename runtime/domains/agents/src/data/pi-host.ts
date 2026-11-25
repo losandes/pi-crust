@@ -1,3 +1,4 @@
+import { whichOnPath } from '../../../../lib/system'
 /**
  * Where the pi host this machine runs actually keeps its modules.
  *
@@ -24,7 +25,7 @@ import { dirname, join } from 'node:path'
 
 /** `PI_PATH`, else `pi` on PATH, with symlinks followed. */
 export const piLauncher = (): string | undefined => {
-  const named = process.env.PI_PATH ?? Bun.which('pi') ?? undefined
+  const named = process.env.PI_PATH ?? whichOnPath('pi') ?? undefined
   if (named === undefined || named === '') {
     return undefined
   }

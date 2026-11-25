@@ -1,20 +1,20 @@
 #!/usr/bin/env bun
-import { resolve } from 'node:path'
-import { runBunScript } from '../domains/cli'
+import { runProgram } from '../domains/cli'
 import { DEFAULT_CONFIG_PATH } from '../lib/contracts'
 import type { TEnv } from '../lib/system'
+import { packageProgram } from '../lib/system'
 
 type TDemoDeps = Readonly<{
   env: TEnv
   cwd: string
-  run: typeof runBunScript
+  run: typeof runProgram
   write: (text: string) => unknown
 }>
 
 const LIVE_DEPS: TDemoDeps = {
   env: process.env,
   cwd: process.cwd(),
-  run: runBunScript,
+  run: runProgram,
   write: process.stdout.write.bind(process.stdout),
 }
 
@@ -28,7 +28,7 @@ export const main =
       DEFAULT_CONFIG_PATH
     const run = (prompt: string, activity: string): number =>
       deps.run({
-        script: resolve(import.meta.dir, 'run.ts'),
+        script: packageProgram('runtime/commands/run.ts'),
         args: ['--config', config, prompt, '--activities', activity],
         cwd: deps.cwd,
         env: deps.env,

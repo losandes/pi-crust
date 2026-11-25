@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { resolveDataPaths } from '../domains/workspace'
 import {
   dbPathFromEnv,
   machineConfigDirFromEnv,
@@ -49,6 +51,26 @@ test(
 
     // then
     expect(actual).toBe(false)
+  },
+)
+
+test(
+  [
+    'given a test process with the data-path preload',
+    'when a fixture supplies its own data directory',
+    'it should resolve the fixture directory instead of inherited run history',
+  ].join(', '),
+  () => {
+    // given
+    const directory = join(tmpdir(), `crust-test-configured-${process.pid}`)
+    const config = { defaults: { data_dir: directory } }
+    // when
+    const actual = resolveDataPaths(config, process.cwd())
+    // then
+    expect(actual).toEqual({
+      dataDir: directory,
+      db: join(directory, 'crust.db'),
+    })
   },
 )
 

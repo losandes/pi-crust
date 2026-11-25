@@ -186,7 +186,7 @@ const gitRoot = (from: string): string | undefined => {
 
 /** Explicit stores, or the shared database, plus an optional worktree sweep. */
 export const resolveWorkspaces = (
-  argv: readonly string[] = Bun.argv,
+  argv: readonly string[] = process.argv,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): readonly TWorkspace[] => {
   const fallback = resolveDbPath([...argv], env)

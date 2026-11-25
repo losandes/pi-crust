@@ -95,6 +95,9 @@ run = "bun test apps/visualizer lib runtime scripts --coverage --parallel=4 --ti
 [tasks.build]
 run = "bun run --cwd apps/visualizer build"
 
+[tasks."build:package"]
+run = "bun scripts/build-package.ts"
+
 # --- LINTING ------------------------------------------------------------------
 
 # Lints the project files

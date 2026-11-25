@@ -57,18 +57,18 @@ runtime/
 └── tsconfig.json
 ```
 
-| Entry           | Holds                                                                               |
-| --------------- | ----------------------------------------------------------------------------------- |
-| `cli.ts`        | The crust command; reads definitions and starts each program as its own bun process |
-| `commands/`     | Command programs and their tests                                                    |
-| `config/`       | The package's three default TOML files                                              |
-| `domains/`      | Capability-owned logic exposed through domain indexes                               |
-| `lib/`          | Packages used across domains                                                        |
-| `testing/`      | Shared fixtures and capture helpers                                                 |
-| `prompts/`      | Shipped Activity prompts and tests of their content                                 |
-| `extensions/`   | Host-loaded adapters; every agent loads the package path policy                     |
-| `README.md`     | Runtime usage and layout documentation                                              |
-| `tsconfig.json` | The runtime compiler project; extensions are checked against pi separately          |
+| Entry           | Holds                                                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `cli.ts`        | The crust command; starts each program with its own executable: bun/TypeScript in a clone, Node/JavaScript in a build |
+| `commands/`     | Command programs and their tests                                                                                      |
+| `config/`       | The package's three default TOML files                                                                                |
+| `domains/`      | Capability-owned logic exposed through domain indexes                                                                 |
+| `lib/`          | Packages used across domains                                                                                          |
+| `testing/`      | Shared fixtures and capture helpers                                                                                   |
+| `prompts/`      | Shipped Activity prompts and tests of their content                                                                   |
+| `extensions/`   | Host-loaded adapters; every agent loads the package path policy                                                       |
+| `README.md`     | Runtime usage and layout documentation                                                                                |
+| `tsconfig.json` | The runtime compiler project; extensions are checked against pi separately                                            |
 
 The [runtime layout record](../adr/runtime-layout/define-each-command-once-and-dispatch-from-cli.md) defines where new files belong and separates command composition from shared CLI behavior.
 

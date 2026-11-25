@@ -1,3 +1,4 @@
+import { RUNTIME_NAME } from '../../../../lib/system'
 /**
  * Stopping for a person, without anything waiting on a prompt.
  *
@@ -211,7 +212,7 @@ export const resumeInvocation = (
   argv: readonly string[],
   runId: string,
 ): string => {
-  const resumed = ['bun', ...resumeArgv(argv, runId)]
+  const resumed = [RUNTIME_NAME, ...resumeArgv(argv, runId)]
 
   return shellLine(recipeArgv(resumed) ?? resumed)
 }

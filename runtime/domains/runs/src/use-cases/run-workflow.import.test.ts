@@ -10,6 +10,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { parse } from 'smol-toml'
 import type { TStage } from '../../../../lib/contracts'
 import { configText, tomlText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
@@ -359,7 +360,7 @@ test.skipIf(SKIP_INTEGRATION)(
     // given
     using given = fixture()
     const path = given.args.config
-    const repository = Bun.TOML.parse(readFileSync(path, 'utf8'))
+    const repository = parse(readFileSync(path, 'utf8'))
     writeFileSync(
       path,
       tomlText({

@@ -9,7 +9,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
-import { runBunScript } from './run-bun-script'
+import { runProgram } from './run-program'
 
 test.skipIf(SKIP_INTEGRATION)(
   [
@@ -27,7 +27,7 @@ test.skipIf(SKIP_INTEGRATION)(
     )
     try {
       // when
-      const result = runBunScript({
+      const result = runProgram({
         script,
         args: ['two words'],
         cwd: root,
@@ -53,7 +53,7 @@ test.skipIf(SKIP_INTEGRATION)(
   () => {
     // given
     // when
-    const result = runBunScript({
+    const result = runProgram({
       script: '/absent.ts',
       args: [],
       cwd: '/',

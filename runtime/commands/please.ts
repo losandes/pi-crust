@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-import { resolve } from 'node:path'
 import { safeParseSettlement } from '../../lib/typedefs'
 import {
   askMenuChoice,
@@ -11,11 +10,12 @@ import {
   NEW_RUN,
   planNewRun,
   planResume,
-  runBunScript,
+  runProgram,
   shellLine,
 } from '../domains/cli'
 import { loadConfig } from '../domains/config'
 import { resolveWaitingRuns } from '../domains/trace'
+import { packageProgram } from '../lib/system'
 
 /**
  * `crust please` — the command builder.
@@ -54,19 +54,19 @@ type TPleaseDeps = Readonly<{
   askOrder: typeof askOrder
   askMenuChoice: typeof askMenuChoice
   copy: typeof copyToClipboard
-  run: typeof runBunScript
+  run: typeof runProgram
 }>
 
 const LIVE_DEPS: TPleaseDeps = {
   env: process.env,
   cwd: process.cwd(),
-  cli: resolve(import.meta.dir, '../cli.ts'),
+  cli: packageProgram('runtime/cli.ts'),
   askOne,
   askText,
   askOrder,
   askMenuChoice,
   copy: copyToClipboard,
-  run: runBunScript,
+  run: runProgram,
 }
 
 export const main = (deps: TPleaseDeps) => async (): Promise<number> => {

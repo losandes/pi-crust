@@ -1,6 +1,6 @@
-import { Database } from 'bun:sqlite'
 import { existsSync } from 'node:fs'
 import { z } from 'zod'
+import { openDatabase } from '../../../../../lib/sqlite'
 import {
   safeParseSettlement,
   type TSettlement,
@@ -69,7 +69,7 @@ export const resolveTraceListing =
         error: new Error(`no trace database at ${dbPath}`),
       }
     const result = safeParseSettlement(() => {
-      const db = new Database(dbPath, { readonly: true })
+      const db = openDatabase(dbPath, { readonly: true })
       try {
         const statement = db.query(STATEMENTS[listing])
         const rows =

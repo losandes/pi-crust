@@ -8,7 +8,7 @@
  * from.
  */
 
-import { Database } from 'bun:sqlite'
+import { openDatabase, type TDatabase } from '../../../../../lib/sqlite'
 import { fileExists } from '../../../../lib/system'
 export type TTraceSessionRow = Readonly<{
   run_id: string
@@ -82,19 +82,19 @@ const BASE_SESSION_COLUMNS =
  * visualizer's `optionalColumn` already applies for every other migrated
  * column.
  */
-const hasNameColumn = (db: Database): boolean =>
+const hasNameColumn = (db: TDatabase): boolean =>
   db
     .query<{ name: string }, []>('PRAGMA table_info(sessions)')
     .all()
     .some((row) => row.name === 'name')
 
-const sessionColumns = (db: Database): string =>
+const sessionColumns = (db: TDatabase): string =>
   hasNameColumn(db)
     ? `${BASE_SESSION_COLUMNS}, name`
     : `${BASE_SESSION_COLUMNS}, NULL AS name`
 
 const readSession = (
-  db: Database,
+  db: TDatabase,
   runId: string | undefined,
 ): TTraceSessionRow | undefined => {
   const columns = sessionColumns(db)
@@ -124,7 +124,7 @@ export const readTrace = (
   if (!fileExists(dbPath)) {
     return undefined
   }
-  const db = new Database(dbPath, { readonly: true })
+  const db = openDatabase(dbPath, { readonly: true })
   db.run('PRAGMA busy_timeout=5000;')
   const session = readSession(db, runId)
   if (session === undefined) {
@@ -177,7 +177,7 @@ export const runHasLiveProcess = (dbPath: string, runId: string): boolean => {
   if (!fileExists(dbPath)) {
     return false
   }
-  const db = new Database(dbPath, { readonly: true })
+  const db = openDatabase(dbPath, { readonly: true })
   db.run('PRAGMA busy_timeout=5000;')
   const rows = db
     .query<{ pid: number | null }, [string]>(

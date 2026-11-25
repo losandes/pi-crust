@@ -4,6 +4,7 @@ import {
   importOutputSchema,
   renderWarnings,
 } from '../../../../lib/contracts'
+import { RUNTIME_NAME } from '../../../../lib/system'
 import { box, paint } from '../../../../lib/terminal'
 import {
   crustArgv,
@@ -45,7 +46,7 @@ export const resumeCommand = (
   const resumed =
     invocation === undefined
       ? undefined
-      : recipeArgv(['bun', ...resumeArgv(invocation, state.run_id)])
+      : recipeArgv([RUNTIME_NAME, ...resumeArgv(invocation, state.run_id)])
   if (resumed !== undefined) {
     return shellLine(resumed)
   }

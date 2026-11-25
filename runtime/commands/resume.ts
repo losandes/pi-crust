@@ -20,8 +20,8 @@
  * env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.
  */
 
-import { Database } from 'bun:sqlite'
 import { resolve } from 'node:path'
+import { openDatabase } from '../../lib/sqlite'
 import { errorMessage, safeParseSettlement } from '../../lib/typedefs'
 import { appendSteering } from '../domains/agents'
 import { positionalArgs, RESUME_CLI, resumeRecordedRun } from '../domains/cli'
@@ -45,8 +45,7 @@ const USAGE = [
   'env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.',
 ].join('\n')
 
-const main = async (): Promise<number> => {
-  const argv = process.argv.slice(2)
+export const main = async (argv: readonly string[]): Promise<number> => {
   const positionals = safeParseSettlement(() =>
     positionalArgs(argv, RESUME_CLI),
   )
@@ -84,7 +83,7 @@ const main = async (): Promise<number> => {
     const path = appendSteering(handoffDir, developerNote(note, at))
     say(`note recorded in ${path}`)
 
-    const db = new Database(dbPath)
+    const db = openDatabase(dbPath)
     db.run('PRAGMA busy_timeout=5000;')
     db.run(
       'INSERT INTO events (event_id, run_id, type, name, payload_json, started_at)' +
@@ -115,4 +114,4 @@ const main = async (): Promise<number> => {
   return (await resumed.finished) ?? 0
 }
 
-process.exitCode = await main()
+if (import.meta.main) process.exitCode = await main(process.argv.slice(2))

@@ -1,8 +1,14 @@
 import { expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { SKIP_INTEGRATION } from '../testing/integration'
+import {
+  restoreTerminal,
+  silenceTerminal,
+  terminalOutput,
+} from '../testing/terminal-capture'
 import { tokenRepo } from '../testing/token-repo'
+import { main } from './resume'
 
 for (const one of [
   { name: 'token configuration', options: {}, note: false },
@@ -73,3 +79,99 @@ test.skipIf(SKIP_INTEGRATION)(
     expect(output).not.toContain('{primary_worktree}')
   },
 )
+
+for (const argv of [[], ['--unknown'], ['run', '--note']]) {
+  test(
+    [
+      'given invalid resume arguments',
+      `when main receives ${JSON.stringify(argv)}`,
+      'it should refuse with usage before reading configuration',
+    ].join(', '),
+    async () => {
+      // given
+      silenceTerminal()
+      try {
+        // when
+        const actual = await main(argv)
+        // then
+        expect(actual).toBe(2)
+        expect(terminalOutput()).toContain('usage: crust resume')
+      } finally {
+        restoreTerminal()
+      }
+    },
+  )
+}
+
+for (const mode of ['attached', 'detached', 'missing', 'unrecorded'] as const) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      'given an isolated recorded run',
+      `when main resumes ${mode}`,
+      'it should preserve its invocation or report the missing prerequisite',
+    ].join(', '),
+    async () => {
+      // given
+      using fixture = tokenRepo()
+      const patch = {
+        CRUST_CONFIG: fixture.configPath,
+        CRUST_DB: fixture.dbPath,
+        CRUST_DATA_DIR: fixture.dataDir,
+        CRUST_MACHINE_CONFIG: join(fixture.root, 'machine'),
+      }
+      const previous = Object.fromEntries(
+        Object.keys(patch).map((key) => [key, process.env[key]]),
+      )
+      const cwd = process.cwd()
+      // biome-ignore lint/plugin/no-object-mutation: the test owns these environment inputs until finally restores them
+      Object.assign(process.env, patch)
+      process.chdir(fixture.root)
+      silenceTerminal()
+      try {
+        if (mode === 'unrecorded')
+          rmSync(join(fixture.sessionDir, 'invocation.json'))
+        // when
+        const actual = await main([
+          mode === 'missing' ? 'missing' : fixture.runId,
+          ...(mode === 'attached' ? ['--note', 'Proceed.'] : []),
+          ...(mode === 'detached' ? ['--detach'] : []),
+        ])
+        // then
+        expect(actual).toBe(mode === 'missing' || mode === 'unrecorded' ? 1 : 0)
+        expect(terminalOutput()).toContain(
+          mode === 'missing'
+            ? 'no run missing'
+            : mode === 'unrecorded'
+              ? 'no invocation.json'
+              : 'resumed:',
+        )
+        if (mode === 'attached')
+          expect(
+            readFileSync(
+              join(fixture.sessionDir, 'context_handoff/steering.md'),
+              'utf8',
+            ),
+          ).toContain('Proceed.')
+        if (mode === 'detached') {
+          for (
+            let retry = 0;
+            retry < 100 && !existsSync(join(fixture.root, 'resumed.json'));
+            retry += 1
+          )
+            await Bun.sleep(10)
+          expect(existsSync(join(fixture.root, 'resumed.json'))).toBe(true)
+        }
+      } finally {
+        restoreTerminal()
+        process.chdir(cwd)
+        for (const [key, value] of Object.entries(previous)) {
+          if (value === undefined) delete process.env[key]
+          else {
+            // biome-ignore lint/plugin: restore the external environment owned by this fixture
+            process.env[key] = value
+          }
+        }
+      }
+    },
+  )
+}

@@ -14,9 +14,13 @@
  * replay from.
  */
 
-import { Database, type SQLQueryBindings } from 'bun:sqlite'
 import { cpSync, existsSync } from 'node:fs'
 import { basename, join, relative } from 'node:path'
+import {
+  openDatabase,
+  type TDatabase,
+  type TSqlParam,
+} from '../../../../../lib/sqlite'
 import { fileExists, newId, readText, writeText } from '../../../../lib/system'
 import { INVOCATION_FILENAME } from '../../../cli'
 import type { TSeeding } from '../../../handoff'
@@ -55,7 +59,7 @@ const OPTIONAL_SESSION_COLUMNS = [
   'name',
 ] as const
 
-const sessionColumnsPresent = (db: Database): readonly string[] => {
+const sessionColumnsPresent = (db: TDatabase): readonly string[] => {
   const present = new Set(
     db
       .query<{ name: string }, []>('PRAGMA table_info(sessions)')
@@ -65,11 +69,11 @@ const sessionColumnsPresent = (db: Database): readonly string[] => {
   return OPTIONAL_SESSION_COLUMNS.filter((column) => present.has(column))
 }
 
-const asBinding = (value: unknown): SQLQueryBindings =>
-  value === undefined ? null : (value as SQLQueryBindings)
+const asBinding = (value: unknown): TSqlParam =>
+  value === undefined ? null : (value as TSqlParam)
 
 const seedSessionRow = (
-  db: Database,
+  db: TDatabase,
   sourceRunId: string,
   branchRunId: string,
   at: string,
@@ -104,7 +108,7 @@ type TActivityRunRow = Readonly<{
 
 /** Inherited activity_runs, remapped to fresh ids. Returns old-id -> new-id. */
 const seedActivityRuns = (
-  db: Database,
+  db: TDatabase,
   sourceRunId: string,
   branchRunId: string,
   carry: readonly string[],
@@ -146,7 +150,7 @@ const seedActivityRuns = (
 }
 
 const seedEvents = (
-  db: Database,
+  db: TDatabase,
   sourceRunId: string,
   branchRunId: string,
   idMap: ReadonlyMap<string, string>,
@@ -194,7 +198,7 @@ const seedEvents = (
 }
 
 const seedEnvelopes = (
-  db: Database,
+  db: TDatabase,
   sourceRunId: string,
   branchRunId: string,
   idMap: ReadonlyMap<string, string>,
@@ -237,7 +241,7 @@ const seedEnvelopes = (
 }
 
 const seedGateResults = (
-  db: Database,
+  db: TDatabase,
   sourceRunId: string,
   branchRunId: string,
   idMap: ReadonlyMap<string, string>,
@@ -279,7 +283,7 @@ const seedGateResults = (
 }
 
 const seedAgentSessions = (
-  db: Database,
+  db: TDatabase,
   sourceRunId: string,
   branchRunId: string,
 ): void => {
@@ -367,7 +371,7 @@ const rewriteInvocation = (branchSessionDir: string): void => {
 
 export const seedBranch = (seed: TBranchSeed): TBranchSeeded => {
   const { dbPath, dataDir, sourceRunId, branchRunId, carry, seeding, at } = seed
-  const db = new Database(dbPath)
+  const db = openDatabase(dbPath)
   db.run('PRAGMA busy_timeout=5000;')
 
   let carriedNames: readonly string[] = []
@@ -386,7 +390,7 @@ export const seedBranch = (seed: TBranchSeed): TBranchSeeded => {
     if (seeding === 'fork') {
       seedAgentSessions(db, sourceRunId, branchRunId)
     }
-  })()
+  })
   db.close()
 
   const sourceSessionDir = join(dataDir, 'sessions', sourceRunId)

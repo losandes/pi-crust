@@ -83,7 +83,7 @@ export class WorkspaceRegistry {
     const existing = this.open.get(workspace.label)
     if (existing) {
       // A tree can vanish — a worktree removed, a store relocated — after we
-      // opened it. bun:sqlite keeps serving reads against a deleted file's
+      // opened it. SQLite keeps serving reads against a deleted file's
       // inode until the fd closes, so the only reliable signal is checking
       // the path still names something, not waiting for a query to throw.
       if (existsSync(existing.path)) return existing

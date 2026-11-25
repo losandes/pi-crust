@@ -13,7 +13,7 @@
  * site that prints something.
  */
 
-import { basename } from 'node:path'
+import { programName } from '../../../../lib/system'
 
 /**
  * The recipe that runs a chain, named once.
@@ -33,7 +33,7 @@ const RECIPE_OF: Readonly<Record<string, string>> = {
 
 /** The recipe for an entry point path, or undefined if nothing runs it. */
 export const recipeOf = (script: string): string | undefined =>
-  RECIPE_OF[basename(script).replace(/\.ts$/, '')]
+  RECIPE_OF[programName(script)]
 
 /** A command and its arguments as the argv a person types: `crust <command> ...args`. */
 export const crustArgv = (

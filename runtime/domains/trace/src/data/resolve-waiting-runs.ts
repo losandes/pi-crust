@@ -1,5 +1,5 @@
-import { Database } from 'bun:sqlite'
 import { existsSync } from 'node:fs'
+import { openDatabase, type TDatabase } from '../../../../../lib/sqlite'
 
 export type TWaitingRun = Readonly<{
   run_id: string
@@ -16,7 +16,7 @@ export type TWaitingRun = Readonly<{
  * wrote. Probing first and substituting NULL is the same guard the
  * visualizer's `optionalColumn` applies.
  */
-const hasNameColumn = (db: Database): boolean =>
+const hasNameColumn = (db: TDatabase): boolean =>
   db
     .query<{ name: string }, []>('PRAGMA table_info(sessions)')
     .all()
@@ -31,7 +31,7 @@ const hasNameColumn = (db: Database): boolean =>
  */
 export const resolveWaitingRuns = (dbPath: string): readonly TWaitingRun[] => {
   if (!existsSync(dbPath)) return []
-  const db = new Database(dbPath, { readonly: true })
+  const db = openDatabase(dbPath, { readonly: true })
   try {
     const nameColumn = hasNameColumn(db) ? 'name' : 'NULL AS name'
     return db

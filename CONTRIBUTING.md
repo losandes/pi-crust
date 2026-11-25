@@ -45,6 +45,10 @@ To try a worktree's runtime without disturbing the one live runs use, set `CRUST
 CRUST_HOME=../pi-crust-wip crust run "..." --lifecycle sdlc
 ```
 
+## Building the Node package
+
+Run `mise run build:package` from the repository root to build the installable Node package in `dist/`. The build bundles JavaScript programs and the path-policy extension and copies the runtime configuration, prompts and installer templates. A linked clone does not use this build: `crust` still runs its TypeScript working copy under bun.
+
 ## Branching and pull requests
 
 `main` is always installable. Every change arrives through a short-lived branch and a pull request, including the maintainer's.

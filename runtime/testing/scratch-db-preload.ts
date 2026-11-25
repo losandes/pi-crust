@@ -39,6 +39,9 @@ process.env.CRUST_DB = join(
   'crust.db',
 )
 
+// An inherited run directory must not override each test's disposable configuration.
+delete process.env.CRUST_DATA_DIR
+
 // biome-ignore lint/plugin/no-object-mutation: isolate configuration from the package and developer machine before tests import commands
 process.env.CRUST_PACKAGE_CONFIG = join(
   tmpdir(),

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { PRUNE_USAGE } from '../domains/cli'
+
 /**
  * pi-crust Prune — forget old runs, on disk and in the trace together.
  *
@@ -18,9 +19,9 @@ import { PRUNE_USAGE } from '../domains/cli'
  * Exit codes: 0 done (or nothing to do), 2 usage.
  */
 
-import { Database } from 'bun:sqlite'
 import { rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { openDatabase } from '../../lib/sqlite'
 import { safeParseSettlement } from '../../lib/typedefs'
 import { loadConfig } from '../domains/config'
 import {
@@ -72,7 +73,7 @@ export const main = (argv: readonly string[]): number => {
   }
   const treeFilter = flag(argv, '--tree')
 
-  const db = new Database(dbPath)
+  const db = openDatabase(dbPath)
   db.run('PRAGMA busy_timeout=5000')
   // The sessions directory is a sibling of the database (1.8.3): a pooled
   // store relocated with the config's data_dir is followed with no change

@@ -1,14 +1,13 @@
 #!/usr/bin/env bun
-import { resolve } from 'node:path'
 import {
   planDispatch,
   RECIPE_DOCS,
   resolveCrustHome,
   resolveEnvFiles,
-  runBunScript,
+  runProgram,
 } from './domains/cli'
 import { resolveGitToplevel } from './domains/workspace'
-import type { TEnv } from './lib/system'
+import { PACKAGE_ROOT, PROGRAM_EXTENSION, type TEnv } from './lib/system'
 
 type TCliDeps = Readonly<{
   env: TEnv
@@ -17,18 +16,18 @@ type TCliDeps = Readonly<{
   envFiles: typeof resolveEnvFiles
   crustHome: typeof resolveCrustHome
   toplevel: typeof resolveGitToplevel
-  run: typeof runBunScript
+  run: typeof runProgram
   write: (text: string) => unknown
 }>
 
 const LIVE_DEPS: TCliDeps = {
   env: process.env,
   cwd: process.cwd(),
-  packageRoot: resolve(import.meta.dir, '..'),
+  packageRoot: PACKAGE_ROOT,
   envFiles: resolveEnvFiles,
   crustHome: resolveCrustHome,
   toplevel: resolveGitToplevel,
-  run: runBunScript,
+  run: runProgram,
   write: process.stderr.write.bind(process.stderr),
 }
 
@@ -39,7 +38,7 @@ export const main =
     const home = deps.crustHome(env.CRUST_HOME, deps.cwd, deps.packageRoot)
     if (home.kind === 'invalid') {
       deps.write(
-        `crust: CRUST_HOME names ${home.home}, which holds no pi-crust runtime: ${home.home}/runtime/cli.ts does not exist.\n`,
+        `crust: CRUST_HOME names ${home.home}, which holds no pi-crust runtime: ${home.home}/runtime/cli${PROGRAM_EXTENSION} does not exist.\n`,
       )
       return 2
     }

@@ -1,9 +1,10 @@
+import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTracer } from './trace-db'
-import { runHasLiveProcess } from './trace-reader'
+import { readTrace, runHasLiveProcess } from './trace-reader'
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-trace-reader-'))
 
@@ -94,3 +95,49 @@ test(
     expect(actual).toBe(false)
   },
 )
+
+for (const legacy of [false, true]) {
+  test(
+    [
+      `given a ${legacy ? 'legacy' : 'current'} trace`,
+      'when reading named, latest, missing and empty sessions',
+      'it should return all related rows and tolerate a missing name column',
+    ].join(', '),
+    () => {
+      // given
+      const dir = scratch()
+      const path = join(dir, 'crust.db')
+      const tracer = createTracer(path, join(dir, 'events.jsonl'))
+      tracer.sessionStart('run', 'engineer', 'run', 'label')
+      tracer.event({ run_id: 'run', type: 'log', payload: { value: 1 } })
+      tracer.close()
+      const writer = new Database(path)
+      try {
+        if (legacy) writer.exec('ALTER TABLE sessions DROP COLUMN name')
+        writer.run('INSERT INTO processes (run_id, pid) VALUES (?, ?)', [
+          'run',
+          null,
+        ])
+        // when
+        const named = readTrace(path, 'run')
+        const latest = readTrace(path)
+        // then
+        expect(named?.session.run_id).toBe('run')
+        expect(named?.session.name).toBe(legacy ? null : 'label')
+        expect(latest).toEqual(named)
+        expect(named?.events[0]?.type).toBe('log')
+        expect(named?.activityRuns).toEqual([])
+        expect(named?.envelopes).toEqual([])
+        expect(named?.gates).toEqual([])
+        expect(readTrace(path, 'missing')).toBeUndefined()
+        expect(readTrace(join(dir, 'missing.db'))).toBeUndefined()
+        expect(runHasLiveProcess(path, 'run')).toBe(false)
+        writer.exec('DELETE FROM sessions')
+        expect(readTrace(path)).toBeUndefined()
+      } finally {
+        writer.close()
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+}

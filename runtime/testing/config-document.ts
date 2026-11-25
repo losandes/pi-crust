@@ -1,3 +1,4 @@
+import { stringify } from 'smol-toml'
 /** Encode loaded-shape test fixtures as one repository TOML document. */
 import { z } from 'zod'
 import { isPlannerName, isTerminalName } from '../lib/contracts'
@@ -91,7 +92,7 @@ export const repositoryDocument = (
 }
 
 export const tomlText = (document: Readonly<Record<string, unknown>>): string =>
-  z.string().parse(Bun.TOML.stringify(document))
+  z.string().parse(stringify(document))
 
 export const configText = (
   document: Readonly<Record<string, unknown>>,

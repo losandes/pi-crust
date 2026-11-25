@@ -6,7 +6,7 @@ export {
   type TCrustHome,
 } from './src/data/resolve-crust-home'
 export { resolveEnvFiles } from './src/data/resolve-env-files'
-export { runBunScript, type TScriptRun } from './src/data/run-bun-script'
+export { runProgram, type TScriptRun } from './src/data/run-program'
 export { adviceCommand } from './src/use-cases/advice'
 export type { TCatalogue, TEntry } from './src/use-cases/catalogue'
 export { catalogueOf, renderCatalogue } from './src/use-cases/catalogue'
