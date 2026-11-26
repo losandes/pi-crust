@@ -145,6 +145,7 @@ for (const argv of [
   ['frobnicate'],
   ['approve'],
   ['run', 'anything', '--activities', 'scout'],
+  ['ship', 'do something'],
   ['sessions'],
 ] as const) {
   test.skipIf(SKIP_INTEGRATION)(
@@ -177,11 +178,47 @@ for (const argv of [
         expect(result.stderr).toContain('run-id')
         expect(result.stderr).toContain('usage:')
       }
-      if (['run', 'sessions'].includes(argv[0] ?? '')) {
+      if (argv[0] === 'ship') expect(result.stderr).toContain('crust ship:')
+      if (['run', 'ship', 'sessions'].includes(argv[0] ?? '')) {
         expect(result.stderr).toContain('git init')
         expect(result.stderr).toContain('crust init')
       }
       expect(readdirSync(f.root)).toEqual([])
+    },
+    INTEGRATION_TIMEOUT_MS,
+  )
+}
+
+for (const name of ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given ${name} inside a fresh Git repository`,
+      'when help or invalid input is requested',
+      'it should report usage or conflicts without starting a run',
+    ].join(', '),
+    () => {
+      // given
+      using f = fixture()
+      f.git()
+      // when
+      const missing = f.invoke([name])
+      const conflict = f.invoke([name, 'x', '--lifecycle', 'bugfix'])
+      const activities = f.invoke([name, 'x', '--activities', 'plan,build'])
+      const help = f.invoke(['help', name])
+      // then
+      expect(missing.status).toBe(2)
+      expect(missing.stderr).toContain('a prompt is required')
+      expect(missing.stderr).toContain(`usage: crust ${name} "`)
+      expect(conflict.status).toBe(2)
+      expect(conflict.stderr).toContain('conflicts with this command')
+      expect(activities.status).toBe(2)
+      expect(activities.stderr).toContain('cannot both be given')
+      expect(help.status).toBe(0)
+      expect(help.stdout).toContain(
+        `crust ${name} "<prompt or path/to/prompt.md>" [options]`,
+      )
+      expect(readdirSync(f.root)).toEqual(['.git'])
+      expect(existsSync(join(f.home, '.pi-crust/data'))).toBe(false)
     },
     INTEGRATION_TIMEOUT_MS,
   )

@@ -266,7 +266,21 @@ test(
         'pi-crust.toml',
       ]),
     ).toEqual(['.gitignore', 'pi-crust.toml'])
-    expect(rows).toHaveLength(26 + RECIPE_DOCS.length)
+    expect(rows).toHaveLength(
+      26 +
+        RECIPE_DOCS.length +
+        RECIPE_DOCS.filter((doc) => doc.run.lifecycle !== undefined).length,
+    )
+    for (const name of ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']) {
+      expect(
+        rows.find((row) => row.argv.length === 1 && row.argv[0] === name),
+      ).toEqual({
+        argv: [name],
+        status: 2,
+        env: {},
+        contains: ['a prompt is required', `usage: crust ${name} "`],
+      })
+    }
     for (const doc of RECIPE_DOCS) {
       expect(
         rows.some((row) => row.argv[0] === 'help' && row.argv[1] === doc.name),

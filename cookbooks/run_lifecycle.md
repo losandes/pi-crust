@@ -21,6 +21,8 @@ crust run "implement the plan" --activities build --run-id a1b2c3d4
 crust run "where is auth handled" --activities scout --config path/to/pi-crust.toml
 ```
 
+`crust gh-issue`, `crust ship`, `crust ship-plan` and `crust ship-outcome` each start the same run as `crust run "<prompt>" --lifecycle <name>`; every other Lifecycle and every Activity is reached through `crust run`.
+
 The prompt is inline text or a file path. Launch in the background so you can poll while it works; the `run_id` is printed on startup — capture it, everything else keys off it.
 
 ### Listen for configuration

@@ -170,21 +170,42 @@ const LONG_OF: ReadonlyMap<string, string> = new Map(
   ),
 )
 
-const usage = (recipe: string): string =>
-  `usage: crust ${recipe} "<prompt or path/to/prompt.md>" ` +
-  '<--lifecycle sdlc | --activities plan,build,review+code-review>\n' +
-  '  `crust list` prints the Lifecycles and Activities this repo offers.\n' +
+const optionalUsage =
   '  optional: [--config <path>] [--run-id <id>] [--commit false] ' +
   '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
   '[--model <activity>=<model>@<thinking>,...] ' +
   '[--trust-level 50] [--stream] [--resume] ' +
-  '[--handoff <path/{session_id}>] [--name <label>]\n' +
+  '[--handoff <path/{session_id}>] [--name <label>]\n'
+
+const envUsage =
+  'env: CRUST_CONFIG overrides the config path; --config still wins.'
+
+const shortUsage = (flags: readonly TFlagSpec[]): string =>
   '  short: ' +
-  FLAG_TABLE.filter((flag) => flag.short !== undefined)
+  flags
+    .filter((flag) => flag.short !== undefined)
     .map((flag) => `${flag.short} ${flag.long}`)
     .join(', ') +
-  '\n' +
-  'env: CRUST_CONFIG overrides the config path; --config still wins.'
+  '\n'
+
+const usage = (recipe: string): string =>
+  `usage: crust ${recipe} "<prompt or path/to/prompt.md>" ` +
+  '<--lifecycle sdlc | --activities plan,build,review+code-review>\n' +
+  '  `crust list` prints the Lifecycles and Activities this repo offers.\n' +
+  optionalUsage +
+  shortUsage(FLAG_TABLE) +
+  envUsage
+
+export const lifecycleUsage = (command: string, lifecycle: string): string =>
+  `usage: crust ${command} "<prompt or path/to/prompt.md>" [options]\n` +
+  `  runs the ${lifecycle} Lifecycle as this repository configures it; \`crust list\` describes it.\n` +
+  optionalUsage +
+  shortUsage(
+    FLAG_TABLE.filter(
+      (flag) => flag.long !== '--lifecycle' && flag.long !== '--activities',
+    ),
+  ) +
+  envUsage
 
 /**
  * argv with every short flag rewritten to its long name; values untouched.
@@ -263,7 +284,11 @@ export const handoffFlag = (value: string | undefined): string | undefined => {
  * because the overwhelmingly common case is a plural or a missing letter and
  * naming the fix is cheaper than reading a list of nine.
  */
-export const unknownFlag = (token: string, recipe: string): string => {
+export const unknownFlag = (
+  token: string,
+  recipe: string,
+  usageText = usage(recipe),
+): string => {
   const given = token.split('=')[0] ?? token
   const near = [...FLAGS, ...BOOLEAN_FLAGS, ...LONG_OF.keys()].find(
     (flag) =>
@@ -276,13 +301,14 @@ export const unknownFlag = (token: string, recipe: string): string => {
   return (
     `unknown flag: ${given}` +
     (near === undefined ? '' : ` — did you mean ${near}?`) +
-    `\n${usage(recipe)}`
+    `\n${usageText}`
   )
 }
 
 export const parseCli = (
   argv: readonly string[],
   recipe = RUN_RECIPE,
+  usageText = usage(recipe),
 ): TCliArgs => {
   type TParsed = Readonly<{
     flags: ReadonlyMap<string, string>
@@ -331,7 +357,7 @@ export const parseCli = (
        * dash it did not recognise, not only `--`.
        */
       if (token.startsWith('-')) {
-        throw new Error(unknownFlag(token, recipe))
+        throw new Error(unknownFlag(token, recipe, usageText))
       }
       return read(index + 1, {
         ...so_far,
@@ -348,7 +374,7 @@ export const parseCli = (
       : undefined
     const value = inline ?? argv[index + 1]
     if (value === undefined) {
-      throw new Error(`${matched} needs a value\n${usage(recipe)}`)
+      throw new Error(`${matched} needs a value\n${usageText}`)
     }
     return read(index + (inline === undefined ? 2 : 1), {
       ...so_far,
@@ -363,7 +389,7 @@ export const parseCli = (
 
   const prompt = positional[0]
   if (prompt === undefined || prompt === '') {
-    throw new Error(`a prompt is required\n${usage(recipe)}`)
+    throw new Error(`a prompt is required\n${usageText}`)
   }
 
   return {

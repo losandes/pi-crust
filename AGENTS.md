@@ -28,6 +28,7 @@ Read the listed record **before** producing code, prose or a plan for the matchi
 | Frontend layering — components, pages, domain boundaries                                                                        | `.claude/skills/adr/project-organization/frontend-domains-design-brief.md` |
 | Deciding *where* code belongs, splitting a module, or naming a new domain                                                       | `.claude/skills/adr/project-organization/1-domains-and-atomic-design.md`   |
 | Adding a file or directory under `runtime/`, or deciding between `runtime/commands/` and `runtime/domains/cli/`                 | `adr/runtime-layout/define-each-command-once-and-dispatch-from-cli.md`     |
+| Adding a `crust` command named after a Lifecycle or an Activity                                                                 | `adr/runtime-layout/name-commands-after-four-shipped-lifecycles.md`        |
 | What the npm package contains, how it is built and checked, and how a release publishes it                                      | `adr/runtime-layout/publish-the-built-package-on-release.md`               |
 | Repository-wide principles — KISS, single responsibility, avoiding redundancy                                                   | `.claude/skills/adr/conventions/conventions.md`                            |
 | Formatting a markdown document — wrapping, headings, lists, fences, tables                                                      | `.claude/skills/adr/conventions/format-markdown.md`                        |

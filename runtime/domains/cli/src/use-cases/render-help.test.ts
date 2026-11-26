@@ -4,6 +4,34 @@ import { renderCatalogue } from './catalogue'
 import { recipeDoc } from './recipe-docs'
 import { renderHelp } from './render-help'
 
+for (const name of ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']) {
+  test(
+    [
+      `given help for ${name}`,
+      'when rendered',
+      'it should show its usage and runnable examples',
+    ].join(', '),
+    () => {
+      // given
+      const topic = recipeDoc(name)
+      // when
+      const actual = renderHelp({
+        catalogue: undefined,
+        catalogueNote: undefined,
+        topic,
+      })
+      // then
+      expect(actual).toContain(
+        `crust ${name} "<prompt or path/to/prompt.md>" [options]`,
+      )
+      expect(actual).toContain(`crust ${name} "add a /health endpoint"`)
+      expect(actual).toContain(
+        `crust ${name} path/to/prompt.md --name "health endpoint"`,
+      )
+    },
+  )
+}
+
 const FABRICATED_CATALOGUE: TCatalogue = {
   lifecycles: [{ name: 'sdlc', detail: 'the whole lifecycle' }],
   planners: [{ name: 'operator', detail: 'chooses the chain and runs it' }],

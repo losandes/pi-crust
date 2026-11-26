@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import type { TSettlement } from '../../../../../lib/typedefs'
 import { ownProgram, type TEnv } from '../../../../lib/system'
 import type { TScriptRun } from '../data/run-program'
+import { lifecycleCommandArgs } from './lifecycle-command'
 import type { TRecipeDoc } from './recipe-docs'
 
 export type TDispatchInput = Readonly<{
@@ -48,6 +49,11 @@ export const planDispatch =
           `crust ${name}: ${input.cwd} is not inside a Git repository. Run \`git init\` to create one, then \`crust init\` to set pi-crust up in it.`,
         ),
       }
+    const pinned =
+      run.lifecycle === undefined
+        ? { status: 'ok' as const, data: [] }
+        : lifecycleCommandArgs(name, run.lifecycle, args)
+    if (pinned.status === 'error') return pinned
     const config = input.repositoryRoot
       ? input.env.CRUST_CONFIG?.trim() || 'pi-crust.toml'
       : devNull
@@ -58,6 +64,7 @@ export const planDispatch =
         args: [
           ...(run.config ? ['--config', config] : []),
           ...run.fixed,
+          ...pinned.data,
           ...(run.repeat ? args.slice(0, run.required.length) : []),
           ...args,
         ],

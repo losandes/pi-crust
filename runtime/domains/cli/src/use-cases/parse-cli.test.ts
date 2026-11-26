@@ -2,6 +2,7 @@ import { expect, spyOn, test } from 'bun:test'
 import { errorMessage, safeParseSettlement } from '../../../../../lib/typedefs'
 import {
   FLAG_TABLE,
+  lifecycleUsage,
   longFlagArgv,
   parseCli,
   runCli,
@@ -709,6 +710,72 @@ test(
     expect(actual).toEqual(argv)
   },
 )
+
+const SHIP_USAGE =
+  'usage: crust ship "<prompt or path/to/prompt.md>" [options]\n' +
+  '  runs the ship Lifecycle as this repository configures it; `crust list` describes it.\n' +
+  '  optional: [--config <path>] [--run-id <id>] [--commit false] [--scope <ref|range|path|glob>] [--approve-after identify,design] [--model <activity>=<model>@<thinking>,...] [--trust-level 50] [--stream] [--resume] [--handoff <path/{session_id}>] [--name <label>]\n' +
+  '  short: -id --run-id, -m --model, -c --commit, -n --name, -r --resume\n' +
+  'env: CRUST_CONFIG overrides the config path; --config still wins.'
+
+test(
+  [
+    'given ship usage',
+    'when rendered',
+    'it should describe the configured lifecycle and shared options exactly',
+  ].join(', '),
+  () => {
+    // given
+    // when
+    const actual = lifecycleUsage('ship', 'ship')
+    // then
+    expect(actual).toBe(SHIP_USAGE)
+  },
+)
+
+for (const name of ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']) {
+  test(
+    [
+      `given ${name} usage`,
+      'when rendered',
+      'it should ask only for a prompt and run options',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = lifecycleUsage(name, name)
+      // then
+      expect(actual.startsWith(`usage: crust ${name} "`)).toBe(true)
+      for (const selection of ['--lifecycle', '--activities', '-l ', '-a '])
+        expect(actual).not.toContain(selection)
+    },
+  )
+}
+
+for (const [argv, message] of [
+  [[], 'a prompt is required'],
+  [['x', '--frob'], 'unknown flag: --frob'],
+  [['x', '--name'], '--name needs a value'],
+] as const) {
+  test(
+    [
+      `given ship arguments ${argv.join(' ')}`,
+      'when parsing fails with custom usage',
+      'it should append that usage unchanged',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = safeParseSettlement(() =>
+        parseCli(argv, 'ship', lifecycleUsage('ship', 'ship')),
+      )
+      // then
+      expect(actual.status === 'error' && actual.error.message).toBe(
+        `${message}\n${SHIP_USAGE}`,
+      )
+    },
+  )
+}
 
 const MODEL_VALUE = 'build=openai/gpt-5@high,test=@high'
 const modelFlagForms = [

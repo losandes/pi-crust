@@ -182,6 +182,54 @@ test(
   },
 )
 
+for (const name of ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']) {
+  test(
+    [
+      `given the ${name} command`,
+      'when its documentation is read',
+      'it should describe running the lifecycle with two valid examples',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = recipeDoc(name)
+      // then
+      expect(actual).toBeDefined()
+      expect(actual?.group).toBe('running work')
+      expect(actual?.usage).toBe(
+        `crust ${name} "<prompt or path/to/prompt.md>" [options]`,
+      )
+      expect(actual?.examples).toHaveLength(2)
+    },
+  )
+}
+
+test(
+  [
+    'given the command table',
+    'when running-work entries are ordered',
+    'it should place lifecycle commands between run and operator',
+  ].join(', '),
+  () => {
+    // given
+    const names = RECIPE_DOCS.map((doc) => doc.name)
+    // when
+    const actual = names.slice(
+      names.indexOf('run'),
+      names.indexOf('operator') + 1,
+    )
+    // then
+    expect(actual).toEqual([
+      'run',
+      'gh-issue',
+      'ship',
+      'ship-plan',
+      'ship-outcome',
+      'operator',
+    ])
+  },
+)
+
 const usageCases = [
   { script: 'usage.ts (list)', usage: CATALOGUE_USAGE, recipes: ['list'] },
   {

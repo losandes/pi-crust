@@ -13,14 +13,14 @@ test(
   [
     'given use-cases/recipes',
     'when the recipes are read',
-    'it should name no Activity, because the registry is the only registry',
+    'it should reserve Activity names for pinned lifecycle commands',
   ].join(', '),
   () => {
     // given
-    const given = recipeNames()
+    const given = RECIPE_DOCS.filter((doc) => doc.run.lifecycle === undefined)
 
     // when
-    const actual = given.filter((name) => shippedActivities().includes(name))
+    const actual = given.filter((doc) => shippedActivities().includes(doc.name))
 
     // then
     expect(given.length).toBeGreaterThan(0)
@@ -32,18 +32,31 @@ test(
   [
     'given use-cases/recipes',
     'when the recipes are read',
-    'it should name no Lifecycle, which is how a new one needs no recipe',
+    'it should pin exactly the named shipped lifecycles and reserve every other name',
   ].join(', '),
   () => {
     // given
-    const given = recipeNames()
+    const given = RECIPE_DOCS
 
     // when
-    const actual = given.filter((name) => shippedLifecycles().includes(name))
+    const pinned = given.filter((doc) => doc.run.lifecycle !== undefined)
+    const unpinned = given.filter((doc) => doc.run.lifecycle === undefined)
 
     // then
-    expect(shippedLifecycles().length).toBeGreaterThan(0)
-    expect(actual).toEqual([])
+    expect(
+      unpinned.filter((doc) => shippedLifecycles().includes(doc.name)),
+    ).toEqual([])
+    expect(pinned.map((doc) => doc.name).toSorted()).toEqual([
+      'gh-issue',
+      'ship',
+      'ship-outcome',
+      'ship-plan',
+    ])
+    for (const doc of pinned) {
+      expect(doc.run.lifecycle).toBe(doc.name)
+      expect(doc.run.script).toBe('runtime/commands/run.ts')
+      expect(shippedLifecycles()).toContain(doc.run.lifecycle)
+    }
   },
 )
 
