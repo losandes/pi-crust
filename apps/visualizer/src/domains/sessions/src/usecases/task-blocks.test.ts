@@ -255,7 +255,7 @@ for (const [moment, description] of [
   [undefined, 'repository task'],
   ['unknown', 'repository task'],
   ['toString', 'repository task'],
-]) {
+] as const) {
   test(
     [
       `given task moment ${moment ?? 'missing'}`,
