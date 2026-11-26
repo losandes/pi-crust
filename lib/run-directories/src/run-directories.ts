@@ -25,13 +25,20 @@ export const sessionsDirIn = (dataDir: string): string =>
 const tableExists = (db: TDatabase, name: string): boolean =>
   db
     .query(
-      'SELECT m.name FROM sqlite_master AS m WHERE m.name = ? AND m.type = ?',
+      `SELECT
+  m.name
+FROM sqlite_master AS m
+WHERE m.name = ?
+  AND m.type = ?`,
     )
     .get(name, 'table') !== undefined
 const rowFor = (db: TDatabase, runId: string): unknown =>
   db
     .query(
-      'SELECT r.repository_dir FROM run_directories AS r WHERE r.run_id = ?',
+      `SELECT
+  r.repository_dir
+FROM run_directories AS r
+WHERE r.run_id = ?`,
     )
     .get(runId)
 const pathFromRow = (row: unknown): readonly string[] | undefined => {
@@ -89,14 +96,23 @@ export const forgetRunDirectory =
     const db = openDatabase(store.dbPath)
     try {
       if (tableExists(db, 'run_directories'))
-        db.run('DELETE FROM run_directories WHERE run_id = ?', [runId])
+        db.run(
+          `DELETE FROM run_directories
+WHERE run_id = ?`,
+          [runId],
+        )
     } finally {
       db.close()
     }
   }
 const grouping = (db: TDatabase, path: string): boolean =>
   db
-    .query('SELECT r.path FROM repository_directories AS r WHERE r.path = ?')
+    .query(
+      `SELECT
+  r.path
+FROM repository_directories AS r
+WHERE r.path = ?`,
+    )
     .get(path) !== undefined
 const directoryExists = (path: string): boolean =>
   settledOr(
@@ -157,7 +173,12 @@ const decideClaim = (
       (existsSync(dir) ||
         (tableExists(db, 'sessions') &&
           db
-            .query('SELECT s.run_id FROM sessions AS s WHERE s.run_id = ?')
+            .query(
+              `SELECT
+  s.run_id
+FROM sessions AS s
+WHERE s.run_id = ?`,
+            )
             .get(id) !== undefined))
     )
   })
@@ -173,11 +194,25 @@ const decideClaim = (
     return fail(new Error(`run '${runId}' conflicts with directory ${target}`))
   for (const prefix of prefixes)
     db.run(
-      'INSERT INTO repository_directories (path) VALUES (?) ON CONFLICT(path) DO NOTHING',
+      `INSERT INTO repository_directories (
+  path
+)
+VALUES (
+  ?
+)
+ON CONFLICT(path) DO NOTHING`,
       [prefix.join('/')],
     )
   db.run(
-    'INSERT INTO run_directories (run_id, repository_dir) VALUES (?, ?) ON CONFLICT(run_id) DO NOTHING',
+    `INSERT INTO run_directories (
+  run_id,
+  repository_dir
+)
+VALUES (
+  ?,
+  ?
+)
+ON CONFLICT(run_id) DO NOTHING`,
     [runId, repositoryPath.join('/')],
   )
   return answerRow(store, runId, rowFor(db, runId))

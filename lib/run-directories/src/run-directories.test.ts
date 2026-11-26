@@ -42,64 +42,256 @@ const sql = (store: TRunStore, statements: string) => {
   }
 }
 
+for (const databaseExists of [false, true]) {
+  for (const operation of ['resolve', 'registered', 'taken'] as const) {
+    test(
+      [
+        `given an unregistered run with databaseExists=${databaseExists}`,
+        `when performing the ${operation} lookup`,
+        'it should report the unregistered placement',
+      ].join(', '),
+      () => {
+        // given
+        const { store, clean } = scratch()
+        try {
+          if (databaseExists)
+            sql(store, 'CREATE TABLE unrelated (id TEXT PRIMARY KEY);')
+          const lookup = {
+            resolve: () => resolveRunDirectory(store)('one'),
+            registered: () => registeredRepositoryPath(store)('one'),
+            taken: () => runIdTaken(store)('one'),
+          }
+          const expected = {
+            resolve: join(store.sessionsDir, 'one'),
+            registered: undefined,
+            taken: false,
+          }
+
+          // when
+          const actual = lookup[operation]()
+
+          // then
+          expect(actual).toEqual(expected[operation])
+          expect(existsSync(store.dbPath)).toBe(databaseExists)
+        } finally {
+          clean()
+        }
+      },
+    )
+  }
+
+  test(
+    [
+      `given no registry table with databaseExists=${databaseExists}`,
+      'when forgetting an unknown run',
+      'it should leave the store uninitialised',
+    ].join(', '),
+    () => {
+      // given
+      const { store, clean } = scratch()
+      try {
+        if (databaseExists)
+          sql(store, 'CREATE TABLE unrelated (id TEXT PRIMARY KEY);')
+
+        // when
+        forgetRunDirectory(store)('one')
+        const tables = databaseExists ? openDatabase(store.dbPath) : undefined
+        const names = tables
+          ?.query("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .all()
+        tables?.close()
+
+        // then
+        expect(existsSync(store.dbPath)).toBe(databaseExists)
+        expect(names).toEqual(
+          databaseExists ? [{ name: 'unrelated' }] : undefined,
+        )
+      } finally {
+        clean()
+      }
+    },
+  )
+}
+
 test(
   [
-    'given a missing registry',
-    'when reading, claiming and forgetting nested runs',
-    'it should resolve without creating runs and keep grouping reservations',
+    'given a new run beneath a nested owner',
+    'when claiming its directory',
+    'it should reserve its placement without creating the run directory',
   ].join(', '),
   () => {
     // given
     const { store, clean } = scratch()
     try {
-      // when, then
-      expect(resolveRunDirectory(store)('one')).toBe(
-        join(store.sessionsDir, 'one'),
-      )
-      expect(runIdTaken(store)('one')).toBe(false)
-      forgetRunDirectory(store)('one')
-      expect(existsSync(store.dbPath)).toBe(false)
-      sql(store, 'CREATE TABLE unrelated (id TEXT PRIMARY KEY);')
-      expect(registeredRepositoryPath(store)('one')).toBeUndefined()
-      forgetRunDirectory(store)('one')
-      expect(
-        claimRunDirectory(store)('one', ['group', 'subgroup', 'repo']),
-      ).toEqual({
-        status: 'ok',
-        data: join(store.sessionsDir, 'group', 'subgroup', 'repo', 'one'),
-      })
-      expect(existsSync(store.sessionsDir)).toBe(false)
-      expect(runIdTaken(store)('one')).toBe(true)
-      expect(registeredRepositoryPath(store)('one')).toEqual([
+      // when
+      const actual = claimRunDirectory(store)('one', [
         'group',
         'subgroup',
         'repo',
       ])
-      expect(resolveRunDirectory(store)('one')).toBe(
-        join(store.sessionsDir, 'group', 'subgroup', 'repo', 'one'),
-      )
-      expect(claimRunDirectory(store)('one', ['other', 'repo'])).toEqual({
+
+      // then
+      expect(actual).toEqual({
         status: 'ok',
-        data: resolveRunDirectory(store)('one'),
+        data: join(store.sessionsDir, 'group', 'subgroup', 'repo', 'one'),
       })
+      expect(existsSync(store.sessionsDir)).toBe(false)
+    } finally {
+      clean()
+    }
+  },
+)
+
+for (const operation of ['resolve', 'registered', 'taken'] as const) {
+  test(
+    [
+      'given a registered nested run',
+      `when performing the ${operation} lookup`,
+      'it should report the registered placement',
+    ].join(', '),
+    () => {
+      // given
+      const { store, clean } = scratch()
+      try {
+        const claimed = claimRunDirectory(store)('one', [
+          'group',
+          'subgroup',
+          'repo',
+        ])
+        if (claimed.status === 'error') throw claimed.error
+        const lookup = {
+          resolve: () => resolveRunDirectory(store)('one'),
+          registered: () => registeredRepositoryPath(store)('one'),
+          taken: () => runIdTaken(store)('one'),
+        }
+        const expected = {
+          resolve: claimed.data,
+          registered: ['group', 'subgroup', 'repo'],
+          taken: true,
+        }
+
+        // when
+        const actual = lookup[operation]()
+
+        // then
+        expect(actual).toEqual(expected[operation])
+      } finally {
+        clean()
+      }
+    },
+  )
+}
+
+test(
+  [
+    'given a registered run',
+    'when claiming it with another repository path',
+    'it should keep the original directory',
+  ].join(', '),
+  () => {
+    // given
+    const { store, clean } = scratch()
+    try {
+      const first = claimRunDirectory(store)('one', [
+        'group',
+        'subgroup',
+        'repo',
+      ])
+      if (first.status === 'error') throw first.error
+
+      // when
+      const actual = claimRunDirectory(store)('one', ['other', 'repo'])
+
+      // then
+      expect(actual).toEqual(first)
+    } finally {
+      clean()
+    }
+  },
+)
+
+test(
+  [
+    'given a registered nested run',
+    'when forgetting its directory',
+    'it should remove only the run registration',
+  ].join(', '),
+  () => {
+    // given
+    const { store, clean } = scratch()
+    try {
+      const claimed = claimRunDirectory(store)('one', [
+        'group',
+        'subgroup',
+        'repo',
+      ])
+      if (claimed.status === 'error') throw claimed.error
+
+      // when
       forgetRunDirectory(store)('one')
-      expect(runIdTaken(store)('one')).toBe(false)
+      const taken = runIdTaken(store)('one')
       const db = openDatabase(store.dbPath)
-      expect(
-        db.query('SELECT path FROM repository_directories ORDER BY path').all(),
-      ).toEqual([
+      const groups = db
+        .query('SELECT path FROM repository_directories ORDER BY path')
+        .all()
+      db.close()
+
+      // then
+      expect(taken).toBe(false)
+      expect(groups).toEqual([
         { path: 'group' },
         { path: 'group/subgroup' },
         { path: 'group/subgroup/repo' },
       ])
-      db.close()
+    } finally {
+      clean()
+    }
+  },
+)
+
+test(
+  [
+    'given an existing flat run directory',
+    'when checking whether its id is taken',
+    'it should reserve that id',
+  ].join(', '),
+  () => {
+    // given
+    const { store, clean } = scratch()
+    try {
       mkdirSync(join(store.sessionsDir, 'flat'), { recursive: true })
-      expect(runIdTaken(store)('flat')).toBe(true)
-      expect(claimRunDirectory(store)('flat', ['other', 'repo'])).toEqual({
-        status: 'ok',
-        data: join(store.sessionsDir, 'flat'),
-      })
-      expect(registeredRepositoryPath(store)('flat')).toBeUndefined()
+
+      // when
+      const actual = runIdTaken(store)('flat')
+
+      // then
+      expect(actual).toBe(true)
+    } finally {
+      clean()
+    }
+  },
+)
+
+test(
+  [
+    'given an existing flat run directory',
+    'when claiming it with a repository path',
+    'it should join the flat directory without registering it',
+  ].join(', '),
+  () => {
+    // given
+    const { store, clean } = scratch()
+    try {
+      const flat = join(store.sessionsDir, 'flat')
+      mkdirSync(flat, { recursive: true })
+
+      // when
+      const actual = claimRunDirectory(store)('flat', ['other', 'repo'])
+      const registered = registeredRepositoryPath(store)('flat')
+
+      // then
+      expect(actual).toEqual({ status: 'ok', data: flat })
+      expect(registered).toBeUndefined()
     } finally {
       clean()
     }

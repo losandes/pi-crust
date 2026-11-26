@@ -618,118 +618,275 @@ test.skipIf(
   20_000,
 )
 
-test.skipIf(
+const SKIP_PLACEMENT_INTEGRATION =
   !process.env.RUN_INTEGRATION_TESTS ||
-    process.env.RUN_INTEGRATION_TESTS === 'false',
-)(
+  process.env.RUN_INTEGRATION_TESTS === 'false'
+
+const placementFixture = async (withLinked = false) => {
+  const { spawnSync } = await import('node:child_process')
+  const { registeredRepositoryPath, runIdTaken, sessionsDirIn } = await import(
+    '../../../../../lib/run-directories'
+  )
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'crust-placement-')))
+  const primary = join(root, 'notes')
+  const linked = join(root, 'linked')
+  const dataDir = join(root, 'data')
+  const dbPath = join(dataDir, 'crust.db')
+  const store = { dbPath, sessionsDir: sessionsDirIn(dataDir) }
+  mkdirSync(primary)
+  const git = (...args: string[]) =>
+    expect(spawnSync('git', ['-C', primary, ...args]).status).toBe(0)
+  git('init')
+  git(
+    '-c',
+    'user.name=tester',
+    '-c',
+    'user.email=test@example.com',
+    '-c',
+    'commit.gpgsign=false',
+    'commit',
+    '--allow-empty',
+    '-m',
+    'fixture',
+  )
+  if (withLinked) git('worktree', 'add', '-b', 'linked', linked)
+  const entry = join(import.meta.dir, 'start-session.ts')
+  const contracts = resolve(
+    import.meta.dir,
+    '../../../../lib/contracts/index.ts',
+  )
+  const start = (cwd: string, id?: string) => {
+    const code = `import {startSession} from ${JSON.stringify(entry)}; import {crustConfigSchema} from ${JSON.stringify(contracts)}; const cfg = crustConfigSchema.parse({defaults:{data_dir:${JSON.stringify(dataDir)}},observability:{},agents:[]}); const run=startSession(cfg, ${JSON.stringify(id)}); run.tracer.sessionFinish(run.runId,true); run.tracer.close(); console.log(JSON.stringify({id:run.runId, dir:run.sessionDir}))`
+    return spawnSync('bun', ['-e', code], {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, CRUST_DATA_DIR: dataDir, CRUST_DB: dbPath },
+    })
+  }
+  const successful = (
+    cwd: string,
+    id?: string,
+  ): { id: string; dir: string } => {
+    const result = start(cwd, id)
+    expect(result.status, result.stderr).toBe(0)
+    return JSON.parse(result.stdout.trim().split('\n').at(-1) ?? '{}')
+  }
+  return {
+    primary,
+    linked,
+    store,
+    git,
+    start,
+    successful,
+    registered: registeredRepositoryPath(store),
+    taken: runIdTaken(store),
+    [Symbol.dispose]: () => rmSync(root, { recursive: true, force: true }),
+  }
+}
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
   [
-    'given origin, local, linked and legacy repositories',
-    'when starting and rejoining runs',
-    'it should persist placement, retain legacy data and refuse overlap',
+    'given an origin with a nested owner',
+    'when starting a run',
+    'it should place every run file beneath that repository path',
   ].join(', '),
   async () => {
-    using _terminal = captureTerminal()
     // given
-    const { spawnSync } = await import('node:child_process')
+    using fixture = await placementFixture()
+    fixture.git(
+      'remote',
+      'add',
+      'origin',
+      'git@gitlab.example.com:group/subgroup/project.git',
+    )
+
+    // when
+    const run = fixture.successful(fixture.primary, 'origin01')
+
+    // then
+    expect(run.dir).toBe(
+      join(fixture.store.sessionsDir, 'group', 'subgroup', 'project', run.id),
+    )
+    for (const file of [
+      'events.jsonl',
+      'handoff-dir',
+      'invocation.json',
+      'context_handoff',
+    ])
+      expect(existsSync(join(run.dir, file))).toBe(true)
+    expect(existsSync(join(fixture.store.sessionsDir, run.id))).toBe(false)
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an origin repository with a run and a linked worktree',
+    'when starting a run in the linked worktree',
+    'it should land beside the primary clone run',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture(true)
+    fixture.git(
+      'remote',
+      'add',
+      'origin',
+      'git@gitlab.example.com:group/subgroup/project.git',
+    )
+    const primary = fixture.successful(fixture.primary, 'origin01')
+
+    // when
+    const linked = fixture.successful(fixture.linked, 'origin02')
+
+    // then
+    expect(linked.dir).toBe(join(primary.dir, '..', linked.id))
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a registered run whose origin has changed',
+    'when starting with its pinned id',
+    'it should keep the recorded directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    fixture.git(
+      'remote',
+      'add',
+      'origin',
+      'git@gitlab.example.com:group/subgroup/project.git',
+    )
+    const first = fixture.successful(fixture.primary, 'origin01')
+    fixture.git(
+      'remote',
+      'set-url',
+      'origin',
+      'git@github.com:changed/name.git',
+    )
+
+    // when
+    const joined = fixture.successful(fixture.primary, first.id)
+
+    // then
+    expect(joined.dir).toBe(first.dir)
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an existing flat run directory',
+    'when starting with its pinned id',
+    'it should join in place without registering a repository path',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    const { writeFileSync, readFileSync } = await import('node:fs')
+    const flat = join(fixture.store.sessionsDir, 'legacy01')
+    mkdirSync(flat, { recursive: true })
+    writeFileSync(join(flat, 'keep'), 'legacy')
+
+    // when
+    const joined = fixture.successful(fixture.primary, 'legacy01')
+    const registered = fixture.registered('legacy01')
+
+    // then
+    expect(joined.dir).toBe(flat)
+    expect(registered).toBeUndefined()
+    expect(readFileSync(join(flat, 'keep'), 'utf8')).toBe('legacy')
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a primary clone named notes with no origin',
+    'when starting an unpinned run',
+    'it should use the stable local name-and-hash directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+
+    // when
+    const run = fixture.successful(fixture.primary)
+
+    // then
+    expect(run.dir).toMatch(/\/local\/notes-[a-f0-9]{8}\//)
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a local repository with a run and a linked worktree',
+    'when starting an unpinned run in the linked worktree',
+    'it should share the primary clone local directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture(true)
+    const primary = fixture.successful(fixture.primary)
+
+    // when
+    const linked = fixture.successful(fixture.linked)
+
+    // then
+    expect(join(primary.dir, '..')).toBe(join(linked.dir, '..'))
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a registered id and a flat id offered before an available id',
+    'when minting a fresh session id against the store',
+    'it should skip both occupied ids',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    const registered = fixture.successful(fixture.primary, 'origin01')
+    mkdirSync(join(fixture.store.sessionsDir, 'legacy01'))
+    const offered = (function* () {
+      yield registered.id
+      yield 'legacy01'
+      return 'available'
+    })()
+
+    // when
+    const actual = freshSessionId(() => offered.next().value, fixture.taken)
+
+    // then
+    expect(actual).toBe('available')
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an origin owner matching an earlier flat run id',
+    'when starting a new run in that repository',
+    'it should refuse without changing the earlier run directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
     const { writeFileSync } = await import('node:fs')
-    const { registeredRepositoryPath, runIdTaken, sessionsDirIn } =
-      await import('../../../../../lib/run-directories')
-    const root = realpathSync(mkdtempSync(join(tmpdir(), 'crust-placement-')))
-    const primary = join(root, 'notes')
-    const linked = join(root, 'linked')
-    const dataDir = join(root, 'data')
-    const dbPath = join(dataDir, 'crust.db')
-    const store = { dbPath, sessionsDir: sessionsDirIn(dataDir) }
-    mkdirSync(primary)
-    const git = (...args: string[]) =>
-      expect(spawnSync('git', ['-C', primary, ...args]).status).toBe(0)
-    git('init')
-    git(
-      '-c',
-      'user.name=tester',
-      '-c',
-      'user.email=test@example.com',
-      '-c',
-      'commit.gpgsign=false',
-      'commit',
-      '--allow-empty',
-      '-m',
-      'fixture',
-    )
-    git('worktree', 'add', '-b', 'linked', linked)
-    const entry = join(import.meta.dir, 'start-session.ts')
-    const contracts = resolve(
-      import.meta.dir,
-      '../../../../lib/contracts/index.ts',
-    )
-    const start = (cwd: string, id?: string) => {
-      const code = `import {startSession} from ${JSON.stringify(entry)}; import {crustConfigSchema} from ${JSON.stringify(contracts)}; const cfg = crustConfigSchema.parse({defaults:{data_dir:${JSON.stringify(dataDir)}},observability:{},agents:[]}); const run=startSession(cfg, ${JSON.stringify(id)}); run.tracer.sessionFinish(run.runId,true); run.tracer.close(); console.log(JSON.stringify({id:run.runId, dir:run.sessionDir}))`
-      return spawnSync('bun', ['-e', code], {
-        cwd,
-        encoding: 'utf8',
-        env: { ...process.env, CRUST_DATA_DIR: dataDir, CRUST_DB: dbPath },
-      })
-    }
-    const successful = (
-      cwd: string,
-      id?: string,
-    ): { id: string; dir: string } => {
-      const result = start(cwd, id)
-      expect(result.status).toBe(0)
-      return JSON.parse(result.stdout.trim().split('\n').at(-1) ?? '{}')
-    }
-    try {
-      // when
-      git(
-        'remote',
-        'add',
-        'origin',
-        'git@gitlab.example.com:group/subgroup/project.git',
-      )
-      const first = successful(primary, 'origin01')
-      const second = successful(linked, 'origin02')
-      // then
-      expect(first.dir).toBe(
-        join(store.sessionsDir, 'group', 'subgroup', 'project', first.id),
-      )
-      expect(second.dir).toBe(join(first.dir, '..', second.id))
-      for (const file of [
-        'events.jsonl',
-        'handoff-dir',
-        'invocation.json',
-        'context_handoff',
-      ])
-        expect(existsSync(join(first.dir, file))).toBe(true)
-      expect(existsSync(join(store.sessionsDir, first.id))).toBe(false)
-      git('remote', 'set-url', 'origin', 'git@github.com:changed/name.git')
-      expect(successful(primary, first.id).dir).toBe(first.dir)
-      const flat = join(store.sessionsDir, 'legacy01')
-      mkdirSync(flat)
-      writeFileSync(join(flat, 'keep'), 'legacy')
-      expect(successful(primary, 'legacy01').dir).toBe(flat)
-      expect(registeredRepositoryPath(store)('legacy01')).toBeUndefined()
-      git('remote', 'remove', 'origin')
-      const local = successful(primary)
-      const localLinked = successful(linked)
-      expect(local.dir).toMatch(/\/local\/notes-[a-f0-9]{8}\//)
-      expect(join(local.dir, '..')).toBe(join(localLinked.dir, '..'))
-      const offered = [first.id, 'legacy01', 'available']
-      let cursor = 0
-      expect(
-        freshSessionId(
-          () => offered[cursor++] ?? 'available',
-          runIdTaken(store),
-        ),
-      ).toBe('available')
-      const before = readdirSync(flat, { recursive: true })
-      git('remote', 'add', 'origin', 'git@github.com:legacy01/tools.git')
-      const refused = start(primary, 'refused1')
-      expect(refused.status).not.toBe(0)
-      expect(refused.stderr).toContain('belongs to run')
-      expect(readdirSync(flat, { recursive: true })).toEqual(before)
-      expect(registeredRepositoryPath(store)('refused1')).toBeUndefined()
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
+    const flat = join(fixture.store.sessionsDir, 'legacy01')
+    mkdirSync(flat, { recursive: true })
+    writeFileSync(join(flat, 'keep'), 'legacy')
+    fixture.successful(fixture.primary, 'legacy01')
+    const before = readdirSync(flat, { recursive: true })
+    fixture.git('remote', 'add', 'origin', 'git@github.com:legacy01/tools.git')
+
+    // when
+    const refused = fixture.start(fixture.primary, 'refused1')
+    const registered = fixture.registered('refused1')
+    const after = readdirSync(flat, { recursive: true })
+
+    // then
+    expect(refused.status).not.toBe(0)
+    expect(refused.stderr).toContain('belongs to run')
+    expect(after).toEqual(before)
+    expect(registered).toBeUndefined()
   },
 )
