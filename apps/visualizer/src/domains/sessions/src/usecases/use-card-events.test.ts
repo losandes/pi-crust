@@ -20,9 +20,13 @@ const event = (rowid: number): EventRow => ({
   ended_at: '2026-11-26T00:00:01Z',
 })
 
-const response = (events: readonly EventRow[], cursor = 0, hasMore = false) =>
+const response = (
+  events: readonly EventRow[],
+  cursor = 0,
+  hasMore = false,
+): ReturnType<typeof fetchEvents> =>
   Promise.resolve({
-    events,
+    events: [...events],
     cursor: events.at(-1)?.rowid ?? cursor,
     has_more: hasMore,
   })
