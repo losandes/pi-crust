@@ -24,7 +24,20 @@ Install with Node 22.19.0 or later (bun is not required):
 npm install -g @polyn/pi-crust
 ```
 
-Cloning, `bun install` and `bun link` are the [contributor's path](CONTRIBUTING.md#running-your-clone-as-crust). From a target repository's root, run `crust init`; refresh with `crust update` or `crust init --refresh`. Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. It creates no configuration directory or prompt files and never overwrites an existing repository TOML file. Package and machine defaults are read on every command, without re-stamping.
+Cloning, `bun install` and `bun link` are the [contributor's path](CONTRIBUTING.md#running-your-clone-as-crust). Agents run through pi, which must be on your `PATH` (or named by `PI_PATH`).
+
+Then set up each repository from its root:
+
+```sh
+crust init      # writes pi-crust.toml, .env.pi-crust.example, and a .gitignore entry
+crust config    # every effective setting, and the file or variable it came from
+```
+
+- **Credentials** go in `.env` or `.env.local` at the repository root. `.env.pi-crust.example` lists the keys; you need the key for each provider your models name. The package default model is `anthropic/claude-haiku-5-5`, which needs only `ANTHROPIC_API_KEY`
+- **Models** are usually a machine choice, made once for every repository in `~/.pi-crust/config/crust.activities.toml`
+- **Repository commands**, such as lint and test, go under `[tasks.<name>]` in `pi-crust.toml`, so they run on the files an Activity changes before its work is accepted. The template declares none until you uncomment one
+
+[Configuration](#configuration) covers the layers, what `pi-crust.toml` may hold, and what `crust init` does and does not touch.
 
 ```bash
 crust please                          # answer questions, get the command
@@ -206,6 +219,76 @@ Opening an Activity Run shows what the agent was thinking, turn by turn, and eve
 **Declare your [tasks](references/config.md#tasks).** Put repository commands under `[tasks.<name>]` in `pi-crust.toml`. The installed examples are commented out and declare no tasks until you provide real commands. Matching `change` tasks verify changed files before the Activity's work is accepted and send failures back to the Activity that changed them.
 
 **Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each Activity.
+
+## Configuration
+
+Every command reads three TOML layers. A later layer overrides an earlier one field by field, and an array replaces the earlier array whole.
+
+| Layer      | Location                                   | Holds                                                                        |
+| ---------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
+| Package    | `runtime/config/` in the installed package | The shipped Activities, Lifecycles and defaults                              |
+| Machine    | `~/.pi-crust/config/`                      | Your choices for every repository on this machine, such as models and themes |
+| Repository | `pi-crust.toml` at the repository root     | Tasks, and anything this repository needs to differ                          |
+
+The package and machine directories each hold `crust.config.toml`, `crust.activities.toml` and `crust.lifecycles.toml`; a missing file contributes nothing. A command-line flag beats an environment variable, which beats all three. `crust config` prints the effective value of each setting with the file or variable it came from.
+
+### `crust init`
+
+`crust init` writes exactly three things on a fresh setup: `pi-crust.toml` when it is absent, the credential example `.env.pi-crust.example`, and a `.pi-crust/data/` entry in `.gitignore`. It never overwrites an existing `pi-crust.toml`, writes nothing under the repository's `.pi-crust/`, creates no configuration directory or prompt files, and leaves an existing `justfile` untouched. Package and machine defaults are read on every command, so `crust update` (or `crust init --refresh`) is needed only to refresh what setup wrote, never to pick up a new release's defaults.
+
+Run data does not live in the repository. The trace database and session directories go to `~/.pi-crust/data/`, shared by every repository on the machine, unless `defaults.data_dir` says otherwise.
+
+### `pi-crust.toml`
+
+The template is comments only, so it parses to an empty document. A repository adds its tasks and the settings that differ from the other layers:
+
+```toml
+[tasks.lint]
+when = [{ on = "change" }]
+match = ["**/*.ts", "**/*.tsx"]
+run = "<your lint command> {{changed_paths}}"
+
+[tasks.verify-all]
+when = [{ on = "deliver" }]
+run = "<your full verification command>"
+
+[activities.build]
+attempts = 3
+
+[terminal.gh-pull-request]
+delivery = { base = "develop", draft = true }
+
+[lifecycles.quick]
+description = "Plan and build."
+stages = [
+  { name = "work", serial = ["plan", "build"] },
+]
+```
+
+A task runs on one of four triggers: `on = "change"` after an Activity changes files that match, `on = "deliver"` once before the branch is delivered, and `before` or `after` a named Activity's Stage. A failing `change` task goes back to the Activity whose change it judged. `crust verify` runs the `change` tasks over your working tree without starting an agent. Tasks are accepted only in `pi-crust.toml`.
+
+`pi-crust.toml` and `.env*` files are protected by default: an Activity's attempt to read or write them is refused before the tool call runs, so it cannot rewrite the tasks that judge it or read your credentials. Matching paths inside a `bash` command is best-effort.
+
+### Models
+
+Write every model as `provider/model-id`, as `pi --list-models` lists it. Set one default, then override the Activities where a different model earns its cost:
+
+```toml
+# ~/.pi-crust/config/crust.config.toml
+[defaults]
+model = "anthropic/claude-opus-5-5"
+thinking = "high"
+```
+
+```toml
+# ~/.pi-crust/config/crust.activities.toml
+[activities.build]
+model = "openai/gpt-6.1-sol"
+```
+
+The entry keeps everything else the package declares for it. `--model build=<model>@<thinking>` overrides one run.
+
+The full reference, including every field, write boundaries, path protection, prompts and the trust dial, is [references/config.md](references/config.md).
 
 ## License
 
