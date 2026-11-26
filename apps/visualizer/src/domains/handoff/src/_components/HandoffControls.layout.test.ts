@@ -86,6 +86,7 @@ const withComponents = (
     },
     async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
+      page.setDefaultNavigationTimeout(10_000)
       // Every API request is intercepted: no live run or database is touched.
       await page.route('**/api/**', (route) =>
         new URL(route.request().url()).pathname.includes('/handoff/')
