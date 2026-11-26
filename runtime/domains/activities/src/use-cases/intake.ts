@@ -14,6 +14,12 @@
  * rather than a regression trigger; a `met: true` with no evidence is the
  * self-assessment this whole design exists to distrust.
  *
+ * The summary is deliberately not pattern-matched for leftover template text.
+ * A placeholder and a run's subject matter are the same characters — a `TODO`
+ * the request asks to address, a `<host>/<repo>` template a requirement quotes
+ * — and every pattern tried rejected correct summaries. Whether a summary is
+ * an unfilled template is the receiving agent's judgement.
+ *
  * The JUDGEMENT half belongs to the receiving agent, as its first act inside
  * its own activityRun, and lives in the prompts. It is not here and must not be: the
  * question "could I proceed without inventing something" is only honestly
@@ -25,24 +31,6 @@
 
 import type { TEnvelopeBase } from '../../../../lib/contracts'
 import { contextEnvelopeSchema } from '../../../../lib/contracts'
-
-/**
- * Text that says an agent left the template in place.
- *
- * Every Activity's `## Report` block spells an unfilled value one way: angle
- * brackets around prose — `<one sentence: what is happening and why>`.
- * Matching that shape covers package, machine and repository-defined Activities
- * without enumerating the literal placeholder prose in their prompt directories.
- *
- * Whitespace inside the brackets is what separates a placeholder from code a
- * summary legitimately quotes: `Promise<void>` and `Array<string>` have none.
- *
- * The bare words are anchored to the start, because they are evidence of
- * boilerplate only when they ARE the summary. Unanchored, `\bTODO\b` rejected
- * a correct diagnosis of bun's `test.todo` handling: the subject matter of a
- * run read as the residue of one.
- */
-const PLACEHOLDER = /<[^<>]*\s[^<>]*>|^\s*(TODO|TBD|FIXME)\b/i
 
 const blank = (text: string): boolean => text.trim() === ''
 
@@ -97,9 +85,6 @@ export const intakeViolations = (
           `${where} claims it met its objective with no evidence. The claim ` +
             'is the thing this stage is entitled to doubt.',
         ]
-      : []),
-    ...(PLACEHOLDER.test(context.summary)
-      ? [`${where} left placeholder text in its summary: "${context.summary}"`]
       : []),
   ]
 }
