@@ -1,4 +1,8 @@
 import { parse } from 'smol-toml'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import { configText, tomlText } from '../../../../testing/config-document'
 /**
  * `run-workflow.ts` (COVERAGE-WORKFLOW-DRIVERS.md).
@@ -419,7 +423,16 @@ const overrideFixture = () => {
 }
 
 const workflowEvents = (dir: string, runId: string) =>
-  readFileSync(join(dir, 'data', 'sessions', runId, 'events.jsonl'), 'utf8')
+  readFileSync(
+    join(
+      resolveRunDirectory({
+        dbPath: join(dir, 'data', 'crust.db'),
+        sessionsDir: sessionsDirIn(join(dir, 'data')),
+      })(runId),
+      'events.jsonl',
+    ),
+    'utf8',
+  )
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line))

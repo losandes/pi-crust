@@ -8,10 +8,16 @@ import { programName } from '../../../../lib/system'
  */
 
 import { join, resolve } from 'node:path'
+import { repositoryPathAt } from '../../../../../lib/repository-path'
+import {
+  claimRunDirectory,
+  runIdTaken,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TPiCrustConfig, TRun, TRunState } from '../../../../lib/contracts'
 import { TRUST_DEFAULT } from '../../../../lib/contracts'
-import { fileExists, newId, writeText } from '../../../../lib/system'
+import { newId, writeText } from '../../../../lib/system'
 import {
   isSharedHandoffDir,
   recordedHandoffDir,
@@ -164,14 +170,13 @@ const completedActivityRuns = (
  */
 const resolvedHandoffDirFor = (
   workspaceRoot: string,
-  dataDir: string,
   runId: string,
   sessionDir: string,
   options: TSessionOptions,
 ): string => {
   const resolved = resolveHandoffDir({
     repoRoot: workspaceRoot,
-    dataDir,
+    runDir: sessionDir,
     runId,
     override: options.handoff,
   })
@@ -220,21 +225,18 @@ export const startSession = (
   const resume = options.resume
     ? completedActivityRuns(db, runId)
     : new Set<string>()
-  const id =
-    runId ||
-    freshSessionId(
-      () => newId(8),
-      (candidate) => fileExists(join(dataDir, 'sessions', candidate)),
-    )
-  const sessionDir = join(dataDir, 'sessions', id)
+  const store = { dbPath: db, sessionsDir: sessionsDirIn(dataDir) }
+  const id = runId || freshSessionId(() => newId(8), runIdTaken(store))
+  const claimed = claimRunDirectory(store)(id, repositoryPathAt(workspaceRoot))
+  if (claimed.status === 'error') throw new Error(claimed.error.message)
+  const sessionDir = claimed.data
   const handoffDir = resolvedHandoffDirFor(
     workspaceRoot,
-    dataDir,
     id,
     sessionDir,
     options,
   )
-  const tracer = createTracer(db, join(dataDir, 'sessions', id, 'events.jsonl'))
+  const tracer = createTracer(db, join(sessionDir, 'events.jsonl'))
   const run = createRun({
     cfg,
     runId: id,
@@ -244,6 +246,7 @@ export const startSession = (
     stream: options.stream ?? false,
     trust: options.trust ?? TRUST_DEFAULT,
     handoffDir,
+    sessionDir,
   })
   if (recordedHandoffDir(sessionDir) === undefined) {
     writeHandoffPointer(sessionDir, handoffDir)

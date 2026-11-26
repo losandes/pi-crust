@@ -73,15 +73,15 @@ Two things that bite:
 - **Never swap rosters on your own.** A different roster is a different cost and a different result. If the default's model looks wrong for the work, say so and let the engineer choose.
 - **Switching rosters mid-session breaks resumption.** `agent_map.json` records the model each coding-agent session was created with, so a joined run (`--run-id`) whose config now names a different model starts that agent **fresh** instead of resuming its context window. That is deliberate — a bad resume is worse — but it means "plan on the frontier roster, then build on the default" costs the builder its accumulated context. Say so when you report it.
 
-`--run-id` is optional on **every** workflow. Given one, the run joins that session if it exists or creates it pinned to exactly that id: same `sessions/{run_id}/` dirs, same `context_handoff/`, envelopes appended, and each agent resumes its existing coding-agent context window via `agent_map.json`. That is how you chain workflows — plan under one id, then build under the same id.
+`--run-id` is optional on **every** workflow. Given one, the run joins that session if it exists or creates it pinned to exactly that id: same [resolved run directory](../references/observability.md#where-a-runs-files-are), same `context_handoff/`, envelopes appended, and each agent resumes its existing coding-agent context window via `agent_map.json`. That is how you chain workflows — plan under one id, then build under the same id.
 
-`--handoff <path>` moves where THIS run's `context_handoff/` documents land, without moving `sessions/{run_id}/` itself — `events.jsonl`, `invocation.json` and the rest stay exactly where they are. `{session_id}` (or `{run_id}`, an exact synonym) expands to the run id in the value:
+`--handoff <path>` moves where THIS run's `context_handoff/` documents land, without moving the resolved run directory itself — `events.jsonl`, `invocation.json` and the rest stay exactly where they are. `{session_id}` (or `{run_id}`, an exact synonym) expands to the run id in the value:
 
 ```bash
 crust run "the payments rewrite" --lifecycle sdlc --handoff specs/{session_id}
 ```
 
-Omit it and the directory is exactly what it has always been: `<data_dir>/sessions/{run_id}/context_handoff`. A relative value resolves against the repository root, not the directory you ran the command from. A resumed run keeps the directory it started with; passing a DIFFERENT `--handoff` on resume is refused rather than splitting one run's documents across two places.
+Omit it and the directory is `context_handoff/` inside the [resolved run directory](../references/observability.md#where-a-runs-files-are). A relative value resolves against the repository root, not the directory you ran the command from. A resumed run keeps the directory it started with; passing a DIFFERENT `--handoff` on resume is refused rather than splitting one run's documents across two places.
 
 `--name "<label>"` gives the run a label shown instead of the lifecycle name on `crust report`, the `please` picker, and the visualizer's session card — useful when `--activities plan,build` would otherwise read as the script that ran it. The lifecycle is still recorded and still shown, one line further down on the report.
 
@@ -160,7 +160,7 @@ Poll on a cursor: keep the highest `rowid` you have seen and query `where rowid 
 
 The workflow also narrates to stdout, and every line it prints is written to the db as a `log` event — terminal and swim lane tell the same story by construction, so tailing the background process is a valid second view rather than a competing source of truth.
 
-Files are the raw record if you need more than the db shows: `.pi-crust/data/sessions/{run_id}/{agent}/raw_output.jsonl` (full coding-agent stream), `envelope.json` (the parsed final response), `prompts/` (exactly what was sent), and `context_handoff/` (what agents wrote for each other).
+Files are the raw record if you need more than the db shows: `<run-directory>/{agent}/raw_output.jsonl` (see [placement](../references/observability.md#where-a-runs-files-are)) (full coding-agent stream), `envelope.json` (the parsed final response), `prompts/` (exactly what was sent), and `context_handoff/` (what agents wrote for each other).
 
 ## When a run is stuck
 

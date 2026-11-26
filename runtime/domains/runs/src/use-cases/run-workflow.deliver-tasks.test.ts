@@ -2,6 +2,10 @@ import { expect, test } from 'bun:test'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
+import {
   activityRunParams,
   EXIT,
   operatorPlanOutput,
@@ -186,7 +190,15 @@ const setup = (
     execute,
     external,
     requests: base.requests,
-    handoff: join(dir, 'sessions', runId, 'context_handoff'),
+    get handoff() {
+      return join(
+        resolveRunDirectory({
+          dbPath: join(dir, 'crust.db'),
+          sessionsDir: sessionsDirIn(dir),
+        })(runId),
+        'context_handoff',
+      )
+    },
     [Symbol.dispose]: () => {
       repository[Symbol.dispose]()
       environment[Symbol.dispose]()

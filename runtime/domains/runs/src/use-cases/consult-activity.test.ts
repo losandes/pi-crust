@@ -12,6 +12,7 @@ for (const situation of [
   'failed',
   'ask',
   'amend',
+  'grouped',
 ] as const) {
   test(
     [
@@ -22,7 +23,21 @@ for (const situation of [
     async () => {
       // given
       using fixture = tokenRepo({ separateData: true })
-      const handoff = join(fixture.sessionDir, 'context_handoff')
+      const runDir =
+        situation === 'grouped'
+          ? join(fixture.dataDir, 'sessions', 'owner', 'repo', fixture.runId)
+          : fixture.sessionDir
+      if (situation === 'grouped') {
+        const { cpSync } = await import('node:fs')
+        cpSync(fixture.sessionDir, runDir, { recursive: true })
+        const registry = new Database(fixture.dbPath)
+        registry.run('INSERT INTO run_directories VALUES (?, ?)', [
+          fixture.runId,
+          'owner/repo',
+        ])
+        registry.close()
+      }
+      const handoff = join(runDir, 'context_handoff')
       const own = join(handoff, 'build.md')
       const other = join(handoff, 'plan.md')
       writeFileSync(own, 'original build')
@@ -49,7 +64,8 @@ for (const situation of [
         },
         cwd: fixture.root,
         say: () => undefined,
-        invoke: () => {
+        invoke: (argv) => {
+          if (situation === 'grouped') expect(argv.join(' ')).toContain(runDir)
           if (situation === 'amend') {
             chmodSync(own, 0o644)
             chmodSync(other, 0o644)

@@ -79,8 +79,10 @@ export const relativeToSession = (
    */
   handoffDir?: string,
 ): string => {
-  const marker = `/sessions/${runId}/`
-  const at = path.indexOf(marker)
+  const marker = `/${runId}/`
+  const sessions = path.indexOf('/sessions/')
+  const at =
+    sessions === -1 ? -1 : path.indexOf(marker, sessions + '/sessions'.length)
   if (at !== -1) {
     return path.slice(at + marker.length)
   }
@@ -166,14 +168,16 @@ const firstByPath = (entries: readonly TArtifact[]): readonly TArtifact[] => {
   })
 }
 
-export const runArtifacts = (params: {
-  runId: string
-  /** This run's handoff directory, resolved absolute by the server. */
-  handoffDir?: string
-  envelopes: readonly Envelope[]
-  events: readonly EventRow[]
-  present: readonly HandoffFile[] | undefined
-}): readonly TArtifact[] => {
+export const runArtifacts = (
+  params: Readonly<{
+    runId: string
+    /** This run's handoff directory, resolved absolute by the server. */
+    handoffDir?: string
+    envelopes: readonly Envelope[]
+    events: readonly EventRow[]
+    present: readonly HandoffFile[] | undefined
+  }>,
+): readonly TArtifact[] => {
   const onDisk =
     params.present === undefined
       ? undefined

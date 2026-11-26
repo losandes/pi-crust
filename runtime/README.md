@@ -137,7 +137,7 @@ Execution history lives at `~/.pi-crust/data/` by default, with earlier traces l
 
 ## The one prohibition
 
-**Do not hand-edit anything under `data/sessions/`.** That is the run record: the exact prompts sent, the raw agent stream, the parsed envelopes, and the files agents handed each other. Editing it does not change what happened, it only makes the trace lie.
+**Do not hand-edit a [run directory](../references/observability.md#where-a-runs-files-are), whether repository-grouped or an earlier flat run.** That is the run record: the exact prompts sent, the raw agent stream, the parsed envelopes, and the files agents handed each other. Editing it does not change what happened, it only makes the trace lie.
 
 ## Where to read more
 

@@ -15,6 +15,7 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { sessionsDirIn } from '@run-directories'
 import { openDatabase, type TDatabase } from '@sqlite'
 import type {
   ActivityRun,
@@ -93,7 +94,7 @@ export class PiCrustDb {
    */
   readonly label: string
   /**
-   * Where the lifecycle session dirs live: `{data_dir}/sessions/{run_id}/{agent}/`.
+   * Where the lifecycle session dirs live: the resolved run directory's `{agent}/` subdirectory.
    * The database always sits in data_dir, so session directories are its siblings.
    */
   readonly sessionsDir: string
@@ -113,7 +114,7 @@ export class PiCrustDb {
     }
     this.path = path
     this.label = label
-    this.sessionsDir = resolve(dirname(path), 'sessions')
+    this.sessionsDir = resolve(sessionsDirIn(dirname(path)))
     this.db = openDatabase(path, { readonly: true })
 
     // WAL is set by the tracer when it creates the db; a readonly connection

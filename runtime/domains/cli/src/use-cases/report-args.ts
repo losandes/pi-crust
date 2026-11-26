@@ -1,4 +1,7 @@
-import { join } from 'node:path'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import { DEFAULT_CONFIG_PATH, DEFAULT_DB } from '../../../../lib/contracts'
 import { configPathFromEnv, dbPathFromEnv } from '../../../../lib/system'
@@ -87,6 +90,11 @@ export const resolveSessionDir = (
 ): string => {
   const cfg = safeParseSettlement(() => loadConfig(args.config))
   return cfg.status === 'ok'
-    ? join(resolveDataPaths(cfg.data, repoRoot()).dataDir, 'sessions', runId)
+    ? resolveRunDirectory({
+        dbPath,
+        sessionsDir: sessionsDirIn(
+          resolveDataPaths(cfg.data, repoRoot()).dataDir,
+        ),
+      })(runId)
     : sessionDirOf(dbPath, runId)
 }

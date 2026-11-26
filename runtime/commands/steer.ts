@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 import { resolve } from 'node:path'
+import { repositoryPathAt } from '../../lib/repository-path'
+import { runIdTaken, sessionsDirIn } from '../../lib/run-directories'
 import { errorMessage, safeParseSettlement } from '../../lib/typedefs'
 import { positionalArgs, resumeRecordedRun, STEER_CLI } from '../domains/cli'
 import { loadConfig } from '../domains/config'
 import { flagValue, seedingOf, steerTargetOf } from '../domains/handoff'
-import { steerBranch, steerOverwrite } from '../domains/runs'
+import { freshSessionId, steerBranch, steerOverwrite } from '../domains/runs'
 
 /**
  * Send a run back to a activity with new instructions.
@@ -88,7 +90,12 @@ const main = (): Promise<number> => {
   const dataDir = resolved.dataDir
 
   if (target === 'overwrite') {
-    return steerOverwrite({ say, resume: resumeRecordedRun, now: nowIso })({
+    return steerOverwrite({
+      say,
+      resume: resumeRecordedRun,
+      now: nowIso,
+      repositoryPathAt,
+    })({
       dbPath,
       dataDir,
       runId,
@@ -97,8 +104,18 @@ const main = (): Promise<number> => {
     })
   }
 
-  const branchId = flagValue(argv, '--branch-id') ?? newId(8)
-  return steerBranch({ say, resume: resumeRecordedRun, now: nowIso })({
+  const branchId =
+    flagValue(argv, '--branch-id') ??
+    freshSessionId(
+      () => newId(8),
+      runIdTaken({ dbPath, sessionsDir: sessionsDirIn(dataDir) }),
+    )
+  return steerBranch({
+    say,
+    resume: resumeRecordedRun,
+    now: nowIso,
+    repositoryPathAt,
+  })({
     dbPath,
     dataDir,
     runId,

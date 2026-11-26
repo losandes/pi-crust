@@ -1,6 +1,6 @@
 # Choose Where Run Data Lives
 
-The default is one machine-wide trace at `~/.pi-crust/data/crust.db`, with every run's directory under `~/.pi-crust/data/sessions/`. Runs from unrelated repositories and linked worktrees are visible together. Removing a worktree does not remove its trace.
+The default is one machine-wide trace at `~/.pi-crust/data/crust.db`, with new runs grouped by repository under `~/.pi-crust/data/sessions/` ([placement reference](../references/observability.md#where-a-runs-files-are)). Earlier flat runs stay in place. Runs from unrelated repositories and linked worktrees are visible together. Removing a worktree does not remove its trace.
 
 ## Keep one repository's data inside it
 

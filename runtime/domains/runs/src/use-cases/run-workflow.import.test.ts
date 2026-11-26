@@ -11,6 +11,10 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { parse } from 'smol-toml'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import type { TStage } from '../../../../lib/contracts'
 import { configText, tomlText } from '../../../../testing/config-document'
 import { SKIP_INTEGRATION } from '../../../../testing/integration'
@@ -152,7 +156,6 @@ const fixture = () => {
       () => ({ provider: 'test', modelId: 'model' }),
       async () => false,
     )
-  const handoff = join(data, 'sessions', args.runId ?? '', 'context_handoff')
   return {
     dir,
     source,
@@ -162,7 +165,15 @@ const fixture = () => {
       return [...received.values()]
     },
     run,
-    handoff,
+    get handoff() {
+      return join(
+        resolveRunDirectory({
+          dbPath: join(data, 'crust.db'),
+          sessionsDir: sessionsDirIn(data),
+        })(args.runId ?? ''),
+        'context_handoff',
+      )
+    },
     state: () => readRunState(join(data, 'crust.db'), args.runId),
     [Symbol.dispose]: () => {
       process.chdir(cwd)

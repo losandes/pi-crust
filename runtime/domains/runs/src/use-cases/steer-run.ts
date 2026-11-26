@@ -1,8 +1,18 @@
-import { join, resolve } from 'node:path'
-import { errorMessage } from '../../../../../lib/typedefs'
+import { join } from 'node:path'
+import {
+  claimRunDirectory,
+  registeredRepositoryPath,
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
+import {
+  errorMessage,
+  safeParseSettlement,
+  settledOr,
+} from '../../../../../lib/typedefs'
 import { appendText, ensureDir } from '../../../../lib/system'
 import { appendSteering } from '../../../agents'
-import type { resumeRecordedRun } from '../../../cli'
+import { recordedInvocation, type resumeRecordedRun } from '../../../cli'
 import {
   activitiesToReplay,
   activityRunsToCarry,
@@ -61,7 +71,11 @@ export const steerOverwrite =
     }
     const superseding = activityRunsToSupersede(state.activityRuns, activity)
 
-    const handoffDir = handoffDirFor(dataDir, runId)
+    const handoffDir = handoffDirFor(
+      resolveRunDirectory({ dbPath, sessionsDir: sessionsDirIn(dataDir) })(
+        runId,
+      ),
+    )
     const path = appendSteering(
       handoffDir,
       steeringEntry(activity, note, ports.now()),
@@ -85,7 +99,9 @@ export const steerOverwrite =
     say(`steering recorded in ${path}`)
     say(`replaying: ${replaying.join(' → ')}`)
     const resumed = ports.resume(
-      resolve(dataDir, 'sessions', runId),
+      resolveRunDirectory({ dbPath, sessionsDir: sessionsDirIn(dataDir) })(
+        runId,
+      ),
       'attached',
     )
     say(resumed.started ? `resumed: ${resumed.command}` : resumed.reason)
@@ -135,7 +151,22 @@ export const steerBranch =
     // from here is said to both this terminal AND the branch's own spawn.log,
     // because the server's capture of this process's stdout lands beside the
     // SOURCE run, not a branch id it has already handed a developer.
-    const branchSessionDir = resolve(dataDir, 'sessions', branchId)
+    const store = { dbPath, sessionsDir: sessionsDirIn(dataDir) }
+    const sourceSessionDir = resolveRunDirectory(store)(runId)
+    const path =
+      registeredRepositoryPath(store)(runId) ??
+      ports.repositoryPathAt(
+        settledOr(
+          safeParseSettlement(() => recordedInvocation(sourceSessionDir)?.cwd),
+          undefined,
+        ) ?? process.cwd(),
+      )
+    const claimed = claimRunDirectory(store)(branchId, path)
+    if (claimed.status === 'error') {
+      say(claimed.error.message)
+      return 1
+    }
+    const branchSessionDir = claimed.data
     ensureDir(branchSessionDir)
     const sayBranch = (line: string): void =>
       sayToBranch(say)(branchSessionDir, line)
@@ -149,7 +180,8 @@ export const steerBranch =
       const at = ports.now()
       const seeded = seedBranch({
         dbPath,
-        dataDir,
+        sourceSessionDir,
+        branchSessionDir,
         sourceRunId: runId,
         branchRunId: branchId,
         carry,
@@ -191,4 +223,5 @@ export type TSteerPorts = Readonly<{
   say: (line: string) => void
   resume: typeof resumeRecordedRun
   now: () => string
+  repositoryPathAt: (cwd: string) => readonly string[]
 }>

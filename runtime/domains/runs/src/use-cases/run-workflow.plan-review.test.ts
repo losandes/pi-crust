@@ -2,6 +2,10 @@ import { expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import type { TEnvelopeBase, TStage } from '../../../../lib/contracts'
 import {
   buildOutputSchema,
@@ -138,10 +142,10 @@ const fixtureWith = (
       JSON.parse(
         readFileSync(
           join(
-            dir,
-            'data',
-            'sessions',
-            'abcd1234',
+            resolveRunDirectory({
+              dbPath: join(dir, 'data', 'crust.db'),
+              sessionsDir: sessionsDirIn(join(dir, 'data')),
+            })('abcd1234'),
             'context_handoff',
             filename,
           ),

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { claimRunDirectory, sessionsDirIn } from '../../../lib/run-directories'
 import { SKIP_INTEGRATION } from '../../../runtime/testing/integration'
 import {
   restoreTerminal,
@@ -20,7 +21,12 @@ test.skipIf(SKIP_INTEGRATION)(
     const root = dirname(dbPath)
     const home = join(root, 'home')
     const runtime = join(root, 'package/runtime')
-    const session = join(root, 'sessions/run')
+    const placement = claimRunDirectory({
+      dbPath,
+      sessionsDir: sessionsDirIn(root),
+    })('run', ['group', 'subgroup', 'repo'])
+    if (placement.status === 'error') throw placement.error
+    const session = placement.data
     const handoff = join(session, 'context_handoff')
     mkdirSync(join(runtime, 'commands'), { recursive: true })
     mkdirSync(handoff, { recursive: true })

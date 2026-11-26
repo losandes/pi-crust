@@ -1325,3 +1325,146 @@ for (const mode of [
     },
   )
 }
+
+for (const path of [
+  undefined,
+  ['owner', 'repo'],
+  ['group', 'subgroup', 'project'],
+]) {
+  test(
+    [
+      `given a run in ${path?.join('/') ?? 'flat'} layout`,
+      'when reading and writing its session files',
+      'it should keep every file in the recorded run directory',
+    ].join(', '),
+    async () => {
+      // given
+      const { claimRunDirectory, sessionsDirIn } = await import(
+        '../../../lib/run-directories'
+      )
+      const root = mkdtempSync(join(tmpdir(), 'visualizer-placement-'))
+      const dbPath = join(root, 'crust.db')
+      const id = 'placement'
+      try {
+        if (path)
+          expect(
+            claimRunDirectory({ dbPath, sessionsDir: sessionsDirIn(root) })(
+              id,
+              path,
+            ).status,
+          ).toBe('ok')
+        const dir = join(root, 'sessions', ...(path ?? []), id)
+        mkdirSync(dir, { recursive: true })
+        writeFileSync(join(dir, 'spawn.log'), 'startup reason')
+        // when
+        const answer = recordDecision(dbPath, id, 'approve', '', 'tester')
+        postMessage(dbPath, id, 'steer', 'continue', 'tester')
+        // then
+        expect(sessionDir(dbPath, id)).toBe(dir)
+        expect(answer).toBe(join(dir, 'context_handoff', 'decision-answer.md'))
+        expect(readFileSync(join(dir, 'inbox.jsonl'), 'utf8')).toContain(
+          'continue',
+        )
+        expect(startupFailure(dbPath, id)).toBe('startup reason')
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}
+
+test(
+  [
+    'given a registry, flat id and deterministic mint',
+    'when minting a visualizer run id',
+    'it should skip both previously used ids',
+  ].join(', '),
+  async () => {
+    // given
+    const { claimRunDirectory, sessionsDirIn } = await import(
+      '../../../lib/run-directories'
+    )
+    const { freshRunId } = await import('./writes')
+    const root = mkdtempSync(join(tmpdir(), 'visualizer-mint-'))
+    const dbPath = join(root, 'crust.db')
+    try {
+      expect(
+        claimRunDirectory({ dbPath, sessionsDir: sessionsDirIn(root) })(
+          'registered',
+          ['owner', 'repo'],
+        ).status,
+      ).toBe('ok')
+      mkdirSync(join(root, 'sessions', 'flat'), { recursive: true })
+      const candidates = ['registered', 'flat', 'fresh']
+      let cursor = 0
+      // when
+      const actual = freshRunId(dbPath, () => candidates[cursor++] ?? 'fresh')
+      // then
+      expect(actual).toBe('fresh')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
+for (const refused of [false, true]) {
+  test(
+    [
+      'given startRun with a fixed placement',
+      `when claiming with overlap=${refused}`,
+      'it should spawn only after a successful claim in that placement',
+    ].join(', '),
+    async () => {
+      // given
+      const { sessionsDirIn, registeredRepositoryPath } = await import(
+        '../../../lib/run-directories'
+      )
+      const root = mkdtempSync(join(tmpdir(), 'visualizer-start-placement-'))
+      const runtime = join(root, 'runtime')
+      const dbPath = join(root, 'crust.db')
+      mkdirSync(runtime)
+      writeFileSync(join(runtime, 'cli.ts'), '')
+      const spy = spawnSpy()
+      try {
+        if (refused) {
+          mkdirSync(join(root, 'sessions', 'owner'), { recursive: true })
+        }
+        // when
+        const actual = startRun(
+          dbPath,
+          root,
+          'sdlc',
+          'request',
+          [],
+          { CRUST_HOME: root },
+          spy.spawnChild,
+          () => ['owner', 'repo'],
+        )
+        // then
+        if (refused) {
+          expect(actual).toMatchObject({
+            run_id: '',
+            pid: undefined,
+            log: '',
+            reason: expect.stringContaining('belongs to run'),
+          })
+          expect(spy.calls).toHaveLength(0)
+        } else {
+          expect(actual.log).toBe(
+            join(root, 'sessions', 'owner', 'repo', actual.run_id, 'spawn.log'),
+          )
+          expect(
+            registeredRepositoryPath({
+              dbPath,
+              sessionsDir: sessionsDirIn(root),
+            })(actual.run_id),
+          ).toEqual(['owner', 'repo'])
+          expect(spy.calls).toHaveLength(1)
+          expect(existsSync(actual.log)).toBe(true)
+        }
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}

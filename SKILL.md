@@ -67,7 +67,7 @@ Two exceptions, both narrow: if the engineer's first message already contains a 
 You run the system, observe the system, and help the user interact with it. **You do no workflow work yourself:**
 
 - Never implement, plan, or test in an agent's place — launch the workflow and watch it.
-- Never edit files inside `.pi-crust/data/sessions/` — that is the run record.
+- Never edit files inside a [run directory](references/observability.md#where-a-runs-files-are), whether repository-grouped or an earlier flat run — that is the run record.
 - Observe by querying `~/.pi-crust/data/crust.db` (WAL — reads never block writers) **when observing is the task**. This is a capability, not a startup step: query it to follow a run you launched or one the engineer asked about, never to volunteer a status report nobody requested.
 - Report activity run status plainly: name, owner, status, error if any.
 

@@ -12,7 +12,7 @@ const activityRuns: NonNullable<
 >['activityRuns'] = [{ seq: 1, name: 'plan', kind: 'agent', owner: 'planner' }]
 
 const ports: TJoinPorts = {
-  dataDir: '/data',
+  runDirectory: (id) => `/data/sessions/${id}`,
   runState: () => ({ activityRuns }),
   hasLiveProcess: () => false,
   agentSession: () => ({ sessionId: 's1' }),
@@ -68,7 +68,7 @@ const refusalCases: readonly Readonly<{
     name: 'missing history',
     overrides: { sessionFile: () => undefined },
     reason: 'history-missing',
-    message: `the conversation of activity "plan" in run "r1" is no longer available: no pi session "s1" in ${sessionDirFor('/data', 'r1', 'planner')}`,
+    message: `the conversation of activity "plan" in run "r1" is no longer available: no pi session "s1" in ${sessionDirFor('/data/sessions/r1', 'planner')}`,
   },
   {
     name: 'a live run and an unknown activity',
@@ -168,7 +168,9 @@ test(
     const actual = resolveJoin(deps)({ runId: 'r1', activity: 'plan' })
 
     // then
-    expect(calls).toEqual([[sessionDirFor('/data', 'r1', 'planner'), 's1']])
+    expect(calls).toEqual([
+      [sessionDirFor('/data/sessions/r1', 'planner'), 's1'],
+    ])
     expect(actual).toEqual({
       status: 'ok',
       data: {

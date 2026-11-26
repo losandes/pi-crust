@@ -6,6 +6,10 @@
  */
 
 import { join, resolve } from 'node:path'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import type {
   TActivityRun,
   TAgentMapEntry,
@@ -36,6 +40,7 @@ export type TCreateRunParams = Readonly<{
   trust?: number
   /** absolute; defaults to join(sessionDir, 'context_handoff') */
   handoffDir?: string
+  sessionDir?: string
 }>
 
 export const createRun = (params: TCreateRunParams): TRun => {
@@ -45,8 +50,13 @@ export const createRun = (params: TCreateRunParams): TRun => {
   // disagree, and a root that changes underneath a comparison is worse than
   // one that is wrong consistently.
   const workspaceRoot = resolve(repoRoot())
-  const { dataDir } = resolveDataPaths(cfg, workspaceRoot)
-  const sessionDir = ensureDir(join(dataDir, 'sessions', runId))
+  const { dataDir, db } = resolveDataPaths(cfg, workspaceRoot)
+  const sessionDir = ensureDir(
+    params.sessionDir ??
+      resolveRunDirectory({ dbPath: db, sessionsDir: sessionsDirIn(dataDir) })(
+        runId,
+      ),
+  )
   const contextHandoffDir = ensureDir(
     params.handoffDir ?? join(sessionDir, 'context_handoff'),
   )

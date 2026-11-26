@@ -16,7 +16,7 @@ test(
     // given
     const params = {
       repoRoot: '/repo',
-      dataDir: '.pi-crust/data',
+      runDir: '.pi-crust/data/sessions/a1b2c3d4',
       runId: 'a1b2c3d4',
       override: undefined,
     }
@@ -25,7 +25,11 @@ test(
     const actual = resolveHandoffDir(params)
 
     // then
-    expect(actual).toEqual(defaultHandoffDir('.pi-crust/data', 'a1b2c3d4'))
+    // then
+    expect(actual).toEqual(
+      defaultHandoffDir('.pi-crust/data/sessions/a1b2c3d4'),
+    )
+    // then
     expect(actual).toEqual(
       resolve(
         join('.pi-crust/data', 'sessions', 'a1b2c3d4', 'context_handoff'),
@@ -41,13 +45,16 @@ test(
     'it should expand it to the run id',
   ].join(', '),
   () => {
+    // given
+    // when
     const actual = resolveHandoffDir({
       repoRoot: '/repo',
-      dataDir: '.pi-crust/data',
+      runDir: '.pi-crust/data/sessions/a1b2c3d4',
       runId: 'a1b2c3d4',
       override: 'specs/{session_id}',
     })
 
+    // then
     expect(actual).toEqual(resolve('/repo/specs/a1b2c3d4'))
   },
 )
@@ -59,13 +66,16 @@ test(
     'it should expand it the same as {session_id}, because the codebase calls it run_id everywhere else',
   ].join(', '),
   () => {
+    // given
+    // when
     const actual = resolveHandoffDir({
       repoRoot: '/repo',
-      dataDir: '.pi-crust/data',
+      runDir: '.pi-crust/data/sessions/a1b2c3d4',
       runId: 'a1b2c3d4',
       override: 'specs/{run_id}',
     })
 
+    // then
     expect(actual).toEqual(resolve('/repo/specs/a1b2c3d4'))
   },
 )
@@ -77,13 +87,16 @@ test(
     'it should resolve against the repo root, not process.cwd() and not data_dir',
   ].join(', '),
   () => {
+    // given
+    // when
     const actual = resolveHandoffDir({
       repoRoot: '/repo',
-      dataDir: '.pi-crust/data',
+      runDir: '.pi-crust/data/sessions/a1b2c3d4',
       runId: 'a1b2c3d4',
       override: 'specs/current',
     })
 
+    // then
     expect(actual).toEqual(resolve('/repo/specs/current'))
   },
 )
@@ -95,13 +108,16 @@ test(
     'it should be used as given',
   ].join(', '),
   () => {
+    // given
+    // when
     const actual = resolveHandoffDir({
       repoRoot: '/repo',
-      dataDir: '.pi-crust/data',
+      runDir: '.pi-crust/data/sessions/a1b2c3d4',
       runId: 'a1b2c3d4',
       override: '/elsewhere/specs/{session_id}',
     })
 
+    // then
     expect(actual).toEqual(resolve('/elsewhere/specs/a1b2c3d4'))
   },
 )
@@ -113,10 +129,13 @@ test(
     'it should throw rather than silently fall back to the default',
   ].join(', '),
   () => {
+    // given
+    // when
+    // then
     expect(() =>
       resolveHandoffDir({
         repoRoot: '/repo',
-        dataDir: '.pi-crust/data',
+        runDir: '.pi-crust/data/sessions/a1b2c3d4',
         runId: 'a1b2c3d4',
         override: '',
       }),
@@ -131,6 +150,9 @@ test(
     'it should say so, because another run pointed at it would share it',
   ].join(', '),
   () => {
+    // given
+    // when
+    // then
     expect(isSharedHandoffDir(resolve('/repo/specs'), 'a1b2c3d4')).toBe(true)
   },
 )
@@ -142,6 +164,9 @@ test(
     "it should say the directory is this run's own",
   ].join(', '),
   () => {
+    // given
+    // when
+    // then
     expect(
       isSharedHandoffDir(resolve('/repo/specs/a1b2c3d4'), 'a1b2c3d4'),
     ).toBe(false)

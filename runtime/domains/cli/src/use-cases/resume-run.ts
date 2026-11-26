@@ -15,6 +15,10 @@ import { closeSync, openSync, statSync } from 'node:fs'
 import { constants } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
+import {
   fileExists,
   PACKAGE_ROOT,
   RUNTIME_NAME,
@@ -184,4 +188,6 @@ export const resumeRecordedRun = (
 
 /** Where this run wrote down how it was started, from the trace it is in. */
 export const sessionDirOf = (dbPath: string, runId: string): string =>
-  join(dirname(dbPath), 'sessions', runId)
+  resolveRunDirectory({ dbPath, sessionsDir: sessionsDirIn(dirname(dbPath)) })(
+    runId,
+  )

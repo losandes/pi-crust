@@ -31,7 +31,8 @@ import {
 } from '../../../handoff'
 export type TBranchSeed = Readonly<{
   dbPath: string
-  dataDir: string
+  sourceSessionDir: string
+  branchSessionDir: string
   sourceRunId: string
   branchRunId: string
   /** activity_run_ids inherited verbatim, from activityRunsToCarry */
@@ -370,7 +371,16 @@ const rewriteInvocation = (branchSessionDir: string): void => {
 }
 
 export const seedBranch = (seed: TBranchSeed): TBranchSeeded => {
-  const { dbPath, dataDir, sourceRunId, branchRunId, carry, seeding, at } = seed
+  const {
+    dbPath,
+    sourceSessionDir,
+    branchSessionDir,
+    sourceRunId,
+    branchRunId,
+    carry,
+    seeding,
+    at,
+  } = seed
   const db = openDatabase(dbPath)
   db.run('PRAGMA busy_timeout=5000;')
 
@@ -393,12 +403,10 @@ export const seedBranch = (seed: TBranchSeed): TBranchSeeded => {
   })
   db.close()
 
-  const sourceSessionDir = join(dataDir, 'sessions', sourceRunId)
-  const branchSessionDir = join(dataDir, 'sessions', branchRunId)
   copySessionDir(sourceSessionDir, branchSessionDir, seeding)
 
-  const sourceHandoffDir = handoffDirFor(dataDir, sourceRunId)
-  const branchHandoffDir = defaultHandoffDir(dataDir, branchRunId)
+  const sourceHandoffDir = handoffDirFor(sourceSessionDir)
+  const branchHandoffDir = defaultHandoffDir(branchSessionDir)
   if (existsSync(sourceHandoffDir)) {
     cpSync(sourceHandoffDir, branchHandoffDir, { recursive: true })
   }

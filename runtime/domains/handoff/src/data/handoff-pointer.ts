@@ -15,7 +15,7 @@ import { fileExists, readText, writeText } from '../../../../lib/system'
 import { defaultHandoffDir } from '../use-cases/handoff-location'
 export const HANDOFF_POINTER_FILENAME = 'handoff-dir'
 
-/** `<data_dir>/sessions/<run_id>/handoff-dir` — the canonical session directory. */
+/** The run's handoff pointer, inside its resolved directory. */
 const pointerPath = (sessionDir: string): string =>
   join(sessionDir, HANDOFF_POINTER_FILENAME)
 
@@ -41,6 +41,5 @@ export const recordedHandoffDir = (sessionDir: string): string | undefined => {
  * The pointer, or the canonical default. What every out-of-process reader
  * calls instead of reconstructing the path from the run id.
  */
-export const handoffDirFor = (dataDir: string, runId: string): string =>
-  recordedHandoffDir(join(dataDir, 'sessions', runId)) ??
-  defaultHandoffDir(dataDir, runId)
+export const handoffDirFor = (runDir: string): string =>
+  recordedHandoffDir(runDir) ?? defaultHandoffDir(runDir)

@@ -20,7 +20,12 @@ import { PRUNE_USAGE } from '../domains/cli'
  */
 
 import { rmSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import {
+  forgetRunDirectory,
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../lib/run-directories'
 import { openDatabase } from '../../lib/sqlite'
 import { safeParseSettlement } from '../../lib/typedefs'
 import { loadConfig } from '../domains/config'
@@ -79,7 +84,7 @@ export const main = (argv: readonly string[]): number => {
   // store relocated with the config's data_dir is followed with no change
   // here, because this derives it from the db path rather than assuming
   // `.pi-crust/data`.
-  const sessionsDir = join(dbPath, '..', 'sessions')
+  const store = { dbPath, sessionsDir: sessionsDirIn(dirname(dbPath)) }
   const everyRun = db
     .query('SELECT run_id, status, started_at, workspace_root FROM sessions')
     .all() as (TPrunable & Readonly<{ workspace_root: string | null }>)[]
@@ -131,7 +136,8 @@ export const main = (argv: readonly string[]): number => {
     // The directory first: a row with no transcript is a worse state to be
     // interrupted in than a transcript with no row, because the row is what
     // tells a reader the transcript should exist.
-    rmSync(join(sessionsDir, runId), { recursive: true, force: true })
+    rmSync(resolveRunDirectory(store)(runId), { recursive: true, force: true })
+    forgetRunDirectory(store)(runId)
     for (const table of RUN_TABLES) {
       db.run(`DELETE FROM ${table} WHERE run_id = ?`, [runId])
     }

@@ -1,4 +1,8 @@
 import { join } from 'node:path'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import { DEFAULT_DB, EXIT } from '../../../../lib/contracts'
 import { fileExists, readText, writeText } from '../../../../lib/system'
@@ -59,7 +63,11 @@ export const decideRun = async (args: TDecideArgs): Promise<number> => {
     return EXIT.USAGE
   }
 
-  const handoff = handoffDirFor(dataDir, args.runId)
+  const runDir = resolveRunDirectory({
+    dbPath,
+    sessionsDir: sessionsDirIn(dataDir),
+  })(args.runId)
+  const handoff = handoffDirFor(runDir)
   writeText(join(handoff, ANSWER_FILENAME), `${answerText(args).trim()}\n`)
   writeText(
     join(handoff, ANSWER_RECORD_FILENAME),
@@ -93,7 +101,7 @@ export const decideRun = async (args: TDecideArgs): Promise<number> => {
    * property of the invocation and is recorded nowhere else.
    */
   const resumed = resumeRecordedRun(
-    join(dataDir, 'sessions', args.runId),
+    runDir,
     args.detach ? 'detached' : 'attached',
   )
   if (!resumed.started) {

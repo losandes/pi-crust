@@ -31,6 +31,7 @@ import { machineThemes } from './themes.ts'
 import { uiAddresses, uiListenerFromEnv } from './ui-listener.ts'
 import { resolveWorkspaces } from './workspaces.ts'
 import {
+  freshRunId,
   isInboxKind,
   NO_WORKING_TREE,
   postMessage,
@@ -325,7 +326,7 @@ const options: Parameters<typeof serveRoutes>[0] = {
          */
         return json({
           ...detail,
-          handoff_dir: resolve(handoffDirFor(owner.sessionsDir, runId)),
+          handoff_dir: resolve(handoffDirFor(sessionDir(owner.path, runId))),
         })
       }
       /*
@@ -659,9 +660,7 @@ const options: Parameters<typeof serveRoutes>[0] = {
          * watch it.
          */
         const branchRunId =
-          body.target === 'branch'
-            ? Math.random().toString(16).slice(2, 10)
-            : undefined
+          body.target === 'branch' ? freshRunId(owner.path) : undefined
         const cwd = runWorkingTree(
           owner.session(runId)?.workspace_root ?? undefined,
           sessionDir(owner.path, runId),
@@ -747,7 +746,7 @@ const options: Parameters<typeof serveRoutes>[0] = {
       const db = forRun(req, runId)
       if (!db) return notFound(`no session ${runId}`)
 
-      const dir = resolve(handoffDirFor(db.sessionsDir, runId))
+      const dir = resolve(handoffDirFor(sessionDir(db.path, runId)))
 
       const file = join(dir, 'decision-request.md')
       /*
@@ -782,7 +781,7 @@ const options: Parameters<typeof serveRoutes>[0] = {
       }
       const db = forRun(req, runId)
       if (!db) return notFound(`no session ${runId}`)
-      const dir = resolve(handoffDirFor(db.sessionsDir, runId))
+      const dir = resolve(handoffDirFor(sessionDir(db.path, runId)))
       return json(listHandoff(dir) satisfies HandoffFile[])
     }),
 
@@ -796,7 +795,7 @@ const options: Parameters<typeof serveRoutes>[0] = {
       }
       const db = forRun(req, runId)
       if (!db) return notFound(`no session ${runId}`)
-      const dir = resolve(handoffDirFor(db.sessionsDir, runId))
+      const dir = resolve(handoffDirFor(sessionDir(db.path, runId)))
       const file = resolve(dir, relative)
       /*
        * Containment is checked on the RESOLVED path rather than on the text
@@ -831,7 +830,7 @@ const options: Parameters<typeof serveRoutes>[0] = {
       const db = forRun(req, runId)
       if (!db) return notFound(`no session ${runId}`)
 
-      const dir = resolve(db.sessionsDir, runId, agent, 'prompts')
+      const dir = resolve(sessionDir(db.path, runId), agent, 'prompts')
       // Defense in depth: the segment check already forbids traversal.
       if (dir !== db.sessionsDir && !dir.startsWith(db.sessionsDir + sep)) {
         return json({ error: 'invalid path' } satisfies ApiError, 400)

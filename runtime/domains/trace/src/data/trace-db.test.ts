@@ -115,6 +115,8 @@ test(
       'events',
       'gate_results',
       'processes',
+      'repository_directories',
+      'run_directories',
       'sessions',
       'sqlite_sequence',
     ])

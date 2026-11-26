@@ -30,6 +30,13 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, extname, join, resolve } from 'node:path'
+import { repositoryPathAt } from '@repository-path'
+import {
+  claimRunDirectory,
+  resolveRunDirectory,
+  runIdTaken,
+  sessionsDirIn,
+} from '@run-directories'
 import { openDatabase } from '@sqlite'
 import { safeParseSettlement } from '@typedefs'
 import { z } from 'zod'
@@ -88,7 +95,9 @@ export const refuseUnlessAuthorised = (
 }
 
 export const sessionDir = (dbPath: string, runId: string): string =>
-  join(dirname(dbPath), 'sessions', runId)
+  resolveRunDirectory({ dbPath, sessionsDir: sessionsDirIn(dirname(dbPath)) })(
+    runId,
+  )
 
 /** The server locates its own package unless an explicit override is given. */
 export const OWN_RUNTIME = resolve(
@@ -236,7 +245,7 @@ export const recordDecision = (
   text: string,
   from: string,
 ): string => {
-  const handoff = handoffDirFor(join(dirname(dbPath), 'sessions'), runId)
+  const handoff = handoffDirFor(sessionDir(dbPath, runId))
   if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true })
   const body =
     action === 'approve'
@@ -422,7 +431,7 @@ const recordResumeNote = (
   note: string,
   from: string,
 ): string => {
-  const handoff = handoffDirFor(join(dirname(dbPath), 'sessions'), runId)
+  const handoff = handoffDirFor(sessionDir(dbPath, runId))
   if (!existsSync(handoff)) mkdirSync(handoff, { recursive: true })
   const path = join(handoff, 'steering.md')
   const entry = developerNoteEntry(note, new Date().toISOString())
@@ -584,6 +593,18 @@ export const resumeRun = (
  * would stall the run the moment nobody was reading. The id is generated here
  * so the response can say where to watch before the child has written a row.
  */
+export const freshRunId = (
+  dbPath: string,
+  mint: () => string = () => Math.random().toString(16).slice(2, 10),
+): string => {
+  const candidate = mint()
+  return runIdTaken({ dbPath, sessionsDir: sessionsDirIn(dirname(dbPath)) })(
+    candidate,
+  )
+    ? freshRunId(dbPath, mint)
+    : candidate
+}
+
 export const startRun = (
   dbPath: string,
   cwd: string,
@@ -592,6 +613,7 @@ export const startRun = (
   extraArgs: readonly string[],
   env: Readonly<Record<string, string | undefined>> = process.env,
   spawnChild: typeof spawn = spawn,
+  placeAt: (cwd: string) => readonly string[] = repositoryPathAt,
 ): Readonly<{
   run_id: string
   pid: number | undefined
@@ -602,8 +624,19 @@ export const startRun = (
   if (runtime === undefined) {
     return { run_id: '', pid: undefined, log: '', reason: NO_RUNTIME }
   }
-  const runId = Math.random().toString(16).slice(2, 10)
-  const logDir = join(dirname(dbPath), 'sessions', runId)
+  const runId = freshRunId(dbPath)
+  const claimed = claimRunDirectory({
+    dbPath,
+    sessionsDir: sessionsDirIn(dirname(dbPath)),
+  })(runId, placeAt(cwd))
+  if (claimed.status === 'error')
+    return {
+      run_id: '',
+      pid: undefined,
+      log: '',
+      reason: claimed.error.message,
+    }
+  const logDir = claimed.data
   mkdirSync(logDir, { recursive: true })
   const log = join(logDir, 'spawn.log')
   writeFileSync(log, '', 'utf8')

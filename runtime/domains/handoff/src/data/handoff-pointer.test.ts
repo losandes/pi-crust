@@ -28,6 +28,8 @@ test(
     writeHandoffPointer(sessionDir, relocated)
 
     // then
+    // when
+    // then
     expect(recordedHandoffDir(sessionDir)).toEqual(relocated)
   },
 )
@@ -39,9 +41,12 @@ test(
     'it should say so rather than invent a path',
   ].join(', '),
   () => {
+    // given
     const dataDir = scratch()
     const sessionDir = join(dataDir, 'sessions', 'never-started')
 
+    // when
+    // then
     expect(recordedHandoffDir(sessionDir)).toBeUndefined()
   },
 )
@@ -57,10 +62,13 @@ test(
     const dataDir = scratch()
 
     // when
-    const actual = handoffDirFor(dataDir, 'a1b2c3d4')
+    const actual = handoffDirFor(join(dataDir, 'sessions', 'a1b2c3d4'))
 
     // then
-    expect(actual).toEqual(defaultHandoffDir(dataDir, 'a1b2c3d4'))
+    // then
+    expect(actual).toEqual(
+      defaultHandoffDir(join(dataDir, 'sessions', 'a1b2c3d4')),
+    )
   },
 )
 
@@ -78,8 +86,9 @@ test(
     writeHandoffPointer(join(dataDir, 'sessions', runId), relocated)
 
     // when
-    const actual = handoffDirFor(dataDir, runId)
+    const actual = handoffDirFor(join(dataDir, 'sessions', runId))
 
+    // then
     // then
     expect(actual).toEqual(relocated)
   },

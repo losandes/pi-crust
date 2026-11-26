@@ -34,7 +34,8 @@ Document the completed work described by `previous_envelope`, using `prompt` for
 2. Write the write-up to `{{output_document}}`. Cover: what changed and why it matters, the files that carry it, and how to use or verify it.
 3. Copy that file into the repo under `app_docs/`:
    - **List `app_docs/` before you pick the name.** A session that documents more than once reuses its `<run_id>`, so the obvious name may already be taken.
-   - Base name: `app_docs/<run_id>_<slug>.md`, where `<run_id>` is the session directory name inside `context_handoff_dir` (`.../sessions/<run_id>/context_handoff`) and `<slug>` is two to four kebab-case words naming the work.
+   - Base name: `app_docs/<run_id>_<slug>.md`, where `<run_id>` is the name of the directory that holds `context_handoff` (`.../<run_id>/context_handoff`) and `<slug>` is two to four kebab-case words naming the work.
+   - An earlier flat run may use `.../sessions/<run_id>/context_handoff`; derive the id from the containing directory, not a fixed depth beneath `sessions`.
    - If a file with that name already exists, use `app_docs/<run_id>_<slug>_v2.md`, then `_v3`, and so on until the name is free. **Never overwrite an existing write-up** — it describes a change that already shipped.
    - **Copy it, do not retype it.** One bash call does the whole step: `mkdir -p app_docs && cp "{{output_document}}" "app_docs/<run_id>_<slug>.md"` Writing the document a second time through `write` re-emits every line you already wrote, which costs the whole write-up again in output tokens and lets the two copies drift.
 4. Emit your `Report` JSON, declaring BOTH paths in `artifacts`.
