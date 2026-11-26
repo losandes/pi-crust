@@ -9,6 +9,11 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import {
+  claimRunDirectory,
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../lib/run-directories'
 import type { TSettlement } from '../../lib/typedefs'
 import { JOIN_USAGE as USAGE } from '../domains/cli'
 import { createTracer, readRunState } from '../domains/trace'
@@ -25,6 +30,7 @@ type TFixtureOptions = Readonly<{
   session?: boolean
   live?: boolean
   opened?: TSettlement<number>
+  grouped?: boolean
 }>
 
 const fixture = (dir: string, options: TFixtureOptions = {}) => {
@@ -38,6 +44,13 @@ const fixture = (dir: string, options: TFixtureOptions = {}) => {
       agents: [],
     }),
   )
+  if (options.grouped)
+    expect(
+      claimRunDirectory({ dbPath, sessionsDir: sessionsDirIn(dir) })(
+        'abcd1234',
+        ['group', 'subgroup', 'repo'],
+      ).status,
+    ).toBe('ok')
   const tracer = createTracer(dbPath, join(dir, 'events.jsonl'))
   tracer.sessionStart('abcd1234', 'tester', 'sdlc')
   for (const params of [
@@ -88,7 +101,13 @@ const fixture = (dir: string, options: TFixtureOptions = {}) => {
   if (options.live)
     tracer.processStart('abcd1234', 'run', '', process.pid, 'crust run')
   tracer.close()
-  const sessionDir = join(dir, 'sessions', 'abcd1234', 'planner', 'pi_sessions')
+  const sessionDir = join(
+    resolveRunDirectory({ dbPath, sessionsDir: sessionsDirIn(dir) })(
+      'abcd1234',
+    ),
+    'planner',
+    'pi_sessions',
+  )
   const sessionFile = join(sessionDir, 'history.jsonl')
   if (options.history !== false) {
     mkdirSync(sessionDir, { recursive: true })
@@ -120,7 +139,13 @@ const fixture = (dir: string, options: TFixtureOptions = {}) => {
   }
 }
 
-for (const status of ['success', 'fail', 'stopped', 'waiting'] as const) {
+for (const status of [
+  'success',
+  'fail',
+  'stopped',
+  'waiting',
+  'grouped',
+] as const) {
   test(
     [
       `given join::main and a ${status} run @SC1`,
@@ -131,7 +156,10 @@ for (const status of ['success', 'fail', 'stopped', 'waiting'] as const) {
       // given
       const dir = mkdtempSync(join(tmpdir(), 'crust-join-'))
       try {
-        const f = fixture(dir, { status })
+        const f = fixture(
+          dir,
+          status === 'grouped' ? { grouped: true } : { status },
+        )
 
         // when
         const actual = await main(f.deps)(['abcd1234', 'plan'])

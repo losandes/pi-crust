@@ -225,7 +225,10 @@ test(
     const dataDir = '/tmp/crust-data'
 
     // when
-    const actual = sessionDirFor(dataDir, 'aaaa1111', 'technical-architect')
+    const actual = sessionDirFor(
+      join(dataDir, 'sessions', 'aaaa1111'),
+      'technical-architect',
+    )
 
     // then
     expect(actual).toEqual(

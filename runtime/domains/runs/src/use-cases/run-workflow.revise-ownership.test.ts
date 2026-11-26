@@ -11,6 +11,10 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type { TEnvelopeBase } from '../../../../lib/contracts'
 import {
@@ -134,7 +138,14 @@ const eventsNamed = (dbPath: string, name: string, type: string) => {
 const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
   const dir = mkdtempSync(join(tmpdir(), 'crust-workflow-revise-ownership-'))
   const data = join(dir, 'data')
-  const handoff = join(data, 'sessions', 'abcd1234', 'context_handoff')
+  const handoff = () =>
+    join(
+      resolveRunDirectory({
+        dbPath: join(data, 'crust.db'),
+        sessionsDir: sessionsDirIn(data),
+      })('abcd1234'),
+      'context_handoff',
+    )
   const dbPath = join(data, 'crust.db')
   const keys = ['CRUST_MACHINE_CONFIG', 'CRUST_DATA_DIR'] as const
   const before = keys.map((key) => [key, process.env[key]] as const)
@@ -184,7 +195,7 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
     document: string,
     operation: TOperation = 'ordinary',
   ): void => {
-    const path = join(handoff, document)
+    const path = join(handoff(), document)
     const result = safeParseSettlement(() => {
       if (operation === 'delete') {
         rmSync(path)
@@ -214,7 +225,7 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
       return schema.parse({
         ...CONTEXT,
         summary: `${name} v${attempt}`,
-        changed_files: [join(handoff, chain.document)],
+        changed_files: [join(handoff(), chain.document)],
       })
     }
     const approved = attempt > rejections
@@ -244,10 +255,13 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
           activity,
           attempt,
           saw: Object.fromEntries(
-            readdirSync(handoff)
+            readdirSync(handoff())
               .filter((path) => path.endsWith('.md'))
               .toSorted()
-              .map((path) => [path, readFileSync(join(handoff, path), 'utf8')]),
+              .map((path) => [
+                path,
+                readFileSync(join(handoff(), path), 'utf8'),
+              ]),
           ),
         },
       ]
@@ -306,7 +320,7 @@ const fixtureWith = (chain: TChain, rejections: number, action?: TAction) => {
         async () => false,
       ),
     content: (document: string) =>
-      readFileSync(join(handoff, document), 'utf8'),
+      readFileSync(join(handoff(), document), 'utf8'),
     outcome: (activity: string, attempt: number, document: string) =>
       writes.find(
         (one) =>

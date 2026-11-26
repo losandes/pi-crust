@@ -210,11 +210,8 @@ export const runConsult = async (
 }
 
 /** Where a run keeps one agent's pi session. */
-export const sessionDirFor = (
-  dataDir: string,
-  runId: string,
-  agent: string,
-): string => resolve(join(dataDir, 'sessions', runId, agent, 'pi_sessions'))
+export const sessionDirFor = (runDir: string, agent: string): string =>
+  resolve(join(runDir, agent, 'pi_sessions'))
 
 /** The thread event a consult leaves on the activityRun it asked about. */
 export const consultEvent = (

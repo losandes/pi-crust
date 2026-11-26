@@ -15,7 +15,7 @@ test(
     const sessionsDir = mkdtempSync(join(tmpdir(), 'crust-handoff-default-'))
 
     // when
-    const actual = handoffDirFor(sessionsDir, 'aaaa1111')
+    const actual = handoffDirFor(join(sessionsDir, 'aaaa1111'))
 
     // then
     expect(actual).toEqual(join(sessionsDir, 'aaaa1111', 'context_handoff'))
@@ -37,7 +37,7 @@ test(
     writeFileSync(join(runDir, HANDOFF_POINTER_FILENAME), `${relocated}\n`)
 
     // when
-    const actual = handoffDirFor(sessionsDir, 'bbbb2222')
+    const actual = handoffDirFor(runDir)
 
     // then
     expect(actual).toEqual(relocated)
@@ -58,7 +58,7 @@ test(
     writeFileSync(join(runDir, HANDOFF_POINTER_FILENAME), '   \n')
 
     // when
-    const actual = handoffDirFor(sessionsDir, 'cccc3333')
+    const actual = handoffDirFor(runDir)
 
     // then
     expect(actual).toEqual(join(sessionsDir, 'cccc3333', 'context_handoff'))

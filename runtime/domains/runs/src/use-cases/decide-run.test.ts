@@ -29,6 +29,59 @@ const main = (argv: readonly string[]) =>
 
 const scratch = (): string => mkdtempSync(join(tmpdir(), 'crust-decide-'))
 
+test(
+  [
+    'given a waiting registered run',
+    'when approving without an invocation',
+    'it should answer in its registered handoff directory',
+  ].join(', '),
+  async () => {
+    // given
+    const { claimRunDirectory, sessionsDirIn } = await import(
+      '../../../../../lib/run-directories'
+    )
+    const { readFileSync, rmSync } = await import('node:fs')
+    const root = scratch()
+    const dbPath = join(root, 'crust.db')
+    const config = join(root, 'fixture.toml')
+    const placed = claimRunDirectory({
+      dbPath,
+      sessionsDir: sessionsDirIn(root),
+    })('grouped', ['owner', 'repo'])
+    if (placed.status === 'error') throw placed.error
+    const tracer = createTracer(dbPath, join(placed.data, 'events.jsonl'))
+    tracer.sessionStart('grouped', 'tester', 'sdlc')
+    tracer.sessionWaiting('grouped')
+    tracer.close()
+    writeFileSync(
+      config,
+      configText({
+        defaults: { data_dir: root },
+        observability: {},
+        agents: [],
+      }),
+    )
+    silenceTerminal()
+    try {
+      // when
+      const actual = await decideRun(
+        anArgs({ runId: 'grouped', db: dbPath, config }),
+      )
+      // then
+      expect(actual).toBe(EXIT.SUCCESS)
+      expect(
+        readFileSync(
+          join(placed.data, 'context_handoff', 'decision-answer.md'),
+          'utf8',
+        ),
+      ).toContain('Approved')
+    } finally {
+      restoreTerminal()
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
 const anArgs = (
   overrides: Readonly<Partial<TDecideArgs>> = {},
 ): TDecideArgs => ({

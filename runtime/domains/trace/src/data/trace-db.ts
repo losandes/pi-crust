@@ -7,6 +7,7 @@
  */
 
 import { dirname } from 'node:path'
+import { RUN_DIRECTORIES_SCHEMA } from '../../../../../lib/run-directories'
 import { openDatabase, type TDatabase } from '../../../../../lib/sqlite'
 import { safeParseSettlement } from '../../../../../lib/typedefs'
 import type {
@@ -19,6 +20,7 @@ import type {
 import { reportPassed, violationsOf } from '../../../../lib/contracts'
 import { appendText, ensureDir, newId, nowIso } from '../../../../lib/system'
 export const SCHEMA = `
+${RUN_DIRECTORIES_SCHEMA}
 CREATE TABLE IF NOT EXISTS sessions (
   run_id        TEXT PRIMARY KEY,
   lifecycle      TEXT,                -- stage(s) or lifecycle(s) run, e.g. "plan + build"

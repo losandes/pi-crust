@@ -6,7 +6,6 @@ export {
   type TConsultPorts,
 } from './src/use-cases/consult-activity'
 export { createRun } from './src/use-cases/create-run'
-
 export { answerText, decideRun } from './src/use-cases/decide-run'
 export {
   ANSWER_FILENAME,
@@ -19,6 +18,7 @@ export {
   resumeCommand,
 } from './src/use-cases/render-report'
 export { runWorkflow } from './src/use-cases/run-workflow'
+export { freshSessionId } from './src/use-cases/start-session'
 export {
   steerBranch,
   steerOverwrite,

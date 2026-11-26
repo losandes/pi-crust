@@ -1,14 +1,32 @@
 # Observability Reference
 
-The event schema, the seven SQLite tables, and the polling contract — the one data path is **agents → sqlite → web ui**.
+The event schema, the nine SQLite tables, and the polling contract — the one data path is **agents → sqlite → web ui**.
 
 ## Two stores, one truth
 
 **Files are the raw record** (`raw_output.jsonl` streams, `envelope.json`, `agent_map.json`); **SQLite (`crust.db`) is the queryable mirror** the UI reads. `trace-db.ts` writes both. Losing the db loses nothing that can't be rebuilt from files.
 
-One trace per machine lives at `~/.pi-crust/data/crust.db`, alongside `sessions/`. `defaults.data_dir` in the merged TOML layers moves both together; `CRUST_DATA_DIR` overrides it. `CRUST_DB` and supported `--db` flags select a store for one reading command, not where runs write. No install step copies or freezes the defaults.
+One trace per machine lives at `~/.pi-crust/data/crust.db`, alongside repository-grouped `sessions/` ([where a run's files are](#where-a-runs-files-are)). `defaults.data_dir` in the merged TOML layers moves both together; `CRUST_DATA_DIR` overrides it. `CRUST_DB` and supported `--db` flags select a store for one reading command, not where runs write. No install step copies or freezes the defaults.
 
 `sessions.repository_root` records the repository's primary working tree, shared by linked worktrees; `workspace_root` records the particular working tree. An existing database gains the nullable `repository_root` column the first time a run writes to it; earlier rows and events are left unchanged. Read-only commands do not alter a database. Earlier per-repository traces stay untouched under the defaults.
+
+## Where a run's files are
+
+New runs live at `<data-dir>/sessions/<repository path>/<run-id>/`. The shared `lib/repository-path` package derives the repository path from the `origin` remote URL using these steps:
+
+1. Trim surrounding whitespace.
+2. Find the path part: for a URL matching `^[A-Za-z][A-Za-z0-9+.-]*://`, take everything after the first `/` following `://`; a `file` scheme (case-insensitive), or no such slash, gives no result. Otherwise, if it contains a `:` before the first `/` (or contains a `:` and no `/`), take everything after that colon. Other values are filesystem locations and give no result.
+3. Remove every leading and trailing `/`, then remove one trailing `.git`.
+4. Split on `/`. Reject fewer than two segments, an empty segment, `.` or `..`, or any segment containing a backslash or NUL.
+5. Keep the segments unchanged, without decoding or changing case: the last is the repository, and all preceding segments are owner levels.
+
+Only `origin` is read; the host does not participate in the path. With no usable origin, the path is `local/<name>-<hash8>`, where `name` is the primary clone's basename and `hash8` is the first eight hexadecimal characters of SHA-256 over its real absolute path encoded as UTF-8. Linked worktrees use the same primary clone. An owner named `local` is treated like any other owner.
+
+For example, the sessions directory may contain `losandes/pi-crust/<run-id>/`, `group/subgroup/project/<run-id>/`, `local/notes-1a2b3c4d/<run-id>/`, and earlier runs directly at `<run-id>/`. Each run directory contains its event log, invocation, agent directories and default `context_handoff/`; `--handoff` can relocate only the handoff documents.
+
+Before creating a new run directory, `run_directories(run_id, repository_dir)` records its repository path relative to the sessions directory, while `repository_directories(path)` reserves every grouping prefix (each owner level and the repository directory). Claims validate and reserve under one `BEGIN IMMEDIATE` transaction. Every reader resolves the recorded placement by run id, falling back to the flat location when there is no record, so changing a remote or removing a worktree does not move a run. A pinned id with an existing flat directory stays there without a registry entry. Existing directories are never moved or renamed.
+
+A claim is refused if an ancestor belongs to a known run, its target is a reserved grouping directory, or its target already exists; the message identifies the run and conflicting directory, leaving pruning or renaming to the developer. Pruning removes only the selected runs and their placement records, retaining grouping directories and their reservations.
 
 ## Event schema
 

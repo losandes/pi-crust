@@ -5,7 +5,7 @@ import { sessionDirFor } from './consult'
 export type TJoinRequest = Readonly<{ runId: string; activity: string }>
 
 export type TJoinPorts = Readonly<{
-  dataDir: string
+  runDirectory: (runId: string) => string
   runState: (runId: string) =>
     | Readonly<{
         activityRuns: readonly Readonly<
@@ -97,7 +97,7 @@ export const resolveJoin =
       }
     }
     const { sessionId } = session
-    const dir = sessionDirFor(ports.dataDir, runId, agent)
+    const dir = sessionDirFor(ports.runDirectory(runId), agent)
     const sessionFile = ports.sessionFile(dir, sessionId)
     if (sessionFile === undefined) {
       return {

@@ -1,4 +1,8 @@
 import { resolve } from 'node:path'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import type { TEnv } from '../../../../lib/system'
 import { configPathFromEnv } from '../../../../lib/system'
 import { loadConfig } from '../../../config'
@@ -48,13 +52,17 @@ export const consultActivity =
       return 1
     }
     const target = resolved.data
-    const handoffDir = handoffDirFor(dataDir, runId)
+    const runDir = resolveRunDirectory({
+      dbPath,
+      sessionsDir: sessionsDirIn(dataDir),
+    })(runId)
+    const handoffDir = handoffDirFor(runDir)
     const request: TConsultRequest = {
       runId,
       activityRunId: target.activityRunId,
       agent: target.agent,
       sessionId: target.sessionId,
-      sessionDir: sessionDirFor(dataDir, runId, target.agent),
+      sessionDir: sessionDirFor(runDir, target.agent),
       handoffDir,
       mode: mode as TConsultMode,
       // What the person asked, verbatim. The preamble that tells the agent
@@ -87,10 +95,7 @@ export const consultActivity =
 
     // Recorded against the activityRun it asked about, so the thread is found where
     // the question made sense rather than at the end of the run.
-    const tracer = createTracer(
-      dbPath,
-      resolve(dataDir, 'sessions', runId, 'events.jsonl'),
-    )
+    const tracer = createTracer(dbPath, resolve(runDir, 'events.jsonl'))
     const event = consultEvent(request, outcome)
     tracer.event({
       run_id: runId,

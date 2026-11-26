@@ -143,8 +143,10 @@ The `## Report` section shows the exact JSON shape of the declared output type �
 
 ## Session directory layout
 
+The run directory is resolved by id using the [recorded placement](observability.md#where-a-runs-files-are), with earlier flat runs left in place.
+
 ```text
-.pi-crust/data/sessions/{run_id}/
+<data-dir>/sessions/<repository path>/{run_id}/
 ├── agent_map.json          agent name → coding-agent session_id + model
 ├── context_handoff/        the ONE place agents write files for the agents that follow
 └── {agent_name}/

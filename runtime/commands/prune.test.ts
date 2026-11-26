@@ -389,3 +389,76 @@ test(
     }
   },
 )
+
+for (const confirmed of [false, true]) {
+  test(
+    [
+      'given old flat and grouped runs beside a newer grouped run',
+      `when pruning with confirmation=${confirmed}`,
+      'it should remove only confirmed old runs and retain grouping directories',
+    ].join(', '),
+    async () => {
+      // given
+      const { claimRunDirectory, registeredRepositoryPath, sessionsDirIn } =
+        await import('../../lib/run-directories')
+      const { readFileSync, rmSync } = await import('node:fs')
+      const root = scratch()
+      const dbPath = join(root, 'crust.db')
+      const store = { dbPath, sessionsDir: sessionsDirIn(root) }
+      silenceTerminal()
+      try {
+        const paths = ['oldnew', 'newnew'].map((id) => {
+          const result = claimRunDirectory(store)(id, [
+            'group',
+            'subgroup',
+            'repo',
+          ])
+          if (result.status === 'error') throw result.error
+          return result.data
+        })
+        const dirs = [...paths, join(store.sessionsDir, 'oldflat')]
+        const keptDir = dirs[1]
+        if (keptDir === undefined)
+          throw new Error('fixture must include the newer grouped run')
+        dirs.forEach((dir) => {
+          mkdirSync(dir, { recursive: true })
+          writeFileSync(join(dir, 'keep'), dir)
+        })
+        const tracer = createTracer(dbPath, join(root, 'events.jsonl'))
+        tracer.close()
+        const db = new Database(dbPath)
+        aSession(db, 'oldnew', 30, 'success')
+        aSession(db, 'newnew', 1, 'success')
+        aSession(db, 'oldflat', 30, 'success')
+        db.close()
+        // when
+        const actual = main([
+          '--older-than',
+          '14d',
+          '--db',
+          dbPath,
+          ...(confirmed ? ['--yes'] : []),
+        ])
+        // then
+        expect(actual).toBe(0)
+        expect(existsSync(dirs[0] ?? '')).toBe(!confirmed)
+        expect(existsSync(dirs[2] ?? '')).toBe(!confirmed)
+        expect(readFileSync(join(keptDir, 'keep'), 'utf8')).toBe(keptDir)
+        expect(registeredRepositoryPath(store)('oldnew')).toEqual(
+          confirmed ? undefined : ['group', 'subgroup', 'repo'],
+        )
+        const check = new Database(dbPath)
+        expect(
+          check.query('SELECT path FROM repository_directories').all(),
+        ).toHaveLength(3)
+        expect(check.query('SELECT run_id FROM sessions').all()).toHaveLength(
+          confirmed ? 1 : 3,
+        )
+        check.close()
+      } finally {
+        restoreTerminal()
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}

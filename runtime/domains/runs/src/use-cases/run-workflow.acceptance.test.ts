@@ -2,6 +2,10 @@ import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import {
+  resolveRunDirectory,
+  sessionsDirIn,
+} from '../../../../../lib/run-directories'
 import { configText } from '../../../../testing/config-document'
 import { parseDecideArgs } from '../../../cli'
 import { decideRun } from '../../../runs'
@@ -63,7 +67,6 @@ const acceptanceFixture = (
     }),
   )
   const runId = 'accept119'
-  const handoff = join(dir, 'sessions', runId, 'context_handoff')
   const plan: readonly TStage[] = [
     {
       name: 'work',
@@ -148,7 +151,15 @@ const acceptanceFixture = (
   return {
     run,
     runId,
-    handoff,
+    get handoff() {
+      return join(
+        resolveRunDirectory({
+          dbPath: join(dir, 'crust.db'),
+          sessionsDir: sessionsDirIn(dir),
+        })(runId),
+        'context_handoff',
+      )
+    },
     config,
     execute,
     requests,

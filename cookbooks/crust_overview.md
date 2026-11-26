@@ -36,7 +36,7 @@ Each domain exposes `index.ts` over `src/{data,typedefs,use-cases}`. Cross-domai
 
 ## Repository layout
 
-Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. Runs create `crust.db`, `sessions/<run_id>/` and command logs under `~/.pi-crust/data/` by default, shared across repositories.
+Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. Runs create `crust.db`, [repository-grouped session directories](../references/observability.md#where-a-runs-files-are) and command logs under `~/.pi-crust/data/` by default, shared across repositories.
 
 Configuration is read on every command in three layers: package `runtime/config/`, machine `~/.pi-crust/config/`, repository `pi-crust.toml`. The two directories each hold the same three TOML filenames. Tables merge recursively; arrays, including lifecycle stages, replace whole. The repository wins for fields it states. Lists group entries by first-declaring layer and sort names inside each group.
 

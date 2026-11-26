@@ -20,7 +20,7 @@
  * env: CRUST_DB and CRUST_CONFIG override the paths; the flags still win.
  */
 
-import { resolve } from 'node:path'
+import { resolveRunDirectory, sessionsDirIn } from '../../lib/run-directories'
 import { openDatabase } from '../../lib/sqlite'
 import { errorMessage, safeParseSettlement } from '../../lib/typedefs'
 import { appendSteering } from '../domains/agents'
@@ -71,6 +71,10 @@ export const main = async (argv: readonly string[]): Promise<number> => {
   const cfg = loadConfig(configPathFromEnv())
   const { db: dbPath, dataDir } = resolveLookupPaths(cfg, repoRoot())
 
+  const runDir = resolveRunDirectory({
+    dbPath,
+    sessionsDir: sessionsDirIn(dataDir),
+  })(runId)
   const state = readRunState(dbPath, runId)
   if (state === undefined) {
     say(`no run ${runId} in ${dbPath}`)
@@ -78,7 +82,7 @@ export const main = async (argv: readonly string[]): Promise<number> => {
   }
 
   if (note.trim() !== '') {
-    const handoffDir = handoffDirFor(dataDir, runId)
+    const handoffDir = handoffDirFor(runDir)
     const at = nowIso()
     const path = appendSteering(handoffDir, developerNote(note, at))
     say(`note recorded in ${path}`)
@@ -105,10 +109,7 @@ export const main = async (argv: readonly string[]): Promise<number> => {
     db.close()
   }
 
-  const resumed = resumeRecordedRun(
-    resolve(dataDir, 'sessions', runId),
-    detach ? 'detached' : 'attached',
-  )
+  const resumed = resumeRecordedRun(runDir, detach ? 'detached' : 'attached')
   say(resumed.started ? `resumed: ${resumed.command}` : resumed.reason)
   if (!resumed.started) return 1
   return (await resumed.finished) ?? 0

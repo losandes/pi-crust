@@ -10,6 +10,50 @@ import {
 import { tokenRepo } from '../testing/token-repo'
 import { main } from './resume'
 
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given a stopped registered run',
+    'when resuming with a note',
+    'it should use only the registered files',
+  ].join(', '),
+  async () => {
+    // given
+    const { Database } = await import('bun:sqlite')
+    const { cpSync } = await import('node:fs')
+    using fixture = tokenRepo()
+    const dir = join(
+      fixture.dataDir,
+      'sessions',
+      'group',
+      'subgroup',
+      'repo',
+      fixture.runId,
+    )
+    cpSync(fixture.sessionDir, dir, { recursive: true })
+    const db = new Database(fixture.dbPath)
+    db.run('INSERT INTO run_directories VALUES (?, ?)', [
+      fixture.runId,
+      'group/subgroup/repo',
+    ])
+    db.close()
+    // when
+    const result = fixture.invoke('resume.ts', [
+      fixture.runId,
+      '--note',
+      'registered note',
+    ])
+    // then
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString()).toContain('resumed:')
+    expect(
+      readFileSync(join(dir, 'context_handoff', 'steering.md'), 'utf8'),
+    ).toContain('registered note')
+    expect(
+      existsSync(join(fixture.sessionDir, 'context_handoff', 'steering.md')),
+    ).toBe(false)
+  },
+)
+
 for (const one of [
   { name: 'token configuration', options: {}, note: false },
   { name: 'resume note', options: {}, note: true },

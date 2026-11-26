@@ -37,7 +37,9 @@
       // in one place so the runtime and the UI cannot disagree about what a
       // failure is. Mirrored in vite.config.ts, which resolves it at build.
       "@typedefs": ["../../lib/typedefs/index.ts"],
-      "@sqlite": ["../../lib/sqlite/index.ts"]
+      "@sqlite": ["../../lib/sqlite/index.ts"],
+      "@repository-path": ["../../lib/repository-path/index.ts"],
+      "@run-directories": ["../../lib/run-directories/index.ts"]
     }
   },
   "include": [
@@ -47,6 +49,8 @@
     "src/**/*.tsx",
     "vite.config.ts",
     "../../lib/typedefs/**/*.ts",
-    "../../lib/sqlite/**/*.ts"
+    "../../lib/sqlite/**/*.ts",
+    "../../lib/repository-path/**/*.ts",
+    "../../lib/run-directories/**/*.ts"
   ]
 }

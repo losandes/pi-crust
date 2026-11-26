@@ -438,3 +438,24 @@ test(
     expect(actual[0]?.activityRunId).toBeUndefined()
   },
 )
+
+for (const path of [
+  '/data/sessions/owner/repo/id/context_handoff/plan.md',
+  '/data/sessions/group/subgroup/project/id/context_handoff/plan.md',
+  '/data/sessions/id/context_handoff/plan.md',
+]) {
+  test(
+    [
+      `given a reported artifact in ${path}`,
+      'when resolving its session-relative name',
+      'it should use the same key as the handoff listing',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = relativeToSession(path, 'id')
+      // then
+      expect(actual).toBe('context_handoff/plan.md')
+    },
+  )
+}

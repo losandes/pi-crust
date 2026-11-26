@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
+import { expect, spyOn, test } from 'bun:test'
 import { basename } from 'node:path'
 import {
   restoreTerminal,
@@ -6,8 +6,10 @@ import {
 } from '../../../../testing/terminal-capture'
 import { sessionLifecycle } from './start-session'
 
-beforeEach(silenceTerminal)
-afterEach(restoreTerminal)
+const captureTerminal = () => {
+  silenceTerminal()
+  return { [Symbol.dispose]: restoreTerminal }
+}
 
 /** What the fallback resolves to in whatever process is running the suite. */
 const scriptName = (): string =>
@@ -20,8 +22,10 @@ test(
     'it should record that name, not the script that happened to run it',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
+    // given
     /*
-     * given — nearly every run goes through `compose.ts`, so the script name
+     * nearly every run goes through `compose.ts`, so the script name
      * made `sdlc`, `tdd` and `bugfix` all read as `compose` on the dashboard:
      * one word for every run, naming the mechanism rather than the work.
      */
@@ -42,6 +46,7 @@ test(
     'it should fall back to the script name, because there is no name to give',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given — `--activities plan,build` names no Lifecycle
     const given = undefined
 
@@ -60,6 +65,7 @@ test(
     'it should read as no Lifecycle rather than record a blank name',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const given = ''
 
@@ -129,6 +135,7 @@ test(
     'it should land on the canonical directory and record it in the pointer',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const cfg = scratchConfig()
 
@@ -136,11 +143,9 @@ test(
     const run = startSession(cfg, 'a1b2c3d4')
 
     // then
-    const expected = defaultHandoffDir(cfg.defaults.data_dir, 'a1b2c3d4')
+    const expected = defaultHandoffDir(run.sessionDir)
     expect(run.contextHandoffDir).toEqual(expected)
-    expect(
-      recordedHandoffDir(join(cfg.defaults.data_dir, 'sessions', 'a1b2c3d4')),
-    ).toEqual(expected)
+    expect(recordedHandoffDir(run.sessionDir)).toEqual(expected)
     run.tracer.close()
   },
 )
@@ -152,6 +157,7 @@ test(
     'it should land on <repo>/specs/<runId> and record exactly that',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const cfg = scratchConfig()
 
@@ -162,9 +168,7 @@ test(
     const expected = resolve(repoRoot(), 'specs', 'a1b2c3d4')
     expect(run.contextHandoffDir).toEqual(expected)
     expect(existsSync(expected)).toBe(true)
-    expect(
-      recordedHandoffDir(join(cfg.defaults.data_dir, 'sessions', 'a1b2c3d4')),
-    ).toEqual(expected)
+    expect(recordedHandoffDir(run.sessionDir)).toEqual(expected)
     run.tracer.close()
     rmSync(expected, { recursive: true, force: true })
   },
@@ -177,6 +181,7 @@ test(
     'it should throw, naming both directories, before any agent runs',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given — a run that started, recorded a pointer, then stopped for a gate
     const cfg = scratchConfig()
     const first = startSession(cfg, 'a1b2c3d4')
@@ -200,6 +205,7 @@ test(
     'it should mint a fresh one itself',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const cfg = scratchConfig()
 
@@ -219,6 +225,7 @@ test(
     "it should close the session's own trace before exiting, rather than leave it reading running forever",
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given — every signal listener any earlier startSession() in this file
     // left behind is removed first, so only this call's own fires
     process.removeAllListeners('SIGTERM')
@@ -252,6 +259,7 @@ test(
     'it should throw, naming what to do instead, before touching a database',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const cfg = scratchConfig()
 
@@ -269,6 +277,7 @@ test(
     'it should carry the completed set through and note how many it skipped',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given — a run that finished one activityRun, then stopped (a gate, say)
     const cfg = scratchConfig()
     const first = startSession(cfg, 'a1b2c3d4')
@@ -307,6 +316,7 @@ test(
     'it should note that the directory is shared with any other run pointed at it',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given — a handoff literal with no {session_id} placeholder
     const cfg = scratchConfig()
 
@@ -330,6 +340,7 @@ test(
     'it should refuse',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     // when
     const actual = resumeVerdict(undefined, 'fbf49583', false)
@@ -346,6 +357,7 @@ test(
     'it should allow the resume \u2014 the exact state run fbf49583 died in',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const given = stateWith({
       status: 'fail',
@@ -368,6 +380,7 @@ test(
     'it should refuse, saying the run finished successfully',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const given = stateWith({
       status: 'success',
@@ -391,6 +404,7 @@ test(
     'it should allow the resume',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given \u2014 the thing it was waiting for was a person, who has now answered
     const given = stateWith({
       status: 'waiting',
@@ -413,6 +427,7 @@ test(
     'it should refuse, naming `crust procs`',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const given = stateWith({
       status: 'running',
@@ -436,6 +451,7 @@ test(
     'it should allow the resume \u2014 a run that was SIGKILLed never closed its own rows',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     const given = stateWith({
       status: 'running',
@@ -458,6 +474,7 @@ test(
     'it should retry rather than hand back an id whose directory already exists (1.4.2)',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given — a pooled store that already holds 'aaaa1111'
     const minted = ['aaaa1111', 'bbbb2222']
     let mintCalls = 0
@@ -483,6 +500,7 @@ test(
     'it should use it without minting a second one',
   ].join(', '),
   () => {
+    using _terminal = captureTerminal()
     // given
     let calls = 0
     const mint = () => {
@@ -511,6 +529,7 @@ test.skipIf(
     'it should leave the workspaces unchanged and record one repository identity per clone',
   ].join(', '),
   async () => {
+    using _terminal = captureTerminal()
     // given
     const { execFileSync } = await import('node:child_process')
     const { Database } = await import('bun:sqlite')
@@ -597,4 +616,277 @@ test.skipIf(
     }
   },
   20_000,
+)
+
+const SKIP_PLACEMENT_INTEGRATION =
+  !process.env.RUN_INTEGRATION_TESTS ||
+  process.env.RUN_INTEGRATION_TESTS === 'false'
+
+const placementFixture = async (withLinked = false) => {
+  const { spawnSync } = await import('node:child_process')
+  const { registeredRepositoryPath, runIdTaken, sessionsDirIn } = await import(
+    '../../../../../lib/run-directories'
+  )
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'crust-placement-')))
+  const primary = join(root, 'notes')
+  const linked = join(root, 'linked')
+  const dataDir = join(root, 'data')
+  const dbPath = join(dataDir, 'crust.db')
+  const store = { dbPath, sessionsDir: sessionsDirIn(dataDir) }
+  mkdirSync(primary)
+  const git = (...args: string[]) =>
+    expect(spawnSync('git', ['-C', primary, ...args]).status).toBe(0)
+  git('init')
+  git(
+    '-c',
+    'user.name=tester',
+    '-c',
+    'user.email=test@example.com',
+    '-c',
+    'commit.gpgsign=false',
+    'commit',
+    '--allow-empty',
+    '-m',
+    'fixture',
+  )
+  if (withLinked) git('worktree', 'add', '-b', 'linked', linked)
+  const entry = join(import.meta.dir, 'start-session.ts')
+  const contracts = resolve(
+    import.meta.dir,
+    '../../../../lib/contracts/index.ts',
+  )
+  const start = (cwd: string, id?: string) => {
+    const code = `import {startSession} from ${JSON.stringify(entry)}; import {crustConfigSchema} from ${JSON.stringify(contracts)}; const cfg = crustConfigSchema.parse({defaults:{data_dir:${JSON.stringify(dataDir)}},observability:{},agents:[]}); const run=startSession(cfg, ${JSON.stringify(id)}); run.tracer.sessionFinish(run.runId,true); run.tracer.close(); console.log(JSON.stringify({id:run.runId, dir:run.sessionDir}))`
+    return spawnSync('bun', ['-e', code], {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, CRUST_DATA_DIR: dataDir, CRUST_DB: dbPath },
+    })
+  }
+  const successful = (
+    cwd: string,
+    id?: string,
+  ): { id: string; dir: string } => {
+    const result = start(cwd, id)
+    expect(result.status, result.stderr).toBe(0)
+    return JSON.parse(result.stdout.trim().split('\n').at(-1) ?? '{}')
+  }
+  return {
+    primary,
+    linked,
+    store,
+    git,
+    start,
+    successful,
+    registered: registeredRepositoryPath(store),
+    taken: runIdTaken(store),
+    [Symbol.dispose]: () => rmSync(root, { recursive: true, force: true }),
+  }
+}
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an origin with a nested owner',
+    'when starting a run',
+    'it should place every run file beneath that repository path',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    fixture.git(
+      'remote',
+      'add',
+      'origin',
+      'git@gitlab.example.com:group/subgroup/project.git',
+    )
+
+    // when
+    const run = fixture.successful(fixture.primary, 'origin01')
+
+    // then
+    expect(run.dir).toBe(
+      join(fixture.store.sessionsDir, 'group', 'subgroup', 'project', run.id),
+    )
+    for (const file of [
+      'events.jsonl',
+      'handoff-dir',
+      'invocation.json',
+      'context_handoff',
+    ])
+      expect(existsSync(join(run.dir, file))).toBe(true)
+    expect(existsSync(join(fixture.store.sessionsDir, run.id))).toBe(false)
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an origin repository with a run and a linked worktree',
+    'when starting a run in the linked worktree',
+    'it should land beside the primary clone run',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture(true)
+    fixture.git(
+      'remote',
+      'add',
+      'origin',
+      'git@gitlab.example.com:group/subgroup/project.git',
+    )
+    const primary = fixture.successful(fixture.primary, 'origin01')
+
+    // when
+    const linked = fixture.successful(fixture.linked, 'origin02')
+
+    // then
+    expect(linked.dir).toBe(join(primary.dir, '..', linked.id))
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a registered run whose origin has changed',
+    'when starting with its pinned id',
+    'it should keep the recorded directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    fixture.git(
+      'remote',
+      'add',
+      'origin',
+      'git@gitlab.example.com:group/subgroup/project.git',
+    )
+    const first = fixture.successful(fixture.primary, 'origin01')
+    fixture.git(
+      'remote',
+      'set-url',
+      'origin',
+      'git@github.com:changed/name.git',
+    )
+
+    // when
+    const joined = fixture.successful(fixture.primary, first.id)
+
+    // then
+    expect(joined.dir).toBe(first.dir)
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an existing flat run directory',
+    'when starting with its pinned id',
+    'it should join in place without registering a repository path',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    const { writeFileSync, readFileSync } = await import('node:fs')
+    const flat = join(fixture.store.sessionsDir, 'legacy01')
+    mkdirSync(flat, { recursive: true })
+    writeFileSync(join(flat, 'keep'), 'legacy')
+
+    // when
+    const joined = fixture.successful(fixture.primary, 'legacy01')
+    const registered = fixture.registered('legacy01')
+
+    // then
+    expect(joined.dir).toBe(flat)
+    expect(registered).toBeUndefined()
+    expect(readFileSync(join(flat, 'keep'), 'utf8')).toBe('legacy')
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a primary clone named notes with no origin',
+    'when starting an unpinned run',
+    'it should use the stable local name-and-hash directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+
+    // when
+    const run = fixture.successful(fixture.primary)
+
+    // then
+    expect(run.dir).toMatch(/\/local\/notes-[a-f0-9]{8}\//)
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a local repository with a run and a linked worktree',
+    'when starting an unpinned run in the linked worktree',
+    'it should share the primary clone local directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture(true)
+    const primary = fixture.successful(fixture.primary)
+
+    // when
+    const linked = fixture.successful(fixture.linked)
+
+    // then
+    expect(join(primary.dir, '..')).toBe(join(linked.dir, '..'))
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given a registered id and a flat id offered before an available id',
+    'when minting a fresh session id against the store',
+    'it should skip both occupied ids',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    const registered = fixture.successful(fixture.primary, 'origin01')
+    mkdirSync(join(fixture.store.sessionsDir, 'legacy01'))
+    const offered = (function* () {
+      yield registered.id
+      yield 'legacy01'
+      return 'available'
+    })()
+
+    // when
+    const actual = freshSessionId(() => offered.next().value, fixture.taken)
+
+    // then
+    expect(actual).toBe('available')
+  },
+)
+
+test.skipIf(SKIP_PLACEMENT_INTEGRATION)(
+  [
+    'given an origin owner matching an earlier flat run id',
+    'when starting a new run in that repository',
+    'it should refuse without changing the earlier run directory',
+  ].join(', '),
+  async () => {
+    // given
+    using fixture = await placementFixture()
+    const { writeFileSync } = await import('node:fs')
+    const flat = join(fixture.store.sessionsDir, 'legacy01')
+    mkdirSync(flat, { recursive: true })
+    writeFileSync(join(flat, 'keep'), 'legacy')
+    fixture.successful(fixture.primary, 'legacy01')
+    const before = readdirSync(flat, { recursive: true })
+    fixture.git('remote', 'add', 'origin', 'git@github.com:legacy01/tools.git')
+
+    // when
+    const refused = fixture.start(fixture.primary, 'refused1')
+    const registered = fixture.registered('refused1')
+    const after = readdirSync(flat, { recursive: true })
+
+    // then
+    expect(refused.status).not.toBe(0)
+    expect(refused.stderr).toContain('belongs to run')
+    expect(after).toEqual(before)
+    expect(registered).toBeUndefined()
+  },
 )

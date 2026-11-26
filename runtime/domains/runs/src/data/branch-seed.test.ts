@@ -158,7 +158,8 @@ test(
     // when
     seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00001'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00001'),
       sourceRunId: 'src00001',
       branchRunId: 'brn00001',
       carry,
@@ -191,7 +192,8 @@ test(
     // when
     seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00002'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00002'),
       sourceRunId: 'src00002',
       branchRunId: 'brn00002',
       carry,
@@ -224,7 +226,8 @@ test(
     // when
     seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00003'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00003'),
       sourceRunId: 'src00003',
       branchRunId: 'brn00003',
       carry,
@@ -268,7 +271,8 @@ test(
     // when
     const seeded = seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00004'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00004'),
       sourceRunId: 'src00004',
       branchRunId: 'brn00004',
       carry,
@@ -303,7 +307,8 @@ test(
     // when
     const seeded = seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00005'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00005'),
       sourceRunId: 'src00005',
       branchRunId: 'brn00005',
       carry,
@@ -336,7 +341,8 @@ test(
     // when
     const seeded = seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00006'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00006'),
       sourceRunId: 'src00006',
       branchRunId: 'brn00006',
       carry,
@@ -374,7 +380,8 @@ test(
     // when
     seedBranch({
       dbPath,
-      dataDir,
+      sourceSessionDir: join(dataDir, 'sessions', 'src00007'),
+      branchSessionDir: join(dataDir, 'sessions', 'brn00007'),
       sourceRunId: 'src00007',
       branchRunId: 'brn00007',
       carry,

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { resolveRunDirectory, sessionsDirIn } from '../../lib/run-directories'
 import { safeParseSettlement, type TSettlement } from '../../lib/typedefs'
 import {
   openPiSession,
@@ -55,7 +56,10 @@ export const main =
     const paths = resolveDataPaths(config.data, repoRoot(), deps.env)
     const dbPath = dbPathFromEnv(deps.env) ?? paths.db
     const target = resolveJoin({
-      dataDir: paths.dataDir,
+      runDirectory: resolveRunDirectory({
+        dbPath,
+        sessionsDir: sessionsDirIn(paths.dataDir),
+      }),
       runState: (id) => readRunState(dbPath, id),
       hasLiveProcess: (id) => runHasLiveProcess(dbPath, id),
       agentSession: resolveAgentSessionByAgent(dbPath),

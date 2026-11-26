@@ -13,9 +13,9 @@ export const HANDOFF_DIRNAME = 'context_handoff'
 /** Both spellings a `--handoff` value may use for the run's own id. */
 export const RUN_ID_TOKENS = ['{session_id}', '{run_id}'] as const
 
-/** Today's path, unchanged: `<data_dir>/sessions/<run_id>/context_handoff`. */
-export const defaultHandoffDir = (dataDir: string, runId: string): string =>
-  resolve(join(dataDir, 'sessions', runId, HANDOFF_DIRNAME))
+/** The default handoff directory inside the resolved run directory. */
+export const defaultHandoffDir = (runDir: string): string =>
+  resolve(join(runDir, HANDOFF_DIRNAME))
 
 /**
  * Absolute. `override` undefined means the default. Throws on an empty
@@ -25,14 +25,14 @@ export const defaultHandoffDir = (dataDir: string, runId: string): string =>
 export const resolveHandoffDir = (
   params: Readonly<{
     repoRoot: string
-    dataDir: string
+    runDir: string
     runId: string
     override: string | undefined
   }>,
 ): string => {
-  const { repoRoot, dataDir, runId, override } = params
+  const { repoRoot, runDir, runId, override } = params
   if (override === undefined) {
-    return defaultHandoffDir(dataDir, runId)
+    return defaultHandoffDir(runDir)
   }
   if (override === '') {
     throw new Error(

@@ -1,4 +1,36 @@
 import { expect, test } from 'bun:test'
+
+test(
+  [
+    'given a registered nested run',
+    'when locating its invocation directory',
+    'it should use the registry rather than the current repository',
+  ].join(', '),
+  async () => {
+    // given
+    const { claimRunDirectory, sessionsDirIn } = await import(
+      '../../../../../lib/run-directories'
+    )
+    const root = mkdtempSync(join(tmpdir(), 'resume-location-'))
+    const dbPath = join(root, 'crust.db')
+    try {
+      const placed = claimRunDirectory({
+        dbPath,
+        sessionsDir: sessionsDirIn(root),
+      })('id', ['group', 'subgroup', 'repo'])
+      // when
+      const actual = sessionDirOf(dbPath, 'id')
+      // then
+      expect(placed).toEqual({ status: 'ok', data: actual })
+      expect(actual).toBe(
+        join(root, 'sessions', 'group', 'subgroup', 'repo', 'id'),
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
 import {
   existsSync,
   mkdirSync,

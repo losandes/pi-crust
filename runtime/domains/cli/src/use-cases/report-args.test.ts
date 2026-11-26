@@ -16,6 +16,51 @@ const reportUsageError = usageError(USAGE)
 
 test(
   [
+    'given readable configuration and a registered run',
+    'when resolving its session directory',
+    'it should combine configured sessions with recorded placement',
+  ].join(', '),
+  async () => {
+    // given
+    const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { claimRunDirectory, sessionsDirIn } = await import(
+      '../../../../../lib/run-directories'
+    )
+    const { configText } = await import('../../../../testing/config-document')
+    const root = mkdtempSync(join(tmpdir(), 'report-config-placement-'))
+    const dbPath = join(root, 'crust.db')
+    const config = join(root, 'fixture.toml')
+    try {
+      writeFileSync(
+        config,
+        configText({
+          defaults: { data_dir: root },
+          observability: {},
+          agents: [],
+        }),
+      )
+      expect(
+        claimRunDirectory({ dbPath, sessionsDir: sessionsDirIn(root) })('id', [
+          'owner',
+          'repo',
+        ]).status,
+      ).toBe('ok')
+      const args = { runId: 'id', json: false, db: undefined, config }
+      // when
+      const actual = resolveSessionDir(args, dbPath, 'id')
+      // then
+      expect(resolveDbPath(args)).toBe(dbPath)
+      expect(actual).toBe(join(root, 'sessions', 'owner', 'repo', 'id'))
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  [
     'given reporter arguments whose configuration is unreadable',
     'when resolving the store and recorded session directory',
     'it should use the default store and the store-relative session fallback',
@@ -220,3 +265,48 @@ test(
     }
   },
 )
+
+for (const path of [undefined, ['group', 'subgroup', 'repo']] as const) {
+  test(
+    [
+      'given a run registry and a reporter without config',
+      `when resolving ${path?.join('/') ?? 'flat'} placement`,
+      'it should find the run in its recorded store',
+    ].join(', '),
+    async () => {
+      // given
+      const { mkdtempSync, rmSync } = await import('node:fs')
+      const { tmpdir } = await import('node:os')
+      const { join } = await import('node:path')
+      const { claimRunDirectory, sessionsDirIn } = await import(
+        '../../../../../lib/run-directories'
+      )
+      const root = mkdtempSync(join(tmpdir(), 'report-placement-'))
+      const dbPath = join(root, 'crust.db')
+      try {
+        if (path)
+          expect(
+            claimRunDirectory({ dbPath, sessionsDir: sessionsDirIn(root) })(
+              'id',
+              path,
+            ).status,
+          ).toBe('ok')
+        // when
+        const actual = resolveSessionDir(
+          {
+            runId: 'id',
+            json: false,
+            db: dbPath,
+            config: join(root, 'missing'),
+          },
+          dbPath,
+          'id',
+        )
+        // then
+        expect(actual).toBe(join(root, 'sessions', ...(path ?? []), 'id'))
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    },
+  )
+}
