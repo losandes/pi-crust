@@ -171,86 +171,94 @@ test.skipIf(!browserTestsEnabled)(
   30_000,
 )
 
-for (const tier of Object.keys(viewportWidths) as TViewportTier[]) {
-  for (const theme of themes) {
-    test.skipIf(!browserTestsEnabled)(
-      [
-        `given the dashboard in the app shell at the ${tier} tier under the ${theme.name} theme`,
-        'when four sessions with long identifiers render',
-        'it should not scroll sideways',
-      ].join(', '),
-      async () => {
-        // given
-        await withSessionPage(
-          'dashboard',
-          tier,
-          theme,
-          async (page, context) => {
-            // when
-            await page
-              .locator('main')
-              .getByText(/unbroken-identifier-/)
-              .filter({ visible: true })
-              .first()
-              .waitFor()
+const everyTier = Object.keys(viewportWidths) as TViewportTier[]
+const cases = [
+  ...everyTier.flatMap((tier) =>
+    themes
+      .filter(({ name }) => name === 'light' || name === 'registered')
+      .map((theme) => ({ tier, theme })),
+  ),
+  ...themes
+    .filter(({ name }) => name !== 'light' && name !== 'registered')
+    .map((theme) => ({ tier: 'base' as const, theme })),
+]
 
-            // then
-            await expectPageFits(page, context)
-          },
-        )
-      },
-      30_000,
-    )
+// Light represents every 1px-border theme and carries the longest such label;
+// registered resolves to high-contrast, the only 2px-border theme and the
+// longest label in the theme picker. Both run at every tier.
+for (const { tier, theme } of cases) {
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given the dashboard in the app shell at the ${tier} tier under the ${theme.name} theme`,
+      'when four sessions with long identifiers render',
+      'it should not scroll sideways',
+    ].join(', '),
+    async () => {
+      // given
+      await withSessionPage('dashboard', tier, theme, async (page, context) => {
+        // when
+        await page
+          .locator('main')
+          .getByText(/unbroken-identifier-/)
+          .filter({ visible: true })
+          .first()
+          .waitFor()
 
-    test.skipIf(!browserTestsEnabled)(
-      [
-        `given the trace in the app shell at the ${tier} tier under the ${theme.name} theme`,
-        'when no activity is selected and then each detail tab is selected',
-        'it should not scroll sideways in any state',
-      ].join(', '),
-      async () => {
-        // given
-        await withSessionPage('trace', tier, theme, async (page, context) => {
-          // when, then
-          const tablist = page.getByRole('tablist', { name: 'activity detail' })
-          expect(await tablist.count()).toBe(0)
-          await page
-            .locator('main')
+        // then
+        await expectPageFits(page, context)
+      })
+    },
+    30_000,
+  )
+
+  test.skipIf(!browserTestsEnabled)(
+    [
+      `given the trace in the app shell at the ${tier} tier under the ${theme.name} theme`,
+      'when no activity is selected and then each detail tab is selected',
+      'it should not scroll sideways in any state',
+    ].join(', '),
+    async () => {
+      // given
+      await withSessionPage('trace', tier, theme, async (page, context) => {
+        // when, then
+        const tablist = page.getByRole('tablist', { name: 'activity detail' })
+        expect(await tablist.count()).toBe(0)
+        await page
+          .locator('main')
+          .getByText(/unbroken-identifier-|long-directory\//)
+          .filter({ visible: true })
+          .first()
+          .waitFor()
+        await expectPageFits(page, `${context}, no selection`)
+        await page.locator('button[title^="build — running"]').click()
+        await tablist.waitFor()
+        const tabs = tablist.getByRole('tab')
+        const detail = page.locator('section').filter({ has: tablist })
+        expect(await tabs.count(), context).toBe(4)
+        for (const label of ['chat', 'highlights', 'context', 'events']) {
+          // when
+          const tab = tablist.getByRole('tab', {
+            name: new RegExp(`^${label}\\b`, 'i'),
+          })
+          await tab.click()
+          if (label === 'context') {
+            await detail.getByRole('button', { name: /agent config/ }).click()
+          }
+
+          // then
+          expect(
+            await tab.getAttribute('aria-selected'),
+            `${context}, ${label}`,
+          ).toBe('true')
+          await detail
             .getByText(/unbroken-identifier-|long-directory\//)
             .filter({ visible: true })
             .first()
             .waitFor()
-          await expectPageFits(page, `${context}, no selection`)
-          await page.locator('button[title^="build — running"]').click()
-          await tablist.waitFor()
-          const tabs = tablist.getByRole('tab')
-          const detail = page.locator('section').filter({ has: tablist })
-          expect(await tabs.count(), context).toBe(4)
-          for (const label of ['chat', 'highlights', 'context', 'events']) {
-            // when
-            const tab = tablist.getByRole('tab', {
-              name: new RegExp(`^${label}\\b`, 'i'),
-            })
-            await tab.click()
-            if (label === 'context') {
-              await detail.getByRole('button', { name: /agent config/ }).click()
-            }
-
-            // then
-            expect(
-              await tab.getAttribute('aria-selected'),
-              `${context}, ${label}`,
-            ).toBe('true')
-            await detail
-              .getByText(/unbroken-identifier-|long-directory\//)
-              .filter({ visible: true })
-              .first()
-              .waitFor()
-            await expectPageFits(page, `${context}, ${label}`)
-          }
-        })
-      },
-      30_000,
-    )
-  }
+          await expectPageFits(page, `${context}, ${label}`)
+        }
+      })
+    },
+    30_000,
+  )
 }

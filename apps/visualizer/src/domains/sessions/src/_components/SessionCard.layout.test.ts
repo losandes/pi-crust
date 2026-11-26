@@ -203,7 +203,9 @@ test.skipIf(!browserTestsEnabled)(
   20_000,
 )
 
-for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+// No rendered component varies at sm, md, lg or xl; the card and its children
+// have no responsive variants or breakpoint media queries. Keep both endpoints.
+for (const tier of ['base', '2xl'] as const) {
   test.skipIf(!browserTestsEnabled)(
     [
       `given a 120-character branch card at the ${tier} tier`,

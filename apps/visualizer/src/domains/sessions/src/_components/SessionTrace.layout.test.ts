@@ -195,7 +195,9 @@ for (const status of ['running', 'waiting', 'success', 'fail'] as const) {
   )
 }
 
-for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+// No rendered component varies at lg or xl: the shell varies at sm and the
+// waterfall at md; no activity detail is selected in this harness state.
+for (const tier of ['base', 'sm', 'md', '2xl'] as const) {
   test.skipIf(!browserTestsEnabled)(
     [
       `given a successful run at the ${tier} tier`,
@@ -269,7 +271,9 @@ test.skipIf(!browserTestsEnabled)(
   30_000,
 )
 
-for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+// No rendered component varies at lg or xl: the shell varies at sm and the
+// waterfall at md; the long branch adds no responsive variant or media query.
+for (const tier of ['base', 'sm', 'md', '2xl'] as const) {
   test.skipIf(!browserTestsEnabled)(
     [
       `given a run with a 120-character branch at the ${tier} tier`,
