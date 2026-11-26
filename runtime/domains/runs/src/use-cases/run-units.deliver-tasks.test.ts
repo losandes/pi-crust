@@ -64,6 +64,10 @@ test.skipIf(SKIP_INTEGRATION)(
         .eventsNamed(f.run.runId, 'task:verify')
         .map((event) => event.passed),
     ).toEqual([false, true])
+    expect(f.run.tracer.eventsNamed(f.run.runId, 'task_end')).toMatchObject([
+      { moment: 'deliver', passed: false },
+      { moment: 'deliver', passed: true },
+    ])
     expect(f.run.tracer.eventsNamed(f.run.runId, 'chain_run')).toHaveLength(4)
   },
 )
