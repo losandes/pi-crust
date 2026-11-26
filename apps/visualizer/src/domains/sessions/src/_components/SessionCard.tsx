@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { ActivityRunDots } from '@/domains/activity-runs'
-import type { EventRow } from '@/domains/events'
-import { agentColor, dotColor, eventLabel, fetchEvents } from '@/domains/events'
+import { agentColor, dotColor, eventLabel } from '@/domains/events'
 import { StatChip, StatusChip } from '@/lib/_components'
 import { cx } from '@/lib/cx'
 import { axisTicks, fmtDate, fmtOffset, ts } from '@/lib/format'
 import { paletteColor } from '@/lib/palette'
-import { startPolling, usePollInterval } from '@/lib/polling'
 import { hrefFor } from '@/lib/router'
 import { archiveSession } from '../io/send-archive-session'
 import type { SessionSummary } from '../typedefs/session'
 import { resolveBranchLabel } from '../usecases/resolve-branch-label'
 import { resolveRepositoryLabel } from '../usecases/resolve-repository-label'
+import { useCardEvents } from '../usecases/use-card-events'
 
 /**
  * The timeline shows at most MAX_VISIBLE_ROWS slots. An overflowing roster
@@ -41,66 +40,6 @@ type TTimelineRow = Readonly<{
   title: string
   dots: readonly TTimelineDot[]
 }>
-
-/**
- * Each card tails its own event stream: one full drain on mount, then the same
- * rowid-cursor poll the trace view uses — but only while the run is live. A
- * finished run's events cannot change, so polling it is pure waste on a page
- * that may hold fifty cards.
- */
-const useCardEvents = (
-  runId: string,
-  running: boolean,
-  workspace: string,
-): readonly EventRow[] => {
-  const intervalMs = usePollInterval()
-  const [events, setEvents] = useState<readonly EventRow[]>([])
-  const cursor = useRef(0)
-  const inflight = useRef(false)
-
-  useEffect(() => {
-    let live = true
-
-    const pull = async () => {
-      if (inflight.current) return
-      inflight.current = true
-      try {
-        let fresh: readonly EventRow[] = []
-        let hasMore = true
-        while (hasMore) {
-          // Cursor pagination is inherently sequential: each request needs the
-          // previous cursor.
-          const page = await fetchEvents(runId, cursor.current, 1000, workspace)
-          cursor.current = Math.max(cursor.current, page.cursor)
-          fresh = [...fresh, ...page.events]
-          hasMore = page.has_more
-        }
-        if (live && fresh.length > 0) {
-          setEvents((previous) => [...previous, ...fresh])
-        }
-      } catch {
-        /* the list view surfaces api errors; a card just retries next poll */
-      } finally {
-        inflight.current = false
-      }
-    }
-
-    if (!running) {
-      void pull()
-      return () => {
-        live = false
-      }
-    }
-
-    const stop = startPolling(() => void pull(), intervalMs)
-    return () => {
-      live = false
-      stop()
-    }
-  }, [runId, running, workspace, intervalMs])
-
-  return events
-}
 
 export const SessionCard = ({
   session,
