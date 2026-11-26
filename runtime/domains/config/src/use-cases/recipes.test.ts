@@ -55,7 +55,7 @@ test(
     for (const doc of pinned) {
       expect(doc.run.lifecycle).toBe(doc.name)
       expect(doc.run.script).toBe('runtime/commands/run.ts')
-      expect(shippedLifecycles()).toContain(doc.run.lifecycle)
+      expect(shippedLifecycles()).toContain(doc.name)
     }
   },
 )

@@ -240,6 +240,8 @@ test(
     const invocation = ['bun', planned.data.script, ...planned.data.args]
     // when
     const line = recipeArgv(['bun', ...resumeArgv(invocation, 'a1b2c3d4')])
+    expect(line).toBeDefined()
+    if (line === undefined) return
     const resumed = planDispatch(RECIPE_DOCS)({
       ...input,
       argv: dispatchArgv(line),

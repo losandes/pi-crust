@@ -40,7 +40,10 @@ for (const typed of [[], ['x', '--frob'], ['x', '--name']]) {
       // when
       const actual = lifecycleCommandArgs('ship', 'ship', typed)
       // then
-      expect(actual).toEqual(expected)
+      expect(actual.status).toBe('error')
+      expect(expected.status).toBe('error')
+      if (actual.status === 'error' && expected.status === 'error')
+        expect(actual).toEqual(expected)
     },
   )
 }
