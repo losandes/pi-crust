@@ -49,7 +49,7 @@ stages = [
 [lifecycles.ship-outcome]
 description = "An e2e engineering lifecycle to launch after you already identified the outcome: plan, build, and review."
 stages = [
-  { name = "discover", serial = ["plan"] },
+  { name = "discover", serial = ["import","plan"] },
   { name = "review-plan", concurrent = ["plan-comprehension","plan-readiness"] },
   { name = "deliver", serial = ["build"] },
   { name = "accept", concurrent = ["outcome-review","code-review"] },
