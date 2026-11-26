@@ -4,7 +4,7 @@ Thank you for wanting to improve pi-crust.
 
 ## Licensing of contributions
 
-pi-crust is released under the [PolyForm Internal Use License 1.0.0](LICENSE).
+pi-crust is released under the [MIT License](LICENSE).
 
 By submitting a contribution — a pull request, a patch, a code suggestion in an issue or a review — you agree that:
 
@@ -12,7 +12,7 @@ By submitting a contribution — a pull request, a patch, a code suggestion in a
 - Your contribution is licensed under the project licence in force at the time it is merged.
 - The maintainer may relicense the project, including your contribution, under different terms in future, without asking you again.
 
-That last point is the one worth being explicit about, because it is the one that is hard to fix later. pi-crust is licensed restrictively today and may be opened up — a permissive or open-source licence is a likely future. Relicensing requires the permission of every copyright holder in the codebase, so a single contribution made without this agreement can block it for everyone. Asking once, here, avoids having to track people down years later.
+pi-crust is MIT-licensed. The relicensing grant is retained so the licence can change again without tracing every contributor for permission.
 
 This grant runs to the maintainer only. It does not give anyone else rights beyond the project licence, and it does not transfer your copyright: you keep it, and you may use your own contribution however you like elsewhere.
 
@@ -47,7 +47,21 @@ CRUST_HOME=../pi-crust-wip crust run "..." --lifecycle sdlc
 
 ## Building the Node package
 
-Run `mise run build:package` from the repository root to build the installable Node package in `dist/`. The build bundles JavaScript programs and the path-policy extension and copies the runtime configuration, prompts and installer templates. A linked clone does not use this build: `crust` still runs its TypeScript working copy under bun.
+Run `mise run build:package` from the repository root to build the installable Node package in `dist/`, including the web UI. The build bundles JavaScript programs and the path-policy extension and copies runtime configuration, prompts, installer templates and shipped documentation. A linked clone does not use this build: `crust` still runs its TypeScript working copy under bun. Local `dist/` is not ignored and must not be committed; only the release workflow commits the distribution.
+
+To build, pack and check an archive without creating a local `dist/`, use an installed Node with npm and the visualizer's Chromium:
+
+```sh
+( OUT="$(mktemp -d)"; bun scripts/build-package.ts --out "$OUT/pkg" && npm pack "$OUT/pkg" --pack-destination "$OUT" && bun scripts/check-package.ts --archive "$OUT"/polyn-pi-crust-*.tgz --node-bin "$(mise where node)/bin"; STATUS=$?; rm -rf "$OUT"; exit "$STATUS" )
+```
+
+The check installs only into a disposable prefix, runs every command without bun, opens the UI in Chromium and verifies shutdown, restart and network bindings. The release workflow repeats it under exactly Node 22.19.0.
+
+## Releasing
+
+Publish a GitHub release with a SemVer tag, optionally prefixed `v`, such as `v1.2.3` or `1.2.3-rc.1`. Build metadata (`+...`) is not accepted. Target a branch, not a commit. `main` publishes under the npm dist-tag `latest`; another branch publishes under its own name. Branch names must start with a letter and contain only letters, digits, dots, underscores and hyphens, cannot be `latest` and cannot begin with `v` or `V` followed by a digit. Cut prereleases from another branch if they should not become the default install.
+
+Configure an `NPM_TOKEN` repository secret able to publish `@polyn/pi-crust` publicly. The workflow versions the root manifest, checks the code and the packed archive, commits `dist/` and the version to the release's target branch, publishes that same archive, and pushes the commit without changing tags. Nobody runs `npm publish` by hand.
 
 ## Branching and pull requests
 

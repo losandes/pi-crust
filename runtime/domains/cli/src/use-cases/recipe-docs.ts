@@ -711,11 +711,13 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
       {
         name: '--open',
-        detail: 'open the app in a browser once it is listening',
+        detail:
+          'open the app in a browser once it is listening; from a clone only',
       },
       {
         name: '--strictPort',
-        detail: 'fail rather than pick a different port',
+        detail:
+          'fail rather than pick a different port; an installed pi-crust always does',
       },
     ],
     env: [],

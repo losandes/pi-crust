@@ -57,6 +57,8 @@ test.skipIf(SKIP_INTEGRATION)(
     const patch = {
       CRUST_DB: dbPath,
       CRUST_BE_PORT: '0',
+      CRUST_UI_HOST: '127.0.0.1',
+      CRUST_FE_PORT: '0',
       CRUST_TOKEN: 'fixture-token',
       HOME: home,
       CRUST_MACHINE_CONFIG: join(home, 'machine'),
@@ -69,7 +71,7 @@ test.skipIf(SKIP_INTEGRATION)(
     // biome-ignore lint/plugin/no-object-mutation: these are the isolated server's external inputs, restored in finally
     Object.assign(process.env, patch)
     silenceTerminal()
-    const { server } = await import('./index.ts')
+    const { server, uiServer } = await import('./index.ts')
     const origin = `http://localhost:${server.port}`
     const request = async (
       path: string,
@@ -96,6 +98,14 @@ test.skipIf(SKIP_INTEGRATION)(
     }
     try {
       // when
+      expect(uiServer).toBeDefined()
+      const uiOrigin = `http://127.0.0.1:${uiServer?.port}`
+      expect(await (await fetch(`${uiOrigin}/api/health`)).json()).toEqual(
+        await (await fetch(`${origin}/api/health`)).json(),
+      )
+      expect(await (await fetch(uiOrigin)).text()).toBe(
+        await (await fetch(origin)).text(),
+      )
       for (const path of [
         '/api/health',
         '/api/workspaces',
@@ -293,6 +303,7 @@ test.skipIf(SKIP_INTEGRATION)(
         'continue',
       )
     } finally {
+      await uiServer?.stop()
       await server.stop()
       restoreTerminal()
       for (const [key, value] of Object.entries(previous)) {

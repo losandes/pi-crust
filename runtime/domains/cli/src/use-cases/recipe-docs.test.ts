@@ -158,6 +158,30 @@ test(
   },
 )
 
+test(
+  [
+    'given observe help',
+    'when reading built-package flag restrictions',
+    'it should distinguish clone-only and installed behavior',
+  ].join(', '),
+  () => {
+    // given
+    // when
+    const flags = recipeDoc('observe')?.flags
+    // then
+    expect(flags).toContainEqual({
+      name: '--open',
+      detail:
+        'open the app in a browser once it is listening; from a clone only',
+    })
+    expect(flags).toContainEqual({
+      name: '--strictPort',
+      detail:
+        'fail rather than pick a different port; an installed pi-crust always does',
+    })
+  },
+)
+
 const usageCases = [
   { script: 'usage.ts (list)', usage: CATALOGUE_USAGE, recipes: ['list'] },
   {

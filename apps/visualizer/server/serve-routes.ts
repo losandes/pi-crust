@@ -64,6 +64,7 @@ export const matchRoute = (
 export const serveRoutes = async (
   options: Readonly<{
     port: number
+    hostname?: string
     routes: TRoutes
     fallback: (req: Request) => Response | Promise<Response>
   }>,
@@ -115,7 +116,7 @@ export const serveRoutes = async (
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(options.port, resolve)
+    server.listen(options.port, options.hostname, resolve)
   })
   const address = server.address()
   if (address === null || typeof address === 'string')

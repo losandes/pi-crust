@@ -76,7 +76,13 @@ Two more are **Planners** rather than Activities: `operator` chooses the chain a
 
 ### Running one
 
-From the pi-crust clone's root, run `bun install`, then `bun link`, with bun's global bin directory on your PATH; see [Running your clone as `crust`](CONTRIBUTING.md#running-your-clone-as-crust) for details. From a target repository's root, run `crust init`; refresh with `crust update` or `crust init --refresh`. Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. It creates no configuration directory or prompt files and never overwrites an existing repository TOML file. Package and machine defaults are read on every command, without re-stamping.
+Install with Node 22.19.0 or later (bun is not required):
+
+```sh
+npm install -g @polyn/pi-crust
+```
+
+Cloning, `bun install` and `bun link` are the [contributor's path](CONTRIBUTING.md#running-your-clone-as-crust). From a target repository's root, run `crust init`; refresh with `crust update` or `crust init --refresh`. Setup writes `pi-crust.toml` when absent, the credential example `.env.pi-crust.example`, and the `.pi-crust/data/` entry in `.gitignore`: exactly three files on a fresh setup. It writes nothing under the repository's `.pi-crust/`, no `justfile` and no machine record, and leaves an existing `justfile` untouched. It creates no configuration directory or prompt files and never overwrites an existing repository TOML file. Package and machine defaults are read on every command, without re-stamping.
 
 ```bash
 crust please                          # answer questions, get the command
@@ -105,3 +111,7 @@ Useful flags: `--scope` (a ref, a range, a directory, or a glob — what the jud
 **Declare your [tasks](references/config.md#tasks).** Put repository commands under `[tasks.<name>]` in `pi-crust.toml`. The installed examples are commented out and declare no tasks until you provide real commands. Matching `change` tasks verify changed files before the Activity's work is accepted and send failures back to the Activity that changed them.
 
 **Expect it to stop.** Waiting is a state, not a failure. So is a regression. A run that stops and tells you why has done its job better than one that guessed. You can override this with `--trust-level 100` (or `--trust-level high`), in which case it will use it's judgement and tell you what decisions it made on your behalf at the end of each Activity.
+
+## License
+
+pi-crust is released under the [MIT License](LICENSE).

@@ -323,7 +323,9 @@ Two things govern it. `steps_valid` rejects a plan naming an Activity that does 
 
 ## Watching a run from another machine
 
-`crust observe` takes arguments and hands them to vite, the process serving the web app: `crust observe --host` listens on every interface so a phone or a second machine can watch a run, and `--host 127.0.0.1`, `--open` and `--strictPort` work the same way.
+From an installed pi-crust, `crust observe` handles arguments itself. It accepts `--host`, `--host <address>` (also `--host=<address>`) and `--strictPort`, and refuses `--open`. With no `--host`, both listeners bind only the loopback address; `--host` binds every interface and prints network addresses, while `--host <address>` binds only that address. One Node server serves the prebuilt UI and the API on both configured ports, with no bun or development server. `--strictPort` is accepted because an occupied port always fails.
+
+From a contributor's clone, `crust observe` takes arguments and hands them to vite, the process serving the web app: `crust observe --host` listens on every interface so a phone or a second machine can watch a run, and `--host 127.0.0.1`, `--open` and `--strictPort` work the same way.
 
 They go straight after the recipe with no `--` separator. `crust observe -- --host` does not work — the flag never reaches vite, which reports "use --host to expose" — which is the opposite of the habit most tools teach, so it is worth remembering once.
 
