@@ -362,7 +362,9 @@ test.skipIf(!browserTestsEnabled)(
   30_000,
 )
 
-for (const tier of ['base', 'sm', 'md', 'lg', 'xl', '2xl'] as const) {
+// No rendered component varies at lg: the shell and grid use sm, md and xl,
+// and the filter's @3xl/dashboard query resolves at md, not lg.
+for (const tier of ['base', 'sm', 'md', 'xl', '2xl'] as const) {
   test.skipIf(!browserTestsEnabled)(
     [
       `given dashboard cards with 120-character branches at the ${tier} tier`,
