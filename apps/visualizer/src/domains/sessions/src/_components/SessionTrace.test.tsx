@@ -15,6 +15,7 @@ const Detail = ({ onClose }: Readonly<{ onClose: () => void }>) => (
 )
 const Decision = () => <div>decision</div>
 const Context = () => <div>session context</div>
+const Warnings = () => <div>tree warnings</div>
 const NOW = Date.parse('2026-11-26T00:02:00Z')
 const at = (seconds: number) => new Date(NOW - seconds * 1000).toISOString()
 const activity = (
@@ -111,6 +112,12 @@ const withTrace = async (
     ActivityRunDetail: Detail,
     DecisionRequest: Decision,
     SessionContext: Context,
+    TreeWarnings: Warnings,
+    warningsIn: () => [],
+    sendDecision: async () => ({
+      ok: false,
+      problem: 'not used by this fixture',
+    }),
   })
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -329,6 +336,59 @@ test(
       )
       // then
       expect(location.hash.endsWith('/queued')).toBe(true)
+    })
+  },
+)
+
+test(
+  [
+    'given a run with a developer note and branch history',
+    'when displaying the standalone trace',
+    'it should preserve the note and links to both related runs',
+  ].join(', '),
+  async () => {
+    // given
+    const base = fixture()
+    const trace: TTrace = {
+      ...base,
+      events: [
+        ...base.events,
+        {
+          ...taskEvent(4, 'developer_note', '', 60, 60, ''),
+          payload_json: JSON.stringify({
+            note: 'keep task details',
+            from: 'operator',
+          }),
+        },
+        {
+          ...taskEvent(5, 'branched_from', '', 59, 59, ''),
+          payload_json: JSON.stringify({
+            from_run_id: 'original',
+            activity: 'build',
+          }),
+        },
+        {
+          ...taskEvent(6, 'branch build', '', 58, 58, ''),
+          type: 'steer',
+          payload_json: JSON.stringify({
+            target: 'branch',
+            branch_run_id: 'follow-up',
+            activity: 'build',
+          }),
+        },
+      ],
+    }
+    // when
+    await withTrace(trace, (container) => {
+      // then
+      expect(container.textContent).toContain('operator')
+      expect(container.textContent).toContain('keep task details')
+      expect(container.textContent).toContain('branched from')
+      expect(container.textContent).toContain('branched to')
+      expect(
+        [...container.querySelectorAll('a')].map((link) => link.textContent),
+      ).toEqual(['original', 'follow-up'])
+      expect(container.textContent).toContain('tree warnings')
     })
   },
 )

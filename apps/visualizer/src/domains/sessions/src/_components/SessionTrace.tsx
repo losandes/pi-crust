@@ -1,20 +1,20 @@
 import { Bot, SquareTerminal, UserRound } from 'lucide-react'
 import type { ComponentProps, ComponentType, CSSProperties } from 'react'
 import { useMemo } from 'react'
-import {
-  type ActivityRun,
-  type ActivityRunKind,
+import type {
+  ActivityRun,
+  ActivityRunKind,
   ActivityRunDetail as LiveActivityRunDetail,
-  TreeWarnings,
-  warningsIn,
+  TreeWarnings as LiveTreeWarnings,
+  warningsIn as liveWarningsIn,
 } from '@/domains/activity-runs'
-import {
+import type {
   DecisionRequest as LiveDecisionRequest,
-  sendDecision,
+  sendDecision as liveSendDecision,
 } from '@/domains/decisions'
 import type { AgentStartPayload, EventRow } from '@/domains/events'
 import { agentColor, hexAlpha, parseAgentStart } from '@/domains/events'
-import { SessionContext as LiveSessionContext } from '@/domains/handoff'
+import type { SessionContext as LiveSessionContext } from '@/domains/handoff'
 import { RunControls } from '@/domains/run-controls'
 import { ErrorBar, StatChip, StatusChip } from '@/lib/_components'
 import { cx } from '@/lib/cx'
@@ -26,7 +26,7 @@ import { runNoticesOf } from '../usecases/notices'
 import { resolveBranchLabel } from '../usecases/resolve-branch-label'
 import { resolveRepositoryLabel } from '../usecases/resolve-repository-label'
 import { taskBlocks } from '../usecases/task-blocks'
-import { type TTrace, useTrace as useLiveTrace } from '../usecases/use-trace'
+import type { TTrace } from '../usecases/use-trace'
 import {
   blockLayout,
   contextFill,
@@ -145,6 +145,9 @@ export type TSessionTraceDeps = Readonly<{
   ActivityRunDetail: ComponentType<ComponentProps<typeof LiveActivityRunDetail>>
   DecisionRequest: ComponentType<ComponentProps<typeof LiveDecisionRequest>>
   SessionContext: ComponentType<ComponentProps<typeof LiveSessionContext>>
+  TreeWarnings: ComponentType<ComponentProps<typeof LiveTreeWarnings>>
+  warningsIn: typeof liveWarningsIn
+  sendDecision: typeof liveSendDecision
 }>
 
 export const createSessionTrace =
@@ -153,6 +156,9 @@ export const createSessionTrace =
     ActivityRunDetail,
     DecisionRequest,
     SessionContext,
+    TreeWarnings,
+    warningsIn,
+    sendDecision,
   }: TSessionTraceDeps) =>
   ({
     runId,
@@ -729,10 +735,3 @@ export const createSessionTrace =
       </div>
     )
   }
-
-export const SessionTrace = createSessionTrace({
-  useTrace: useLiveTrace,
-  ActivityRunDetail: LiveActivityRunDetail,
-  DecisionRequest: LiveDecisionRequest,
-  SessionContext: LiveSessionContext,
-})
