@@ -417,6 +417,9 @@ for (const confirmed of [false, true]) {
           return result.data
         })
         const dirs = [...paths, join(store.sessionsDir, 'oldflat')]
+        const keptDir = dirs[1]
+        if (keptDir === undefined)
+          throw new Error('fixture must include the newer grouped run')
         dirs.forEach((dir) => {
           mkdirSync(dir, { recursive: true })
           writeFileSync(join(dir, 'keep'), dir)
@@ -440,7 +443,7 @@ for (const confirmed of [false, true]) {
         expect(actual).toBe(0)
         expect(existsSync(dirs[0] ?? '')).toBe(!confirmed)
         expect(existsSync(dirs[2] ?? '')).toBe(!confirmed)
-        expect(readFileSync(join(dirs[1] ?? '', 'keep'), 'utf8')).toBe(dirs[1])
+        expect(readFileSync(join(keptDir, 'keep'), 'utf8')).toBe(keptDir)
         expect(registeredRepositoryPath(store)('oldnew')).toEqual(
           confirmed ? undefined : ['group', 'subgroup', 'repo'],
         )
