@@ -52,6 +52,7 @@ crust run "<...>" --activities plan,build,outcome-review+code-review   # + runs 
 crust operator "<...>"                # it chooses the chain, then runs it
 crust run "<...>" --activities code-review --scope apps/gateway
 crust report <run-id>                 # where it got to, and what finishes it
+crust join <run-id> <activity>        # talk to the agent that did that work, in its own session
 ```
 
 A run states what governs it before any agent starts: the machine configuration in force, where its data goes, its trust level, and a link to watch it in the web app. Each Activity then names its model and session as it runs.
@@ -213,6 +214,8 @@ Opening an Activity Run shows what the agent was thinking, turn by turn, and eve
 *Issue #218 already carried a plan, so `ship-plan` skipped planning and its reviewers: 15m 15s and $3.69, against 1h 24m and $13.99 for the `ship-outcome` run at the top of this page, which had to plan first.*
 
 **Gate the decisions that are expensive to get wrong.** `--approve-after` is opt-in and the run exits rather than blocking, so a gate costs you nothing until you answer it. Two escalations happen without being asked for: a consequential unresolved question, and a second regression to the same stage.
+
+**Ask the agent that did the work.** `crust join <run-id> <activity>` opens that Activity's own pi session interactively, with its whole conversation loaded — every turn, tool call and revision round it ran. Instead of reverse-engineering a decision from the diff or the trace, ask the planner why it chose that approach, ask the reviewer what it would need to see to approve, or ask the builder to explain a change before you accept it. It joins the latest run of that Activity, and refuses while the run is still going.
 
 **Read the plan before the build runs.** `crust run "<...>" --activities plan` then `crust run "<...>" --run-id <id> --activities build` is cheaper than discovering a bad plan at review.
 
