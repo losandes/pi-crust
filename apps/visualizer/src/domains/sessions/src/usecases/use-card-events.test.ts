@@ -1,10 +1,10 @@
-import { expect, spyOn, test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 import { act, createElement, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { EventRow } from '@/domains/events'
+import type { EventRow, fetchEvents } from '@/domains/events'
 import { PollIntervalContext } from '@/lib/polling'
-import { useCardEvents } from './use-card-events'
+import { createUseCardEvents } from './use-card-events'
 
 const event = (rowid: number): EventRow => ({
   rowid,
@@ -21,7 +21,7 @@ const event = (rowid: number): EventRow => ({
 })
 
 const response = (events: readonly EventRow[], cursor = 0, hasMore = false) =>
-  Response.json({
+  Promise.resolve({
     events,
     cursor: events.at(-1)?.rowid ?? cursor,
     has_more: hasMore,
@@ -31,17 +31,19 @@ const Probe = ({
   running,
   workspace,
   onEvents,
+  useEvents,
 }: Readonly<{
   running: boolean
   workspace: string
   onEvents: (events: readonly EventRow[]) => void
+  useEvents: ReturnType<typeof createUseCardEvents>
 }>) => {
-  onEvents(useCardEvents('run', running, workspace))
+  onEvents(useEvents('run', running, workspace))
   return undefined
 }
 
 const withHook = async (
-  fetchPage: (url: URL) => Response | Promise<Response>,
+  fetchPage: typeof fetchEvents,
   check: (
     hook: Readonly<{
       render: (running: boolean, workspace?: string) => Promise<void>
@@ -50,10 +52,7 @@ const withHook = async (
   ) => Promise<void>,
 ) => {
   GlobalRegistrator.register()
-  const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
-    async (input) =>
-      await fetchPage(new URL(String(input), 'http://localhost')),
-  )
+  const useEvents = createUseCardEvents(fetchPage)
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -72,7 +71,12 @@ const withHook = async (
               createElement(
                 PollIntervalContext.Provider,
                 { value: 10 },
-                createElement(Probe, { running, workspace, onEvents }),
+                createElement(Probe, {
+                  running,
+                  workspace,
+                  onEvents,
+                  useEvents,
+                }),
               ),
             ),
           )
@@ -83,7 +87,6 @@ const withHook = async (
   } finally {
     await act(() => root.unmount())
     container.remove()
-    fetchSpy.mockRestore()
     await GlobalRegistrator.unregister()
   }
 }
@@ -109,11 +112,11 @@ test(
     const history = [event(1), event(2), event(3)]
     let requests = 0
     await withHook(
-      (url) => {
+      (runId, after, limit, workspace) => {
         requests += 1
-        expect(url.searchParams.get('workspace')).toBe('main')
-        expect(url.searchParams.get('limit')).toBe('1000')
-        const after = Number(url.searchParams.get('after'))
+        expect(runId).toBe('run')
+        expect(workspace).toBe('main')
+        expect(limit).toBe(1000)
         return after === 0
           ? response(history.slice(0, 2), 0, true)
           : response(history.slice(2))
@@ -144,13 +147,11 @@ test(
     // given
     let history = [event(1), event(2)]
     await withHook(
-      (url) => {
-        const after = Number(url.searchParams.get('after'))
-        return response(
+      (_, after) =>
+        response(
           history.filter((row) => row.rowid > after),
           after,
-        )
-      },
+        ),
       async (hook) => {
         await hook.render(true)
         expect(hook.events()).toEqual(history)
@@ -176,13 +177,11 @@ test(
     // given
     let history = [event(1), event(2)]
     await withHook(
-      (url) => {
-        const after = Number(url.searchParams.get('after'))
-        return response(
+      (_, after) =>
+        response(
           history.filter((row) => row.rowid > after),
           after,
-        )
-      },
+        ),
       async (hook) => {
         await hook.render(true)
         expect(hook.events()).toEqual(history)
@@ -206,7 +205,8 @@ test(
   ].join(', '),
   async () => {
     // given
-    const pending = Promise.withResolvers<Response>()
+    const pending =
+      Promise.withResolvers<Awaited<ReturnType<typeof fetchEvents>>>()
     let finished = false
     let requests = 0
     await withHook(
@@ -245,9 +245,8 @@ test(
     let available = false
     let emptyPages = 0
     await withHook(
-      (url) => {
+      (_, after) => {
         if (!available) return Promise.reject(new Error('offline'))
-        const after = Number(url.searchParams.get('after'))
         if (after > 0) emptyPages += 1
         return response(after === 0 ? [event(1)] : [], after)
       },
@@ -275,10 +274,8 @@ test(
   async () => {
     // given
     await withHook(
-      (url) =>
-        response(
-          url.searchParams.get('workspace') === 'main' ? [event(1)] : [],
-        ),
+      (_, _after, _limit, workspace) =>
+        response(workspace === 'main' ? [event(1)] : []),
       async (hook) => {
         await hook.render(false)
         expect(hook.events()).toEqual([event(1)])
