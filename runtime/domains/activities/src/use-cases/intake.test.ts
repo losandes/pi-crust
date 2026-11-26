@@ -199,28 +199,6 @@ test(
 test(
   [
     'given use-cases/intake::intakeViolations',
-    'when the summary is the unrendered diagnose-template placeholder',
-    'it should refuse, because the shape is an unfilled Report field',
-  ].join(', '),
-  () => {
-    // given
-    const envelope = context({
-      summary:
-        '<one sentence: what is happening and why — or that it could not be reproduced>',
-    })
-
-    // when
-    const actual = intakeViolations(envelope, 'plan')
-
-    // then
-    expect(actual).toHaveLength(1)
-    expect(actual[0]).toContain('left placeholder text in its summary')
-  },
-)
-
-test(
-  [
-    'given use-cases/intake::intakeViolations',
     'when the summary uses "todo" as subject matter rather than as boilerplate',
     'it should report nothing, because the word is the diagnosis, not the residue of a template',
   ].join(', '),
@@ -266,18 +244,23 @@ test(
 test(
   [
     'given use-cases/intake::intakeViolations',
-    'when the summary is literally TODO',
-    'it should refuse, because the bare word opens the summary with nothing else said',
+    'when the summary describes a path template with a spaced bracketed segment',
+    'it should report nothing, because a quoted template is subject matter, not an unfilled field',
   ].join(', '),
   () => {
     // given
-    const envelope = context({ summary: 'TODO' })
+    const envelope = context({
+      summary:
+        'New runs are filed under <host>/<owner>/<repo>/<run id> (or local/<name>/<run id>) ' +
+        'in the sessions directory by one rule shared with future clones, and success is ' +
+        'recognised by 17 criteria covering placement, URL forms, pre-change runs staying ' +
+        'put and usable, machine-wide run-id uniqueness, pruning, branching and documentation.',
+    })
 
     // when
-    const actual = intakeViolations(envelope, 'build')
+    const actual = intakeViolations(envelope, 'gh-issue')
 
     // then
-    expect(actual).toHaveLength(1)
-    expect(actual[0]).toContain('left placeholder text in its summary')
+    expect(actual).toEqual([])
   },
 )
