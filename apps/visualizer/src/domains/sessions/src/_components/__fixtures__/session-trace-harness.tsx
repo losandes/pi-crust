@@ -4,7 +4,7 @@ import '@fontsource/play/700.css'
 import '@/style.css'
 import DefaultLayout from '@/layouts/default-layout'
 import { useRoute } from '@/lib/router'
-import { SessionTrace } from '../SessionTrace'
+import { SessionTrace } from '../../..'
 
 const now = Date.now()
 const LONG_BRANCH = `feature/${'x'.repeat(112)}`

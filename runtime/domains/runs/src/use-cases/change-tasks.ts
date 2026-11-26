@@ -7,7 +7,7 @@ import {
   WARNING_EVENT,
   warningPayload,
 } from '../../../../lib/contracts'
-import { ensureDir } from '../../../../lib/system'
+import { ensureDir, newId, nowIso } from '../../../../lib/system'
 import { runStartIn, touchedBy } from '../../../policy'
 import type { TChangeTasksParams } from '../../../tasks'
 import {
@@ -42,45 +42,114 @@ export const rowFor =
   (instance: string) =>
     run.activityRuns().findLast((row) => row.params.name === instance)
 
+export const TASK_START_EVENT = 'task_start'
+export const TASK_END_EVENT = 'task_end'
+
+type TOpenExecution = Readonly<{
+  task: string
+  execution: string
+  activityRunId: string
+  startedAt: string
+  remaining: number
+  passed: boolean
+}>
+
 export const recordTaskCommands = (
   run: TRun,
   options: Readonly<{
     findRow: TTaskRowLookup
     moment?: 'deliver' | 'before' | 'after'
   }>,
-): Pick<TChangeTasksParams, 'onCommandStart' | 'onCommandEnd'> => ({
-  onCommandStart: ({ task, command }) =>
-    run.console.note(`task ${task}: ${command}`),
-  onCommandEnd: ({
-    task,
-    result,
-    outputArtifact,
-    instances,
-    startedAt,
-    endedAt,
-  }) => {
-    const row = options.findRow(instances[0] ?? '')
-    run.tracer.event({
-      run_id: run.runId,
-      activity_run_id: row?.activity_run_id ?? '',
-      type: 'tool_call',
-      name: `task:${task}`,
-      payload: {
+): Pick<TChangeTasksParams, 'onCommandStart' | 'onCommandEnd'> => {
+  // Command callbacks share this evaluation's open executions, replacing state.
+  let open: readonly TOpenExecution[] = []
+  const moment = options.moment ?? 'change'
+  return {
+    onCommandStart: ({ task, command, instances }) => {
+      run.console.note(`task ${task}: ${command}`)
+      if (open.some((one) => one.task === task)) return
+      const commands = run.cfg.tasks[task]?.run
+      const execution: TOpenExecution = {
         task,
-        command: result.command,
-        returncode: result.returncode,
-        passed: result.passed,
-        timed_out: result.timedOut,
-        duration_seconds: result.durationSeconds,
-        output_artifact: outputArtifact,
-        instances,
-        ...(options.moment === undefined ? {} : { moment: options.moment }),
-      },
-      started_at: startedAt,
-      ended_at: endedAt,
-    })
-  },
-})
+        execution: newId(12),
+        activityRunId:
+          options.findRow(instances[0] ?? '')?.activity_run_id ?? '',
+        startedAt: nowIso(),
+        remaining:
+          commands === undefined || typeof commands === 'string'
+            ? 1
+            : commands.length,
+        passed: true,
+      }
+      open = [...open, execution]
+      run.tracer.event({
+        run_id: run.runId,
+        activity_run_id: execution.activityRunId,
+        type: 'log',
+        name: TASK_START_EVENT,
+        payload: { task, execution: execution.execution, moment, instances },
+        started_at: execution.startedAt,
+      })
+    },
+    onCommandEnd: ({
+      task,
+      result,
+      outputArtifact,
+      instances,
+      startedAt,
+      endedAt,
+    }) => {
+      const row = options.findRow(instances[0] ?? '')
+      run.tracer.event({
+        run_id: run.runId,
+        activity_run_id: row?.activity_run_id ?? '',
+        type: 'tool_call',
+        name: `task:${task}`,
+        payload: {
+          task,
+          command: result.command,
+          returncode: result.returncode,
+          passed: result.passed,
+          timed_out: result.timedOut,
+          duration_seconds: result.durationSeconds,
+          output_artifact: outputArtifact,
+          instances,
+          ...(options.moment === undefined ? {} : { moment: options.moment }),
+        },
+        started_at: startedAt,
+        ended_at: endedAt,
+      })
+      const execution = open.find((one) => one.task === task)
+      if (execution === undefined) return
+      const passed = execution.passed && result.passed
+      if (execution.remaining > 1) {
+        open = open.map((one) =>
+          one === execution
+            ? { ...one, remaining: one.remaining - 1, passed }
+            : one,
+        )
+        return
+      }
+      run.tracer.event({
+        run_id: run.runId,
+        activity_run_id: execution.activityRunId,
+        type: 'log',
+        name: TASK_END_EVENT,
+        payload: {
+          task,
+          execution: execution.execution,
+          moment,
+          instances,
+          output_artifact: outputArtifact,
+          passed,
+        },
+        started_at: execution.startedAt,
+        ended_at: endedAt,
+      })
+      open = open.filter((one) => one !== execution)
+    },
+  }
+}
 
 export const changeTasks =
   (run: TRun) => async (activities: readonly TActivity[]) => {

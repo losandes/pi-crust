@@ -17,15 +17,16 @@ import {
   silenceTerminal,
 } from '../../../../testing/terminal-capture'
 import { observedPayload, PATHS_TOUCHED } from '../../../policy'
+import { liveTaskPorts, runChangeTasks } from '../../../tasks'
 import { createTracer } from '../../../trace'
-import { changeTasks } from './change-tasks'
+import { changeTasks, noteUnverified, recordTaskCommands } from './change-tasks'
 import { createRun } from './create-run'
 
 test.skipIf(SKIP_INTEGRATION)(
   [
     'given a nested workspace and a build repeat and revise owned by the same Activity',
     'when evaluating their tasks twice',
-    'it should respect owner aliases, use Git-relative paths, and trace one command per evaluation in separate logs',
+    'it should respect owner aliases, use Git-relative paths, and trace one task execution per evaluation in separate logs',
   ].join(', '),
   async () => {
     // given
@@ -56,7 +57,7 @@ test.skipIf(SKIP_INTEGRATION)(
                 when: [{ on: 'change' }],
                 match: ['packages/app/*.ts'],
                 cwd: 'packages/app',
-                run: "printf '%s\\n' {{changed_paths}}",
+                run: ["printf '%s\\n' {{changed_paths}}", 'true'],
               },
             },
           }),
@@ -136,7 +137,53 @@ test.skipIf(SKIP_INTEGRATION)(
         .split('\n')
         .map((line) => JSON.parse(line))
         .filter((one) => one.name === 'task:check')
-      expect(commands).toHaveLength(2)
+      expect(commands).toHaveLength(4)
+      const lines = readFileSync(events, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const starts = lines.filter((one) => one.name === 'task_start')
+      const ends = lines.filter((one) => one.name === 'task_end')
+      expect(starts).toHaveLength(2)
+      expect(ends).toHaveLength(2)
+      expect(new Set(starts.map((one) => one.payload.execution)).size).toBe(2)
+      for (const [index, start] of starts.entries()) {
+        const end = ends[index]
+        const firstCommand = commands[index * 2]
+        expect(start).toMatchObject({
+          type: 'log',
+          activity_run_id: firstCommand.activity_run_id,
+          payload: { task: 'check', moment: 'change' },
+        })
+        expect(end).toMatchObject({
+          type: 'log',
+          activity_run_id: start.activity_run_id,
+          started_at: start.started_at,
+          ended_at: commands[index * 2 + 1].ended_at,
+          payload: {
+            execution: start.payload.execution,
+            passed: true,
+            moment: 'change',
+          },
+        })
+        expect(
+          Date.parse(start.started_at) - Date.parse(firstCommand.started_at),
+        ).toBeGreaterThanOrEqual(0)
+        expect(
+          Date.parse(start.started_at) - Date.parse(firstCommand.started_at),
+        ).toBeLessThanOrEqual(1000)
+        expect(lines.indexOf(start)).toBeLessThan(
+          lines.findIndex((line) => line.event_id === firstCommand.event_id),
+        )
+        expect(lines.indexOf(end)).toBeGreaterThan(
+          lines.findIndex(
+            (line) => line.event_id === commands[index * 2 + 1].event_id,
+          ),
+        )
+      }
+      expect(
+        [...starts, ...ends].some((one) => one.payload.task === 'suppressed'),
+      ).toBe(false)
       expect(commands[0]).toMatchObject({
         type: 'tool_call',
         activity_run_id: 'nested11_build_2',
@@ -154,6 +201,67 @@ test.skipIf(SKIP_INTEGRATION)(
           'utf8',
         ),
       ).toContain('--- stdout ---\nbuild_2.ts\nrevise.ts\n')
+    } finally {
+      restoreTerminal()
+      tracer.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
+
+test.skipIf(SKIP_INTEGRATION)(
+  [
+    'given a two-command task whose first command fails and unverified paths',
+    'when recording task completion and tree warnings',
+    'it should finish the failed task after both commands and record only non-empty warnings',
+  ].join(', '),
+  async () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), 'crust-task-lifecycle-'))
+    const tracer = createTracer(
+      join(root, 'trace.db'),
+      join(root, 'events.jsonl'),
+    )
+    silenceTerminal()
+    try {
+      const run = createRun({
+        cfg: crustConfigSchema.parse({
+          defaults: { data_dir: join(root, 'data') },
+          tasks: {
+            check: { when: [{ on: 'change' }], run: ['false', 'true'] },
+          },
+        }),
+        runId: 'lifecycle',
+        tracer,
+        engineer: 'tester',
+      })
+      const hooks = recordTaskCommands(run, { findRow: () => undefined })
+      writeFileSync(join(root, 'a.ts'), 'change')
+      // when
+      const outcome = await runChangeTasks(liveTaskPorts)({
+        cfg: run.cfg,
+        root,
+        baseRef: '',
+        contributions: [
+          { instance: 'build', activity: undefined, paths: ['a.ts'] },
+        ],
+        artifactFor: () => join(root, 'output.log'),
+        ...hooks,
+      })
+      noteUnverified(run, 'implement')('build', ['a.ts'])
+      noteUnverified(run, 'implement')('build', [])
+      // then
+      expect(outcome.results[0]?.commands.map((one) => one.passed)).toEqual([
+        false,
+        true,
+      ])
+      expect(tracer.eventsNamed(run.runId, 'task_end')).toMatchObject([
+        { task: 'check', passed: false },
+      ])
+      expect(tracer.eventsNamed(run.runId, 'tree_warning')).toMatchObject([
+        { kind: 'unverified', paths: ['a.ts'] },
+      ])
+      expect(tracer.eventsNamed(run.runId, 'tree_warning')).toHaveLength(1)
     } finally {
       restoreTerminal()
       tracer.close()

@@ -250,5 +250,9 @@ test.skipIf(SKIP_INTEGRATION)(
       }),
     ).rejects.toThrow('build failed its gates and has no attempts left')
     expect(f.run.activityRuns()[0]?.status).toBe('fail')
+    expect(f.run.tracer.eventsNamed(f.run.runId, 'task_end')).toMatchObject([
+      { moment: 'after', passed: false },
+    ])
+    expect(f.run.tracer.eventsNamed(f.run.runId, 'task_end')).toHaveLength(1)
   },
 )

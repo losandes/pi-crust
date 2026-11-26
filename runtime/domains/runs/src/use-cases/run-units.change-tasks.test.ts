@@ -181,6 +181,11 @@ test.skipIf(SKIP_INTEGRATION)(
         { instances: ['first', 'second'], passed: false },
         { instances: ['first', 'second'], passed: true },
       ])
+      expect(
+        run.tracer
+          .eventsNamed(run.runId, 'task_end')
+          .map((event) => event.passed),
+      ).toEqual([false, true])
       expect(events[0]?.command).toContain('recorded-start a.ts c.ts')
       expect(events[1]?.command).toContain('recorded-start a.ts b.ts c.ts')
       expect(feedbackSeen[1]?.[0]).toMatch(/^task check: .* exited 1/)
