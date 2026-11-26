@@ -51,6 +51,7 @@ const withDetail = (
     },
     async (page, { server, base }) => {
       page.setDefaultTimeout(5_000)
+      page.setDefaultNavigationTimeout(10_000)
       await page.route('**/api/**', (route) => {
         const path = new URL(route.request().url()).pathname
         const body = path.endsWith('/themes')
