@@ -85,7 +85,7 @@ test(
     // then
     expect(timers).toEqual(['lib/polling/src/start-polling.ts'])
     expect(callers.map(({ path }) => path).toSorted()).toEqual([
-      'domains/sessions/src/_components/SessionCard.tsx',
+      'domains/sessions/src/usecases/use-card-events.ts',
       'domains/sessions/src/usecases/use-trace.ts',
       'lib/polling/src/use-poll.ts',
     ])
