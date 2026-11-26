@@ -1,6 +1,28 @@
 import { expect, test } from 'bun:test'
-import { RECIPE_DOCS, type TRecipeDoc } from './recipe-docs'
+import { RECIPE_DOCS, recipeDoc, type TRecipeDoc } from './recipe-docs'
 import { renderCommandList } from './render-command-list'
+
+for (const name of ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']) {
+  test(
+    [
+      `given the ${name} command`,
+      'when the command table is listed',
+      'it should appear once with its summary',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const lines = renderCommandList(RECIPE_DOCS)
+        .split('\n')
+        .filter((line) => line.startsWith(`${name} `))
+      // then
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain(
+        recipeDoc(name)?.summary ?? 'missing definition',
+      )
+    },
+  )
+}
 
 test(
   [

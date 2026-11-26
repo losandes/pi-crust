@@ -28,7 +28,7 @@ Reusable combination of **agents plus code**: deterministic TypeScript workflow 
 Three steps. Then stop.
 
 1. Read [cookbooks/crust_overview.md](cookbooks/crust_overview.md) — the system map.
-2. Run `crust help` — every recipe this factory offers, plus the Lifecycles and the Activities this repository actually offers (`crust list` prints the narrower, Lifecycles-and-Activities-only view). They are configuration, so this file cannot tell you what they are, and there is no recipe named after any of them.
+2. Run `crust help` — every recipe this factory offers, plus the Lifecycles and the Activities this repository actually offers (`crust list` prints the narrower, Lifecycles-and-Activities-only view). They are configuration, so read the catalogue for their current definitions. `crust gh-issue`, `crust ship`, `crust ship-plan` and `crust ship-outcome` each start the same run as `crust run "<prompt>" --lifecycle <name>`; every other Lifecycle and every Activity is reached through `crust run`.
 3. Print what is available as a table — name, the chain, one line on when to reach for it — and **wait for the engineer's request.**
 
 The two directories are not the same kind of thing, and the table should not pretend otherwise:

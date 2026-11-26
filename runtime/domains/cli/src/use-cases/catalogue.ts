@@ -9,6 +9,9 @@
  *
  * So the recipes stopped naming them and this reads the registry instead.
  * A new Activity table in any TOML layer appears here without a second registry.
+ * Four shipped Lifecycles have a command again: gh-issue, ship, ship-plan and
+ * ship-outcome. Each definition names only its Lifecycle; run resolves the
+ * Stages from configuration rather than keeping a second Stage list.
  */
 
 import type { TEnv } from '../../../../lib/system'

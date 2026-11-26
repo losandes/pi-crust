@@ -17,6 +17,8 @@ export type TCommandRun = Readonly<{
   repeat: boolean
   rest: boolean
   repository: boolean
+  /** the Lifecycle this command always runs; absent on every other command */
+  lifecycle?: string
 }>
 
 export type TRecipeDoc = Readonly<{
@@ -83,6 +85,42 @@ export const GLOBAL_ENV: readonly TDocLine[] = [
       'the observability web app port; default 4601, overriding merged TOML settings',
   },
 ]
+
+const LIFECYCLE_COMMANDS: readonly string[] = [
+  'gh-issue',
+  'ship',
+  'ship-plan',
+  'ship-outcome',
+]
+
+const lifecycleCommandDoc = (name: string): TRecipeDoc => ({
+  name,
+  run: {
+    script: 'runtime/commands/run.ts',
+    config: true,
+    fixed: [],
+    required: [],
+    repeat: false,
+    rest: true,
+    repository: true,
+    lifecycle: name,
+  },
+  group: 'running work',
+  summary: `run the ${name} Lifecycle; the same run as crust run "<prompt>" --lifecycle ${name}`,
+  usage: `crust ${name} "<prompt or path/to/prompt.md>" [options]`,
+  flags: [
+    {
+      name: '[options]',
+      detail:
+        'every crust run flag except --lifecycle and --activities; crust help run lists them',
+    },
+  ],
+  env: [],
+  examples: [
+    `crust ${name} "add a /health endpoint"`,
+    `crust ${name} path/to/prompt.md --name "health endpoint"`,
+  ],
+})
 
 export const RECIPE_DOCS: readonly TRecipeDoc[] = [
   {
@@ -315,6 +353,7 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       'crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
     ],
   },
+  ...LIFECYCLE_COMMANDS.map(lifecycleCommandDoc),
   {
     name: 'operator',
     run: {

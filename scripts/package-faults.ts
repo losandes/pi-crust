@@ -155,6 +155,12 @@ export const invocations = (
   return [
     row(['help'], 0, ['crust observe']),
     ...RECIPE_DOCS.map((doc) => row(['help', doc.name])),
+    ...RECIPE_DOCS.filter((doc) => doc.run.lifecycle !== undefined).map((doc) =>
+      row([doc.name], 2, [
+        'a prompt is required',
+        `usage: crust ${doc.name} "`,
+      ]),
+    ),
     ...['default', 'update', 'list', 'config'].map((name) => row([name])),
     row(['verify'], 0, ['no tasks are declared']),
     row(['run', 'x', '--lifecycle', 'no-such-lifecycle'], 2, [
