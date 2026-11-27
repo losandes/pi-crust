@@ -137,6 +137,33 @@ const fixture = () => {
   }
 }
 
+for (const repository of [false, true]) {
+  test.skipIf(SKIP_INTEGRATION)(
+    [
+      `given ${repository ? 'a fresh Git repository' : 'a directory outside Git'}`,
+      'when crust --version runs',
+      'it should print the package version without creating files',
+    ].join(', '),
+    () => {
+      // given
+      using f = fixture()
+      if (repository) f.git()
+      const { version } = JSON.parse(
+        readFileSync(join(PACKAGE, 'package.json'), 'utf8'),
+      )
+      // when
+      const result = f.invoke(['--version'])
+      // then
+      expect(result.status).toBe(0)
+      expect(result.stdout).toBe(`${version}\n`)
+      expect(result.stderr).toBe('')
+      expect(readdirSync(f.root)).toEqual(repository ? ['.git'] : [])
+      expect(existsSync(join(f.home, '.pi-crust/data'))).toBe(false)
+    },
+    INTEGRATION_TIMEOUT_MS,
+  )
+}
+
 for (const argv of [
   [],
   ['default'],

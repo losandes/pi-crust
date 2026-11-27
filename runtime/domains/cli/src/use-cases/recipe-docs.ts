@@ -809,6 +809,24 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     env: [],
     examples: ['crust update'],
   },
+  {
+    name: '--version',
+    run: {
+      script: 'runtime/commands/version.ts',
+      config: false,
+      fixed: [],
+      required: [],
+      repeat: false,
+      rest: false,
+      repository: false,
+    },
+    group: 'housekeeping',
+    summary: 'print the pi-crust version',
+    usage: 'crust --version',
+    flags: [],
+    env: [],
+    examples: ['crust --version'],
+  },
 ]
 
 export const recipeDoc = (name: string): TRecipeDoc | undefined =>
