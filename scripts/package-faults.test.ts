@@ -267,7 +267,7 @@ test(
       ]),
     ).toEqual(['.gitignore', 'pi-crust.toml'])
     expect(rows).toHaveLength(
-      26 +
+      27 +
         RECIPE_DOCS.length +
         RECIPE_DOCS.filter((doc) => doc.run.lifecycle !== undefined).length,
     )

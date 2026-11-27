@@ -12,6 +12,63 @@ const input = {
   packageRoot: '/pkg',
   repositoryRoot: '/repo',
 }
+for (const repositoryRoot of [undefined, '/repo']) {
+  test(
+    [
+      `given --version ${repositoryRoot === undefined ? 'outside Git' : 'inside Git'}`,
+      'when dispatched',
+      'it should run the version program without configuration arguments',
+    ].join(', '),
+    () => {
+      // given
+      const versionInput = {
+        argv: ['--version'],
+        cwd: '/elsewhere',
+        repositoryRoot,
+        packageRoot: '/pkg',
+        env: {},
+      }
+      // when
+      const actual = planDispatch(RECIPE_DOCS)(versionInput)
+      // then
+      expect(actual).toEqual({
+        status: 'ok',
+        data: {
+          script: '/pkg/runtime/commands/version.ts',
+          args: [],
+          cwd: repositoryRoot ?? '/elsewhere',
+        },
+      })
+    },
+  )
+}
+
+test(
+  [
+    'given --version with an extra argument',
+    'when dispatched',
+    'it should refuse the argument and explain usage',
+  ].join(', '),
+  () => {
+    // given
+    const versionInput = {
+      argv: ['--version', 'extra'],
+      cwd: '/elsewhere',
+      repositoryRoot: undefined,
+      packageRoot: '/pkg',
+      env: {},
+    }
+    // when
+    const actual = planDispatch(RECIPE_DOCS)(versionInput)
+    // then
+    expect(actual.status).toBe('error')
+    if (actual.status !== 'error') return
+    expect(actual.error.message).toBe(
+      'crust --version: unexpected argument "extra".\nusage: crust --version',
+    )
+  },
+)
+
 const lifecycleNames = ['gh-issue', 'ship', 'ship-plan', 'ship-outcome']
 
 for (const name of lifecycleNames) {

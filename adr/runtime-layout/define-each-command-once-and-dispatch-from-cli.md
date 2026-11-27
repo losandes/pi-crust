@@ -31,7 +31,7 @@ Each command is defined once in `RECIPE_DOCS` in the CLI domain. Its definition 
 
 A file belongs in `commands/` only when a definition names it or it tests one. Several commands may name the same program with different fixed arguments. A command exports only `main`. Nothing imports a command except its own colocated test, and `cli.ts` imports none: each command executes in its own process, started with the executable running the dispatcher and a program file of the dispatcher's own kind.
 
-Commands run from the Git repository's root. `help`, the bare listing, `init`, `observe`, `config` and `list` also run outside a repository, where no repository configuration is read. Environment files are read from the nearest ancestor directory, including the starting directory, holding either `.env` or `.env.local`. Both files are read from that one directory; `.env.local` overrides `.env`, and the invoking environment overrides both.
+Commands run from the Git repository's root. `help`, the bare listing, `--version`, `init`, `observe`, `config` and `list` also run outside a repository, where no repository configuration is read. Environment files are read from the nearest ancestor directory, including the starting directory, holding either `.env` or `.env.local`. Both files are read from that one directory; `.env.local` overrides `.env`, and the invoking environment overrides both.
 
 A contributor's clone keeps `runtime/cli.ts` as its `bin` entry: bun executes the TypeScript source, and `bun link` puts that working copy on the contributor's PATH. An edit needs neither a build nor relinking.
 
