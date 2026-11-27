@@ -201,7 +201,7 @@ Exit codes, because an agent will branch on them:
 ```json
 {
   "run_id": "a1b2c3d4",
-  "lifecycle": "sdlc",
+  "lifecycle": "ship",
   "request": "add a /health endpoint",
   "status": "running",
   "engineer": "andy",

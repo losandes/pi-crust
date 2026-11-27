@@ -714,7 +714,7 @@ test(
 const SHIP_USAGE =
   'usage: crust ship "<prompt or path/to/prompt.md>" [options]\n' +
   '  runs the ship Lifecycle as this repository configures it; `crust list` describes it.\n' +
-  '  optional: [--config <path>] [--run-id <id>] [--commit false] [--scope <ref|range|path|glob>] [--approve-after identify,design] [--model <activity>=<model>@<thinking>,...] [--trust-level 50] [--stream] [--resume] [--handoff <path/{session_id}>] [--name <label>]\n' +
+  '  optional: [--config <path>] [--run-id <id>] [--commit false] [--scope <ref|range|path|glob>] [--approve-after identify,design] [--model <activity>=<model>@<thinking>,...] [--trust-level <none|low|medium|high>] [--stream] [--resume] [--handoff <path/{session_id}>] [--name <label>]\n' +
   '  short: -id --run-id, -m --model, -c --commit, -n --name, -r --resume\n' +
   'env: CRUST_CONFIG overrides the config path; --config still wins.'
 

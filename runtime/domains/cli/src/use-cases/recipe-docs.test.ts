@@ -119,7 +119,7 @@ test(
 
     // then
     expect(actual?.examples).toContain(
-      'crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
+      'crust run "..." --lifecycle ship -m build=openai/gpt-6.1-sol@high,code-review=@xhigh',
     )
   },
 )

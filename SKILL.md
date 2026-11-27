@@ -34,13 +34,15 @@ Three steps. Then stop.
 The two directories are not the same kind of thing, and the table should not pretend otherwise:
 
 ```text
-| Lifecycle | Chain                                                                                      | Use when                                                    |
-| --------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| tdd       | identify → conceptualize → plan → design → test-tdd → build → outcome-review → code-review | the tests should be written before the thing they prove     |
-| sdlc      | identify → conceptualize → plan → design → build → test → outcome-review → code-review     | the work starts from a wish and its shape is not obvious    |
-| bugfix    | diagnose → plan → test → build → outcome-review → code-review                              | the work starts from a symptom somebody reported            |
-| de-risk   | identify → plan → build                                                                    | the expensive question is whether the approach works at all |
-| run       | whatever `--activities` names                                                              | you know exactly which Activities you want                  |
+| Lifecycle    | Chain                                                                                                          | Use when                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| bugfix       | diagnose → plan → plan-comprehension + plan-readiness → build → outcome-review + code-review → gh-pull-request | the work starts from a symptom somebody reported                |
+| de-risk      | identify → plan → build                                                                                        | the expensive question is whether the approach works at all     |
+| gh-issue     | identify → gh-issue                                                                                            | the work should be filed as an issue rather than done now       |
+| ship         | identify → plan → plan-comprehension + plan-readiness → build → outcome-review + code-review → gh-pull-request | the work starts from a request and should end in a pull request |
+| ship-outcome | import → plan → plan-comprehension + plan-readiness → build → outcome-review + code-review → gh-pull-request   | an issue or document already states the outcome                 |
+| ship-plan    | import → build → outcome-review + code-review → gh-pull-request                                                | an issue or document already carries the plan                   |
+| run          | whatever `--activities` names                                                                                  | you know exactly which Activities you want                      |
 
 | Activity | Purpose                                           | Use when                         |
 | -------- | ------------------------------------------------- | -------------------------------- |
@@ -88,7 +90,7 @@ Deep specs, when needed: [references/config.md](references/config.md) · [refere
 
 ## Lifecycle stages
 
-The chain follows the lifecycle in `adr/context/sdlc.md`. The stage numbers are that record's; the Activity names are what you type. They differ in one place, and the mapping is kept rather than renamed so a human running the same lifecycle recognises both.
+The chain follows the lifecycle in `.claude/skills/adr/context/sdlc.md`. The stage numbers are that record's; the Activity names are what you type. They differ in one place, and the mapping is kept rather than renamed so a human running the same lifecycle recognises both.
 
 | Stage             | Activity                        | Reduces                                                              |
 | ----------------- | ------------------------------- | -------------------------------------------------------------------- |

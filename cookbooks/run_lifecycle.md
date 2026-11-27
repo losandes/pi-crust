@@ -15,7 +15,7 @@ The workflow is the worker. Your job is to launch it, watch the trace, and tell 
 Which chain to launch is decided in `how_to_prompt_for_the_eng.md`, and the short version is: **the workflow the engineer named, or else the most complete composed chain the work justifies — never a single-agent one.** Read the merged catalogue with `crust list`; package definitions, machine preferences under `~/.pi-crust/config/`, and the repository's single `pi-crust.toml` together decide what is offered. The names below illustrate command shape, not a fixed menu.
 
 ```bash
-crust run "add a /health endpoint" --lifecycle sdlc
+crust run "add a /health endpoint" --lifecycle ship
 crust run requests/health.md
 crust run "implement the plan" --activities build --run-id a1b2c3d4
 crust run "where is auth handled" --activities scout --config path/to/pi-crust.toml
@@ -45,7 +45,7 @@ CRUST_CONFIG=path/to/pi-crust.toml crust run "<prompt>" --lifecycle <name>
 
 Tasks come only from the selected repository file. Its inactive template examples run nothing until real commands are supplied. Machine and package edits affect the next command without re-stamping; an installer refresh never replaces an existing `pi-crust.toml`.
 
-`--scope` says what the judging Activities judge: `review`, `code-review` and `document` all read it, and so does `crust verify`.
+`--scope` says what the judging Activities judge: `outcome-review`, `code-review` and `document` all read it, and so does `crust verify`.
 
 ```bash
 crust run "the stats refactor" --activities code-review --scope HEAD~3..HEAD   # a range
@@ -65,7 +65,7 @@ Committing is a property of each Activity, not a mode of the run. An Activity th
 `--commit false` turns committing off for a whole run, whatever the registry says. A Lifecycle ending in a terminal Activity that requires commits rejects it at startup. There is no `--commit true`: a flag granting a permission the configuration withheld would make a run behave in a way nobody reading the registry could predict.
 
 ```bash
-crust run "add a /health endpoint" --lifecycle sdlc --commit false   # leave it in the working tree
+crust run "add a /health endpoint" --lifecycle ship --commit false   # leave it in the working tree
 ```
 
 An Activity that was not committing and moved `HEAD` anyway is reported as a permission breach, like any other overstep. No prompt asks an agent to commit, but a prompt is advice.
@@ -80,7 +80,7 @@ Two things that bite:
 `--handoff <path>` moves where THIS run's `context_handoff/` documents land, without moving the resolved run directory itself — `events.jsonl`, `invocation.json` and the rest stay exactly where they are. `{session_id}` (or `{run_id}`, an exact synonym) expands to the run id in the value:
 
 ```bash
-crust run "the payments rewrite" --lifecycle sdlc --handoff specs/{session_id}
+crust run "the payments rewrite" --lifecycle ship --handoff specs/{session_id}
 ```
 
 Omit it and the directory is `context_handoff/` inside the [resolved run directory](../references/observability.md#where-a-runs-files-are). A relative value resolves against the repository root, not the directory you ran the command from. A resumed run keeps the directory it started with; passing a DIFFERENT `--handoff` on resume is refused rather than splitting one run's documents across two places.
@@ -99,7 +99,7 @@ crust run "<prompt>" --activities test,build,outcome-review
 
 `compose` takes any ordered subset of whatever the merged TOML registry defines, repeats allowed (`build,outcome-review,build,outcome-review` — the second becomes `build_2`, which is also the instance its attempt budget is kept against). An unknown name exits 2 and lists the ones this repository offers; a Planner is refused, because a chain does not contain the thing that chooses it.
 
-A chain that ENDS in reviewing Activities — any whose merged entry declares `output = "reviewOutput"` — ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, every reviewer the chain ended in rules again, and the bound is that Activity's `attempts`. A chain ending in `outcome-review + code-review` re-asks both. That applies to a lone `--activities outcome-review` as much as to `sdlc`, so a roster without a writing Activity fails up front.
+A chain that ENDS in reviewing Activities — any whose merged entry declares `output = "reviewOutput"` — ends in the bounded revise loop: the blocking findings go back to the Activity that wrote the work, every reviewer the chain ended in rules again, and the bound is that Activity's `attempts`. A chain ending in `outcome-review + code-review` re-asks both. That applies to a lone `--activities outcome-review` as much as to `ship`, so a roster without a writing Activity fails up front.
 
 Still prefer a composed chain when the work is real: a lone `build` has nothing checking it. A single Activity is for a narrow ask, or for picking a stopped run up by hand.
 
@@ -117,7 +117,7 @@ The report names every activity run and its status, the gate that failed with it
 
 ```text
 resume from: build
-  crust run "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+  crust run "<the original request>" --lifecycle ship --run-id a1b2c3d4 --resume
 ```
 
 Exit codes: `0` the run succeeded, `1` it failed or is incomplete, `2` no such session.

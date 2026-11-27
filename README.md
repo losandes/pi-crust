@@ -211,7 +211,7 @@ Opening an Activity Run shows what the agent was thinking, turn by turn, and eve
 
 ![A ship-plan run: build runs four times, outcome-review and code-review rule four times, and gh-pull-request opens the pull request, in 15m 15s for $3.69](cookbooks/images/ship-plan.png)
 
-*Issue #218 already carried a plan, so `ship-plan` skipped planning and its reviewers: 15m 15s and $3.69, against 1h 24m and $13.99 for the `ship-outcome` run at the top of this page, which had to plan first.*
+*Issue #218 already carried a plan, so `ship-plan` skipped planning and got right to implementation.*
 
 **Gate the decisions that are expensive to get wrong.** `--approve-after` is opt-in and the run exits rather than blocking, so a gate costs you nothing until you answer it. Two escalations happen without being asked for: a consequential unresolved question, and a second regression to the same stage.
 
@@ -289,7 +289,13 @@ thinking = "high"
 model = "openai/gpt-6.1-sol"
 ```
 
-The entry keeps everything else the package declares for it. `--model build=<model>@<thinking>` overrides one run.
+The entry keeps everything else the package declares for it.
+
+To change a model or thinking level for one run without touching configuration, pass `--model` (`-m`) once, with a comma-separated `<activity>=<model>@<thinking>` entry per Activity. Either half may be left out: `code-review=@xhigh` keeps that Activity's model and raises only its thinking level.
+
+```sh
+crust run "add a /health endpoint" --lifecycle ship -m build=openai/gpt-6.1-sol@high,code-review=@xhigh
+```
 
 The full reference, including every field, write boundaries, path protection, prompts and the trust dial, is [references/config.md](references/config.md).
 

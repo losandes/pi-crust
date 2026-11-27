@@ -77,7 +77,7 @@ The [runtime layout record](../adr/runtime-layout/define-each-command-once-and-d
 ```bash
 crust demo                                  # two cheap read-only runs, end to end
 crust run "add a /health endpoint" --activities plan      # one Activity
-crust run "add a /health endpoint" --lifecycle sdlc      # identify → … → code-review
+crust run "add a /health endpoint" --lifecycle ship      # identify → … → gh-pull-request
 crust report                                # where the last run got to
 crust sessions                              # what just happened
 ```
@@ -92,7 +92,7 @@ There is no separate code registry: a new keyed table registers an Activity. Lis
 
 A chain that ends in reviewing Activities — any whose registry entry declares `output: reviewOutput` — ends in a bounded revise loop, and every one of them is re-asked each round: the blocking findings go back to the Activity that wrote the work, which fixes each or disputes it with evidence, and the reviewer rules again. The bound is that Activity's own `attempts`, the same budget a failed gate and a regression spend from. A finding repeated with nothing new on either side stops the loop and is written to `context_handoff/disputes.md` for you.
 
-`review` and `code-review` take `--scope <ref|range>`, so committed work can be judged, and the repository's own checks run on their own with no Lifecycle at all:
+`outcome-review` and `code-review` take `--scope <ref|range>`, so committed work can be judged, and the repository's own checks run on their own with no Lifecycle at all:
 
 ```bash
 crust run "the /health work" --activities code-review --scope main...HEAD
@@ -102,7 +102,7 @@ crust verify                                # change tasks, for what you changed
 With a prompt file and a run id:
 
 ```bash
-crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
+crust run requests/health.md --lifecycle ship --run-id a1b2c3d4
 ```
 
 The prompt is inline text or a path to a file. `--run-id` is optional on every workflow: given one, the run joins that session and each agent resumes its existing context window; omitted, a fresh id is minted and printed.
@@ -110,7 +110,7 @@ The prompt is inline text or a path to a file. `--run-id` is optional on every w
 A run that stopped is picked up rather than restarted. `crust report` names the activity run it stopped at and prints the command that continues it:
 
 ```bash
-crust run "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+crust run "<the original request>" --lifecycle ship --run-id a1b2c3d4 --resume
 ```
 
 `--resume` works on every workflow and skips the activity runs already recorded successful for that session.

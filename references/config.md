@@ -298,7 +298,7 @@ writes = ["{handoff}/review.md"]
 `--approve-after` takes Activity names, and Stage names prefixed with `stage:`:
 
 ```bash
-crust run "..." --lifecycle sdlc --approve-after plan,stage:accept
+crust run "..." --lifecycle ship --approve-after plan,stage:accept
 ```
 
 | Named          | Stage strategy | The run pauses                              |

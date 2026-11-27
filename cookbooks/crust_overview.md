@@ -90,8 +90,8 @@ Agents have exactly two output channels: reference files written into `context_h
 
 ```bash
 crust run "add a /health endpoint" --activities plan
-crust run requests/health.md --lifecycle sdlc --run-id a1b2c3d4
-crust run "the /health work" --activities review+code-review
+crust run requests/health.md --lifecycle ship --run-id a1b2c3d4
+crust run "the /health work" --activities outcome-review+code-review
 ```
 
 The prompt is inline text or a file path. `--run-id` is optional on every workflow: given one, the run joins that session (same dirs, same `context_handoff/`, agents resume their existing context windows); omitted, a fresh id is minted and printed.
@@ -100,7 +100,7 @@ A run that stopped is picked up, not restarted:
 
 ```bash
 crust report                      # where did the last run stop?
-crust run "<the original request>" --lifecycle sdlc --run-id a1b2c3d4 --resume
+crust run "<the original request>" --lifecycle ship --run-id a1b2c3d4 --resume
 ```
 
 `--resume` skips every activity run already recorded successful for that session and starts at the first that is not. It works on every workflow, and `crust report` prints the exact command for the run it describes.

@@ -4,7 +4,7 @@
  * pi-crust Operator — choose the chain, then run it.
  *
  * Usage:
- *     crust operator "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]
+ *     crust operator "<prompt or path/to/prompt.md>" [--trust-level <none|low|medium|high>] [--run-id a1b2c3d4] [--resume]
  *
  * Activity Runs: engineer(request) -> operator -> whatever the operator planned
  *

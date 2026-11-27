@@ -320,8 +320,9 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
           'land nothing. Only `false` is accepted \u2014 committing is declared per Activity. --commit false is rejected at startup for a Lifecycle ending in a terminal Activity that requires commits',
       },
       {
-        name: '--trust-level 50',
-        detail: 'how much it decides for itself before stopping for you',
+        name: '--trust-level <none|low|medium|high>',
+        detail:
+          'how much it decides for itself before stopping for you. none: every question stops the run; low: every consequential question does; medium (default): only a question it cannot answer, or an action beyond this run; high: nothing does unless you asked it to',
       },
       {
         name: '--handoff <path>',
@@ -346,11 +347,11 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
       },
     ],
     examples: [
-      'crust run "add a /health endpoint" --lifecycle sdlc',
-      'crust run "add a /health endpoint" --activities plan,build,review+code-review',
-      'crust run "the original request" --lifecycle sdlc --run-id 9d67c31f --resume',
-      'crust run "..." --lifecycle sdlc --handoff specs/{session_id}',
-      'crust run "..." --lifecycle deliver -m build=openai/gpt-5@high,code-review=@xhigh',
+      'crust run "add a /health endpoint" --lifecycle ship',
+      'crust run "add a /health endpoint" --activities plan,build,outcome-review+code-review',
+      'crust run "the original request" --lifecycle ship --run-id 9d67c31f --resume',
+      'crust run "..." --lifecycle ship --handoff specs/{session_id}',
+      'crust run "..." --lifecycle ship -m build=openai/gpt-6.1-sol@high,code-review=@xhigh',
     ],
   },
   ...LIFECYCLE_COMMANDS.map(lifecycleCommandDoc),
@@ -368,11 +369,12 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
     group: 'running work',
     summary: 'let it choose the chain and run it',
     usage:
-      'crust operator "<prompt or path/to/prompt.md>" [--trust-level 50] [--run-id a1b2c3d4] [--resume]',
+      'crust operator "<prompt or path/to/prompt.md>" [--trust-level <none|low|medium|high>] [--run-id a1b2c3d4] [--resume]',
     flags: [
       {
-        name: '--trust-level 50',
-        detail: 'how much it decides for itself before stopping for you',
+        name: '--trust-level <none|low|medium|high>',
+        detail:
+          'how much it decides for itself before stopping for you. none: every question stops the run; low: every consequential question does; medium (default): only a question it cannot answer, or an action beyond this run; high: nothing does unless you asked it to',
       },
       { name: '--run-id <id>', detail: 'an existing run to add to' },
       { name: '--resume', detail: 'continue that run where it stopped' },

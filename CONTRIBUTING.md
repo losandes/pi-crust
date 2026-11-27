@@ -42,7 +42,7 @@ crust help
 To try a worktree's runtime without disturbing the one live runs use, set `CRUST_HOME` to that worktree. `crust` then hands every invocation to the worktree's `runtime/cli.ts`, and refuses rather than falling back when the directory holds no runtime. Do not run `bun link` in the worktree: that repoints the global `crust` for every repository on the machine.
 
 ```sh
-CRUST_HOME=../pi-crust-wip crust run "..." --lifecycle sdlc
+CRUST_HOME=../pi-crust-wip crust run "..." --lifecycle ship
 ```
 
 ## Building the Node package

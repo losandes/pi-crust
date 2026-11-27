@@ -174,7 +174,7 @@ const optionalUsage =
   '  optional: [--config <path>] [--run-id <id>] [--commit false] ' +
   '[--scope <ref|range|path|glob>] [--approve-after identify,design] ' +
   '[--model <activity>=<model>@<thinking>,...] ' +
-  '[--trust-level 50] [--stream] [--resume] ' +
+  '[--trust-level <none|low|medium|high>] [--stream] [--resume] ' +
   '[--handoff <path/{session_id}>] [--name <label>]\n'
 
 const envUsage =
@@ -190,7 +190,7 @@ const shortUsage = (flags: readonly TFlagSpec[]): string =>
 
 const usage = (recipe: string): string =>
   `usage: crust ${recipe} "<prompt or path/to/prompt.md>" ` +
-  '<--lifecycle sdlc | --activities plan,build,review+code-review>\n' +
+  '<--lifecycle ship | --activities plan,build,outcome-review+code-review>\n' +
   '  `crust list` prints the Lifecycles and Activities this repo offers.\n' +
   optionalUsage +
   shortUsage(FLAG_TABLE) +
