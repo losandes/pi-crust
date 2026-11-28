@@ -89,9 +89,18 @@ const withComponents = (
       page.setDefaultNavigationTimeout(10_000)
       // Every API request is intercepted: no live run or database is touched.
       await page.route('**/api/**', (route) =>
-        new URL(route.request().url()).pathname.includes('/handoff/')
-          ? route.fulfill({ contentType: 'text/plain', body: markdown })
-          : route.fulfill({ json: [] }),
+        new URL(route.request().url()).pathname === '/api/health'
+          ? route.fulfill({
+              json: {
+                ok: true,
+                poll_ms: 500,
+                redact_paths: false,
+                home_dir: '',
+              },
+            })
+          : new URL(route.request().url()).pathname.includes('/handoff/')
+            ? route.fulfill({ contentType: 'text/plain', body: markdown })
+            : route.fulfill({ json: [] }),
       )
       await page.route('**/__handoff__/index.html', async (route) =>
         route.fulfill({

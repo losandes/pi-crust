@@ -1,17 +1,27 @@
 import {
   ActivityRunDetail,
+  ActivityRunDots,
   TreeWarnings,
   warningsIn,
 } from '@/domains/activity-runs'
 import { DecisionRequest, sendDecision } from '@/domains/decisions'
 import { SessionContext } from '@/domains/handoff'
+import { createSessionCard } from './src/_components/SessionCard'
+import { createSessionsList } from './src/_components/SessionsList'
 import { createSessionTrace } from './src/_components/SessionTrace'
+import { fetchSessions } from './src/io/fetch-sessions'
+import { archiveSession } from './src/io/send-archive-session'
+import { useCardEvents } from './src/usecases/use-card-events'
 import { useTrace } from './src/usecases/use-trace'
 
 export { FilterDropdown } from './src/_components/FilterDropdown'
 export { RunNotices } from './src/_components/RunNotices'
-export { SessionCard } from './src/_components/SessionCard'
-export { SessionsList } from './src/_components/SessionsList'
+export const SessionCard = createSessionCard({
+  useCardEvents,
+  archiveSession,
+  ActivityRunDots,
+})
+export const SessionsList = createSessionsList({ fetchSessions, SessionCard })
 export const SessionTrace = createSessionTrace({
   useTrace,
   ActivityRunDetail,
@@ -23,9 +33,7 @@ export const SessionTrace = createSessionTrace({
 })
 export { fetchHealth } from './src/io/fetch-health'
 export { fetchSession } from './src/io/fetch-session'
-export { fetchSessions } from './src/io/fetch-sessions'
 export { fetchWorkspaces } from './src/io/fetch-workspaces'
-export { archiveSession } from './src/io/send-archive-session'
 export {
   FILTER_STORAGE_KEY,
   readFilters,
@@ -73,3 +81,4 @@ export {
   timeRange,
   toolTickPositions,
 } from './src/usecases/waterfall'
+export { archiveSession, fetchSessions }

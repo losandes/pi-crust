@@ -24,6 +24,7 @@ import type {
 import type { PiCrustDb } from './db.ts'
 import { handoffDirFor } from './handoff.ts'
 import { pollMsFromEnv } from './poll-interval.ts'
+import { homeDirFromEnv, redactPathsFromEnv } from './redaction.ts'
 import { WorkspaceRegistry } from './registry.ts'
 import { serveRoutes } from './serve-routes.ts'
 import { fileResponse } from './static-file.ts'
@@ -56,6 +57,8 @@ import {
  */
 const PORT = Number(process.env.CRUST_BE_PORT ?? 4600)
 const POLL_MS = pollMsFromEnv()
+const REDACT_PATHS = redactPathsFromEnv()
+const HOME_DIR = homeDirFromEnv()
 const DIST_DIR = resolve(import.meta.dirname, '..', 'dist')
 
 /**
@@ -288,6 +291,8 @@ const options: Parameters<typeof serveRoutes>[0] = {
         journal_mode: first?.db?.journalMode ?? 'unknown',
         sessions: registry.sessionCount(),
         poll_ms: POLL_MS,
+        redact_paths: REDACT_PATHS,
+        home_dir: HOME_DIR,
         workspaces: describeWorkspaces(),
       } satisfies HealthResponse)
     }),

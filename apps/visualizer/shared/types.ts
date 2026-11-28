@@ -50,6 +50,9 @@ export type EventType =
   | 'error'
 
 export interface Session {
+  /** Display locations set by browser fetchers; the server never sends these. */
+  repository_location?: string
+  workspace_location?: string
   repository_root?: string
   repository?: string
   run_id: string
@@ -356,6 +359,8 @@ export type HealthResponse = Readonly<{
   journal_mode: string
   sessions: number
   poll_ms: number
+  redact_paths: boolean
+  home_dir: string
   /** Every watched tree, including any that could not be opened. */
   workspaces: WorkspaceInfo[]
 }>

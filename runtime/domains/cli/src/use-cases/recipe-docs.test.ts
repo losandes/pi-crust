@@ -169,6 +169,11 @@ test(
     // when
     const flags = recipeDoc('observe')?.flags
     // then
+    expect(recipeDoc('observe')?.env).toContainEqual({
+      name: 'CRUST_REDACT_PATHS',
+      detail:
+        'false shows full filesystem paths; any other value, or none, hides them',
+    })
     expect(flags).toContainEqual({
       name: '--open',
       detail:

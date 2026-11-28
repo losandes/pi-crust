@@ -1,78 +1,169 @@
-import { afterEach, expect, test } from 'bun:test'
-import type { EventRow } from '../typedefs/event'
-import { fetchEvents } from './fetch-events'
+import { expect, mock, test } from 'bun:test'
+import { createRedactor, type TRedactionStore } from '@/lib/redaction'
+import type { EventRow, EventsPage } from '../typedefs/event'
+import { createFetchEvents } from './fetch-events'
 
-let originalFetch: typeof fetch
-
-afterEach(() => {
-  // biome-ignore lint/plugin/no-object-mutation: globalThis.fetch is the external seam these tests stub; this is the adapter that owns the assignment
-  globalThis.fetch = originalFetch
+const event = (rowid: number): EventRow => ({
+  rowid,
+  event_id: `event-${rowid}`,
+  run_id: 'run',
+  activity_run_id: 'build',
+  parent_id: '',
+  type: 'tool_call',
+  name: '',
+  payload_json: '{}',
+  tokens: 0,
+  started_at: '2026-01-01T00:00:00Z',
+  ended_at: '2026-01-01T00:00:00Z',
 })
 
-originalFetch = globalThis.fetch
+const redactor = createRedactor({ enabled: true, home: '/Users/ada' }).forRun({
+  repository_root: '/srv/app',
+})
+const store: TRedactionStore = {
+  base: async () => redactor,
+  forRun: async () => redactor,
+  remember: () => {},
+}
+const pages: readonly (readonly [unknown, number, EventsPage])[] = [
+  [
+    { events: [event(3)] },
+    500,
+    { events: [event(3)], cursor: 0, has_more: false },
+  ],
+  [
+    [event(2), event(5)],
+    500,
+    { events: [event(2), event(5)], cursor: 5, has_more: false },
+  ],
+  [[event(1)], 1, { events: [event(1)], cursor: 1, has_more: true }],
+  [{}, 500, { events: [], cursor: 0, has_more: false }],
+  [
+    { events: [], cursor: 7, has_more: true },
+    500,
+    { events: [], cursor: 7, has_more: true },
+  ],
+]
+for (const [body, limit, expected] of pages) {
+  test(
+    [
+      `given events ${JSON.stringify(body)}`,
+      'when fetching a paged or legacy response',
+      'it should retain pagination and defaults',
+    ].join(', '),
+    async () => {
+      // given
+      const request = mock<
+        (...args: Parameters<typeof fetch>) => Promise<Response>
+      >().mockResolvedValue(Response.json(body))
 
-const stubFetch = (body: unknown) => {
-  // biome-ignore lint/plugin/no-object-mutation: globalThis.fetch is the external seam these tests stub; this is the adapter that owns the assignment
-  globalThis.fetch = (async () =>
-    ({
-      ok: true,
-      status: 200,
-      json: async () => body,
-    }) as Response) as unknown as typeof fetch
+      // when
+      const actual = await createFetchEvents(store, request)(
+        'run',
+        0,
+        limit,
+        'tree',
+      )
+      // then
+      expect(actual).toEqual(expected)
+    },
+  )
 }
 
 test(
   [
-    'given domains/events::fetchEvents',
-    'when the server answers with a paged object',
-    'it should pass the page through, defaulting missing fields',
+    'given event display text and identity fields',
+    'when fetching events',
+    'it should redact only name and payload and use the workspace address',
   ].join(', '),
   async () => {
     // given
-    const event = { rowid: 3 } as EventRow
-    stubFetch({ events: [event] })
+    const recorded = {
+      ...event(3),
+      name: '/srv/app/x',
+      payload_json: '{"path":"/Users/ada/x"}',
+      event_id: '/srv/app/x',
+    }
+    const request = mock<
+      (...args: Parameters<typeof fetch>) => Promise<Response>
+    >().mockResolvedValue(Response.json({ events: [recorded] }))
+    const addressed: TRedactionStore = {
+      ...store,
+      forRun: (address) => {
+        expect(address).toEqual({ runId: 'run', workspace: 'one' })
+        return Promise.resolve(redactor)
+      },
+    }
 
     // when
-    const actual = await fetchEvents('run-1', 0)
-
+    const actual = await createFetchEvents(addressed, request)(
+      'run',
+      0,
+      500,
+      'one',
+    )
     // then
-    expect(actual).toEqual({ events: [event], cursor: 0, has_more: false })
+    expect(actual.events).toEqual([
+      {
+        ...recorded,
+        name: '<repo>/x',
+        payload_json: '{"path":"~/x"}',
+      },
+    ])
   },
 )
 
 test(
   [
-    'given domains/events::fetchEvents',
-    'when the server answers with a bare array (a server too old to page)',
-    'it should derive the cursor from the highest rowid seen',
+    'given a rejecting store',
+    'when events have content',
+    'it should propagate the same rejection',
   ].join(', '),
   async () => {
     // given
-    const events = [{ rowid: 2 }, { rowid: 5 }] as EventRow[]
-    stubFetch(events)
+    const failure = new Error('health unavailable')
+    const request = mock<
+      (...args: Parameters<typeof fetch>) => Promise<Response>
+    >().mockResolvedValue(Response.json([{ rowid: 1 }]))
 
-    // when
-    const actual = await fetchEvents('run-1', 0, 500, 'tree')
-
-    // then
-    expect(actual).toEqual({ events, cursor: 5, has_more: false })
+    // when, then
+    await expect(
+      createFetchEvents(
+        {
+          ...store,
+          forRun: () => {
+            return Promise.reject(failure)
+          },
+        },
+        request,
+      )('run', 0),
+    ).rejects.toBe(failure)
   },
 )
 
 test(
   [
-    'given domains/events::fetchEvents',
-    'when the page is exactly as large as the limit',
-    'it should report that more may follow',
+    'given a failed event response',
+    'when fetching events',
+    'it should throw before requesting roots',
   ].join(', '),
   async () => {
     // given
-    stubFetch([{ rowid: 1 }] as EventRow[])
+    const request = mock<
+      (...args: Parameters<typeof fetch>) => Promise<Response>
+    >().mockResolvedValue(new Response('', { status: 503 }))
 
-    // when
-    const actual = await fetchEvents('run-1', 0, 1)
-
-    // then
-    expect(actual.has_more).toBe(true)
+    // when, then
+    await expect(
+      createFetchEvents(
+        {
+          ...store,
+          forRun: () => {
+            return Promise.reject(new Error('must not ask'))
+          },
+        },
+        request,
+      )('run', 0),
+    ).rejects.toThrow('503')
   },
 )

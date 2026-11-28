@@ -108,6 +108,11 @@ const attemptPage = async (
   // first, so this catches every other /api/* call (the per-card events
   // poll) before it reaches a real server that isn't running.
   await page.route('**/api/**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/health', (route) =>
+    route.fulfill({
+      json: { ok: true, poll_ms: 500, redact_paths: false, home_dir: '' },
+    }),
+  )
   await page.route('**/api/sessions*', (route) => {
     const url = new URL(route.request().url())
     const sessions =

@@ -66,6 +66,7 @@ test.skipIf(SKIP_INTEGRATION)(
       CRUST_UI_HOST: '127.0.0.1',
       CRUST_FE_PORT: '0',
       CRUST_TOKEN: 'fixture-token',
+      CRUST_REDACT_PATHS: '',
       HOME: home,
       CRUST_MACHINE_CONFIG: join(home, 'machine'),
       CRUST_HOME: dirname(runtime),
@@ -128,6 +129,10 @@ test.skipIf(SKIP_INTEGRATION)(
         '/',
       ])
         await request(path, 200)
+      expect(JSON.parse(await request('/api/health', 200))).toMatchObject({
+        redact_paths: true,
+        home_dir: home,
+      })
       const workspaces = JSON.parse(await request('/api/workspaces', 200))
       await request(
         `/api/sessions?workspace=${encodeURIComponent(workspaces[0].label)}`,

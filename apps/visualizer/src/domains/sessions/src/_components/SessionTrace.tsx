@@ -400,7 +400,7 @@ export const createSessionTrace =
             <StatusChip status={session.status ?? 'fail'} />
             <span
               data-testid="session-repository"
-              title={session.repository_root || 'repository not recorded'}
+              title={session.repository_location || 'repository not recorded'}
               className="truncate text-dim"
             >
               {resolveRepositoryLabel(session)}

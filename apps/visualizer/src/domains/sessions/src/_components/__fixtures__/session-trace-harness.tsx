@@ -236,6 +236,15 @@ window.fetch = new Proxy(window.fetch, {
       input instanceof Request ? input.url : String(input),
       window.location.href,
     )
+    if (url.pathname === '/api/health')
+      return Promise.resolve(
+        Response.json({
+          ok: true,
+          poll_ms: 500,
+          redact_paths: false,
+          home_dir: '',
+        }),
+      )
     if (url.pathname === `/api/sessions/${runId}`) {
       if (state === 'loading') return new Promise<Response>(() => {})
       if (state === 'error') {

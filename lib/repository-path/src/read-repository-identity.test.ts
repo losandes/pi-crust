@@ -73,6 +73,8 @@ test.skipIf(SKIP_INTEGRATION)(
         'user.name=test',
         '-c',
         'user.email=test@example.com',
+        '-c',
+        'commit.gpgsign=false',
         'commit',
         '--allow-empty',
         '-m',

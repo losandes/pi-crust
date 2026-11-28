@@ -2,6 +2,18 @@
 
 The event schema, the nine SQLite tables, and the polling contract — the one data path is **agents → sqlite → web ui**.
 
+## Hiding filesystem paths
+
+The visualizer hides the home directory and each run's recorded repository and working-tree roots in displayed text and tooltips by default. It uses `<repo>` for the repository, `<worktree>` for a different working tree, `~` for home, and `<path>` for a cut-off root. Repository and branch tooltips show shortened display locations; repository filters still select by the recorded root.
+
+To see full filesystem paths, start it with:
+
+```sh
+CRUST_REDACT_PATHS=false crust observe
+```
+
+Only the exact value `false` turns redaction off. To restore it, restart `crust observe` without that value and reload the page. The browser waits for the API's setting before displaying run data. API responses and recorded data keep their full paths; this protects the visualizer's page, not the network inspector or a raw document opened in another tab.
+
 ## Two stores, one truth
 
 **Files are the raw record** (`raw_output.jsonl` streams, `envelope.json`, `agent_map.json`); **SQLite (`crust.db`) is the queryable mirror** the UI reads. `trace-db.ts` writes both. Losing the db loses nothing that can't be rebuilt from files.

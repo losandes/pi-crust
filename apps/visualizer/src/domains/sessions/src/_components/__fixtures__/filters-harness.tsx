@@ -6,7 +6,7 @@
  */
 import { createRoot } from 'react-dom/client'
 import '@/style.css'
-import { SessionsList } from '../SessionsList'
+import { SessionsList } from '../../../index'
 
 const el = document.getElementById('app')
 if (el) createRoot(el).render(<SessionsList />)

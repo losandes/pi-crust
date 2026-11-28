@@ -1,4 +1,4 @@
-export { fetchEvents } from './src/io/fetch-events'
+export { createFetchEvents, fetchEvents } from './src/io/fetch-events'
 export type {
   AgentEndPayload,
   AgentStartPayload,

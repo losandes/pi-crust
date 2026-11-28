@@ -178,10 +178,14 @@ const withStyles = (check: (page: Page) => Promise<void>, surfaces = false) => {
       page.setDefaultNavigationTimeout(8_000)
       await page.route('**/api/**', (route) =>
         route.fulfill({
-          json: {
-            present: true,
-            markdown: '# Waiting for you\n\nPlease decide.\n\n- One\n- Two',
-          },
+          json:
+            new URL(route.request().url()).pathname === '/api/health'
+              ? { ok: true, poll_ms: 500, redact_paths: false, home_dir: '' }
+              : {
+                  present: true,
+                  markdown:
+                    '# Waiting for you\n\nPlease decide.\n\n- One\n- Two',
+                },
         }),
       )
       await page.route(

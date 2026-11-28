@@ -139,6 +139,35 @@ const withTrace = async (
     await GlobalRegistrator.unregister()
   }
 }
+for (const location of ['…/fixture', undefined]) {
+  test(
+    [
+      `given a trace with repository location ${location}`,
+      'when rendering its header',
+      'it should use only the safe display tooltip',
+    ].join(', '),
+    async () => {
+      // given
+      const trace = fixture()
+      const input = {
+        ...trace,
+        session: trace.session
+          ? { ...trace.session, repository_location: location }
+          : undefined,
+      }
+      // when
+      await withTrace(input, (container) => {
+        // then
+        expect(
+          container
+            .querySelector('[data-testid=session-repository]')
+            ?.getAttribute('title'),
+        ).toBe(location ?? 'repository not recorded')
+      })
+    },
+  )
+}
+
 const codeButtons = (container: HTMLDivElement) => {
   const label = [...container.querySelectorAll('span')].find(
     (span) => span.textContent === 'code',
