@@ -8,7 +8,7 @@
 import type { SessionSummary } from '@shared/types'
 import { createRoot } from 'react-dom/client'
 import '@/style.css'
-import { SessionCard } from '../SessionCard'
+import { SessionCard } from '../../../index'
 
 const now = Date.now()
 const LONG_BRANCH = `feature/${'x'.repeat(112)}`
@@ -16,6 +16,8 @@ const LONG_BRANCH = `feature/${'x'.repeat(112)}`
 const session: SessionSummary = {
   run_id: 'run-diag-1',
   repository_root: '/repos/alpha',
+  repository_location: '/repos/alpha',
+  workspace_location: '/repo/a',
   repository: 'alpha',
   lifecycle: 'plan + build',
   request: 'diagnose the card layout',
@@ -87,6 +89,7 @@ mount('unrecorded', 'blue', {
   branch: null,
   workspace: 'pi-crust',
   repository_root: undefined,
+  repository_location: undefined,
   repository: undefined,
 })
 mount('long', 'blue', { ...session, branch: LONG_BRANCH })

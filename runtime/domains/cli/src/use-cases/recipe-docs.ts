@@ -761,7 +761,13 @@ export const RECIPE_DOCS: readonly TRecipeDoc[] = [
           'fail rather than pick a different port; an installed pi-crust always does',
       },
     ],
-    env: [],
+    env: [
+      {
+        name: 'CRUST_REDACT_PATHS',
+        detail:
+          'false shows full filesystem paths; any other value, or none, hides them',
+      },
+    ],
     examples: [
       'crust observe',
       'crust observe --host',

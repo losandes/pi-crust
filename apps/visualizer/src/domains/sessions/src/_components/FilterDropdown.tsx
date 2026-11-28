@@ -17,6 +17,7 @@ export const FilterDropdown = (
     open: boolean
     /** The text shown for an option; the option itself when absent. */
     labelOf?: (option: string) => string
+    titleOf?: (option: string) => string
     /** A per-option colour, for the tree category only. */
     colorOf?: (option: string) => string | undefined
     onOpen: (open: boolean) => void
@@ -31,6 +32,7 @@ export const FilterDropdown = (
     open,
     colorOf,
     labelOf,
+    titleOf,
     onOpen,
     onToggle,
     onSelectAll,
@@ -94,7 +96,7 @@ export const FilterDropdown = (
               />
               <span
                 className="min-w-0 break-words"
-                title={labelOf ? option : undefined}
+                title={titleOf?.(option)}
                 style={
                   colorOf
                     ? { color: paletteColor(colorOf(option) ?? 'blue') }

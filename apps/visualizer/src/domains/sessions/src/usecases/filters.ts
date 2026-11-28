@@ -93,6 +93,17 @@ export const cleared = (filters: TFilters, key: TFilterKey): TFilters => ({
   [key]: [],
 })
 
+export const locationsOf = (
+  sessions: readonly SessionSummary[],
+): ReadonlyMap<string, string> =>
+  new Map(
+    sessions.flatMap((session) =>
+      session.repository_root && session.repository_location
+        ? [[session.repository_root, session.repository_location] as const]
+        : [],
+    ),
+  )
+
 /** Case-insensitive substring match over option rows only. */
 export const matchingOptions = (
   options: readonly string[],

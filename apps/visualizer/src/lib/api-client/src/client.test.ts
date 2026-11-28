@@ -1,165 +1,153 @@
-import { afterEach, expect, test } from 'bun:test'
-import { getJson, post, scope } from './client'
+import { expect, mock, test } from 'bun:test'
+import { createRedactor, type TRedactionStore } from '@/lib/redaction'
+import { createGetJson, createPost, scope } from './client'
 
-let originalFetch: typeof fetch
+const redactor = createRedactor({ enabled: true, home: '/Users/ada' })
+const store: TRedactionStore = {
+  base: async () => redactor,
+  forRun: async () => redactor,
+  remember: () => {},
+}
+for (const [workspace, separator, expected] of [
+  [undefined, '?', ''],
+  ['', '?', ''],
+  ['my tree', '&', '&workspace=my%20tree'],
+] as const) {
+  test(
+    [
+      `given workspace ${workspace}`,
+      'when scoping a request',
+      'it should encode only a known workspace',
+    ].join(', '),
+    () => {
+      // given
+      // when
+      const actual = scope(workspace, separator)
+      // then
+      expect(actual).toBe(expected)
+    },
+  )
+}
+for (const status of [200, 503]) {
+  test(
+    [
+      `given a GET response with status ${status}`,
+      'when fetching JSON',
+      'it should return the body or name the failed URL and status',
+    ].join(', '),
+    async () => {
+      // given
+      const request = mock<
+        (...args: Parameters<typeof fetch>) => Promise<Response>
+      >().mockResolvedValue(Response.json({ hello: 'world' }, { status }))
 
-afterEach(() => {
-  // biome-ignore lint/plugin/no-object-mutation: globalThis.fetch is the external seam these tests stub; this is the adapter that owns the assignment
-  globalThis.fetch = originalFetch
-})
+      // when, then
+      if (status === 200)
+        expect(await createGetJson(request)('/api/anything')).toEqual({
+          hello: 'world',
+        })
+      else
+        await expect(createGetJson(request)('/api/down')).rejects.toThrow(
+          '/api/down → 503',
+        )
+    },
+  )
+}
+for (const [body, expected] of [
+  ['{"id":1}', { id: 1 }],
+  ['', {}],
+] as const) {
+  test(
+    [
+      `given a successful write body ${body}`,
+      'when posting',
+      'it should settle with the parsed body or an empty object',
+    ].join(', '),
+    async () => {
+      // given
+      const request = mock<
+        (...args: Parameters<typeof fetch>) => Promise<Response>
+      >().mockResolvedValue(new Response(body))
 
-originalFetch = globalThis.fetch
+      // when
+      const actual = await createPost(store, request)('/api/write', {
+        note: 'hi',
+      })
+      // then
+      expect(actual).toEqual({ ok: true, data: expected })
+    },
+  )
+}
+for (const available of [true, false]) {
+  test(
+    [
+      `given write failure and health available ${available}`,
+      'when explaining the failure',
+      'it should redact the body or omit it entirely',
+    ].join(', '),
+    async () => {
+      // given
+      const request = mock<
+        (...args: Parameters<typeof fetch>) => Promise<Response>
+      >().mockResolvedValue(
+        new Response('Failed /Users/ada/private/x', { status: 500 }),
+      )
+      const configured = available
+        ? store
+        : {
+            ...store,
+            base: () => {
+              return Promise.reject(new Error('offline'))
+            },
+          }
 
-const stubFetch = (
-  response: Readonly<{ ok: boolean; status?: number; body: unknown }>,
-) => {
-  // biome-ignore lint/plugin/no-object-mutation: globalThis.fetch is the external seam these tests stub; this is the adapter that owns the assignment
-  globalThis.fetch = (async () =>
-    ({
-      ok: response.ok,
-      status: response.status ?? (response.ok ? 200 : 500),
-      json: async () => response.body,
-      text: async () =>
-        typeof response.body === 'string'
-          ? response.body
-          : JSON.stringify(response.body),
-    }) as Response) as unknown as typeof fetch
+      // when
+      const actual = await createPost(configured, request)('/api/write', {})
+      // then
+      expect(actual).toEqual({
+        ok: false,
+        problem: available ? 'Failed ~/private/x' : 'Request failed (500).',
+      })
+    },
+  )
 }
 
 test(
   [
-    'given lib/api-client::scope',
-    'when no workspace is known',
-    'it should contribute nothing to the URL',
-  ].join(', '),
-  () => {
-    // given, when
-    const actual = scope(undefined)
-
-    // then
-    expect(actual).toBe('')
-  },
-)
-
-test(
-  [
-    'given lib/api-client::scope',
-    'when a workspace is known',
-    'it should encode it behind the given separator',
-  ].join(', '),
-  () => {
-    // given, when
-    const actual = scope('my tree', '&')
-
-    // then
-    expect(actual).toBe('&workspace=my%20tree')
-  },
-)
-
-test(
-  [
-    'given lib/api-client::getJson',
-    'when the server answers with a body',
-    'it should resolve with the parsed JSON',
+    'given a refused write',
+    'when posting with an injected store',
+    'it should preserve the authentication explanation',
   ].join(', '),
   async () => {
     // given
-    stubFetch({ ok: true, body: { hello: 'world' } })
+    const request = mock<
+      (...args: Parameters<typeof fetch>) => Promise<Response>
+    >().mockResolvedValue(new Response('', { status: 401 }))
 
     // when
-    const actual = await getJson('/api/anything')
-
-    // then
-    expect(actual).toEqual({ hello: 'world' })
-  },
-)
-
-test(
-  [
-    'given lib/api-client::getJson',
-    'when the server answers with a failing status',
-    'it should throw an error naming the URL and status',
-  ].join(', '),
-  async () => {
-    // given
-    stubFetch({ ok: false, status: 503, body: {} })
-
-    // when, then
-    await expect(getJson('/api/down')).rejects.toThrow('/api/down → 503')
-  },
-)
-
-test(
-  [
-    'given lib/api-client::post',
-    'when the write succeeds with a body',
-    'it should settle ok with the parsed response',
-  ].join(', '),
-  async () => {
-    // given
-    stubFetch({ ok: true, body: { id: 1 } })
-
-    // when
-    const actual = await post('/api/write', { note: 'hi' })
-
-    // then
-    expect(actual).toEqual({ ok: true, data: { id: 1 } })
-  },
-)
-
-test(
-  [
-    'given lib/api-client::post',
-    'when the write succeeds with an empty body',
-    'it should settle ok with an empty object',
-  ].join(', '),
-  async () => {
-    // given
-    stubFetch({ ok: true, body: '' })
-
-    // when
-    const actual = await post('/api/write', {})
-
-    // then
-    expect(actual).toEqual({ ok: true, data: {} })
-  },
-)
-
-test(
-  [
-    'given lib/api-client::post',
-    'when the server refuses the write',
-    'it should settle not-ok with the explained failure',
-  ].join(', '),
-  async () => {
-    // given
-    stubFetch({ ok: false, status: 401, body: '' })
-
-    // when
-    const actual = await post('/api/write', {})
-
+    const actual = await createPost(store, request)('/api/write', {})
     // then
     expect(actual.ok).toBe(false)
   },
 )
+for (const cause of [new Error('offline'), 'offline']) {
+  test(
+    [
+      `given a network rejection ${typeof cause}`,
+      'when posting',
+      'it should retain the thrown-error settlement',
+    ].join(', '),
+    async () => {
+      // given
+      const request =
+        mock<
+          (...args: Parameters<typeof fetch>) => Promise<Response>
+        >().mockRejectedValue(cause)
 
-test(
-  [
-    'given lib/api-client::post',
-    'when the network itself fails',
-    'it should settle not-ok with the thrown message',
-  ].join(', '),
-  async () => {
-    // given
-    // biome-ignore lint/plugin/no-object-mutation: globalThis.fetch is the external seam these tests stub; this is the adapter that owns the assignment
-    globalThis.fetch = (() => {
-      throw new Error('offline')
-    }) as unknown as typeof fetch
-
-    // when
-    const actual = await post('/api/write', {})
-
-    // then
-    expect(actual).toEqual({ ok: false, problem: 'offline' })
-  },
-)
+      // when
+      const actual = await createPost(store, request)('/api/write', {})
+      // then
+      expect(actual).toEqual({ ok: false, problem: 'offline' })
+    },
+  )
+}

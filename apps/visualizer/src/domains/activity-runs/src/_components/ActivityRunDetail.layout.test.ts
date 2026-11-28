@@ -54,29 +54,32 @@ const withDetail = (
       page.setDefaultNavigationTimeout(10_000)
       await page.route('**/api/**', (route) => {
         const path = new URL(route.request().url()).pathname
-        const body = path.endsWith('/themes')
-          ? {
-              themes: [
-                ...['auto', 'dark', 'light'].map((name) => ({
-                  name,
-                  label: name[0]?.toUpperCase() + name.slice(1),
-                  builtin: true,
-                  css: '',
-                })),
-                {
-                  name: 'high-contrast',
-                  label: 'High contrast',
-                  builtin: true,
-                  css: '',
-                },
-              ],
-            }
-          : path.endsWith('/prompts')
-            ? {
-                system: '# Instructions\n\nKeep every detail readable.',
-                user: '# Request\n\nA compiled prompt.',
-              }
-            : []
+        const body =
+          path === '/api/health'
+            ? { ok: true, poll_ms: 500, redact_paths: false, home_dir: '' }
+            : path.endsWith('/themes')
+              ? {
+                  themes: [
+                    ...['auto', 'dark', 'light'].map((name) => ({
+                      name,
+                      label: name[0]?.toUpperCase() + name.slice(1),
+                      builtin: true,
+                      css: '',
+                    })),
+                    {
+                      name: 'high-contrast',
+                      label: 'High contrast',
+                      builtin: true,
+                      css: '',
+                    },
+                  ],
+                }
+              : path.endsWith('/prompts')
+                ? {
+                    system: '# Instructions\n\nKeep every detail readable.',
+                    user: '# Request\n\nA compiled prompt.',
+                  }
+                : []
         return route.fulfill({ json: body })
       })
       await page.route('**/__diag__/index.html*', async (route) =>

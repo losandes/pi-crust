@@ -3,7 +3,7 @@ import '@fontsource/play/400.css'
 import '@fontsource/play/700.css'
 import '@/style.css'
 import DefaultLayout from '@/layouts/default-layout'
-import { SessionsList } from '../SessionsList'
+import { SessionsList } from '../../../index'
 
 const query = new URLSearchParams(window.location.search)
 const overflow = query.has('overflow')
@@ -129,6 +129,15 @@ window.fetch = new Proxy(window.fetch, {
       input instanceof Request ? input.url : String(input),
       window.location.href,
     )
+    if (url.pathname === '/api/health')
+      return Promise.resolve(
+        Response.json({
+          ok: true,
+          poll_ms: 500,
+          redact_paths: false,
+          home_dir: '',
+        }),
+      )
     const body =
       url.pathname === '/api/sessions'
         ? sessions

@@ -14,12 +14,63 @@ import type { SessionSummary } from '../typedefs/session'
 import {
   cleared,
   isOptimisticallyHidden,
+  locationsOf,
   matchesFilters,
   matchingOptions,
   needsArchived,
   optionsFor,
   toggled,
 } from './filters'
+
+test(
+  [
+    'given sessions with and without display locations',
+    'when mapping repository locations',
+    'it should include only recorded roots with a location',
+  ].join(', '),
+  () => {
+    // given
+    const rows = [
+      session({ repository_root: '/srv/a', repository_location: '…/a' }),
+      session({ repository_root: '/srv/b' }),
+      session({ repository_location: '…/c' }),
+    ]
+    // when
+    const actual = locationsOf(rows)
+    // then
+    expect([...actual]).toEqual([['/srv/a', '…/a']])
+  },
+)
+
+for (const enabled of [true, false]) {
+  test(
+    [
+      `given colliding display locations with redaction ${enabled}`,
+      'when filtering by a raw repository root',
+      'it should select only that repository',
+    ].join(', '),
+    () => {
+      // given
+      const roots = ['/srv/acme/app', '/mnt/acme/app']
+      const rows = roots.map((root) =>
+        session({
+          repository_root: root,
+          repository_location: enabled ? '…/acme/app' : root,
+        }),
+      )
+      const filters = { ...DEFAULT_FILTERS, repository: ['/srv/acme/app'] }
+      // when, then
+      expect(optionsFor(rows, 'repository')).toEqual([
+        '/mnt/acme/app',
+        '/srv/acme/app',
+      ])
+      expect(rows.map((row) => matchesFilters(row, filters))).toEqual([
+        true,
+        false,
+      ])
+    },
+  )
+}
 
 const session = (overrides: Partial<SessionSummary>): SessionSummary =>
   ({

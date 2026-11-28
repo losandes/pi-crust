@@ -1,10 +1,15 @@
+import { redaction, type TRedactionStore } from '@/lib/redaction'
 import { authHeaders, explainWriteFailure } from './token-store'
 
-export async function getJson(url: string): Promise<unknown> {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`)
-  return res.json()
-}
+export const createGetJson =
+  (request?: (...args: Parameters<typeof fetch>) => Promise<Response>) =>
+  async (url: string): Promise<unknown> => {
+    const res = await (request ?? fetch)(url)
+    if (!res.ok) throw new Error(`GET ${url} → ${res.status}`)
+    return res.json()
+  }
+
+export const getJson = createGetJson()
 
 /**
  * The workspace a request is about, as a query string.
@@ -32,26 +37,37 @@ export type TWriteResult =
   | Readonly<{ ok: true; data: unknown }>
   | Readonly<{ ok: false; problem: string }>
 
-export const post = async (
-  url: string,
-  body: unknown,
-): Promise<TWriteResult> => {
-  // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a network failure or a malformed response into the settlement every caller already reads
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...authHeaders() },
-      body: JSON.stringify(body),
-    })
-    const text = await response.text()
-    if (!response.ok) {
-      return { ok: false, problem: explainWriteFailure(response.status, text) }
-    }
-    return { ok: true, data: text === '' ? {} : JSON.parse(text) }
-  } catch (cause) {
-    return {
-      ok: false,
-      problem: cause instanceof Error ? cause.message : String(cause),
+export const createPost =
+  (
+    store: TRedactionStore,
+    request?: (...args: Parameters<typeof fetch>) => Promise<Response>,
+  ) =>
+  async (url: string, body: unknown): Promise<TWriteResult> => {
+    // biome-ignore lint/plugin/no-intermediate-try-catch: this IS the boundary, converting a network failure or a malformed response into the settlement every caller already reads
+    try {
+      const response = await (request ?? fetch)(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(body),
+      })
+      const text = await response.text()
+      if (!response.ok) {
+        const safeText = await store.base().then(
+          (redactor) => redactor.text(text),
+          () => '',
+        )
+        return {
+          ok: false,
+          problem: explainWriteFailure(response.status, safeText),
+        }
+      }
+      return { ok: true, data: text === '' ? {} : JSON.parse(text) }
+    } catch (cause) {
+      return {
+        ok: false,
+        problem: cause instanceof Error ? cause.message : String(cause),
+      }
     }
   }
-}
+
+export const post = createPost(redaction)

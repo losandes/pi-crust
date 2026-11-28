@@ -83,7 +83,7 @@ const fixture = (
   const deps: TObserveDeps = {
     app: '/app',
     execPath: '/bin/node',
-    env: { KEEP: 'yes', CRUST_UI_HOST: 'unsafe' },
+    env: { KEEP: 'yes', CRUST_UI_HOST: 'unsafe', CRUST_REDACT_PATHS: 'false' },
     exists: (path) =>
       path ===
         `/app/server/index.${mode === 'source' ? 'ts' : mode === 'built' ? 'js' : 'none'}` ||
@@ -152,7 +152,11 @@ test(
       {
         command: 'bun',
         args: ['install'],
-        options: { cwd: '/app', env: { KEEP: 'yes' }, encoding: 'utf8' },
+        options: {
+          cwd: '/app',
+          env: { KEEP: 'yes', CRUST_REDACT_PATHS: 'false' },
+          encoding: 'utf8',
+        },
       },
       ...[
         { command: 'bun', args: ['run', 'server/index.ts'] },
@@ -164,6 +168,7 @@ test(
           stdio: 'inherit',
           env: {
             KEEP: 'yes',
+            CRUST_REDACT_PATHS: 'false',
             CRUST_DB: '/data/crust.db',
             CRUST_BE_PORT: '4600',
             CRUST_FE_PORT: '4601',
@@ -206,6 +211,7 @@ for (const row of [
             stdio: 'inherit',
             env: {
               KEEP: 'yes',
+              CRUST_REDACT_PATHS: 'false',
               CRUST_DB: '/data/crust.db',
               CRUST_UI_HOST: row.host,
               CRUST_BE_PORT: '4600',

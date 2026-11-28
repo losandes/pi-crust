@@ -223,6 +223,7 @@ This lookup does not contact a remote or repair refs. A run's recorded starting 
 | `CRUST_BE_PORT`, `CRUST_FE_PORT` | Valid positive port numbers override configured ports. Invalid values leave the configured value in force.                                 |
 | `CRUST_POLL_MS`                  | Launcher-to-server channel, not a user override. The launcher replaces any existing value with the loaded polling interval.                |
 | `CRUST_HOME`                     | Another pi-crust checkout whose runtime carries out the whole command instead of this package's; a directory without a runtime is refused. |
+| `CRUST_REDACT_PATHS`             | Only `false` shows full filesystem paths in the visualizer. Any other value, or none, hides home and run-root prefixes by default.         |
 
 Blank directory and path overrides read as unset. The machine home is `HOME` when present, otherwise the operating-system home directory.
 
