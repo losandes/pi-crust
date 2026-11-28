@@ -1,5 +1,5 @@
 export type { TWriteResult } from './src/client'
-export { getJson, post, scope } from './src/client'
+export { createGetJson, getJson, post, scope } from './src/client'
 export {
   authHeaders,
   explainWriteFailure,
